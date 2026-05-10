@@ -1,7 +1,7 @@
 # TRACKLYTICS — Documento de Contexto del Proyecto
 
-> **Versión:** 2.0.0
-> **Estado:** Sprint 0 — Planificación y Diseño Inicial
+> **Versión:** 3.0.0
+> **Estado:** Sprint 3 completado — Frontend implementado
 > **Última actualización:** Mayo 2026
 
 ---
@@ -12,15 +12,15 @@
 
 El proyecto se desarrolla en el contexto de una asignatura universitaria relacionada con bases de datos, análisis de datos y desarrollo de sistemas, pero adopta estándares técnicos similares a los utilizados en proyectos reales de ingeniería de software.
 
-Tracklytics utilizará un dataset de Spotify con más de 114.000 registros y 20 columnas relacionadas con canciones, artistas, géneros y características de audio.
+Tracklytics utiliza un dataset de Spotify con más de 114.000 registros y 20 columnas relacionadas con canciones, artistas, géneros y características de audio.
 
-El sistema estará enfocado principalmente en:
+El sistema cubre:
 
 * Ingeniería de datos
 * Modelado relacional
 * Procesos ETL
 * APIs REST
-* Dashboards analíticos
+* Dashboards analíticos interactivos
 * Consultas de inteligencia de negocio
 
 ---
@@ -63,19 +63,19 @@ Diseñar e implementar una plataforma web de analítica musical que procese dato
 
 # 6. Objetivos Específicos
 
-1. Implementar un proceso ETL completo en Python para procesar el dataset de Spotify.
+1. Implementar un proceso ETL completo en Python para procesar el dataset de Spotify. ✅
 
-2. Diseñar un modelo relacional normalizado en PostgreSQL con al menos 10 tablas relacionadas con el contexto empresarial.
+2. Diseñar un modelo relacional normalizado en PostgreSQL con al menos 10 tablas relacionadas con el contexto empresarial. ✅
 
-3. Desarrollar una API REST utilizando FastAPI para exponer los datos procesados.
+3. Desarrollar una API REST utilizando FastAPI para exponer los datos procesados. ✅
 
-4. Construir dashboards interactivos para análisis de géneros, artistas y características musicales.
+4. Construir dashboards interactivos para análisis de géneros, artistas y características musicales. ✅
 
-5. Implementar consultas analíticas orientadas a inteligencia de negocio.
+5. Implementar consultas analíticas orientadas a inteligencia de negocio. ✅
 
-6. Contenerizar el entorno de desarrollo mediante Docker y Docker Compose.
+6. Contenerizar el entorno de desarrollo mediante Docker y Docker Compose. ✅ (servicio DB)
 
-7. Mantener una arquitectura modular y mantenible durante el desarrollo del proyecto.
+7. Mantener una arquitectura modular y mantenible durante el desarrollo del proyecto. ✅
 
 ---
 
@@ -91,7 +91,7 @@ Muchos procesos de análisis musical se realizan manualmente o utilizando métri
 * Evaluar características de audio
 * Generar reportes estructurados
 
-Tracklytics busca centralizar y analizar esta información mediante herramientas de ingeniería de datos y visualización analítica.
+Tracklytics centraliza y analiza esta información mediante herramientas de ingeniería de datos y visualización analítica.
 
 ---
 
@@ -99,18 +99,17 @@ Tracklytics busca centralizar y analizar esta información mediante herramientas
 
 ## Python
 
-Python será el núcleo del proyecto debido a su ecosistema para análisis y procesamiento de datos:
+Python es el núcleo del proyecto debido a su ecosistema para análisis y procesamiento de datos:
 
 * Pandas
 * SQLAlchemy
 * FastAPI
-* Plotly
 
-Además, el docente estableció que todo movimiento de datos debe realizarse desde Python.
+El docente estableció que todo movimiento de datos debe realizarse desde Python.
 
 ## PostgreSQL
 
-PostgreSQL será utilizado como base de datos principal debido a:
+PostgreSQL es utilizado como base de datos principal debido a:
 
 * Soporte para grandes volúmenes de datos
 * Robustez relacional
@@ -119,90 +118,106 @@ PostgreSQL será utilizado como base de datos principal debido a:
 
 ## Docker
 
-Docker permitirá crear un entorno reproducible y portable para todos los servicios del sistema.
+Docker crea un entorno reproducible y portable para el servicio de base de datos.
 
 ## FastAPI
 
-FastAPI facilitará:
+FastAPI provee:
 
 * Creación rápida de APIs REST
 * Validación automática
 * Documentación Swagger
 * Integración con Python moderno
+* Servido de archivos estáticos del frontend
+
+## JavaScript (Vanilla)
+
+El frontend se implementó con HTML + CSS + JavaScript puro (sin frameworks), con módulos ES nativos. Plotly.js (CDN) se usa para los gráficos interactivos. Los tests unitarios de JS se ejecutan con Vitest.
 
 ---
 
 # 9. Stack Tecnológico
 
-| Componente           | Tecnología            |
-| -------------------- | --------------------- |
-| Lenguaje principal   | Python 3.11+          |
-| Backend API          | FastAPI               |
-| Base de datos        | PostgreSQL            |
-| ORM                  | SQLAlchemy            |
-| Procesamiento ETL    | Pandas                |
-| Dashboards           | Plotly                |
-| Contenedores         | Docker                |
-| Orquestación         | Docker Compose        |
-| Frontend             | HTML, CSS, JavaScript |
-| Control de versiones | Git + GitHub          |
+| Componente           | Tecnología                    |
+| -------------------- | ----------------------------- |
+| Lenguaje principal   | Python 3.11+                  |
+| Backend API          | FastAPI                       |
+| Base de datos        | PostgreSQL                    |
+| ORM                  | SQLAlchemy                    |
+| Procesamiento ETL    | Pandas + psycopg2             |
+| Dashboards           | Plotly.js (CDN)               |
+| Contenedores         | Docker                        |
+| Orquestación         | Docker Compose                |
+| Frontend             | HTML, CSS, JavaScript (ESM)   |
+| Testing JS           | Vitest                        |
+| Control de versiones | Git + GitHub                  |
 
 ---
 
 # 10. Arquitectura General
 
-El sistema seguirá una arquitectura monolítica modular dividida en capas:
+El sistema sigue una arquitectura monolítica modular dividida en capas:
 
 ```text
 Dataset CSV
     ↓
-ETL Python
+ETL Python (etl/main.py)
     ↓
-PostgreSQL
+PostgreSQL (vía Docker Compose)
     ↓
-FastAPI REST API
+FastAPI REST API (app/main.py)
     ↓
-Frontend Web + Dashboards
+Frontend Web + Dashboards (app/static/)
 ```
-
-Cada módulo tendrá responsabilidades separadas para facilitar mantenimiento y escalabilidad.
 
 ### Estructura Real del Repositorio
- 
+
 ```
 TRACKLYTICS/
-├── app/                        # Aplicación principal (API + lógica de negocio)
+├── app/
+│   ├── main.py                  # API REST — FastAPI
+│   └── static/                  # Frontend web (servido por FastAPI)
+│       ├── css/styles.css        # Estilos globales (tema oscuro)
+│       ├── index.html            # Dashboard — métricas globales + gráficos
+│       ├── genres.html           # Análisis de géneros
+│       ├── artists.html          # Análisis de artistas
+│       ├── tracks.html           # Explorador de tracks
+│       ├── js/
+│       │   ├── api.js            # Cliente HTTP centralizado
+│       │   ├── index.js          # Lógica del dashboard
+│       │   ├── genres.js         # Lógica de géneros
+│       │   ├── artists.js        # Lógica de artistas
+│       │   ├── tracks.js         # Lógica de tracks
+│       │   └── tests/            # Tests unitarios con Vitest
+│       ├── package.json
+│       └── vitest.config.js
+├── database/
+│   └── schema.sql               # Schema PostgreSQL completo
 ├── dataset/
-│   └── spotify.csv             # Dataset fuente — 114k+ registros, 20 columnas
-├── docker/                     # Configuraciones Docker por servicio
-├── docs/
-│   └── TRACKLYTICS_CONTEXT.md  # Documento de contexto del proyecto (este archivo)
-├── etl/                        # Pipeline ETL: extracción, transformación, carga
-├── notebooks/                  # Jupyter notebooks para exploración y análisis ad-hoc
-├── sql/                        # Scripts SQL: schema, migraciones, seeds, vistas
-├── tests/                      # Suite de pruebas del sistema
-├── .gitignore                  # Excluye __pycache__, *.pyc, .env, venv/, *.log, .DS_Store
-├── docker-compose.yml          # Orquestación de servicios del entorno de desarrollo
-├── README.md                   # Descripción pública del proyecto
-└── requirements.txt            # Dependencias Python del proyecto
+│   └── spotify.csv              # Dataset fuente — 114k+ registros
+├── docs/                        # Documentación técnica del proyecto
+├── etl/
+│   └── main.py                  # Pipeline ETL completo
+├── docker-compose.yml           # Servicio PostgreSQL
+├── requirements.txt             # Dependencias Python
+└── README.md
 ```
- 
+
 ---
 
 # 11. Flujo General del Sistema
 
 1. El dataset CSV es cargado desde Python.
-2. El proceso ETL limpia y transforma los datos.
-3. Los datos se insertan en PostgreSQL.
-4. FastAPI consulta la base de datos.
-5. El frontend consume la API.
-6. Los dashboards presentan métricas y análisis al usuario.
+2. El proceso ETL limpia, transforma y carga los datos en PostgreSQL.
+3. FastAPI consulta la base de datos y expone endpoints REST.
+4. El frontend (archivos estáticos en `app/static/`) consume la API.
+5. Los dashboards Plotly.js presentan métricas y análisis al usuario.
 
 ---
 
 # 12. Descripción del Dataset
 
-El proyecto utilizará un dataset de Spotify con más de 114.000 registros y 20 columnas.
+El proyecto utiliza un dataset de Spotify con 114.000 registros y 20 columnas.
 
 ## Principales columnas
 
@@ -236,229 +251,127 @@ El dataset permite:
 
 ---
 
-# 13. Alcance del MVP
+# 13. Alcance del MVP — Estado Actual
 
-## Incluye
+## Implementado ✅
 
 * Pipeline ETL funcional
-* Base de datos PostgreSQL
-* API REST básica
-* Dashboards analíticos
-* Dockerización
-* Consultas de negocio
-* Modelo relacional normalizado
+* Base de datos PostgreSQL (11 tablas)
+* API REST completa (11 endpoints)
+* Dashboards interactivos (Plotly.js)
+* Frontend web con 4 páginas
+* Docker Compose para la base de datos
 
-## No incluye inicialmente
+## No incluido (fuera de alcance)
 
 * Machine Learning avanzado
 * Recomendaciones en tiempo real
 * Integración con Spotify API
 * Procesamiento distribuido
 * Microservicios
-* Sistemas complejos de autenticación
+* Autenticación de usuarios
 
 ---
 
 # 14. Reglas Técnicas del Proyecto
 
 ## RT-01
-
 Todo movimiento de datos debe realizarse desde Python.
 
 ## RT-02
-
 El dataset debe contener más de 100.000 registros y más de 12 columnas.
 
 ## RT-03
-
 Todos los servicios deben ejecutarse mediante Docker.
 
 ## RT-04
-
 El sistema debe incluir una interfaz web funcional.
 
 ## RT-05
-
 PostgreSQL será la única fuente principal de datos.
 
 ## RT-06
-
 El modelo de datos debe contener al menos 10 tablas relacionadas con el contexto empresarial.
 
 ---
 
 # 15. Módulos Principales
 
-## ETL Engine
+## ETL Engine (`etl/main.py`)
+Extracción, limpieza, validación de rangos, transformación en 10 DataFrames y carga ordenada en PostgreSQL.
 
-Responsable de extracción, limpieza, transformación y carga de datos.
+## Database Layer (`database/schema.sql`)
+Modelo relacional normalizado. 11 tablas (10 del dataset + `etl_logs`).
 
-## Database Layer
+## REST API (`app/main.py`)
+11 endpoints FastAPI. Paginación, filtros, búsqueda y ordenamiento dinámico. Sirve también los archivos estáticos del frontend.
 
-Define el modelo relacional y las relaciones entre entidades.
-
-## REST API
-
-Expone endpoints para consultas y dashboards.
+## Frontend Web (`app/static/`)
+4 páginas HTML con tema oscuro, navegación entre páginas, gráficos Plotly.js interactivos, tablas paginadas y modales de detalle.
 
 ## Analytics Module
-
-Genera métricas y consultas analíticas.
-
-## Dashboard Module
-
-Visualiza información mediante gráficos interactivos.
+`genre_trends` y `artist_stats` como tablas precalculadas. Endpoints `/genre-trends` y `/artist-stats` con ordenamiento configurable.
 
 ---
 
 # 16. Actores del Sistema
 
 ## Analista de Datos
-
-Explora métricas y tendencias musicales.
+Explora métricas y tendencias musicales desde los dashboards.
 
 ## Ejecutivo Musical
-
 Consulta dashboards y reportes estratégicos.
 
 ## Curador Musical
-
-Busca canciones según características de audio.
+Busca canciones según características de audio (filtros por popularidad, explicit, radar de audio features).
 
 ## Administrador
-
 Gestiona procesos ETL y estado del sistema.
 
 ---
 
-# 17. Procesos Empresariales
+# 17. Decisiones Estratégicas Soportadas
 
-1. Ingesta de datos
-2. Procesamiento ETL
-3. Generación de métricas
-4. Visualización de dashboards
-5. Generación de reportes
-6. Consultas analíticas
+El sistema responde preguntas como:
 
----
-
-# 18. Decisiones Estratégicas Soportadas
-
-El sistema permitirá responder preguntas como:
-
-* ¿Qué géneros tienen mayor popularidad?
+* ¿Qué géneros tienen mayor popularidad promedio?
 * ¿Qué características de audio predominan en canciones exitosas?
 * ¿Qué artistas tienen mayor consistencia de popularidad?
 * ¿Cómo varía la energía o danceability entre géneros?
-* ¿Qué géneros muestran mayor crecimiento?
+* ¿Cuántos tracks tiene un artista y cuántos son explícitos?
+* ¿Cuál es el perfil de audio (radar) de una canción específica?
 
 ---
 
-# 19. Modelo Relacional Preliminar
-
-## Tablas principales del MVP
-
-1. tracks
-2. artists
-3. albums
-4. genres
-5. track_artists
-6. audio_profiles
-7. genre_trends
-8. etl_logs
-9. users
-10. business_reports
-
-## Tablas futuras opcionales
-
-* api_logs
-* dashboard_configs
-* artist_segments
-* popularity_snapshots
-
----
-
-# 20. Flujo ETL Preliminar
-
-## Extracción
-
-* Lectura del CSV
-* Validación inicial
-
-## Transformación
-
-* Limpieza de nulos
-* Eliminación de duplicados
-* Normalización de datos
-* Separación de artistas
-
-## Carga
-
-* Inserción en PostgreSQL
-* Validación referencial
-* Registro de logs ETL
-
----
-
-# 21. Criterios de Éxito
-
-El proyecto se considerará exitoso si logra:
-
-* Procesar correctamente el dataset completo
-* Cargar datos desde Python hacia PostgreSQL
-* Ejecutarse mediante Docker
-* Exponer endpoints funcionales
-* Mostrar dashboards interactivos
-* Responder consultas de negocio reales
-
----
-
-# 22. Roadmap Inicial
-
-## Sprint 0
-
-* Estructura del proyecto
-* Configuración Git
-* Docker inicial
-* Diseño de base de datos
-
-## Sprint 1
-
-* Implementación ETL
-* Carga inicial del dataset
-
-## Sprint 2
-
-* Desarrollo API REST
-
-## Sprint 3
-
-* Dashboards y visualizaciones
-
-## Sprint 4
-
-* Integración general
-* Optimización
-* Testing
-* Presentación final
-
----
-
-# 23. Estado Actual
+# 18. Estado Actual
 
 | Componente            | Estado |
 | --------------------- | ------ |
 | Repositorio Git       | ✅      |
 | Dataset               | ✅      |
 | Documento de contexto | ✅      |
-| Diseño de BD          | ⏳      |
-| Docker                | ⏳      |
-| ETL                   | ⏳      |
-| API                   | ⏳      |
-| Frontend              | ⏳      |
+| Diseño de BD          | ✅      |
+| Docker                | ✅ (DB) |
+| ETL                   | ✅      |
+| API                   | ✅      |
+| Frontend              | ✅      |
+| README.md público     | ⏳      |
 
 ---
 
-# 24. Próximo Paso
+# 19. Roadmap
 
-El siguiente paso del proyecto será diseñar formalmente el modelo relacional y definir las relaciones entre las tablas principales antes de iniciar la implementación del pipeline ETL.
+## Sprint 0 ✅
+Estructura del proyecto, configuración Git, Docker inicial, diseño de base de datos.
+
+## Sprint 1 ✅
+Implementación ETL, carga inicial del dataset (607.209 registros insertados).
+
+## Sprint 2 ✅
+Desarrollo API REST — 11 endpoints con FastAPI.
+
+## Sprint 3 ✅
+Frontend web: 4 páginas HTML, CSS tema oscuro, dashboards Plotly.js, modales de detalle.
+
+## Sprint 4 ⏳
+Integración general, optimización, testing, README público, presentación final.

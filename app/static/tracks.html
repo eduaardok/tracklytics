@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tracklytics — Tracks</title>
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+  <header class="app-header">
+    <span class="brand">Tracklytics</span>
+    <nav>
+      <a href="index.html" class="nav-link">Dashboard</a>
+      <a href="genres.html" class="nav-link">Genres</a>
+      <a href="artists.html" class="nav-link">Artists</a>
+      <a href="tracks.html" class="nav-link">Tracks</a>
+      <a href="admin.html" class="nav-link">Admin</a>
+    </nav>
+  </header>
+
+  <main class="page-content">
+    <h1 class="page-title">Track Explorer</h1>
+
+    <section class="filters-section">
+      <div class="card filters-card">
+        <div class="filter-group">
+          <label for="popularity-slider" class="filter-label">
+            Min Popularity: <span id="popularity-value">0</span>
+          </label>
+          <input
+            type="range"
+            id="popularity-slider"
+            class="range-slider"
+            min="0"
+            max="100"
+            value="0"
+            aria-label="Minimum popularity filter"
+          >
+        </div>
+        <div class="filter-group">
+          <label class="filter-label checkbox-label">
+            <input type="checkbox" id="explicit-checkbox" class="filter-checkbox">
+            Explicit only
+          </label>
+        </div>
+      </div>
+    </section>
+
+    <section class="table-section">
+      <div class="card">
+        <h2 class="section-title">Tracks</h2>
+        <div id="track-list-container" class="table-container"></div>
+        <div class="pagination">
+          <button id="prev-btn" class="pagination-btn" disabled>Previous</button>
+          <span id="page-info" class="page-info"></span>
+          <button id="next-btn" class="pagination-btn">Next</button>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="app-footer">
+    <span>Tracklytics &copy; <span id="footer-year"></span></span>
+  </footer>
+
+  <!-- Detail Panel Modal -->
+  <div id="detail-panel" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+    <div class="modal-content">
+      <button class="modal-close" id="modal-close-btn" aria-label="Close">&times;</button>
+      <div id="modal-body"></div>
+    </div>
+  </div>
+
+  <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+  <script type="module" src="js/api.js"></script>
+  <script type="module" src="js/tracks.js"></script>
+</body>
+</html>

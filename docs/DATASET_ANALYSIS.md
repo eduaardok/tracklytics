@@ -1,5 +1,5 @@
 # Tracklytics — Análisis Técnico del Dataset
-> **Fecha:** Mayo 2026 | **Sprint:** 0 — Planificación y Diseño Inicial | **Estado:** ✅ Completado
+> **Fecha:** Mayo 2026 | **Sprint:** 1 — ETL Completado | **Estado:** ✅ Completado
 
 ---
 
@@ -17,259 +17,165 @@
 
 ### Columnas detectadas
 
-| # | Columna | Tipo | Nulos | Observación |
+| # | Columna CSV | Tipo | Nulos | Tabla destino |
 |---|---|---|---|---|
-| 0 | `Unnamed: 0` | int64 | 0 | Índice residual del CSV. **Eliminar.** |
-| 1 | `track_id` | str | 0 | Identificador Spotify. No único en el dataset. |
-| 2 | `artists` | str | 1 | Puede contener múltiples artistas separados por `;` |
-| 3 | `album_name` | str | 1 | Sin identificador único propio. |
-| 4 | `track_name` | str | 1 | — |
-| 5 | `popularity` | int64 | 0 | Rango esperado: 0–100 |
-| 6 | `duration_ms` | int64 | 0 | Duración en milisegundos |
-| 7 | `explicit` | bool | 0 | Ya llega como booleano. ✅ |
-| 8 | `danceability` | float64 | 0 | Rango: 0.0–1.0 |
-| 9 | `energy` | float64 | 0 | Rango: 0.0–1.0 |
-| 10 | `key` | int64 | 0 | Tonalidad musical (Pitch Class 0–11). No es PK. |
-| 11 | `loudness` | float64 | 0 | En dB. Valores negativos (~-60 a 0). |
-| 12 | `mode` | int64 | 0 | 0 = menor, 1 = mayor. Semánticamente booleano. |
-| 13 | `speechiness` | float64 | 0 | Rango: 0.0–1.0 |
-| 14 | `acousticness` | float64 | 0 | Rango: 0.0–1.0 |
-| 15 | `instrumentalness` | float64 | 0 | Rango: 0.0–1.0 |
-| 16 | `liveness` | float64 | 0 | Rango: 0.0–1.0 |
-| 17 | `valence` | float64 | 0 | Rango: 0.0–1.0 |
-| 18 | `tempo` | float64 | 0 | En BPM. Sin rango fijo acotado. |
-| 19 | `time_signature` | int64 | 0 | Valores típicos: 1, 3, 4, 5 |
-| 20 | `track_genre` | str | 0 | 114 géneros únicos. Limpio. |
+| 0 | `Unnamed: 0` | int64 | 0 | — Eliminar |
+| 1 | `track_id` | str | 0 | `tracks` |
+| 2 | `artists` | str | 1 | `artists`, `track_artists`, `album_artists` |
+| 3 | `album_name` | str | 1 | `albums`, `album_artists` |
+| 4 | `track_name` | str | 1 | `tracks` |
+| 5 | `popularity` | int64 | 0 | `tracks`, `genre_trends`, `artist_stats` |
+| 6 | `duration_ms` | int64 | 0 | `tracks` |
+| 7 | `explicit` | bool | 0 | `tracks`, `artist_stats` |
+| 8 | `danceability` | float64 | 0 | `audio_features`, `genre_trends` |
+| 9 | `energy` | float64 | 0 | `audio_features`, `genre_trends` |
+| 10 | `key` | int64 | 0 | `audio_features` (como `musical_key`) |
+| 11 | `loudness` | float64 | 0 | `audio_features` |
+| 12 | `mode` | int64 | 0 | `audio_features` |
+| 13 | `speechiness` | float64 | 0 | `audio_features` |
+| 14 | `acousticness` | float64 | 0 | `audio_features` |
+| 15 | `instrumentalness` | float64 | 0 | `audio_features` |
+| 16 | `liveness` | float64 | 0 | `audio_features` |
+| 17 | `valence` | float64 | 0 | `audio_features`, `genre_trends` |
+| 18 | `tempo` | float64 | 0 | `audio_features` |
+| 19 | `time_signature` | int64 | 0 | `audio_features` |
+| 20 | `track_genre` | str | 0 | `genres`, `track_genres`, `genre_trends` |
 
 ---
 
 ## 2. Problemas de Calidad Identificados
 
 ### 2.1 Columna `Unnamed: 0`
-- **Problema:** Índice residual generado al exportar el CSV. No tiene valor semántico.
+- **Problema:** Índice residual generado al exportar el CSV. Sin valor semántico.
 - **Decisión:** Eliminar en la primera línea del ETL al momento de la lectura.
 
 ### 2.2 Nulos (3 registros)
 - **Afectados:** `artists` (1), `album_name` (1), `track_name` (1).
-- **Decisión:** Descartar. Con 114.000 registros el impacto es irrelevante. No se imputan: una canción sin nombre o sin artista es inútil para el negocio.
+- **Resultado real ETL:** Solo 1 registro descartado por nulo crítico.
+- **Decisión:** Descartar. Con 114.000 registros el impacto es irrelevante.
 
 ### 2.3 `artists` — Artistas múltiples concatenados
-- **Problema:** El campo puede contener varios artistas separados por `;` (ej: `Ingrid Michaelson;ZAYN`). Viola la Primera Forma Normal (1NF).
-- **Decisión:** Separar por `;` con strip de espacios durante el ETL. Cada artista genera un registro individual en la tabla `artists`.
+- **Problema:** El campo puede contener varios artistas separados por `;`. Viola 1NF.
+- **Decisión:** Separar por `;` con strip. Cada artista genera un registro en `artists`. Relaciones en `track_artists` y `album_artists`.
 
 ### 2.4 `track_id` no es único en el dataset
-- **Confirmado con profiling:**
-  - Filas totales: **114.000**
-  - `track_id` únicos: **89.741**
-  - Diferencia: ~24.259 filas son el mismo track clasificado en múltiples géneros.
-- **Implicación crítica:** La relación track–género es **N:M**. Se requiere tabla puente `track_genres`. No se puede usar FK directa en `tracks`.
-- **ETL:** Al cargar `tracks`, deduplicar por `track_id` antes de insertar.
+- **Confirmado:** 89.741 únicos en 114.000 filas. Diferencia: ~24.259 filas — mismo track en múltiples géneros.
+- **Implicación:** Relación track–género es N:M. Tabla puente `track_genres` obligatoria (DD-01, DD-02).
+- **ETL:** Deduplicar por `track_id` antes de insertar en `tracks`.
 
 ### 2.5 `album_name` sin identificador único
-- **Problema:** El dataset no provee `album_id`. El nombre es el único identificador disponible.
-- **Riesgo:** Dos artistas distintos pueden tener un álbum con el mismo nombre.
-- **Decisión MVP:** Tratar `album_name` como único globalmente. Documentado como limitación conocida. El ETL genera IDs sintéticos (seriales de PostgreSQL).
+- **Problema:** El dataset no provee `album_id`.
+- **Decisión MVP:** Tratar `album_name` como único globalmente (DD-03). IDs sintéticos generados por el ETL.
 
 ### 2.6 Columna `key` — Nombre ambiguo
-- **Problema:** El nombre `key` puede confundirse con una clave de base de datos.
-- **Decisión:** Documentar claramente que es un atributo musical (Pitch Class, entero 0–11). En el esquema SQL puede renombrarse a `musical_key` para evitar conflictos.
+- **Decisión:** Renombrar a `musical_key` en el schema SQL (DD-06). El ETL aplica `df.rename(columns={"key": "musical_key"})` antes de la carga.
 
 ### 2.7 Columna `mode`
-- **Problema:** Es semánticamente booleano (0/1) pero llega como `int64`.
-- **Decisión:** Validar que solo existan valores 0 y 1. En PostgreSQL modelar como `SMALLINT` con CHECK constraint.
+- **Problema:** Semánticamente booleano (0/1) pero llega como `int64`.
+- **Decisión:** Validar valores 0 y 1. Modelar como `SMALLINT` con CHECK constraint.
+
+### 2.8 `track_name` y `album_name` — Longitud excesiva *(detectado en ETL)*
+- **Problema:** Algunos nombres superan los 500 caracteres (colaboraciones con muchos artistas en el título).
+- **Decisión:** Cambiar `track_name` en `tracks` y `name` en `albums` de `VARCHAR(500)` a `TEXT` (DD-12).
+
+### 2.9 `numpy.int64` incompatible con psycopg2 *(detectado en ETL)*
+- **Problema:** Contadores generados por pandas son `numpy.int64`, que psycopg2 no acepta.
+- **Decisión:** Castear a `int` nativo de Python antes de insertar en `etl_logs` (DD-13).
+
+### 2.10 `genre_trends` y `artist_stats` — Re-ejecución del ETL *(detectado en ETL)*
+- **Problema:** A diferencia de las entidades maestras, estas tablas deben actualizarse en re-ejecuciones (no simplemente ignorar el conflicto).
+- **Decisión:** Usar `ON CONFLICT DO UPDATE SET` en lugar de `DO NOTHING` para `genre_trends` y `artist_stats` (DD-14). Permite recalcular métricas sin limpiar la tabla.
 
 ---
 
-## 3. Transformaciones ETL Necesarias
+## 3. Transformaciones ETL Implementadas
 
 ### Fase 1 — Extracción y limpieza estructural
-- Eliminar `Unnamed: 0` al momento de lectura del CSV.
-- Eliminar los 3 registros con nulos en `artists`, `album_name` o `track_name`.
-- Identificar y separar los ~24.259 registros duplicados de `track_id` (distintos géneros).
+- Eliminar `Unnamed: 0` al leer el CSV.
+- Descartar registros con nulos en `artists`, `album_name` o `track_name` → **1 registro descartado**.
 
 ### Fase 2 — Validaciones de rango
-- `popularity`: CHECK entre 0 y 100.
-- Columnas flotantes de audio (`danceability`, `energy`, `speechiness`, `acousticness`, `instrumentalness`, `liveness`, `valence`): CHECK en [0.0, 1.0].
-- `mode`: CHECK valores 0 o 1.
-- `duration_ms`: CHECK mayor que 0.
-- Registrar en `etl_logs` todos los registros que fallen estas validaciones.
+- `popularity`: 0–100
+- Columnas flotantes de audio: 0.0–1.0
+- `mode`: 0 o 1
+- `duration_ms`: > 0
+- `musical_key`: 0–11
+- `time_signature`: 1, 3, 4 o 5
+- **Resultado real:** 163 registros rechazados.
 
 ### Fase 3 — Separación de entidades
-A partir del dataset plano construir las entidades relacionales:
 
-| Entidad | Origen en CSV | Transformación |
-|---|---|---|
-| `genres` | `track_genre` | Extraer valores únicos |
-| `artists` | `artists` | Split por `;`, strip, deduplicar |
-| `albums` | `album_name` | Deduplicar por nombre |
-| `tracks` | Todas las columnas restantes | Deduplicar por `track_id`. Incluye metadatos y columnas de audio. |
-| `track_artists` | `track_id` + `artists` | Tabla puente N:M |
-| `track_genres` | `track_id` + `track_genre` | Tabla puente N:M |
-| `genre_trends` | Agregado por `track_genre` | Calculado desde `tracks` + `track_genres` |
-
-Las columnas de audio (`danceability`, `energy`, `musical_key`, `loudness`, `mode`, `speechiness`, `acousticness`, `instrumentalness`, `liveness`, `valence`, `tempo`, `time_signature`) se cargan directamente en `tracks`. No existe tabla separada para ellas.
+| Entidad destino | Columnas de origen en CSV | Transformación | Filas resultantes |
+|---|---|---|---|
+| `genres` | `track_genre` | Extraer valores únicos | 114 |
+| `artists` | `artists` | Split por `;`, strip, deduplicar | 29.793 |
+| `albums` | `album_name` | Deduplicar por nombre | 46.529 |
+| `tracks` | `track_id`, `track_name`, `popularity`, `duration_ms`, `explicit` | Deduplicar por `track_id` | 89.578 |
+| `audio_features` | 12 columnas de audio | Separar de tracks. Relación 1:1. | 89.578 |
+| `track_artists` | `track_id` + `artists` | Tabla puente N:M | 123.066 |
+| `track_genres` | `track_id` + `track_genre` | Tabla puente N:M | 113.386 |
+| `album_artists` | `album_name` + `artists` | Tabla puente N:M | 85.258 |
+| `genre_trends` | `track_genre` + métricas | Agregado calculado | 114 |
+| `artist_stats` | `artists` + métricas | Agregado calculado | 29.793 |
 
 ### Fase 4 — Registro ETL
 Cada ejecución registra en `etl_logs`: timestamp, registros procesados, insertados, rechazados y estado.
 
 ---
 
-## 4. Modelo Relacional Propuesto
+## 4. Resultados Reales de la Ejecución ETL
 
-### Tablas MVP (11 tablas — cumple requisito mínimo de 10)
-
-```
-genres ──────────────────────────────────────────────┐
-  │                                                   │
-  └──── genre_trends (agregado analítico)             │
-                                                      │
-artists ───────────────────────────────────────┐      │
-                                               │      │
-albums ──────┐                                 │      │
-             │                                 │      │
-         tracks (incluye columnas de audio)    │      │
-             │                                 │      │
-             └──── track_artists (N:M) ────────┘      │
-             │                                         │
-             └──── track_genres  (N:M) ────────────────┘
-
-users ──── business_reports
-
-etl_logs (independiente)
-```
-
-### Descripción de tablas
-
-#### `genres`
-- PK: `genre_id` SERIAL
-- `name` VARCHAR — UNIQUE, NOT NULL
-- Origen: 114 géneros únicos del dataset
-
-#### `artists`
-- PK: `artist_id` SERIAL
-- `name` VARCHAR — UNIQUE, NOT NULL
-- **Limitación conocida:** El nombre se usa como identificador único. Homónimos no están soportados en el MVP.
-
-#### `albums`
-- PK: `album_id` SERIAL
-- `name` VARCHAR — NOT NULL
-- **Limitación conocida:** No existe `album_id` en el dataset. ID generado por PostgreSQL.
-
-#### `tracks`
-- PK: `track_id` VARCHAR — el string de Spotify
-- `track_name` VARCHAR — NOT NULL
-- `album_id` INTEGER — FK → `albums`
-- `popularity` SMALLINT — CHECK (0–100)
-- `duration_ms` INTEGER — CHECK (> 0)
-- `explicit` BOOLEAN
-- `danceability` NUMERIC(5,4) — CHECK [0.0–1.0]
-- `energy` NUMERIC(5,4) — CHECK [0.0–1.0]
-- `musical_key` SMALLINT
-- `loudness` NUMERIC(6,3) — (puede ser negativo)
-- `mode` SMALLINT — CHECK (0 o 1)
-- `speechiness` NUMERIC(5,4) — CHECK [0.0–1.0]
-- `acousticness` NUMERIC(5,4) — CHECK [0.0–1.0]
-- `instrumentalness` NUMERIC(5,4) — CHECK [0.0–1.0]
-- `liveness` NUMERIC(5,4) — CHECK [0.0–1.0]
-- `valence` NUMERIC(5,4) — CHECK [0.0–1.0]
-- `tempo` NUMERIC(6,3)
-- `time_signature` SMALLINT
-
-> **Decisión de diseño:** Las columnas de audio se integran directamente en `tracks`. Son atributos intrínsecos e inmutables de cada canción en el dataset. Una tabla separada `audio_features` añadiría un JOIN innecesario sin ningún beneficio para el MVP.
-
-#### `track_artists` (tabla puente N:M)
-- PK compuesta: (`track_id`, `artist_id`)
-- FK: `track_id` → `tracks`
-- FK: `artist_id` → `artists`
-
-#### `track_genres` (tabla puente N:M) ⚠️ Confirmada necesaria
-- PK compuesta: (`track_id`, `genre_id`)
-- FK: `track_id` → `tracks`
-- FK: `genre_id` → `genres`
-
-#### `genre_trends`
-- PK: `trend_id` SERIAL
-- `genre_id` INTEGER — FK → `genres`
-- `avg_popularity` NUMERIC(5,2)
-- `avg_danceability` NUMERIC(5,4)
-- `avg_energy` NUMERIC(5,4)
-- `avg_valence` NUMERIC(5,4)
-- `track_count` INTEGER
-- `calculated_at` TIMESTAMP
-- **Propósito:** Almacena métricas agregadas por género calculadas desde `tracks` + `track_genres`. Responde directamente las preguntas de negocio del sistema (popularidad por género, energía promedio, etc.) sin recalcular en cada request.
-
-#### `etl_logs`
-- PK: `log_id` SERIAL
-- `run_timestamp` TIMESTAMP
-- `records_read` INTEGER
-- `records_inserted` INTEGER
-- `records_rejected` INTEGER
-- `status` VARCHAR
-- `notes` TEXT
-
-#### `users`
-- PK: `user_id` SERIAL
-- `username` VARCHAR — UNIQUE
-- `email` VARCHAR — UNIQUE
-- `role` VARCHAR
-- `created_at` TIMESTAMP
-
-#### `business_reports`
-- PK: `report_id` SERIAL
-- `title` VARCHAR
-- `created_by` INTEGER — FK → `users`
-- `created_at` TIMESTAMP
-- `report_type` VARCHAR
-- `parameters_json` JSONB
-
-### Tablas futuras opcionales (no implementar en MVP)
-
-| Tabla | Justificación para posponer |
+| Métrica | Valor |
 |---|---|
-| `popularity_snapshots` | Irrelevante con dataset estático |
-| `artist_segments` | Mejor como vista materializada |
-| `api_logs` | Útil solo en producción real |
-| `dashboard_configs` | No requerido para analítica básica |
+| Filas leídas del CSV | 114.000 |
+| Descartados por nulos críticos | 1 |
+| Rechazados por validaciones de rango | 163 |
+| Filas válidas procesadas | 113.836 |
+| Registros insertados en total | 607.209 |
+| Status | ✅ success |
 
 ---
 
-## 5. Reglas de Negocio y Validaciones
+## 5. Modelo Relacional
 
-### Integridad referencial
-- No se puede insertar en `tracks` sin que el `album_id` exista en `albums`.
-- No se puede insertar en `track_artists` sin que `track_id` y `artist_id` existan.
-- No se puede insertar en `track_genres` sin que `track_id` y `genre_id` existan.
+### 10 tablas del dataset + 1 de infraestructura (cumple RT-06)
 
-### Restricciones de dominio (CHECK constraints en PostgreSQL)
-- `popularity BETWEEN 0 AND 100`
-- `duration_ms > 0`
-- `mode IN (0, 1)`
-- Columnas flotantes de audio `BETWEEN 0.0 AND 1.0` donde aplica
-- `loudness` sin restricción de rango positivo (valores negativos son válidos)
+```
+genres ──────────────────────────────────────────────┐
+  └──── genre_trends (agregado por track_genre)       │
+                                                      │
+artists ──────────────────────────────────────┐       │
+  └──── artist_stats (agregado por artists)   │       │
+        │                                     │       │
+        │ N:M [album_artists]                 │       │
+        ▼                                     │       │
+albums ──────┐                                │       │
+             │                                │       │
+         tracks ──── audio_features (1:1)     │       │
+             │                                │       │
+             └──── track_artists (N:M) ───────┘       │
+             └──── track_genres  (N:M) ───────────────┘
 
-### Reglas de inserción ETL
-- El ETL no debe interrumpirse por un registro inválido. Registrar en `etl_logs` y continuar.
-- El pipeline debe ser **idempotente**: dos ejecuciones no generan duplicados. Usar `INSERT ... ON CONFLICT DO NOTHING` para entidades maestras.
-- La unicidad de `(track_id, genre_id)` en `track_genres` y `(track_id, artist_id)` en `track_artists` debe estar garantizada por constraint.
+etl_logs (infraestructura — sin FK saliente)
+```
 
 ---
 
 ## 6. Orden Correcto de Carga ETL
 
-El orden respeta estrictamente las dependencias de claves foráneas:
-
-| Paso | Tabla | Dependencias |
-|---|---|---|
-| 1 | `genres` | Ninguna |
-| 2 | `artists` | Ninguna |
-| 3 | `albums` | Ninguna |
-| 4 | `tracks` | `albums` — incluye todas las columnas de audio |
-| 5 | `track_artists` | `tracks`, `artists` |
-| 6 | `track_genres` | `tracks`, `genres` |
-| 7 | `genre_trends` | `tracks`, `track_genres`, `genres` — calculado por agregación |
-| 8 | `users` | Ninguna (seed manual) |
-| 9 | `etl_logs` | Al finalizar el pipeline completo |
-| 10 | `business_reports` | Generado desde la interfaz, no desde ETL |
+| Paso | Tabla | Campo de origen en CSV | Dependencias |
+|---|---|---|---|
+| 1 | `genres` | `track_genre` | Ninguna |
+| 2 | `artists` | `artists` (split `;`) | Ninguna |
+| 3 | `albums` | `album_name` | Ninguna |
+| 4 | `tracks` | `track_id`, `track_name`, `popularity`, `duration_ms`, `explicit` | `albums` |
+| 5 | `audio_features` | 12 columnas de audio | `tracks` |
+| 6 | `track_artists` | `track_id` + `artists` | `tracks`, `artists` |
+| 7 | `track_genres` | `track_id` + `track_genre` | `tracks`, `genres` |
+| 8 | `album_artists` | `album_name` + `artists` | `albums`, `artists` |
+| 9 | `genre_trends` | Agregado por `track_genre` | `tracks`, `track_genres`, `genres` |
+| 10 | `artist_stats` | Agregado por `artists` | `tracks`, `track_artists`, `artists` |
+| 11 | `etl_logs` | Resultado del proceso | Al finalizar el pipeline |
 
 ---
 
@@ -277,23 +183,25 @@ El orden respeta estrictamente las dependencias de claves foráneas:
 
 | ID | Decisión | Justificación |
 |---|---|---|
-| DD-01 | `track_id` no es PK única en el dataset plano | Confirmado: 89.741 únicos vs 114.000 filas. Relación N:M con géneros. |
-| DD-02 | Tabla puente `track_genres` es obligatoria | Consecuencia de DD-01. No se puede usar FK directa en `tracks`. |
-| DD-03 | `album_name` como identificador único en MVP | El dataset no provee `album_id`. Limitación conocida y documentada. |
-| DD-04 | `artists` usa nombre como clave única | Homónimos no soportados en MVP. Limitación conocida y documentada. |
-| DD-05 | Columnas de audio integradas en `tracks` | Son atributos intrínsecos e inmutables de cada canción. Tabla separada añadiría JOIN innecesario sin beneficio analítico en el MVP. |
+| DD-01 | `track_id` no es PK única en el dataset plano | 89.741 únicos vs 114.000 filas. Relación N:M con géneros. |
+| DD-02 | Tabla puente `track_genres` obligatoria | Consecuencia de DD-01. No se puede usar FK directa en `tracks`. |
+| DD-03 | `album_name` como identificador único en MVP | El dataset no provee `album_id`. Limitación conocida. |
+| DD-04 | `artists` usa nombre como clave única | Homónimos no soportados en MVP. Limitación conocida. |
 | DD-06 | `musical_key` en lugar de `key` | Evita confusión con conceptos de bases de datos. |
-| DD-07 | ETL idempotente con `ON CONFLICT DO NOTHING` | Permite re-ejecuciones seguras sin duplicación de datos. |
-| DD-08 | IDs sintéticos (SERIAL) para artistas y álbumes | El dataset no provee identificadores para estas entidades. IDs son propios de Tracklytics. |
-| DD-09 | `genre_trends` como tabla de agregados precalculados | Responde preguntas de negocio sobre géneros sin recalcular en cada request. Más eficiente que vistas para dashboards. |
+| DD-07 | ETL idempotente con `ON CONFLICT DO NOTHING` | Permite re-ejecuciones seguras sin duplicación (entidades maestras). |
+| DD-08 | IDs sintéticos (SERIAL) para artistas y álbumes | El dataset no provee identificadores para estas entidades. |
+| DD-09 | `genre_trends` y `artist_stats` como agregados precalculados | Responden preguntas de negocio sin recalcular en cada request. |
+| DD-10 | `audio_features` separada de `tracks` | Normalización explícita de las 12 columnas de audio del CSV. |
+| DD-11 | `album_artists` como tabla puente N:M | La relación álbum–artista existe en el CSV y no estaba modelada explícitamente. |
+| DD-12 | `track_name` y `albums.name` como `TEXT` | Nombres en el dataset superan los 500 caracteres. `TEXT` elimina el límite artificial. |
+| DD-13 | Contadores ETL casteados a `int` nativo | `numpy.int64` no es compatible con psycopg2. Cast explícito requerido. |
+| DD-14 | `genre_trends` y `artist_stats` usan `ON CONFLICT DO UPDATE` | A diferencia de las entidades maestras, los agregados deben actualizarse en cada re-ejecución del ETL. |
 
 ---
 
-## 8. Próximo Paso
+## 8. Estado
 
-Con el análisis completado, el siguiente paso es:
-
-1. **Diseñar el schema SQL completo** — DDL con todas las tablas, constraints y relaciones.
-2. **Implementar el pipeline ETL en Python** — Respetando el orden de carga definido en la sección 6.
-
-> El análisis de este documento constituye la base técnica para el Sprint 1 de Tracklytics.
+Pipeline ETL ejecutado exitosamente en Mayo 2026. Dataset completo cargado en PostgreSQL.
+API REST operativa en `http://localhost:8000`. Documentación Swagger en `http://localhost:8000/docs`.
+Frontend web disponible en `http://localhost:8000/static/index.html` (4 páginas: Dashboard, Géneros, Artistas, Tracks).
+**Próximo paso:** Sprint 4 — Integración general, optimización, testing y presentación final.

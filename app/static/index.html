@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tracklytics — Dashboard</title>
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+  <header class="app-header">
+    <span class="brand">Tracklytics</span>
+   <nav>
+      <a href="index.html" class="nav-link">Dashboard</a>
+      <a href="genres.html" class="nav-link">Genres</a>
+      <a href="artists.html" class="nav-link">Artists</a>
+      <a href="tracks.html" class="nav-link">Tracks</a>
+      <a href="admin.html" class="nav-link">Admin</a>
+    </nav>
+  </header>
+
+  <main class="page-content">
+    <h1 class="page-title">Dashboard</h1>
+
+    <section class="metrics-section">
+      <div class="metrics-grid">
+        <div class="card metric-card" id="metric-total-tracks">
+          <h2 class="metric-label">Total Tracks</h2>
+          <div class="metric-value" id="metric-total-tracks-value"></div>
+        </div>
+        <div class="card metric-card" id="metric-total-artists">
+          <h2 class="metric-label">Total Artists</h2>
+          <div class="metric-value" id="metric-total-artists-value"></div>
+        </div>
+        <div class="card metric-card" id="metric-total-albums">
+          <h2 class="metric-label">Total Albums</h2>
+          <div class="metric-value" id="metric-total-albums-value"></div>
+        </div>
+        <div class="card metric-card" id="metric-total-genres">
+          <h2 class="metric-label">Total Genres</h2>
+          <div class="metric-value" id="metric-total-genres-value"></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="charts-section">
+      <div class="card">
+        <h2 class="section-title">Top 10 Genres by Avg Popularity</h2>
+        <div id="chart-genres" class="chart-container"></div>
+      </div>
+      <div class="card">
+        <h2 class="section-title">Top 10 Artists by Avg Popularity</h2>
+        <div id="chart-artists" class="chart-container"></div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="app-footer">
+    <span>Tracklytics &copy; <span id="footer-year"></span></span>
+  </footer>
+
+  <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+  <script type="module" src="js/api.js"></script>
+  <script type="module" src="js/index.js"></script>
+</body>
+</html>

@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tracklytics — Admin</title>
+  <link rel="stylesheet" href="css/styles.css">
+  <style>
+    /* ── Admin-specific styles ── */
+    .run-etl-card {
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+    }
+
+    .etl-description {
+      color: var(--text-secondary);
+      font-size: 0.95rem;
+      line-height: 1.6;
+      max-width: 640px;
+    }
+
+    .btn-run-etl {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.6rem;
+      padding: 0.75rem 2rem;
+      background-color: var(--accent);
+      color: #000;
+      font-size: 1rem;
+      font-weight: 700;
+      border: none;
+      border-radius: var(--radius);
+      transition: background-color 0.15s ease, transform 0.1s ease, opacity 0.2s;
+      width: fit-content;
+      letter-spacing: 0.01em;
+    }
+
+    .btn-run-etl:hover:not(:disabled) {
+      background-color: var(--accent-hover);
+      transform: translateY(-1px);
+    }
+
+    .btn-run-etl:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .btn-run-etl .btn-icon {
+      font-size: 1.1rem;
+      transition: transform 0.6s linear;
+    }
+
+    .btn-run-etl.running .btn-icon {
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    /* ── Result box ── */
+    .etl-result {
+      display: none;
+      border-radius: var(--radius);
+      padding: 1.25rem 1.5rem;
+      border: 1px solid var(--border);
+      background-color: var(--bg-surface-2);
+    }
+
+    .etl-result.visible { display: block; }
+
+    .etl-result.success { border-color: var(--accent); }
+    .etl-result.failed  { border-color: var(--error); }
+    .etl-result.running { border-color: #f5a623; }
+
+    .etl-result-header {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      font-size: 1rem;
+      font-weight: 700;
+      margin-bottom: 1rem;
+    }
+
+    .etl-result.success .etl-result-header { color: var(--accent); }
+    .etl-result.failed  .etl-result-header { color: var(--error); }
+    .etl-result.running .etl-result-header { color: #f5a623; }
+
+    .etl-result-message {
+      color: var(--text-secondary);
+      font-size: 0.9rem;
+      margin-bottom: 1rem;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .etl-stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+      gap: 0.75rem;
+      margin-top: 0.5rem;
+    }
+
+    .etl-stat {
+      background-color: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 0.75rem 1rem;
+    }
+
+    .etl-stat-label {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-bottom: 0.3rem;
+    }
+
+    .etl-stat-value {
+      font-size: 1.35rem;
+      font-weight: 700;
+      color: var(--text-primary);
+    }
+
+    /* ── Log table ── */
+    .status-badge {
+      display: inline-block;
+      padding: 0.2rem 0.6rem;
+      border-radius: 999px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .status-badge.success { background: rgba(29,185,84,0.15); color: var(--accent); }
+    .status-badge.failed  { background: rgba(229,62,62,0.15);  color: var(--error); }
+    .status-badge.partial { background: rgba(245,166,35,0.15); color: #f5a623; }
+    .status-badge.running { background: rgba(99,179,237,0.15); color: #63b3ed; }
+
+    .notes-cell {
+      color: var(--text-muted);
+      font-size: 0.82rem;
+      max-width: 260px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .refresh-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      font-size: 0.85rem;
+    }
+  </style>
+</head>
+<body>
+  <header class="app-header">
+    <span class="brand">Tracklytics</span>
+    <nav>
+      <a href="index.html"   class="nav-link">Dashboard</a>
+      <a href="genres.html"  class="nav-link">Genres</a>
+      <a href="artists.html" class="nav-link">Artists</a>
+      <a href="tracks.html"  class="nav-link">Tracks</a>
+      <a href="admin.html"   class="nav-link">Admin</a>
+    </nav>
+  </header>
+
+  <main class="page-content">
+    <h1 class="page-title">Administration</h1>
+
+    <!-- ── ETL Runner ── -->
+    <section class="table-section">
+      <div class="card run-etl-card">
+        <div>
+          <h2 class="section-title">ETL Pipeline</h2>
+          <p class="etl-description">
+            Ejecuta el pipeline completo de extracción, transformación y carga del dataset de Spotify.
+            El proceso lee el CSV, valida los registros, normaliza las entidades y actualiza todas las
+            tablas en PostgreSQL. El resultado queda registrado en el historial de ejecuciones.
+          </p>
+        </div>
+
+        <button id="run-etl-btn" class="btn-run-etl">
+          <span class="btn-icon">▶</span>
+          <span class="btn-label">Run ETL</span>
+        </button>
+
+        <div id="etl-result" class="etl-result">
+          <div class="etl-result-header">
+            <span id="result-icon"></span>
+            <span id="result-title"></span>
+          </div>
+          <p id="result-message" class="etl-result-message"></p>
+          <div id="result-stats" class="etl-stats-grid"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── ETL Log History ── -->
+    <section class="table-section">
+      <div class="card">
+        <div class="table-controls">
+          <h2 class="section-title">Execution History</h2>
+          <button id="refresh-logs-btn" class="btn refresh-btn">
+            <span id="refresh-icon">↻</span> Refresh
+          </button>
+        </div>
+        <div id="logs-container" class="table-container"></div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="app-footer">
+    <span>Tracklytics &copy; <span id="footer-year"></span></span>
+  </footer>
+
+  <script type="module" src="js/api.js"></script>
+  <script type="module" src="js/admin.js"></script>
+</body>
+</html>
