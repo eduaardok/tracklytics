@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(New-Item -ItemType Directory -Force \"C:\\\\Users\\\\Lenovo.User\\\\Desktop\\\\EDUARDO\\\\tracklytics\\\\etl\\\\dags\")",
+      "Bash(Out-Null)",
+      "Bash(Write-Output \"OK\")",
+      "PowerShell(New-Item *)",
+      "PowerShell(Get-ChildItem \"C:\\\\Users\\\\Lenovo.User\\\\Desktop\\\\EDUARDO\\\\tracklytics\\\\frontend\\\\\" -Recurse | Where-Object { -not $_.PSIsContainer } | Select-Object FullName, Length)",
+      "Bash(docker compose *)",
+      "PowerShell(Start-Sleep -Seconds 3; Invoke-RestMethod -Uri \"http://localhost:8000/health\" -Method GET | ConvertTo-Json)",
+      "Bash(dir /s /b)",
+      "Bash(grep -rn \"docker/\" etl/dags/etl_dag.py api/main.py docker-compose.yml init_clickhouse.py load_pocketbase.py)",
+      "Bash(grep -rn \"notebooks\" etl/dags/etl_dag.py api/main.py docker-compose.yml init_clickhouse.py load_pocketbase.py)",
+      "Bash(grep -rn \"package.json\\\\|package-lock\" etl/dags/etl_dag.py api/main.py docker-compose.yml init_clickhouse.py load_pocketbase.py)",
+      "Bash(grep -rn \"docs/sprint1\\\\|DATABASE_DESIGN\\\\|DATASET_ANALYSIS\\\\|PROJECT_STATUS\\\\|TRACKLYTICS_CONTEXT\" etl/dags/etl_dag.py api/main.py docker-compose.yml init_clickhouse.py load_pocketbase.py frontend/)"
+    ]
+  }
+}

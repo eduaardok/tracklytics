@@ -1,15 +1,212 @@
 services:
-  db:
-    image: postgres:18
-    container_name: tracklytics_db
-    environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgresqlAdmin19
-      POSTGRES_DB: tracklytics
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
 
+  # ─────────────────────────────────────────
+  # 1. PocketBase  — fuente de datos (inmutable)
+  # ─────────────────────────────────────────
+  pocketbase:
+    image: ghcr.io/muchobien/pocketbase:latest
+    container_name: tracklytics_pocketbase
+    restart: unless-stopped
+    ports:
+      - "8090:8090"
+    volumes:
+      - pb_data:/pb/pb_data
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8090/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - tracklytics-net
+
+  # ─────────────────────────────────────────
+  # 2. ClickHouse  — base de datos columnar
+  # ─────────────────────────────────────────
+  clickhouse:
+    image: clickhouse/clickhouse-server:24.3
+    container_name: tracklytics_clickhouse
+    restart: unless-stopped
+    ports:
+      - "8123:8123"   # HTTP interface
+      - "9000:9000"   # Native TCP interface
+    environment:
+      CLICKHOUSE_DB:       ${CLICKHOUSE_DB}
+      CLICKHOUSE_USER:     ${CLICKHOUSE_USER}
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD}
+    volumes:
+      - ch_data:/var/lib/clickhouse
+    healthcheck:
+      test: ["CMD", "clickhouse-client", "--query", "SELECT 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - tracklytics-net
+
+  # ─────────────────────────────────────────
+  # 3. Init DB  — crea schema ClickHouse (una sola vez, idempotente)
+  # ─────────────────────────────────────────
+  init-db:
+    build:
+      context: .
+      dockerfile: init_Dockerfile
+    container_name: tracklytics_init
+    restart: no
+    depends_on:
+      clickhouse:
+        condition: service_healthy
+    environment:
+      CLICKHOUSE_HOST:     clickhouse
+      CLICKHOUSE_PORT:     8123
+      CLICKHOUSE_DB:       ${CLICKHOUSE_DB}
+      CLICKHOUSE_USER:     ${CLICKHOUSE_USER}
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD}
+    networks:
+      - tracklytics-net
+
+  # ─────────────────────────────────────────
+  # 4. ETL Python  — ejecución directa (legacy; Airflow es el orquestador)
+  # ─────────────────────────────────────────
+  etl:
+    build:
+      context: .
+      dockerfile: etl/etl_Dockerfile
+    container_name: tracklytics_etl
+    restart: no
+    depends_on:
+      pocketbase:
+        condition: service_healthy
+      clickhouse:
+        condition: service_healthy
+    environment:
+      POCKETBASE_URL:      ${POCKETBASE_URL}
+      POCKETBASE_EMAIL:    ${POCKETBASE_EMAIL}
+      POCKETBASE_PASSWORD: ${POCKETBASE_PASSWORD}
+      POCKETBASE_COLLECTION: ${POCKETBASE_COLLECTION}
+      CLICKHOUSE_HOST:     clickhouse
+      CLICKHOUSE_PORT:     9000
+      CLICKHOUSE_DB:       ${CLICKHOUSE_DB}
+      CLICKHOUSE_USER:     ${CLICKHOUSE_USER}
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD}
+      PARQUET_DIR:         /app/parquet_stage
+      WEEK_NUMBER:         ${WEEK_NUMBER:-1}
+    volumes:
+      - parquet_stage:/app/parquet_stage
+    networks:
+      - tracklytics-net
+
+  # ─────────────────────────────────────────
+  # 4. API  — FastAPI + Uvicorn
+  # ─────────────────────────────────────────
+  api:
+    build:
+      context: .
+      dockerfile: api/api_Dockerfile
+    container_name: tracklytics_api
+    restart: unless-stopped
+    depends_on:
+      clickhouse:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+    environment:
+      CLICKHOUSE_HOST:     clickhouse
+      CLICKHOUSE_PORT:     8123
+      CLICKHOUSE_DB:       ${CLICKHOUSE_DB}
+      CLICKHOUSE_USER:     ${CLICKHOUSE_USER}
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD}
+      AIRFLOW_URL:         http://airflow:8080
+      AIRFLOW_USER:        ${AIRFLOW_USER:-admin}
+      AIRFLOW_PASSWORD:    ${AIRFLOW_PASSWORD:-tracklytics2026}
+      AIRFLOW_DAG_ID:      ${AIRFLOW_DAG_ID:-tracklytics_etl}
+    networks:
+      - tracklytics-net
+
+  # ─────────────────────────────────────────
+  # 5. Airflow  — orquestador del pipeline ETL
+  #    UI: http://localhost:8080  (user: admin / ver logs del contenedor para la contraseña)
+  # ─────────────────────────────────────────
+  airflow:
+    image: apache/airflow:2.9.1-python3.11
+    container_name: tracklytics_airflow
+    command: standalone
+    restart: unless-stopped
+    depends_on:
+      pocketbase:
+        condition: service_healthy
+      clickhouse:
+        condition: service_healthy
+    environment:
+      AIRFLOW__CORE__EXECUTOR: SequentialExecutor
+      AIRFLOW__API__AUTH_BACKENDS: airflow.api.auth.backend.basic_auth,airflow.api.auth.backend.session
+      AIRFLOW__API__ENABLE_EXPERIMENTAL_API: "true"
+      AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: sqlite:////opt/airflow/airflow.db
+      AIRFLOW__WEBSERVER__SECRET_KEY: ${AIRFLOW_SECRET_KEY:-tracklytics2026}
+      _AIRFLOW_WWW_USER_CREATE: "true"
+      _AIRFLOW_WWW_USER_USERNAME: ${AIRFLOW_USER:-admin}
+      _AIRFLOW_WWW_USER_PASSWORD: ${AIRFLOW_PASSWORD:-tracklytics2026}
+      _PIP_ADDITIONAL_REQUIREMENTS: >-
+        clickhouse-connect==0.7.16
+        httpx==0.27.0
+        pyarrow==16.1.0
+        pandas==2.2.2
+        faker==25.8.0
+        numpy==1.26.4
+      POCKETBASE_URL:        ${POCKETBASE_URL}
+      POCKETBASE_EMAIL:      ${POCKETBASE_EMAIL}
+      POCKETBASE_PASSWORD:   ${POCKETBASE_PASSWORD}
+      POCKETBASE_COLLECTION: ${POCKETBASE_COLLECTION:-spotify_tracks}
+      CLICKHOUSE_HOST:       clickhouse
+      CLICKHOUSE_PORT:       8123
+      CLICKHOUSE_DB:         ${CLICKHOUSE_DB}
+      CLICKHOUSE_USER:       ${CLICKHOUSE_USER}
+      CLICKHOUSE_PASSWORD:   ${CLICKHOUSE_PASSWORD}
+      PARQUET_DIR:           /app/parquet_stage
+      WEEK_NUMBER:           ${WEEK_NUMBER:-1}
+    volumes:
+      - ./etl/dags:/opt/airflow/dags
+      - airflow_home:/opt/airflow
+      - parquet_stage:/app/parquet_stage
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 90s
+    networks:
+      - tracklytics-net
+
+  # ─────────────────────────────────────────
+  # 6. Frontend  — Nginx sirve HTML/CSS/JS
+  # ─────────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: tracklytics_frontend
+    restart: unless-stopped
+    depends_on:
+      - api
+    ports:
+      - "80:80"
+    networks:
+      - tracklytics-net
+
+# ─────────────────────────────────────────
+# Volúmenes persistentes
+# ─────────────────────────────────────────
 volumes:
-  postgres_data:
+  pb_data:
+  ch_data:
+  parquet_stage:
+  airflow_home:
+
+# ─────────────────────────────────────────
+# Red interna
+# ─────────────────────────────────────────
+networks:
+  tracklytics-net:
+    driver: bridge

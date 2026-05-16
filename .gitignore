@@ -5,6 +5,11 @@ venv/
 .idea/
 .vscode/
 node_modules/
+package-lock.json
 *.log
 .DS_Store
 .venv/
+parquet_stage/
+.env
+__pycache__/
+*.pyc

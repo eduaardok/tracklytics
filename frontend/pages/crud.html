@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Tracklytics — CRUD</title>
+  <link rel="stylesheet" href="../css/styles.css" />
+</head>
+<body>
+
+<nav class="navbar">
+  <a class="navbar-brand" href="/index.html">
+    <span class="logo-icon">T</span> Tracklytics
+  </a>
+  <ul class="navbar-nav">
+    <li><a href="/index.html">Dashboard</a></li>
+    <li><a href="/pages/genres.html">Géneros</a></li>
+    <li><a href="/pages/artists.html">Artistas</a></li>
+    <li><a href="/pages/etl.html">ETL</a></li>
+    <li><a href="/pages/crud.html" class="active">CRUD</a></li>
+  </ul>
+</nav>
+
+<div class="page-content">
+  <h1 class="page-title">Gestión de Tablas</h1>
+
+  <div id="error-banner"></div>
+
+  <!-- Table selector -->
+  <div class="card mb-3">
+    <div class="card-body" style="display:flex;align-items:flex-end;gap:1rem;flex-wrap:wrap">
+      <div class="form-group" style="margin:0;min-width:240px">
+        <label for="table-select">Tabla</label>
+        <select id="table-select" class="form-control" onchange="onTableChange()">
+          <option value="">— Seleccionar tabla —</option>
+          <optgroup label="Dimensiones">
+            <option value="artists">DIM_ARTISTS</option>
+            <option value="albums">DIM_ALBUMS</option>
+            <option value="genres">DIM_GENRES</option>
+            <option value="date">DIM_DATE</option>
+            <option value="musical_key">DIM_MUSICAL_KEY</option>
+            <option value="mode">DIM_MODE</option>
+            <option value="time_signature">DIM_TIME_SIGNATURE</option>
+            <option value="explicit_type">DIM_EXPLICIT_TYPE</option>
+            <option value="popularity_range">DIM_POPULARITY_RANGE</option>
+            <option value="tempo_range">DIM_TEMPO_RANGE</option>
+            <option value="energy_level">DIM_ENERGY_LEVEL</option>
+          </optgroup>
+          <optgroup label="Hechos">
+            <option value="__fact_tracks__">FACT_TRACKS (solo lectura)</option>
+          </optgroup>
+        </select>
+      </div>
+      <button class="btn btn-primary" id="btn-new" onclick="openModal()" style="display:none">
+        + Nuevo registro
+      </button>
+    </div>
+  </div>
+
+  <!-- Search filter -->
+  <div id="search-bar" style="display:none;margin-bottom:1rem">
+    <div class="search-row">
+      <div class="form-group">
+        <label for="search-input">Filtrar registros</label>
+        <input type="text" id="search-input" class="form-control"
+               placeholder="Buscar en columnas de texto…" autocomplete="off" />
+      </div>
+      <button class="btn btn-primary" onclick="applySearch()">Buscar</button>
+      <button class="btn btn-secondary" onclick="clearSearch()">Limpiar</button>
+    </div>
+  </div>
+
+  <!-- Data table -->
+  <div class="card" id="data-card" style="display:none">
+    <div class="card-header">
+      <span>
+        <span id="table-label">—</span>
+        <span id="readonly-badge" class="badge badge-info" style="display:none;margin-left:.5rem;vertical-align:middle">Solo lectura</span>
+      </span>
+      <span class="text-muted" id="total-label"></span>
+    </div>
+    <div class="table-wrapper">
+      <div id="table-loading" class="loading-center" style="display:none"><div class="spinner"></div></div>
+      <table id="data-table">
+        <thead id="data-thead"></thead>
+        <tbody id="data-tbody"></tbody>
+      </table>
+    </div>
+    <div class="pagination">
+      <span class="pagination-info" id="page-info">—</span>
+      <div class="pagination-btns">
+        <button class="btn btn-secondary btn-sm" id="btn-prev" onclick="changePage(-1)" disabled>‹ Anterior</button>
+        <button class="btn btn-secondary btn-sm" id="btn-next" onclick="changePage(1)"  disabled>Siguiente ›</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Create / Edit -->
+<div class="modal-overlay" id="modal-overlay">
+  <div class="modal">
+    <div class="modal-header">
+      <span id="modal-title">Nuevo registro</span>
+      <button class="modal-close" onclick="closeModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <form id="modal-form"></form>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
+      <button class="btn btn-primary" id="btn-save" onclick="saveRecord()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Confirm delete -->
+<div class="modal-overlay" id="confirm-overlay">
+  <div class="modal" style="max-width:400px">
+    <div class="modal-header">
+      <span>Confirmar eliminación</span>
+      <button class="modal-close" onclick="closeConfirm()">×</button>
+    </div>
+    <div class="modal-body">
+      <p>¿Estás seguro de que deseas eliminar el registro <strong id="delete-id-label"></strong>?</p>
+      <p class="text-muted" style="margin-top:.5rem;font-size:.85rem">Esta acción no se puede deshacer.</p>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeConfirm()">Cancelar</button>
+      <button class="btn btn-danger" id="btn-confirm-delete" onclick="confirmDelete()">Eliminar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const API = '/api';
+let currentTable  = '';
+let currentPage   = 1;
+let currentSearch = '';
+let isReadOnly    = false;
+const limit       = 25;
+let columns       = [];
+let editingId     = null;
+let deletingId    = null;
+
+function showError(msg) {
+  document.getElementById('error-banner').innerHTML =
+    `<div class="alert alert-error">${msg}</div>`;
+}
+
+function clearError() {
+  document.getElementById('error-banner').innerHTML = '';
+}
+
+async function fetchJSON(path, opts = {}) {
+  const res = await fetch(API + path, opts);
+  if (!res.ok) {
+    const txt = await res.text().catch(() => '');
+    throw new Error(`HTTP ${res.status}${txt ? ': ' + txt : ''}`);
+  }
+  return res.json();
+}
+
+function onTableChange() {
+  clearError();
+  const val = document.getElementById('table-select').value;
+
+  document.getElementById('data-card').style.display   = 'none';
+  document.getElementById('btn-new').style.display     = 'none';
+  document.getElementById('search-bar').style.display  = 'none';
+  document.getElementById('search-input').value        = '';
+  currentSearch = '';
+  isReadOnly    = false;
+
+  if (!val) { currentTable = ''; return; }
+
+  currentTable = val;
+  document.getElementById('search-bar').style.display = 'block';
+
+  if (val === '__fact_tracks__') {
+    isReadOnly = true;
+    document.getElementById('search-input').placeholder = 'Buscar por nombre de track…';
+  } else {
+    document.getElementById('btn-new').style.display    = 'inline-flex';
+    document.getElementById('search-input').placeholder = 'Buscar en columnas de texto…';
+  }
+
+  loadTable(1);
+}
+
+function applySearch() {
+  currentSearch = document.getElementById('search-input').value.trim();
+  loadTable(1);
+}
+
+function clearSearch() {
+  currentSearch = '';
+  document.getElementById('search-input').value = '';
+  loadTable(1);
+}
+
+async function loadTable(page = 1) {
+  if (!currentTable) return;
+  currentPage = page;
+
+  document.getElementById('data-card').style.display      = 'block';
+  document.getElementById('table-loading').style.display  = 'flex';
+  document.getElementById('readonly-badge').style.display = isReadOnly ? 'inline-block' : 'none';
+  document.getElementById('data-thead').innerHTML         = '';
+  document.getElementById('data-tbody').innerHTML         = '';
+
+  try {
+    const searchParam = currentSearch ? `&search=${encodeURIComponent(currentSearch)}` : '';
+    const url = isReadOnly
+      ? `/facts?page=${page}&limit=${limit}${searchParam}`
+      : `/dim/${currentTable}?page=${page}&limit=${limit}${searchParam}`;
+    const data = await fetchJSON(url);
+    const rows  = data.data  ?? [];
+    const total = data.total ?? 0;
+
+    document.getElementById('table-label').textContent =
+      document.getElementById('table-select').options[document.getElementById('table-select').selectedIndex].text.replace(' (solo lectura)', '');
+    document.getElementById('total-label').textContent = `${total} registros`;
+    document.getElementById('page-info').textContent =
+      `Pág. ${page} — ${((page-1)*limit)+1}–${Math.min(page*limit, total)} de ${total}`;
+    document.getElementById('btn-prev').disabled = page <= 1;
+    document.getElementById('btn-next').disabled = page * limit >= total;
+
+    if (!rows.length) {
+      document.getElementById('data-tbody').innerHTML =
+        `<tr><td colspan="99"><div class="empty-state"><p>Sin registros</p></div></td></tr>`;
+      return;
+    }
+
+    columns = Object.keys(rows[0]);
+    const thead = document.getElementById('data-thead');
+    const actionTh = isReadOnly ? '' : '<th>Acciones</th>';
+    thead.innerHTML = `<tr>${columns.map(c => `<th>${c}</th>`).join('')}${actionTh}</tr>`;
+
+    const tbody = document.getElementById('data-tbody');
+    tbody.innerHTML = rows.map(row => {
+      const cells = columns.map(c => {
+        const v = row[c];
+        return `<td title="${v ?? ''}">${v === null || v === undefined ? '<span class="text-muted">—</span>' : String(v).slice(0, 60)}</td>`;
+      }).join('');
+
+      if (isReadOnly) {
+        return `<tr>${cells}</tr>`;
+      }
+
+      const id = row[columns[0]];
+      return `
+        <tr>
+          ${cells}
+          <td>
+            <div class="action-btns">
+              <button class="btn btn-secondary btn-sm" onclick='openEdit(${JSON.stringify(row)})'>Editar</button>
+              <button class="btn btn-danger btn-sm"    onclick="openDelete(${id})">Eliminar</button>
+            </div>
+          </td>
+        </tr>
+      `;
+    }).join('');
+
+  } catch (e) {
+    showError(`Error cargando tabla: ${e.message}`);
+  } finally {
+    document.getElementById('table-loading').style.display = 'none';
+  }
+}
+
+function buildForm(defaults = {}) {
+  const form = document.getElementById('modal-form');
+  const cols = columns.length ? columns : Object.keys(defaults);
+  form.innerHTML = cols.map(col => {
+    const val = defaults[col] ?? '';
+    const isId = col.endsWith('_id') && !Object.keys(defaults).length === 0;
+    return `
+      <div class="form-group">
+        <label for="field-${col}">${col}</label>
+        <input
+          type="text"
+          id="field-${col}"
+          name="${col}"
+          class="form-control"
+          value="${String(val).replace(/"/g, '&quot;')}"
+          ${col === cols[0] && editingId !== null ? 'readonly style="opacity:.6"' : ''}
+        />
+      </div>
+    `;
+  }).join('');
+}
+
+function openModal() {
+  editingId = null;
+  document.getElementById('modal-title').textContent = 'Nuevo registro';
+  buildForm();
+  document.getElementById('modal-overlay').classList.add('open');
+}
+
+function openEdit(row) {
+  editingId = row[columns[0]];
+  document.getElementById('modal-title').textContent = `Editar registro #${editingId}`;
+  buildForm(row);
+  document.getElementById('modal-overlay').classList.add('open');
+}
+
+function closeModal() {
+  document.getElementById('modal-overlay').classList.remove('open');
+  editingId = null;
+}
+
+function openDelete(id) {
+  deletingId = id;
+  document.getElementById('delete-id-label').textContent = `#${id}`;
+  document.getElementById('confirm-overlay').classList.add('open');
+}
+
+function closeConfirm() {
+  document.getElementById('confirm-overlay').classList.remove('open');
+  deletingId = null;
+}
+
+async function saveRecord() {
+  const form   = document.getElementById('modal-form');
+  const inputs = form.querySelectorAll('input[name]');
+  const data   = {};
+  inputs.forEach(inp => {
+    const v = inp.value.trim();
+    data[inp.name] = isNaN(v) || v === '' ? v : Number(v);
+  });
+
+  const btn = document.getElementById('btn-save');
+  btn.disabled = true;
+  clearError();
+
+  try {
+    if (editingId !== null) {
+      await fetchJSON(`/dim/${currentTable}/${editingId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ data })
+      });
+    } else {
+      await fetchJSON(`/dim/${currentTable}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ data })
+      });
+    }
+    closeModal();
+    loadTable(currentPage);
+  } catch (e) {
+    showError(`Error guardando: ${e.message}`);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function confirmDelete() {
+  if (deletingId === null) return;
+  const btn = document.getElementById('btn-confirm-delete');
+  btn.disabled = true;
+  clearError();
+
+  try {
+    const res = await fetch(`${API}/dim/${currentTable}/${deletingId}`, { method: 'DELETE' });
+    if (res.status !== 204 && !res.ok) throw new Error(`HTTP ${res.status}`);
+    closeConfirm();
+    loadTable(currentPage);
+  } catch (e) {
+    showError(`Error eliminando: ${e.message}`);
+    closeConfirm();
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function changePage(delta) {
+  loadTable(currentPage + delta);
+}
+
+// Enter key triggers search
+document.getElementById('search-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') applySearch();
+});
+
+// Close modals on overlay click
+document.getElementById('modal-overlay').addEventListener('click', e => {
+  if (e.target === document.getElementById('modal-overlay')) closeModal();
+});
+document.getElementById('confirm-overlay').addEventListener('click', e => {
+  if (e.target === document.getElementById('confirm-overlay')) closeConfirm();
+});
+</script>
+</body>
+</html>

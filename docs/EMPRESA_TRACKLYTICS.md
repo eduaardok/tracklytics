@@ -1,5 +1,5 @@
 # TRACKLYTICS — Perfil Empresarial Completo
-> **Versión:** 1.0.0 | **Fecha:** Mayo 2026
+> **Versión:** 2.0 — Sprint Columnar | **Fecha:** Mayo 2026
 
 ---
 
@@ -10,6 +10,22 @@
 **Sector:** Tecnología / Analítica de Datos / Industria Musical  
 **Tipo de empresa:** Startup tecnológica B2B  
 **Mercado objetivo:** Sellos discográficos, productoras musicales, agencias de artistas, curadores de playlists y analistas de mercado musical.
+
+---
+
+## 1.1 Stack Tecnológico (v2)
+
+| Capa | Tecnología |
+|---|---|
+| Fuente de datos | PocketBase (113.550 registros Spotify) |
+| Staging | Parquet (vía PyArrow) |
+| Base de datos | ClickHouse 24.3 (motor columnar MergeTree) |
+| Orquestación ETL | Apache Airflow 2.9 (DAG `tracklytics_etl`) |
+| API REST | FastAPI + Uvicorn (Python 3.11) |
+| Frontend | HTML + CSS + JavaScript + Plotly.js |
+| Servidor web | Nginx (reverse proxy → API) |
+| Contenedores | Docker + Docker Compose |
+| Datos sintéticos | NumPy + Faker (seed determinístico por semana) |
 
 ---
 
@@ -202,10 +218,35 @@ Un sello con un catálogo amplio necesita priorizar sus recursos de marketing. T
 |---|---|
 | Nombre | Tracklytics |
 | Sector | Analítica musical / Tecnología B2B |
-| Dataset base | Spotify — 114.000 registros, 20 columnas |
-| Tablas en el modelo | 11 (10 del negocio + 1 infraestructura) |
+| Dataset base | Spotify — 113.550 registros reales + datos sintéticos semanales |
+| Base de datos | ClickHouse (columnar) |
+| Tablas en el modelo | 15 (11 dimensiones + 1 hechos + 3 infraestructura) |
+| Orquestador | Apache Airflow 2.9 |
 | Objetivos estratégicos | 5 |
 | Objetivos tácticos | 6 |
 | Objetivos operacionales | 6 |
 | Problemas de sistemas/software | 10 |
 | Problemas de toma de decisiones | 10 |
+
+---
+
+## 11. Estado de Implementación v2
+
+Estado de los Problemas de Sistemas (PS) al cierre del Sprint Columnar:
+
+| Problema | Descripción | Estado |
+|---|---|---|
+| PS-01 | Autenticación y control de acceso | Pendiente |
+| PS-02 | ETL ejecutado manualmente sin programación | **Resuelto** — Airflow orquesta el DAG automáticamente |
+| PS-03 | Frontend sin actualización en tiempo real | **Parcial** — Polling automático del estado ETL implementado |
+| PS-04 | Ausencia de caché para consultas analíticas | Pendiente |
+| PS-05 | Logs ETL sin alertas ni monitoreo activo | **Parcial** — Panel ETL muestra estado en vivo con notificaciones |
+| PS-06 | Escalabilidad limitada por arquitectura monolítica | **Parcial** — Arquitectura de microservicios en Docker Compose |
+| PS-07 | Falta de versionamiento de la API | Pendiente |
+| PS-08 | Homónimos y álbumes duplicados en el modelo | Pendiente |
+| PS-09 | Ausencia de pruebas de integración | Pendiente |
+| PS-10 | Sin gestión de configuración de entornos | **Parcial** — Variables de entorno vía `.env` y Docker secrets |
+
+**Resueltos completamente:** PS-02  
+**Resueltos parcialmente:** PS-03, PS-05, PS-06, PS-10  
+**Pendientes para sprint siguiente:** PS-01, PS-04, PS-07, PS-08, PS-09

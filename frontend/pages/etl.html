@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Tracklytics — ETL</title>
+  <link rel="stylesheet" href="../css/styles.css" />
+</head>
+<body>
+
+<nav class="navbar">
+  <a class="navbar-brand" href="/index.html">
+    <span class="logo-icon">T</span> Tracklytics
+  </a>
+  <ul class="navbar-nav">
+    <li><a href="/index.html">Dashboard</a></li>
+    <li><a href="/pages/genres.html">Géneros</a></li>
+    <li><a href="/pages/artists.html">Artistas</a></li>
+    <li><a href="/pages/etl.html" class="active">ETL</a></li>
+    <li><a href="/pages/crud.html">CRUD</a></li>
+  </ul>
+</nav>
+
+<div class="page-content">
+  <h1 class="page-title">Panel ETL</h1>
+
+  <div id="error-banner"></div>
+
+  <div class="grid-2 mb-3" style="grid-template-columns: 2fr 1fr">
+
+    <!-- Último run -->
+    <div>
+      <h3 style="font-size:.95rem;color:var(--text-light);margin-bottom:.75rem;text-transform:uppercase;letter-spacing:.5px">Estado del Último Run</h3>
+      <div id="status-bar" class="status-bar" style="display:none"></div>
+      <div id="status-loading" class="loading-center"><div class="spinner"></div></div>
+
+      <div class="card" id="last-run-card" style="display:none">
+        <div class="table-wrapper">
+          <table>
+            <thead><tr><th>Campo</th><th>Valor</th></tr></thead>
+            <tbody id="last-run-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Trigger form -->
+    <div>
+      <h3 style="font-size:.95rem;color:var(--text-light);margin-bottom:.75rem;text-transform:uppercase;letter-spacing:.5px">Ejecutar ETL</h3>
+      <div class="card">
+        <div class="card-body">
+          <div class="form-group">
+            <label for="week-number">Número de semana (1–16)</label>
+            <input type="number" id="week-number" class="form-control"
+                   min="1" max="16" value="1" placeholder="1–16"
+                   oninput="updateBtnLabel()" />
+          </div>
+          <p style="font-size:.82rem;color:var(--text-light);margin:.25rem 0 .75rem">
+            Carga los datos reales + sintéticos acumulados hasta la semana seleccionada.
+            Los datos actuales serán reemplazados.
+          </p>
+          <button class="btn btn-success" id="btn-trigger" onclick="triggerETL()" style="width:100%">
+            ▶ Cargar hasta semana 1
+          </button>
+          <div id="trigger-result" style="margin-top:.75rem"></div>
+          <hr style="margin:1rem 0;border-color:var(--border)" />
+          <button class="btn btn-danger" id="btn-clear" onclick="clearData()" style="width:100%">
+            Vaciar todos los datos
+          </button>
+          <div id="clear-result" style="margin-top:.75rem"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Historial -->
+  <div class="card">
+    <div class="card-header">
+      Historial de Ejecuciones
+      <button class="btn btn-secondary btn-sm" onclick="loadLogs(1)">Refrescar</button>
+    </div>
+    <div class="table-wrapper">
+      <table>
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Semana</th>
+            <th>Estado</th>
+            <th>Leídos</th>
+            <th>Insertados</th>
+            <th>Rechazados</th>
+            <th>Duración (s)</th>
+            <th>Timestamp</th>
+          </tr>
+        </thead>
+        <tbody id="logs-tbody">
+          <tr><td colspan="8"><div class="loading-center"><div class="spinner"></div></div></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="pagination">
+      <span class="pagination-info" id="logs-page-info">—</span>
+      <div class="pagination-btns">
+        <button class="btn btn-secondary btn-sm" id="btn-logs-prev" onclick="changePage(-1)" disabled>‹ Anterior</button>
+        <button class="btn btn-secondary btn-sm" id="btn-logs-next" onclick="changePage(1)"  disabled>Siguiente ›</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const API = '/api';
+let logsPage = 1;
+const logsLimit = 20;
+
+function showError(msg) {
+  document.getElementById('error-banner').innerHTML =
+    `<div class="alert alert-error">${msg}</div>`;
+}
+
+async function fetchJSON(path, opts = {}) {
+  const res = await fetch(API + path, opts);
+  if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text()}`);
+  return res.json();
+}
+
+function fmtDate(dt) {
+  if (!dt) return '—';
+  const s = String(dt);
+  return new Date(s.endsWith('Z') ? s : s + 'Z')
+    .toLocaleString('es-EC', { timeZone: 'America/Guayaquil' });
+}
+
+function fmtDuration(s) {
+  if (s == null) return '—';
+  return s > 60 ? (s / 60).toFixed(1) + ' min' : Number(s).toFixed(2) + ' s';
+}
+
+function statusBadge(status) {
+  const map = {
+    success: 'badge-success',
+    failed:  'badge-danger',
+    running: 'badge-info',
+    pending: 'badge-warning'
+  };
+  return `<span class="badge ${map[status] ?? 'badge-info'}">${status ?? '—'}</span>`;
+}
+
+async function loadLastRun() {
+  document.getElementById('status-loading').style.display = 'flex';
+  try {
+    const row = await fetchJSON('/etl/status');
+
+    const statusClass = { success: 'success', failed: 'failed', running: 'running' }[row.status] ?? 'running';
+    const statusLabel = { success: 'Exitoso', failed: 'Fallido', running: 'En ejecución' }[row.status] ?? row.status;
+
+    const bar = document.getElementById('status-bar');
+    bar.className = `status-bar ${statusClass}`;
+    bar.innerHTML = `
+      <div class="status-dot ${statusClass}"></div>
+      <div>
+        <strong>${statusLabel}</strong> — Semana ${row.week_number ?? '?'}
+        <div class="text-muted" style="margin-top:.2rem">${fmtDate(row.run_timestamp)}</div>
+      </div>
+      <div style="margin-left:auto;text-align:right">
+        <div>Insertados: <strong>${(row.records_inserted ?? 0).toLocaleString()}</strong></div>
+        ${row.records_rejected ? `<div class="text-muted">Rechazados: ${row.records_rejected}</div>` : ''}
+      </div>
+    `;
+    bar.style.display = 'flex';
+
+    const fields = [
+      ['Log ID',        row.log_id],
+      ['Semana',        row.week_number],
+      ['Estado',        statusBadge(row.status)],
+      ['Leídos',        (row.records_read ?? 0).toLocaleString()],
+      ['Insertados',    (row.records_inserted ?? 0).toLocaleString()],
+      ['Rechazados',    (row.records_rejected ?? 0).toLocaleString()],
+      ['Duración',      fmtDuration(row.duration_seconds)],
+      ['Timestamp',     fmtDate(row.run_timestamp)],
+    ];
+
+    document.getElementById('last-run-body').innerHTML =
+      fields.map(([k,v]) => `<tr><td class="text-muted" style="width:40%">${k}</td><td>${v}</td></tr>`).join('');
+    document.getElementById('last-run-card').style.display = 'block';
+
+  } catch (e) {
+    if (!e.message.includes('404')) showError(`Error cargando estado ETL: ${e.message}`);
+    document.getElementById('status-bar').innerHTML = '';
+  } finally {
+    document.getElementById('status-loading').style.display = 'none';
+  }
+}
+
+async function loadLogs(page = 1) {
+  logsPage = page;
+  try {
+    const data = await fetchJSON(`/etl/logs?page=${page}&limit=${logsLimit}`);
+    const logs  = data.data  ?? [];
+    const total = data.total ?? 0;
+
+    document.getElementById('logs-page-info').textContent =
+      `Pág. ${page} — ${((page-1)*logsLimit)+1}–${Math.min(page*logsLimit, total)} de ${total}`;
+    document.getElementById('btn-logs-prev').disabled = page <= 1;
+    document.getElementById('btn-logs-next').disabled = page * logsLimit >= total;
+
+    const tbody = document.getElementById('logs-tbody');
+    if (!logs.length) {
+      tbody.innerHTML = `<tr><td colspan="8"><div class="empty-state"><p>Sin registros ETL</p></div></td></tr>`;
+      return;
+    }
+
+    tbody.innerHTML = logs.map(l => `
+      <tr>
+        <td>${l.log_id ?? '—'}</td>
+        <td>${l.week_number ?? '—'}</td>
+        <td>${statusBadge(l.status)}</td>
+        <td>${(l.records_read ?? 0).toLocaleString()}</td>
+        <td>${(l.records_inserted ?? 0).toLocaleString()}</td>
+        <td>${(l.records_rejected ?? 0).toLocaleString()}</td>
+        <td>${fmtDuration(l.duration_seconds)}</td>
+        <td style="font-size:.8rem">${fmtDate(l.run_timestamp)}</td>
+      </tr>
+    `).join('');
+  } catch (e) {
+    showError(`Error cargando historial: ${e.message}`);
+  }
+}
+
+function updateBtnLabel() {
+  const n = parseInt(document.getElementById('week-number').value, 10) || 1;
+  document.getElementById('btn-trigger').textContent = `▶ Cargar hasta semana ${n}`;
+}
+
+let _pollTimer = null;
+
+function _stopPolling() {
+  if (_pollTimer) { clearInterval(_pollTimer); _pollTimer = null; }
+}
+
+function pollDagRun(dagRunId, weekNum) {
+  _stopPolling();
+  let ticks = 0;
+  const MAX = 120; // 10 min max (120 × 5 s)
+  const resultEl = document.getElementById('trigger-result');
+
+  _pollTimer = setInterval(async () => {
+    ticks++;
+    if (ticks > MAX) {
+      _stopPolling();
+      resultEl.innerHTML =
+        `<div class="alert alert-warning">⏱ Tiempo de espera agotado. Revisa el historial manualmente.</div>`;
+      document.getElementById('btn-trigger').disabled = false;
+      updateBtnLabel();
+      return;
+    }
+
+    try {
+      const data = await fetchJSON(`/etl/run-status?run_id=${encodeURIComponent(dagRunId)}`);
+      const state = data.state; // queued | running | success | failed
+      if (state === 'success' || state === 'failed') {
+        _stopPolling();
+        loadLastRun();
+        loadLogs(1);
+        resultEl.innerHTML = state === 'success'
+          ? `<div class="alert alert-info">✅ ETL completado exitosamente — semana ${weekNum}.</div>`
+          : `<div class="alert alert-error">❌ ETL falló. Revisa el historial para más detalles.</div>`;
+        document.getElementById('btn-trigger').disabled = false;
+        updateBtnLabel();
+      }
+      // queued | running → keep polling
+    } catch (e) {
+      console.warn('Poll error:', e.message);
+      // Keep polling through transient errors
+    }
+  }, 5000);
+}
+
+async function triggerETL() {
+  const weekNum = parseInt(document.getElementById('week-number').value, 10);
+  if (!weekNum || weekNum < 1 || weekNum > 16) {
+    document.getElementById('trigger-result').innerHTML =
+      `<div class="alert alert-warning">Ingresa un número de semana entre 1 y 16.</div>`;
+    return;
+  }
+
+  _stopPolling();
+  const btn = document.getElementById('btn-trigger');
+  btn.disabled = true;
+  btn.textContent = 'Enviando…';
+  document.getElementById('trigger-result').innerHTML = '';
+
+  try {
+    const result = await fetchJSON('/etl/trigger', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ week_number: weekNum })
+    });
+    const dagRunId = result?.airflow?.dag_run_id;
+    if (!dagRunId) throw new Error('Airflow no devolvió dag_run_id');
+    document.getElementById('trigger-result').innerHTML =
+      `<div class="alert alert-info" style="display:flex;align-items:center;gap:.6rem">
+        <div class="spinner" style="width:16px;height:16px;border-width:2px;flex-shrink:0"></div>
+        DAG en cola — monitoreando semana ${weekNum}…
+      </div>`;
+    pollDagRun(dagRunId, weekNum);
+  } catch (e) {
+    document.getElementById('trigger-result').innerHTML =
+      `<div class="alert alert-error">Error: ${e.message}</div>`;
+    btn.disabled = false;
+    updateBtnLabel();
+  }
+}
+
+async function clearData() {
+  if (!confirm('¿Borrar TODOS los datos? Esta acción no se puede deshacer.')) return;
+  const btn = document.getElementById('btn-clear');
+  btn.disabled = true;
+  btn.textContent = 'Vaciando…';
+  document.getElementById('clear-result').innerHTML = '';
+  try {
+    await fetchJSON('/etl/clear', { method: 'POST' });
+    document.getElementById('clear-result').innerHTML =
+      `<div class="alert alert-info">Datos vaciados correctamente.</div>`;
+    setTimeout(() => { loadLastRun(); loadLogs(1); }, 800);
+  } catch (e) {
+    document.getElementById('clear-result').innerHTML =
+      `<div class="alert alert-error">Error: ${e.message}</div>`;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Vaciar todos los datos';
+  }
+}
+
+function changePage(delta) {
+  loadLogs(logsPage + delta);
+}
+
+loadLastRun();
+loadLogs();
+</script>
+</body>
+</html>

@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Tracklytics — Géneros</title>
+  <link rel="stylesheet" href="../css/styles.css" />
+  <script src="https://cdn.plot.ly/plotly-2.32.0.min.js"></script>
+</head>
+<body>
+
+<nav class="navbar">
+  <a class="navbar-brand" href="/index.html">
+    <span class="logo-icon">T</span> Tracklytics
+  </a>
+  <ul class="navbar-nav">
+    <li><a href="/index.html">Dashboard</a></li>
+    <li><a href="/pages/genres.html" class="active">Géneros</a></li>
+    <li><a href="/pages/artists.html">Artistas</a></li>
+    <li><a href="/pages/etl.html">ETL</a></li>
+    <li><a href="/pages/crud.html">CRUD</a></li>
+  </ul>
+</nav>
+
+<div class="page-content">
+  <h1 class="page-title">Tendencias de Géneros</h1>
+
+  <div id="error-banner"></div>
+
+  <!-- Tabla + detail panel -->
+  <div class="grid-2 mb-3" style="grid-template-columns: 1.2fr 1fr">
+
+    <div class="card">
+      <div class="card-header">
+        Géneros
+        <span class="text-muted" id="total-label"></span>
+      </div>
+      <div class="table-wrapper">
+        <table>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Género</th>
+              <th>Tracks</th>
+              <th>Popularidad</th>
+              <th>Energía</th>
+              <th>Danceability</th>
+            </tr>
+          </thead>
+          <tbody id="genre-tbody">
+            <tr><td colspan="6"><div class="loading-center"><div class="spinner"></div></div></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="pagination">
+        <span class="pagination-info" id="page-info">—</span>
+        <div class="pagination-btns">
+          <button class="btn btn-secondary btn-sm" id="btn-prev" onclick="changePage(-1)" disabled>‹ Anterior</button>
+          <button class="btn btn-secondary btn-sm" id="btn-next" onclick="changePage(1)"  disabled>Siguiente ›</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">Perfil de Audio: <span id="selected-genre-name">— selecciona un género</span></div>
+      <div class="card-body" style="padding:.5rem">
+        <div id="radar-chart" class="chart-container" style="min-height:300px">
+          <div class="empty-state">
+            <div class="empty-icon">📊</div>
+            <p>Haz clic en una fila de la tabla</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Scatter -->
+  <div class="card">
+    <div class="card-header">Popularidad vs Energía por Género</div>
+    <div class="card-body" style="padding:.5rem">
+      <div id="scatter-chart" class="chart-container"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const API = '/api';
+let currentPage = 1;
+const limit = 20;
+let allGenres = [];
+
+const plotConfig = { responsive: true, displayModeBar: false };
+
+function showError(msg) {
+  document.getElementById('error-banner').innerHTML =
+    `<div class="alert alert-error">${msg}</div>`;
+}
+
+async function fetchJSON(path) {
+  const res = await fetch(API + path);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
+
+async function loadGenres(page = 1) {
+  currentPage = page;
+  const offset = (page - 1) * limit;
+  try {
+    const data = await fetchJSON(`/genres/trends?limit=${limit}&page=${page}`);
+    const genres = data.data ?? [];
+    const total  = data.total ?? 0;
+
+    document.getElementById('total-label').textContent = `${total} géneros`;
+    document.getElementById('page-info').textContent =
+      `Pág. ${page} — mostrando ${((page-1)*limit)+1}–${Math.min(page*limit, total)} de ${total}`;
+    document.getElementById('btn-prev').disabled = page <= 1;
+    document.getElementById('btn-next').disabled = page * limit >= total;
+
+    const tbody = document.getElementById('genre-tbody');
+    if (!genres.length) {
+      tbody.innerHTML = `<tr><td colspan="6"><div class="empty-state"><p>Sin datos</p></div></td></tr>`;
+      return;
+    }
+
+    tbody.innerHTML = genres.map((g, i) => `
+      <tr data-id="${g.genre_id}" data-name="${g.name ?? ''}" onclick="selectGenre(${g.genre_id}, '${(g.name ?? '').replace(/'/g,"\\'")}')">
+        <td>${(page-1)*limit + i + 1}</td>
+        <td><strong>${g.name ?? '—'}</strong></td>
+        <td>${(g.track_count ?? 0).toLocaleString()}</td>
+        <td>${g.avg_popularity ?? '—'}</td>
+        <td>${g.avg_energy ?? '—'}</td>
+        <td>${g.avg_danceability ?? '—'}</td>
+      </tr>
+    `).join('');
+
+  } catch (e) {
+    showError(`Error cargando géneros: ${e.message}`);
+  }
+}
+
+async function loadScatter() {
+  try {
+    const data = await fetchJSON('/genres/trends?limit=200');
+    const genres = data.data ?? [];
+    if (!genres.length) return;
+
+    Plotly.newPlot('scatter-chart', [{
+      x:    genres.map(g => g.avg_popularity),
+      y:    genres.map(g => g.avg_energy),
+      text: genres.map(g => g.name),
+      mode: 'markers',
+      type: 'scatter',
+      marker: {
+        size: 9,
+        color: genres.map(g => g.avg_danceability),
+        colorscale: 'Teal',
+        showscale: true,
+        colorbar: { title: 'Danceability', thickness: 14 },
+        opacity: .8,
+        line: { color: 'rgba(30,60,90,.2)', width: 1 }
+      },
+      hovertemplate: '<b>%{text}</b><br>Popularidad: %{x}<br>Energía: %{y}<extra></extra>'
+    }], {
+      paper_bgcolor: 'transparent',
+      plot_bgcolor:  'transparent',
+      font: { family: 'system-ui', color: '#2D3748', size: 12 },
+      margin: { t: 20, r: 60, b: 60, l: 60 },
+      xaxis: { title: 'Popularidad Promedio', gridcolor: '#E2E8F0' },
+      yaxis: { title: 'Energía Promedio',     gridcolor: '#E2E8F0' }
+    }, plotConfig);
+
+  } catch (e) {
+    console.error('Error scatter:', e);
+  }
+}
+
+async function selectGenre(genreId, genreName) {
+  // Highlight row
+  document.querySelectorAll('#genre-tbody tr').forEach(r => r.classList.remove('selected'));
+  const row = document.querySelector(`#genre-tbody tr[data-id="${genreId}"]`);
+  if (row) row.classList.add('selected');
+
+  document.getElementById('selected-genre-name').textContent = genreName;
+
+  // Purge any existing Plotly instance before replacing content
+  Plotly.purge('radar-chart');
+  document.getElementById('radar-chart').innerHTML =
+    '<div class="loading-center"><div class="spinner"></div></div>';
+
+  try {
+    const profile = await fetchJSON(`/genres/${genreId}/audio-profile`);
+
+    // Explicit values — no map() to avoid silent undefined
+    const values = [
+      profile.danceability     ?? 0,
+      profile.energy           ?? 0,
+      profile.speechiness      ?? 0,
+      profile.acousticness     ?? 0,
+      profile.instrumentalness ?? 0,
+      profile.liveness         ?? 0,
+      profile.valence          ?? 0,
+    ];
+    const categories = [
+      'Danceability','Energy','Speechiness',
+      'Acousticness','Instrumentalness','Liveness','Valence',
+    ];
+
+    // Repeat first element to close the polygon
+    const r     = [...values,     values[0]];
+    const theta = [...categories, categories[0]];
+
+    // Clear spinner — must be empty before newPlot
+    document.getElementById('radar-chart').innerHTML = '';
+
+    Plotly.newPlot('radar-chart', [{
+      type: 'scatterpolar',
+      r,
+      theta,
+      fill:      'toself',
+      fillcolor: 'rgba(46,134,171,.2)',
+      line:      { color: '#2E86AB', width: 2 },
+      name:      genreName,
+    }], {
+      polar: {
+        radialaxis: { visible: true, range: [0, 1], gridcolor: '#E2E8F0' },
+        bgcolor: 'transparent',
+      },
+      paper_bgcolor: 'transparent',
+      font:       { family: 'system-ui', color: '#2D3748', size: 11 },
+      margin:     { t: 30, r: 50, b: 30, l: 50 },
+      showlegend: false,
+    }, plotConfig);
+
+  } catch (e) {
+    document.getElementById('radar-chart').innerHTML =
+      `<div class="alert alert-error" style="margin:1rem">${e.message}</div>`;
+  }
+}
+
+function changePage(delta) {
+  loadGenres(currentPage + delta);
+}
+
+loadGenres();
+loadScatter();
+</script>
+</body>
+</html>
