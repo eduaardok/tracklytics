@@ -17,14 +17,15 @@ Pipeline:
 
 import hashlib
 import json
+import math
 import os
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date, datetime, timedelta
 
 import httpx
 import numpy as np
 import pandas as pd
 import pyarrow.parquet as pq
-from faker import Faker
 
 import clickhouse_connect
 from airflow import DAG
@@ -102,33 +103,90 @@ def _energy_level(e: float) -> int:
     else:           return 3
 
 
+# Vocabulario para nombres de tracks sintéticos (reemplaza Faker.catch_phrase)
+_CATCH_W1 = np.array([
+    "Adaptive", "Advanced", "Automated", "Balanced", "Centralized", "Compatible",
+    "Configurable", "Cross-platform", "Customer-focused", "Customizable", "Devolved",
+    "Digitized", "Distributed", "Down-sized", "Enhanced", "Enterprise-wide", "Ergonomic",
+    "Exclusive", "Expanded", "Extended", "Focused", "Front-line", "Function-based",
+    "Fundamental", "Innovative", "Integrated", "Intuitive", "Managed", "Monitored",
+    "Multi-layered", "Networked", "Object-based", "Open-architected", "Open-source",
+    "Optimized", "Organic", "Organized", "Persistent", "Phased", "Proactive",
+    "Progressive", "Quality-focused", "Re-engineered", "Reduced", "Robust", "Seamless",
+    "Secured", "Sharable", "Stand-alone", "Streamlined", "Synchronised", "Synergistic",
+    "Team-oriented", "Universal", "Upgradeable", "User-centric", "User-friendly",
+    "Versatile", "Virtual", "Visionary",
+])
+_CATCH_W2 = np.array([
+    "analyzing", "asynchronous", "bifurcated", "client-driven", "client-focused",
+    "coherent", "composite", "context-sensitive", "dedicated", "demand-driven", "dynamic",
+    "empowering", "even-keeled", "fault-tolerant", "fresh-thinking", "full-range",
+    "global", "high-level", "holistic", "human-resource", "hybrid", "impactful",
+    "incremental", "interactive", "leading edge", "local", "logistical", "maximized",
+    "methodical", "mission-critical", "mobile", "modular", "motivating", "multi-tasking",
+    "neutral", "next generation", "object-oriented", "optimal", "optimizing", "real-time",
+    "reciprocal", "regional", "responsive", "scalable", "stable", "systematic",
+    "transitional", "uniform", "user-facing", "value-added", "web-enabled", "zero defect",
+])
+_CATCH_W3 = np.array([
+    "ability", "access", "adapter", "algorithm", "alliance", "analyzer", "application",
+    "approach", "architecture", "array", "benchmark", "capability", "capacity",
+    "challenge", "circuit", "collaboration", "complexity", "concept", "contingency",
+    "core", "database", "definition", "emulation", "encoding", "encryption", "firmware",
+    "flexibility", "forecast", "framework", "function", "functionalities", "groupware",
+    "hardware", "hierarchy", "hub", "implementation", "infrastructure", "initiative",
+    "interface", "intranet", "knowledge base", "leverage", "matrix", "methodology",
+    "middleware", "migration", "model", "monitoring", "open system", "orchestration",
+    "paradigm", "policy", "portal", "pricing structure", "process improvement", "product",
+    "productivity", "project", "protocol", "software", "solution", "standardization",
+    "strategy", "structure", "success", "support", "synergy", "system engine",
+    "throughput", "toolset", "utilization", "website", "workforce",
+])
+
+
 # ── Task 1: extract_pocketbase ────────────────────────────────────────────────
 
 def extract_pocketbase(**context):
-    cfg  = _cfg()
-    week = _get_week(context)
+    cfg      = _cfg()
+    week     = _get_week(context)
+    per_page = 1000
     print(f"[extract_pocketbase] week_number={week} — cargando semanas 1 a {week}")
 
     token   = _pb_token(cfg)
     headers = {"Authorization": f"Bearer {token}"}
+    base_url = f"{cfg['pb_url']}/api/collections/{cfg['pb_coll']}/records"
 
+    # 1. Obtener total de registros con una request ligera
+    resp = httpx.get(base_url,
+                     params={"page": 1, "perPage": 1, "skipTotal": "false"},
+                     headers=headers, timeout=30)
+    resp.raise_for_status()
+    total = resp.json().get("totalItems", 0)
+    pages = math.ceil(total / per_page)
+    print(f"[extract_pocketbase] {total} registros — {pages} páginas (perPage={per_page})")
+
+    # 2. Función que descarga una sola página
+    def fetch_page(page: int) -> tuple[int, list]:
+        r = httpx.get(base_url,
+                      params={"page": page, "perPage": per_page, "skipTotal": "true"},
+                      headers=headers, timeout=60)
+        r.raise_for_status()
+        items = r.json().get("items", [])
+        print(f"[extract_pocketbase] página {page}/{pages} — {len(items)} items")
+        return page, items
+
+    # 3. Descarga paralela con hasta 10 workers simultáneos
+    results: dict[int, list] = {}
+    with ThreadPoolExecutor(max_workers=10) as pool:
+        futures = {pool.submit(fetch_page, p): p for p in range(1, pages + 1)}
+        for future in as_completed(futures):
+            page_num, items = future.result()
+            results[page_num] = items
+
+    # 4. Combinar en orden de página para reproducibilidad
     records = []
-    page = 1
-    while True:
-        resp = httpx.get(
-            f"{cfg['pb_url']}/api/collections/{cfg['pb_coll']}/records",
-            params={"page": page, "perPage": 500, "skipTotal": "false"},
-            headers=headers,
-            timeout=60,
-        )
-        resp.raise_for_status()
-        data        = resp.json()
-        items       = data.get("items", [])
-        total_pages = data.get("totalPages", 1)
-        records.extend(items)
-        if page >= total_pages:
-            break
-        page += 1
+    for p in range(1, pages + 1):
+        records.extend(results[p])
 
     os.makedirs(cfg["parquet_dir"], exist_ok=True)
     raw_path = f"{cfg['parquet_dir']}/raw_week_{week}.json"
@@ -443,63 +501,65 @@ def populate_fact(**context):
     next_id  = 1
     inserted = 0
 
-    # ── Semana 1: datos reales de PocketBase ──────────────────────────────────
+    # ── Semana 1: datos reales de PocketBase (vectorizado) ───────────────────
     date_id_1 = _get_date_id(client, 1)
     stg_df    = client.query_df("SELECT * FROM STG_RAW_TRACKS")
-    real_rows = []
+    n_real    = len(stg_df)
 
-    for i, r in enumerate(stg_df.itertuples(index=False)):
-        first_artist = str(r.artists).split(";")[0].strip()
-        real_rows.append((
-            next_id + i,
-            str(r.track_id),
-            str(r.track_name),
-            artist_map.get(first_artist, 1),
-            album_map.get(str(r.album_name), 1),
-            genre_map.get(str(r.track_genre), 1),
-            date_id_1,
-            int(r.key) + 1,
-            int(r.mode) + 1,
-            _TS_MAP.get(int(r.time_signature), 3),
-            int(r.explicit) + 1,
-            _pop_range(int(r.popularity)),
-            _tempo_range(float(r.tempo)),
-            _energy_level(float(r.energy)),
-            int(r.popularity),
-            int(r.duration_ms),
-            float(r.danceability),
-            float(r.energy),
-            float(r.loudness),
-            float(r.speechiness),
-            float(r.acousticness),
-            float(r.instrumentalness),
-            float(r.liveness),
-            float(r.valence),
-            float(r.tempo),
-            1,      # load_week
-            False,  # is_synthetic
-        ))
+    pop_arr    = stg_df["popularity"].to_numpy(dtype=np.int32)
+    tempo_arr  = stg_df["tempo"].to_numpy(dtype=np.float32)
+    energy_arr = stg_df["energy"].to_numpy(dtype=np.float32)
 
-    for start in range(0, len(real_rows), 50_000):
-        client.insert("FACT_TRACKS", real_rows[start:start + 50_000],
-                      column_names=_FACT_COLS)
+    real_df = pd.DataFrame({
+        "fact_id":             np.arange(next_id, next_id + n_real, dtype=np.int64),
+        "track_id":            stg_df["track_id"].astype(str),
+        "track_name":          stg_df["track_name"].astype(str),
+        "artist_id":           stg_df["artists"].astype(str).str.split(";").str[0].str.strip()
+                               .map(artist_map).fillna(1).astype(np.int64),
+        "album_id":            stg_df["album_name"].astype(str).map(album_map).fillna(1).astype(np.int64),
+        "genre_id":            stg_df["track_genre"].astype(str).map(genre_map).fillna(1).astype(np.int64),
+        "date_id":             date_id_1,
+        "key_id":              stg_df["key"].astype(int) + 1,
+        "mode_id":             stg_df["mode"].astype(int) + 1,
+        "time_signature_id":   stg_df["time_signature"].astype(int).map(_TS_MAP).fillna(3).astype(int),
+        "explicit_id":         stg_df["explicit"].astype(int) + 1,
+        "popularity_range_id": np.where(pop_arr <= 33, 1, np.where(pop_arr <= 66, 2, 3)),
+        "tempo_range_id":      np.where(tempo_arr < 90, 1, np.where(tempo_arr < 120, 2,
+                               np.where(tempo_arr < 150, 3, 4))),
+        "energy_level_id":     np.where(energy_arr <= 0.33, 1, np.where(energy_arr <= 0.66, 2, 3)),
+        "popularity":          pop_arr,
+        "duration_ms":         stg_df["duration_ms"].astype(int),
+        "danceability":        stg_df["danceability"].astype(float),
+        "energy":              energy_arr,
+        "loudness":            stg_df["loudness"].astype(float),
+        "speechiness":         stg_df["speechiness"].astype(float),
+        "acousticness":        stg_df["acousticness"].astype(float),
+        "instrumentalness":    stg_df["instrumentalness"].astype(float),
+        "liveness":            stg_df["liveness"].astype(float),
+        "valence":             stg_df["valence"].astype(float),
+        "tempo":               tempo_arr,
+        "load_week":           1,
+        "is_synthetic":        False,
+    })
 
-    next_id  += len(real_rows)
-    inserted += len(real_rows)
-    print(f"[populate_fact] Semana 1: {len(real_rows)} registros reales insertados")
+    for start in range(0, n_real, 50_000):
+        client.insert_df("FACT_TRACKS", real_df.iloc[start:start + 50_000])
+
+    next_id  += n_real
+    inserted += n_real
+    print(f"[populate_fact] Semana 1: {n_real} registros reales insertados")
 
     # ── Semanas 2..N: datos sintéticos (100k por semana) ─────────────────────
     for syn_week in range(2, week + 1):
         syn_date_id = _get_date_id(client, syn_week)
-        syn_rows    = _generate_synthetic(
+        syn_df      = _generate_synthetic(
             syn_week, next_id, syn_date_id, artist_map, album_map, genre_map
         )
-        for start in range(0, len(syn_rows), 50_000):
-            client.insert("FACT_TRACKS", syn_rows[start:start + 50_000],
-                          column_names=_FACT_COLS)
-        next_id  += len(syn_rows)
-        inserted += len(syn_rows)
-        print(f"[populate_fact] Semana {syn_week}: {len(syn_rows)} registros sintéticos")
+        for start in range(0, len(syn_df), 50_000):
+            client.insert_df("FACT_TRACKS", syn_df.iloc[start:start + 50_000])
+        next_id  += len(syn_df)
+        inserted += len(syn_df)
+        print(f"[populate_fact] Semana {syn_week}: {len(syn_df)} registros sintéticos")
 
     context["ti"].xcom_push(key="inserted_count", value=inserted)
     print(f"[populate_fact] Total insertado: {inserted} registros en {week} semana(s)")
@@ -512,70 +572,69 @@ def _generate_synthetic(
     artist_map: dict,
     album_map: dict,
     genre_map: dict,
-) -> list:
-    rng  = np.random.default_rng(week * 42)
-    fake = Faker()
-    fake.seed_instance(week * 42)
+) -> pd.DataFrame:
+    rng = np.random.default_rng(week * 42)
 
     n          = 100_000
     artist_ids = np.array(list(artist_map.values()), dtype=np.int64)
     album_ids  = np.array(list(album_map.values()),  dtype=np.int64)
     genre_ids  = np.array(list(genre_map.values()),  dtype=np.int64)
 
-    pops      = rng.integers(0,    101,     n)
-    tempos    = rng.uniform(60,    200,     n).astype(np.float32)
-    energies  = rng.uniform(0,     1,       n).astype(np.float32)
-    dance     = rng.uniform(0,     1,       n).astype(np.float32)
-    loud      = rng.uniform(-20,   0,       n).astype(np.float32)
-    speech    = rng.uniform(0,     1,       n).astype(np.float32)
-    acoust    = rng.uniform(0,     1,       n).astype(np.float32)
-    instrum   = rng.uniform(0,     1,       n).astype(np.float32)
-    livenes   = rng.uniform(0,     1,       n).astype(np.float32)
-    valence   = rng.uniform(0,     1,       n).astype(np.float32)
-    durations = rng.integers(120_000, 420_001, n)
-    keys_arr  = rng.integers(1,    13,      n)
-    modes_arr = rng.integers(1,    3,       n)
-    ts_ids    = rng.choice([1, 2, 3, 4],    n)
-    exp_ids   = rng.integers(1,    3,       n)
-    a_ids     = rng.choice(artist_ids,      n)
-    al_ids    = rng.choice(album_ids,       n)
-    g_ids     = rng.choice(genre_ids,       n)
+    pops      = rng.integers(0,       101,      n, dtype=np.int32)
+    tempos    = rng.uniform(60,       200,      n).astype(np.float32)
+    energies  = rng.uniform(0,        1,        n).astype(np.float32)
+    dance     = rng.uniform(0,        1,        n).astype(np.float32)
+    loud      = rng.uniform(-20,      0,        n).astype(np.float32)
+    speech    = rng.uniform(0,        1,        n).astype(np.float32)
+    acoust    = rng.uniform(0,        1,        n).astype(np.float32)
+    instrum   = rng.uniform(0,        1,        n).astype(np.float32)
+    livenes   = rng.uniform(0,        1,        n).astype(np.float32)
+    valence   = rng.uniform(0,        1,        n).astype(np.float32)
+    durations = rng.integers(120_000, 420_001,  n)
+    keys_arr  = rng.integers(1,       13,       n)
+    modes_arr = rng.integers(1,       3,        n)
+    ts_ids    = rng.choice([1, 2, 3, 4],        n)
+    exp_ids   = rng.integers(1,       3,        n)
+    a_ids     = rng.choice(artist_ids,          n)
+    al_ids    = rng.choice(album_ids,           n)
+    g_ids     = rng.choice(genre_ids,           n)
 
-    rows = []
-    for i in range(n):
-        pop   = int(pops[i])
-        tempo = float(tempos[i])
-        enrg  = float(energies[i])
-        rows.append((
-            start_id + i,
-            f"syn_{week}_{i:06d}",
-            fake.catch_phrase(),
-            int(a_ids[i]),
-            int(al_ids[i]),
-            int(g_ids[i]),
-            date_id,
-            int(keys_arr[i]),
-            int(modes_arr[i]),
-            int(ts_ids[i]),
-            int(exp_ids[i]),
-            _pop_range(pop),
-            _tempo_range(tempo),
-            _energy_level(enrg),
-            pop,
-            int(durations[i]),
-            float(dance[i]),
-            enrg,
-            float(loud[i]),
-            float(speech[i]),
-            float(acoust[i]),
-            float(instrum[i]),
-            float(livenes[i]),
-            float(valence[i]),
-            tempo,
-            week,
-            True,
-        ))
-    return rows
+    # Nombres de tracks: combinación de 3 arrays de palabras (sin Faker)
+    w1 = _CATCH_W1[rng.integers(0, len(_CATCH_W1), n)]
+    w2 = _CATCH_W2[rng.integers(0, len(_CATCH_W2), n)]
+    w3 = _CATCH_W3[rng.integers(0, len(_CATCH_W3), n)]
+    track_names = np.char.add(np.char.add(w1, " "), np.char.add(w2, np.char.add(" ", w3)))
+
+    return pd.DataFrame({
+        "fact_id":             np.arange(start_id, start_id + n, dtype=np.int64),
+        "track_id":            [f"syn_{week}_{i:06d}" for i in range(n)],
+        "track_name":          track_names,
+        "artist_id":           a_ids,
+        "album_id":            al_ids,
+        "genre_id":            g_ids,
+        "date_id":             date_id,
+        "key_id":              keys_arr,
+        "mode_id":             modes_arr,
+        "time_signature_id":   ts_ids,
+        "explicit_id":         exp_ids,
+        "popularity_range_id": np.where(pops <= 33, 1, np.where(pops <= 66, 2, 3)),
+        "tempo_range_id":      np.where(tempos < 90, 1, np.where(tempos < 120, 2,
+                               np.where(tempos < 150, 3, 4))),
+        "energy_level_id":     np.where(energies <= 0.33, 1, np.where(energies <= 0.66, 2, 3)),
+        "popularity":          pops,
+        "duration_ms":         durations,
+        "danceability":        dance,
+        "energy":              energies,
+        "loudness":            loud,
+        "speechiness":         speech,
+        "acousticness":        acoust,
+        "instrumentalness":    instrum,
+        "liveness":            livenes,
+        "valence":             valence,
+        "tempo":               tempos,
+        "load_week":           week,
+        "is_synthetic":        True,
+    })
 
 
 # ── Task 6: log_etl ───────────────────────────────────────────────────────────

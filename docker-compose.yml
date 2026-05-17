@@ -10,7 +10,7 @@ services:
     ports:
       - "8090:8090"
     volumes:
-      - pb_data:/pb/pb_data
+      - pb_data:/pb_data
     healthcheck:
       test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8090/api/health"]
       interval: 10s
@@ -20,7 +20,30 @@ services:
       - tracklytics-net
 
   # ─────────────────────────────────────────
-  # 2. ClickHouse  — base de datos columnar
+  # 2. PocketBase Init  — crea colección y carga CSV (una sola vez, idempotente)
+  # ─────────────────────────────────────────
+  pb-init:
+    build:
+      context: .
+      dockerfile: pb_init_Dockerfile
+    container_name: tracklytics_pb_init
+    restart: no
+    depends_on:
+      pocketbase:
+        condition: service_healthy
+    environment:
+      POCKETBASE_URL:        ${POCKETBASE_URL}
+      POCKETBASE_EMAIL:      ${POCKETBASE_EMAIL}
+      POCKETBASE_PASSWORD:   ${POCKETBASE_PASSWORD}
+      POCKETBASE_COLLECTION: ${POCKETBASE_COLLECTION:-spotify_tracks}
+      CSV_PATH:              /app/dataset/spotify.csv
+    volumes:
+      - ./dataset:/app/dataset:ro
+    networks:
+      - tracklytics-net
+
+  # ─────────────────────────────────────────
+  # 3. ClickHouse  — base de datos columnar
   # ─────────────────────────────────────────
   clickhouse:
     image: clickhouse/clickhouse-server:24.3
@@ -44,7 +67,7 @@ services:
       - tracklytics-net
 
   # ─────────────────────────────────────────
-  # 3. Init DB  — crea schema ClickHouse (una sola vez, idempotente)
+  # 4. Init DB  — crea schema ClickHouse (una sola vez, idempotente)
   # ─────────────────────────────────────────
   init-db:
     build:
@@ -65,6 +88,19 @@ services:
       - tracklytics-net
 
   # ─────────────────────────────────────────
+  # 4. Init Permissions  — ajusta permisos del volumen parquet_stage
+  # ─────────────────────────────────────────
+  init-permissions:
+    image: busybox
+    container_name: tracklytics_init_permissions
+    restart: no
+    command: ["chmod", "777", "/app/parquet_stage"]
+    volumes:
+      - parquet_stage:/app/parquet_stage
+    networks:
+      - tracklytics-net
+
+  # ─────────────────────────────────────────
   # 4. ETL Python  — ejecución directa (legacy; Airflow es el orquestador)
   # ─────────────────────────────────────────
   etl:
@@ -78,6 +114,8 @@ services:
         condition: service_healthy
       clickhouse:
         condition: service_healthy
+      init-permissions:
+        condition: service_completed_successfully
     environment:
       POCKETBASE_URL:      ${POCKETBASE_URL}
       POCKETBASE_EMAIL:    ${POCKETBASE_EMAIL}
@@ -127,15 +165,23 @@ services:
   #    UI: http://localhost:8080  (user: admin / ver logs del contenedor para la contraseña)
   # ─────────────────────────────────────────
   airflow:
-    image: apache/airflow:2.9.1-python3.11
+    build:
+      context: .
+      dockerfile: airflow_Dockerfile
     container_name: tracklytics_airflow
-    command: standalone
+    command: >
+      bash -c "rm -f /opt/airflow/airflow-webserver.pid &&
+      airflow db migrate &&
+      airflow users create --username $${_AIRFLOW_WWW_USER_USERNAME} --password $${_AIRFLOW_WWW_USER_PASSWORD} --firstname Admin --lastname User --role Admin --email admin@tracklytics.com 2>/dev/null || true &&
+      airflow standalone"
     restart: unless-stopped
     depends_on:
       pocketbase:
         condition: service_healthy
       clickhouse:
         condition: service_healthy
+      init-permissions:
+        condition: service_completed_successfully
     environment:
       AIRFLOW__CORE__EXECUTOR: SequentialExecutor
       AIRFLOW__API__AUTH_BACKENDS: airflow.api.auth.backend.basic_auth,airflow.api.auth.backend.session
@@ -143,16 +189,13 @@ services:
       AIRFLOW__CORE__LOAD_EXAMPLES: "false"
       AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: sqlite:////opt/airflow/airflow.db
       AIRFLOW__WEBSERVER__SECRET_KEY: ${AIRFLOW_SECRET_KEY:-tracklytics2026}
+      AIRFLOW__WEBSERVER__WORKERS: 1
+      AIRFLOW__SCHEDULER__MIN_FILE_PROCESS_INTERVAL: 60
+      AIRFLOW__SCHEDULER__DAG_DIR_LIST_INTERVAL: 60
+      AIRFLOW__CORE__DAGBAG_IMPORT_TIMEOUT: 60
       _AIRFLOW_WWW_USER_CREATE: "true"
       _AIRFLOW_WWW_USER_USERNAME: ${AIRFLOW_USER:-admin}
       _AIRFLOW_WWW_USER_PASSWORD: ${AIRFLOW_PASSWORD:-tracklytics2026}
-      _PIP_ADDITIONAL_REQUIREMENTS: >-
-        clickhouse-connect==0.7.16
-        httpx==0.27.0
-        pyarrow==16.1.0
-        pandas==2.2.2
-        faker==25.8.0
-        numpy==1.26.4
       POCKETBASE_URL:        ${POCKETBASE_URL}
       POCKETBASE_EMAIL:      ${POCKETBASE_EMAIL}
       POCKETBASE_PASSWORD:   ${POCKETBASE_PASSWORD}
@@ -175,7 +218,7 @@ services:
       interval: 30s
       timeout: 10s
       retries: 5
-      start_period: 90s
+      start_period: 30s
     networks:
       - tracklytics-net
 

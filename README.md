@@ -47,64 +47,57 @@ Crea un archivo `.env` en la raíz del proyecto:
 
 ```env
 # PocketBase
-POCKETBASE_URL=http://localhost:8090
+POCKETBASE_URL=http://pocketbase:8090
 POCKETBASE_EMAIL=admin@tracklytics.com
-POCKETBASE_PASSWORD=tracklytics2026
+POCKETBASE_PASSWORD=cambia_esto_en_produccion
 POCKETBASE_COLLECTION=spotify_tracks
 
 # ClickHouse
 CLICKHOUSE_DB=tracklytics
-CLICKHOUSE_USER=default
-CLICKHOUSE_PASSWORD=
+CLICKHOUSE_USER=tracklytics_user
+CLICKHOUSE_PASSWORD=cambia_esto_en_produccion
 
 # Airflow
 AIRFLOW_USER=admin
 AIRFLOW_PASSWORD=tracklytics2026
-AIRFLOW_SECRET_KEY=tracklytics2026
+AIRFLOW_SECRET_KEY=tracklytics_secret_key_2026
 AIRFLOW_DAG_ID=tracklytics_etl
+
+# ETL
+WEEK_NUMBER=1
 ```
 
-### 3. Levantar PocketBase
-
-```bash
-docker compose up pocketbase -d
-```
-
-Espera ~10 segundos a que arranque. PocketBase queda en `http://localhost:8090`.
-
-### 4. Cargar el dataset en PocketBase (solo la primera vez)
-
-```bash
-pip install -r requirements.txt
-python load_pocketbase.py
-```
-
-Crea la colección `spotify_tracks` e importa los 113.550 registros desde `dataset/spotify.csv`.
-Este paso tarda varios minutos dependiendo del hardware.
-
-### 5. Inicializar el schema de ClickHouse (solo la primera vez)
-
-```bash
-docker compose up clickhouse -d
-# Espera a que ClickHouse esté healthy (~20 seg)
-python init_clickhouse.py
-```
-
-Crea todas las tablas del modelo dimensional (DIM_*, FACT_TRACKS, STG_RAW_TRACKS, ETL_LOGS, ETL_BATCH_CONTROL).
-
-### 6. Levantar todos los servicios
+### 3. Levantar todos los servicios
 
 ```bash
 docker compose up -d
 ```
 
-Levanta: PocketBase, ClickHouse, ETL runner, API, Airflow y Frontend.
-Airflow tarda ~2 minutos en inicializarse completamente.
+Docker Compose levanta automáticamente todos los servicios en el orden correcto:
 
-### 7. Ejecutar el ETL desde el navegador
+1. **PocketBase** y **ClickHouse** arrancan primero.
+2. **pb-init** crea la colección `spotify_tracks` y carga los 113.550 registros desde el CSV (tarda ~5 min).
+3. **init-db** crea el schema dimensional en ClickHouse.
+4. **Airflow**, **API** y **Frontend** quedan disponibles.
+
+> **Nota:** En la primera ejecución espera ~5–7 minutos a que `pb-init` termine antes de lanzar el ETL.
+> Puedes monitorear con: `docker logs tracklytics_pb_init -f`
+
+### 4. Ejecutar el ETL desde el navegador
 
 Abre `http://localhost/pages/etl.html`, selecciona el número de semana y pulsa
 **Cargar hasta semana N**. La página monitorea el estado del DAG en tiempo real.
+
+### Reset completo
+
+Si necesitas partir de cero (borrar todos los datos):
+
+```bash
+docker compose down -v
+docker compose up -d
+```
+
+Los volúmenes se recrean solos. No es necesario ningún paso manual adicional.
 
 ---
 
@@ -117,7 +110,7 @@ Abre `http://localhost/pages/etl.html`, selecciona el número de semana y pulsa
 | Airflow UI | http://localhost:8080 |
 | PocketBase Admin | http://localhost:8090/_/ |
 
-Credenciales Airflow: `admin` / `tracklytics2026`
+Credenciales Airflow: `admin` / valor de `AIRFLOW_PASSWORD` en `.env` (por defecto `tracklytics2026`)
 
 ---
 
@@ -195,13 +188,20 @@ El schema completo con DDL está en `docs/DIMENSIONAL_MODEL.md`.
 Cada ejecución reemplaza todos los datos (no acumulativo):
 
 1. **Truncar** FACT_TRACKS y ETL_BATCH_CONTROL
-2. **Extraer** desde PocketBase → Parquet
+2. **Extraer** desde PocketBase → JSON → Parquet (descarga paralela con 10 workers)
 3. **Cargar staging** → STG_RAW_TRACKS en ClickHouse
 4. **Poblar dimensiones** (DIM_DATE para semanas 1..N)
-5. **Poblar hechos**:
+5. **Poblar hechos** (vectorizado con pandas/numpy, sin bucles Python):
    - Semana 1: 113.550 registros reales
    - Semanas 2..N: +100.000 registros sintéticos/semana (seed = semana × 42)
 6. **Registrar** resultado en ETL_LOGS
 7. **Limpiar** staging y Parquet
 
-Al finalizar la semana 16: ~1.6M filas en FACT_TRACKS.
+| Semanas | Registros totales | Tiempo aprox. |
+|---------|-------------------|---------------|
+| 1       | 113.550           | ~35 s         |
+| 2       | 213.550           | ~1.2 min      |
+| 4       | 413.550           | ~1.5 min      |
+| 16      | 1.613.550         | ~5 min        |
+
+Los datos sintéticos se generan deterministamente (misma seed → mismo resultado), lo que garantiza reproducibilidad entre ejecuciones.

@@ -1,0 +1,6 @@
+FROM python:3.11-slim
+ENV PYTHONUNBUFFERED=1
+WORKDIR /app
+RUN pip install --no-cache-dir pandas httpx python-dotenv
+COPY pb_init.py .
+CMD ["python", "pb_init.py"]
