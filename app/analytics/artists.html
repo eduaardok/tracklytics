@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Artistas — Tracklytics</title>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="/css/main.css"/>
+  <link rel="stylesheet" href="/css/analytics.css"/>
+  <script src="https://cdn.plot.ly/plotly-2.32.0.min.js"></script>
+</head>
+<body>
+<div id="sidebar-root"></div>
+<div class="app-layout">
+  <main class="main-content">
+    <h1 class="page-title">Análisis de Artistas</h1>
+
+    <div id="error-banner"></div>
+
+    <!-- Search -->
+    <div class="card mb-3">
+      <div class="card-body">
+        <div class="search-row">
+          <div class="form-group">
+            <label for="search-input">Buscar artista por nombre</label>
+            <input type="text" id="search-input" class="form-control"
+                   placeholder="Ej: Taylor Swift..." autocomplete="off"/>
+          </div>
+          <button class="btn btn-primary" onclick="doSearch()">Buscar</button>
+        </div>
+
+        <!-- Results list -->
+        <div id="search-results" style="display:none">
+          <div class="table-wrapper">
+            <table>
+              <thead>
+                <tr><th>ID</th><th>Nombre</th><th></th></tr>
+              </thead>
+              <tbody id="results-tbody"></tbody>
+            </table>
+          </div>
+          <div class="pagination">
+            <span class="pagination-info" id="search-page-info"></span>
+            <div class="pagination-btns">
+              <button class="btn btn-secondary btn-sm" id="btn-s-prev" onclick="searchPage(-1)" disabled>‹</button>
+              <button class="btn btn-secondary btn-sm" id="btn-s-next" onclick="searchPage(1)"  disabled>›</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Artist detail -->
+    <div id="artist-detail" style="display:none">
+
+      <!-- Profile card -->
+      <div class="profile-card mb-3">
+        <div class="profile-avatar" id="artist-avatar">—</div>
+        <div class="profile-info">
+          <h2 id="artist-name">—</h2>
+          <div class="profile-meta">
+            <div class="meta-item"><strong id="artist-tracks">—</strong> tracks</div>
+            <div class="meta-item">Popularidad avg: <strong id="artist-pop">—</strong></div>
+            <div class="meta-item">Energía avg: <strong id="artist-energy">—</strong></div>
+            <div class="meta-item">Danceability avg: <strong id="artist-dance">—</strong></div>
+            <div class="meta-item">Valence avg: <strong id="artist-valence">—</strong></div>
+            <div class="meta-item">Explícitas: <strong id="artist-explicit">—</strong></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Charts -->
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-header">Artista vs Benchmark de Género</div>
+          <div class="card-body" style="padding:.5rem">
+            <div id="bench-chart" class="chart-container"></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header">Popularidad Promedio por Género</div>
+          <div class="card-body" style="padding:.5rem">
+            <div id="genre-pop-chart" class="chart-container"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Empty state -->
+    <div id="empty-state">
+      <div class="empty-state">
+        <div class="empty-icon">🎵</div>
+        <p>Busca un artista para ver sus estadísticas</p>
+      </div>
+    </div>
+  </main>
+</div>
+<div id="player-root"></div>
+
+<script type="module">
+  import { requireAuth, hasAnalyticsAccess } from '/js/auth.js';
+  import { renderSidebar, renderPlayer } from '/js/components.js';
+  if (!requireAuth() || !hasAnalyticsAccess()) {
+    window.location.href = '/catalogo/home.html';
+    throw new Error('unauthorized');
+  }
+  renderSidebar('analytics');
+  renderPlayer();
+
+  const API = '/api';
+  let searchPage_ = 1;
+  let searchName_ = '';
+  const searchLimit = 10;
+
+  const plotConfig = { responsive: true, displayModeBar: false };
+
+  function showError(msg) {
+    document.getElementById('error-banner').innerHTML =
+      `<div class="alert alert-error">${msg}</div>`;
+  }
+
+  async function fetchJSON(path) {
+    const res = await fetch(API + path);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
+  }
+
+  async function doSearch(page = 1) {
+    const name = document.getElementById('search-input').value.trim();
+    if (!name) return;
+    searchName_ = name;
+    searchPage_ = page;
+
+    try {
+      const data = await fetchJSON(`/artists/search?name=${encodeURIComponent(name)}&page=${page}&limit=${searchLimit}`);
+      const results = data.data ?? [];
+      const total   = data.total ?? 0;
+
+      document.getElementById('search-results').style.display = 'block';
+      document.getElementById('search-page-info').textContent =
+        `${total} resultados — pág. ${page}`;
+      document.getElementById('btn-s-prev').disabled = page <= 1;
+      document.getElementById('btn-s-next').disabled = page * searchLimit >= total;
+
+      const tbody = document.getElementById('results-tbody');
+      if (!results.length) {
+        tbody.innerHTML = `<tr><td colspan="3" class="text-muted" style="padding:1rem">Sin resultados</td></tr>`;
+        return;
+      }
+      tbody.innerHTML = results.map(a => `
+        <tr>
+          <td class="text-muted">${a.artist_id}</td>
+          <td>${a.name ?? '—'}</td>
+          <td><button class="btn btn-primary btn-sm" onclick="loadArtist(${a.artist_id}, '${(a.name ?? '').replace(/'/g,"\\'")}')">Ver perfil</button></td>
+        </tr>
+      `).join('');
+
+    } catch (e) {
+      showError(`Error buscando artista: ${e.message}`);
+    }
+  }
+
+  function searchPage(delta) {
+    doSearch(searchPage_ + delta);
+  }
+
+  async function loadArtist(artistId, nameHint) {
+    document.getElementById('artist-detail').style.display = 'none';
+    document.getElementById('empty-state').style.display   = 'none';
+    document.getElementById('error-banner').innerHTML      = '';
+
+    try {
+      const a = await fetchJSON(`/artists/${artistId}/stats`);
+
+      const initials = (a.name ?? nameHint ?? '?').split(' ').map(w => w[0]).slice(0,2).join('').toUpperCase();
+      document.getElementById('artist-avatar').textContent   = initials;
+      document.getElementById('artist-name').textContent     = a.name ?? nameHint ?? '—';
+      document.getElementById('artist-tracks').textContent   = (a.track_count ?? 0).toLocaleString();
+      document.getElementById('artist-pop').textContent      = a.avg_popularity   ?? '—';
+      document.getElementById('artist-energy').textContent   = a.avg_energy       ?? '—';
+      document.getElementById('artist-dance').textContent    = a.avg_danceability ?? '—';
+      document.getElementById('artist-valence').textContent  = a.avg_valence      ?? '—';
+      document.getElementById('artist-explicit').textContent = a.explicit_count   ?? '—';
+
+      const metrics    = ['Popularidad','Energía','Danceability','Valence'];
+      const artistVals = [a.avg_popularity, a.avg_energy, a.avg_danceability, a.avg_valence];
+
+      const benchmarks = a.genre_benchmarks ?? [];
+      const genreAvg = benchmarks.length
+        ? benchmarks.reduce((s, b) => s + (b.genre_avg_popularity ?? 0), 0) / benchmarks.length
+        : null;
+
+      const traces = [{
+        name: a.name ?? 'Artista',
+        x: metrics,
+        y: artistVals,
+        type: 'bar',
+        marker: { color: '#8B5CF6' }
+      }];
+
+      if (genreAvg !== null) {
+        traces.push({
+          name: 'Benchmark Género',
+          x: ['Popularidad'],
+          y: [genreAvg.toFixed(2)],
+          type: 'bar',
+          marker: { color: 'rgba(139,92,246,.4)' }
+        });
+      }
+
+      Plotly.newPlot('bench-chart', traces, {
+        barmode: 'group',
+        paper_bgcolor: 'transparent',
+        plot_bgcolor:  'transparent',
+        font: { family: "'Plus Jakarta Sans', system-ui", color: '#ffffff', size: 12 },
+        margin: { t: 20, r: 20, b: 60, l: 50 },
+        yaxis: { gridcolor: 'rgba(255,255,255,0.08)' },
+        legend: { orientation: 'h', y: -0.25 }
+      }, plotConfig);
+
+      if (benchmarks.length) {
+        Plotly.newPlot('genre-pop-chart', [{
+          x: benchmarks.map(b => b.genre_avg_popularity),
+          y: benchmarks.map(b => b.name),
+          type: 'bar',
+          orientation: 'h',
+          marker: { color: '#8B5CF6' }
+        }], {
+          paper_bgcolor: 'transparent',
+          plot_bgcolor:  'transparent',
+          font: { family: "'Plus Jakarta Sans', system-ui", color: '#ffffff', size: 12 },
+          margin: { t: 10, r: 20, b: 40, l: 110 },
+          xaxis: { title: 'Popularidad Promedio', gridcolor: 'rgba(255,255,255,0.08)' }
+        }, plotConfig);
+      }
+
+      document.getElementById('artist-detail').style.display = 'block';
+
+    } catch (e) {
+      showError(`Error cargando artista: ${e.message}`);
+      document.getElementById('empty-state').style.display = 'block';
+    }
+  }
+
+  document.getElementById('search-input').addEventListener('keydown', e => {
+    if (e.key === 'Enter') doSearch();
+  });
+
+  // Expose for inline onclick
+  window.doSearch   = doSearch;
+  window.searchPage = searchPage;
+  window.loadArtist = loadArtist;
+</script>
+</body>
+</html>

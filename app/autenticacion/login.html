@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Iniciar sesión — Tracklytics</title>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="/css/main.css"/>
+</head>
+<body>
+<div class="auth-page">
+  <div class="auth-card">
+    <div class="auth-logo"><span class="logo-t">T</span><span class="logo-rest">racklytics</span></div>
+    <h1>Iniciar sesión</h1>
+    <div id="alert-box"></div>
+    <form id="login-form">
+      <div class="form-group">
+        <label>Correo electrónico</label>
+        <input type="email" id="email" placeholder="tu@email.com" required autocomplete="email"/>
+      </div>
+      <div class="form-group">
+        <label>Contraseña</label>
+        <input type="password" id="password" placeholder="••••••••" required autocomplete="current-password"/>
+      </div>
+      <button type="submit" class="btn btn-primary" id="submit-btn">Entrar</button>
+    </form>
+    <div class="auth-footer">
+      ¿No tienes cuenta? <a href="/autenticacion/register.html">Regístrate</a>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+  import { login, isLoggedIn } from '/js/auth.js';
+
+  if (isLoggedIn()) window.location.href = '/catalogo/home.html';
+
+  const form = document.getElementById('login-form');
+  const alertBox = document.getElementById('alert-box');
+  const btn = document.getElementById('submit-btn');
+
+  form.addEventListener('submit', async e => {
+    e.preventDefault();
+    alertBox.innerHTML = '';
+    btn.disabled = true;
+    btn.textContent = 'Ingresando…';
+    try {
+      await login(document.getElementById('email').value, document.getElementById('password').value);
+      window.location.href = '/catalogo/home.html';
+    } catch (err) {
+      alertBox.innerHTML = `<div class="alert alert-error">${err.message}</div>`;
+      btn.disabled = false;
+      btn.textContent = 'Entrar';
+    }
+  });
+</script>
+</body>
+</html>

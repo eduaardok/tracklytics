@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Perfil — Tracklytics</title>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="/css/main.css"/>
+</head>
+<body>
+<div id="sidebar-root"></div>
+<div class="app-layout">
+  <main class="main-content">
+    <div id="profile-root"></div>
+  </main>
+</div>
+<div id="player-root"></div>
+
+<script type="module">
+  import { requireAuth, getSession, logout } from '/js/auth.js';
+  import { renderSidebar, renderPlayer } from '/js/components.js';
+
+  if (!requireAuth()) throw new Error('not auth');
+  renderSidebar('profile.html');
+  renderPlayer();
+
+  const user = getSession();
+  const initial = (user?.name?.[0] ?? user?.email?.[0] ?? '?').toUpperCase();
+
+  document.getElementById('profile-root').innerHTML = `
+    <div class="profile-header">
+      <div class="profile-avatar">${initial}</div>
+      <div>
+        <div class="profile-name">${user?.name || 'Usuario'}</div>
+        <div class="profile-email">${user?.email || ''}</div>
+        <div class="profile-role">${user?.role || 'user'}</div>
+      </div>
+    </div>
+
+    <div style="display:flex; gap:1rem; flex-wrap:wrap; margin-bottom:2rem">
+      ${(user?.role === 'admin' || user?.role === 'analyst') ? `
+        <a href="/analytics/dashboard.html" class="btn btn-outline">📊 Ver analítica</a>` : ''}
+      <button class="btn btn-outline" onclick="document.getElementById('edit-section').style.display='block'">
+        ✏️ Editar perfil
+      </button>
+      <button class="btn" style="border:1px solid var(--danger);color:var(--danger)" id="logout-btn">
+        Cerrar sesión
+      </button>
+    </div>
+
+    <div id="edit-section" style="display:none; max-width:400px">
+      <h2 class="section-title">Editar perfil</h2>
+      <div id="edit-alert"></div>
+      <div class="form-group">
+        <label>Nombre</label>
+        <input type="text" id="edit-name" value="${user?.name || ''}" style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:.7rem 1rem;color:var(--text);width:100%"/>
+      </div>
+      <button class="btn btn-primary" style="max-width:200px" id="save-btn">Guardar cambios</button>
+    </div>`;
+
+  document.getElementById('logout-btn').addEventListener('click', logout);
+
+  document.getElementById('save-btn')?.addEventListener('click', () => {
+    const name = document.getElementById('edit-name').value.trim();
+    if (!name) return;
+    const updated = { ...user, name };
+    localStorage.setItem('pb_user', JSON.stringify(updated));
+    document.getElementById('edit-alert').innerHTML = '<div class="alert alert-success">Guardado localmente.</div>';
+  });
+</script>
+</body>
+</html>

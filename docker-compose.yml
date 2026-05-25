@@ -207,8 +207,10 @@ services:
       CLICKHOUSE_PASSWORD:   ${CLICKHOUSE_PASSWORD}
       PARQUET_DIR:           /app/parquet_stage
       WEEK_NUMBER:           ${WEEK_NUMBER:-1}
+      PYTHONPATH:            /opt/airflow/etl_src
     volumes:
       - ./etl/dags:/opt/airflow/dags
+      - ./etl:/opt/airflow/etl_src
       - airflow_home:/opt/airflow
       - parquet_stage:/app/parquet_stage
     ports:
@@ -223,7 +225,22 @@ services:
       - tracklytics-net
 
   # ─────────────────────────────────────────
-  # 6. Frontend  — Nginx sirve HTML/CSS/JS
+  # 6. App  — App musical tipo Spotify (puerto 8081)
+  # ─────────────────────────────────────────
+  app:
+    build: ./app
+    container_name: tracklytics_app
+    restart: unless-stopped
+    depends_on:
+      - api
+      - pocketbase
+    ports:
+      - "8081:80"
+    networks:
+      - tracklytics-net
+
+  # ─────────────────────────────────────────
+  # 7. Frontend  — Nginx sirve HTML/CSS/JS
   # ─────────────────────────────────────────
   frontend:
     build:

@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Catálogo — Tracklytics</title>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="/css/main.css"/>
+</head>
+<body>
+<div id="sidebar-root"></div>
+<div class="app-layout">
+  <main class="main-content">
+    <h1 class="section-title">Catálogo completo</h1>
+
+    <div style="display:flex; gap:1rem; flex-wrap:wrap; margin-bottom:1.5rem; align-items:center">
+      <div class="search-bar" style="margin-bottom:0; flex:1; min-width:220px">
+        <span>🔍</span>
+        <input type="text" id="q" placeholder="Filtrar canciones…"/>
+      </div>
+      <select id="genre-filter" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:.6rem 1rem;border-radius:var(--radius);font-size:.9rem">
+        <option value="">Todos los géneros</option>
+      </select>
+      <select id="sort-filter" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:.6rem 1rem;border-radius:var(--radius);font-size:.9rem">
+        <option value="popularity">Más populares</option>
+        <option value="name">Nombre A-Z</option>
+      </select>
+    </div>
+
+    <div id="catalog-list"><div class="loading-center"><div class="spinner"></div></div></div>
+    <div style="text-align:center; margin-top:1rem">
+      <button class="btn btn-outline" id="load-more" style="display:none">Cargar más</button>
+    </div>
+  </main>
+</div>
+<div id="player-root"></div>
+
+<script type="module">
+  import { requireAuth } from '/js/auth.js';
+  import { renderSidebar, renderPlayer, trackRow, spinner } from '/js/components.js';
+  import { Tracks, Genres } from '/js/api.js';
+
+  if (!requireAuth()) throw new Error('not auth');
+  renderSidebar('catalogo/catalog.html');
+  renderPlayer();
+
+  let page = 0;
+  const PAGE_SIZE = 30;
+  let allTracks = [];
+
+  const listEl   = document.getElementById('catalog-list');
+  const loadMore = document.getElementById('load-more');
+  let debounce;
+
+  async function loadGenres() {
+    try {
+      const res = await Genres.list();
+      const genres = res.data ?? res;
+      const sel = document.getElementById('genre-filter');
+      genres.forEach(g => {
+        const opt = document.createElement('option');
+        opt.value = g.genre_id;
+        opt.textContent = g.name;
+        sel.appendChild(opt);
+      });
+    } catch {}
+  }
+
+  async function loadTracks() {
+    const q = document.getElementById('q').value.trim();
+    const genreId = document.getElementById('genre-filter').value;
+    listEl.innerHTML = spinner();
+    page = 0;
+    try {
+      let res;
+      if (q) {
+        res = await Tracks.search(q, 100);
+      } else if (genreId) {
+        res = await Tracks.byGenre(genreId, 100);
+      } else {
+        res = await Tracks.top(100);
+      }
+      allTracks = res.data ?? res;
+      renderPage();
+    } catch (err) {
+      listEl.innerHTML = `<div class="alert alert-error">${err.message}</div>`;
+    }
+  }
+
+  function renderPage() {
+    const slice = allTracks.slice(0, (page + 1) * PAGE_SIZE);
+    listEl.innerHTML = `<div class="track-list">${slice.map((t, i) => trackRow(t, i)).join('')}</div>`;
+    loadMore.style.display = slice.length < allTracks.length ? 'inline-flex' : 'none';
+  }
+
+  loadMore.addEventListener('click', () => { page++; renderPage(); });
+
+  ['q', 'genre-filter', 'sort-filter'].forEach(id => {
+    document.getElementById(id).addEventListener('input', () => {
+      clearTimeout(debounce);
+      debounce = setTimeout(loadTracks, 300);
+    });
+  });
+
+  loadGenres();
+  loadTracks();
+</script>
+</body>
+</html>

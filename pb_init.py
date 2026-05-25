@@ -81,6 +81,37 @@ def create_collection(token: str) -> None:
         raise RuntimeError(f"{resp.status_code} — {resp.text[:300]}")
     print(f"[pb-init] Colección '{COLLECTION}' creada ({len(COLLECTION_SCHEMA['fields'])} campos).")
 
+
+def ensure_users_role_field(token: str) -> None:
+    """Adds 'role' text field to the built-in users auth collection if not present."""
+    resp = httpx.get(
+        f"{PB_URL}/api/collections/users",
+        headers={"Authorization": f"Bearer {token}"},
+        timeout=30,
+    )
+    if resp.status_code != 200:
+        print(f"[pb-init] WARNING: no se pudo obtener la colección users ({resp.status_code}).")
+        return
+
+    collection = resp.json()
+    fields = collection.get("fields", [])
+
+    if any(f.get("name") == "role" for f in fields):
+        print("[pb-init] Campo 'role' ya existe en users. Sin cambios.")
+        return
+
+    updated_fields = fields + [{"name": "role", "type": "text", "required": False}]
+    patch = httpx.patch(
+        f"{PB_URL}/api/collections/users",
+        json={"fields": updated_fields},
+        headers={"Authorization": f"Bearer {token}"},
+        timeout=30,
+    )
+    if patch.status_code in (200, 204):
+        print("[pb-init] Campo 'role' agregado a la colección users.")
+    else:
+        print(f"[pb-init] WARNING: no se pudo agregar 'role': {patch.status_code} — {patch.text[:200]}")
+
 # ── Transformación ─────────────────────────────────────────────────────────────
 
 def clean_row(row: dict) -> dict:
@@ -140,6 +171,8 @@ def main() -> None:
         print(f"[pb-init] ERROR de autenticación: {exc}")
         sys.exit(1)
     print("[pb-init] Autenticado.")
+
+    ensure_users_role_field(token)
 
     # ── Verificar colección ───────────────────────────────────────────────────
     count = collection_count(token)

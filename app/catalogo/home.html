@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Inicio — Tracklytics</title>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="/css/main.css"/>
+</head>
+<body>
+<div id="sidebar-root"></div>
+<div class="app-layout">
+  <main class="main-content">
+    <div class="home-header">
+      <h1 id="greeting">Bienvenido</h1>
+      <p>¿Qué quieres escuchar hoy?</p>
+    </div>
+
+    <section class="mb-4">
+      <h2 class="section-title">Top canciones</h2>
+      <div id="top-tracks"><div class="loading-center"><div class="spinner"></div></div></div>
+    </section>
+
+    <section class="mb-4">
+      <h2 class="section-title">Artistas destacados</h2>
+      <div class="grid-cards" id="top-artists"></div>
+    </section>
+
+    <section>
+      <h2 class="section-title">Géneros populares</h2>
+      <div class="grid-cards" id="top-genres"></div>
+    </section>
+  </main>
+</div>
+<div id="player-root"></div>
+
+<script type="module">
+  import { requireAuth, getSession } from '/js/auth.js';
+  import { renderSidebar, renderPlayer, trackRow, spinner, genreColor } from '/js/components.js';
+  import { Tracks, Artists, Genres } from '/js/api.js';
+
+  if (!requireAuth()) throw new Error('not auth');
+
+  renderSidebar('catalogo/home.html');
+  renderPlayer();
+
+  const user = getSession();
+  document.getElementById('greeting').textContent = user?.name?.split(' ')[0] || user?.email?.split('@')[0] || 'Hola';
+
+  async function loadTracks() {
+    try {
+      const res    = await Tracks.top(20);
+      const tracks = res.data ?? res;
+      document.getElementById('top-tracks').innerHTML =
+        `<div class="track-list">${tracks.map((t, i) => trackRow(t, i)).join('')}</div>`;
+    } catch (err) {
+      document.getElementById('top-tracks').innerHTML =
+        `<div class="alert alert-error">${err.message}</div>`;
+    }
+  }
+
+  async function loadArtists() {
+    try {
+      const res     = await Artists.top(8);
+      const artists = res.data ?? res;
+      document.getElementById('top-artists').innerHTML = artists.map(a => `
+        <div class="card" onclick="location.href='/catalogo/artist.html?id=${a.artist_id}'">
+          <div class="card-thumb">🎤</div>
+          <div class="card-title">${a.name}</div>
+          <div class="card-sub">${a.track_count ?? ''} canciones</div>
+        </div>`).join('');
+    } catch {
+      document.getElementById('top-artists').innerHTML = '';
+    }
+  }
+
+  async function loadGenres() {
+    try {
+      const res    = await Genres.list();
+      const genres = (res.data ?? res).slice(0, 8);
+      document.getElementById('top-genres').innerHTML = genres.map((g, i) => `
+        <div class="card" onclick="location.href='/catalogo/genres.html?id=${g.genre_id}'"
+             style="border-left: 3px solid ${genreColor(i)}">
+          <div class="card-title">${g.name}</div>
+          <div class="card-sub">${g.track_count ?? ''} canciones</div>
+        </div>`).join('');
+    } catch {
+      document.getElementById('top-genres').innerHTML = '';
+    }
+  }
+
+  loadTracks();
+  loadArtists();
+  loadGenres();
+</script>
+</body>
+</html>

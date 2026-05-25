@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Mi Biblioteca — Tracklytics</title>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="/css/main.css"/>
+</head>
+<body>
+<div id="sidebar-root"></div>
+<div class="app-layout">
+  <main class="main-content">
+    <h1 class="section-title">Mi Biblioteca</h1>
+
+    <div class="library-tabs">
+      <button class="tab-btn active" data-tab="favorites">Favoritos</button>
+      <button class="tab-btn" data-tab="history">Historial</button>
+      <button class="tab-btn" data-tab="playlists">Playlists</button>
+    </div>
+
+    <div id="tab-favorites">
+      <div id="favorites-list"></div>
+    </div>
+
+    <div id="tab-history" style="display:none">
+      <div id="history-list"></div>
+    </div>
+
+    <div id="tab-playlists" style="display:none">
+      <!-- Vista lista de playlists -->
+      <div id="playlists-view">
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:1.25rem">
+          <span style="font-size:.95rem; color:var(--text-muted)" id="pl-count-label"></span>
+          <button class="btn btn-primary btn-sm" id="btn-create-pl">＋ Nueva playlist</button>
+        </div>
+
+        <!-- Formulario inline crear playlist -->
+        <div id="create-pl-form" style="display:none; margin-bottom:1.25rem">
+          <div style="display:flex; gap:.5rem">
+            <input id="new-pl-name" type="text" placeholder="Nombre de la playlist…" maxlength="60"
+                   style="flex:1; background:var(--surface2); border:1px solid var(--border); color:var(--text);
+                          padding:.6rem .9rem; border-radius:var(--radius); font-size:.9rem; font-family:inherit"
+                   onkeydown="if(event.key==='Enter') handleCreate(); if(event.key==='Escape') toggleCreateForm(false)"/>
+            <button class="btn btn-primary btn-sm" onclick="handleCreate()">Crear</button>
+            <button class="btn btn-outline btn-sm" onclick="toggleCreateForm(false)">Cancelar</button>
+          </div>
+          <div id="create-pl-error" style="font-size:.8rem; color:#fc8181; margin-top:.4rem; min-height:1.2em"></div>
+        </div>
+
+        <div id="playlist-grid" class="playlist-grid"></div>
+        <p id="pl-empty" style="display:none; color:var(--text-muted); font-size:.9rem">
+          Aún no tienes playlists. ¡Crea una y organiza tu música!
+        </p>
+      </div>
+
+      <!-- Vista detalle de playlist -->
+      <div id="playlist-detail" style="display:none">
+        <div class="playlist-detail-header">
+          <button class="playlist-detail-back" onclick="showPlaylistList()">← Volver</button>
+          <div>
+            <div style="font-size:1.2rem; font-weight:800" id="detail-name"></div>
+            <div style="font-size:.82rem; color:var(--text-muted)" id="detail-count"></div>
+          </div>
+          <button class="btn btn-outline btn-sm" style="margin-left:auto; border-color:var(--danger); color:#fc8181"
+                  id="btn-delete-pl">🗑 Eliminar playlist</button>
+        </div>
+        <div id="detail-track-list"></div>
+        <p id="detail-empty" style="display:none; color:var(--text-muted); font-size:.9rem">
+          Esta playlist está vacía. Agrega canciones desde el catálogo.
+        </p>
+      </div>
+    </div>
+  </main>
+</div>
+<div id="player-root"></div>
+
+<script type="module">
+  import { requireAuth } from '/js/auth.js';
+  import { renderSidebar, renderPlayer, trackRow } from '/js/components.js';
+  import { getPlaylists, createPlaylist, removeTrackFromPlaylist, deletePlaylist } from '/js/playlists.js';
+
+  if (!requireAuth()) throw new Error('not auth');
+  renderSidebar('biblioteca/library.html');
+  renderPlayer();
+
+  const FAVORITES_KEY = 'tl_favorites';
+  const HISTORY_KEY   = 'tl_history';
+
+  // ── Tabs ─────────────────────────────────────────────────
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById('tab-favorites').style.display = btn.dataset.tab === 'favorites' ? '' : 'none';
+      document.getElementById('tab-history').style.display   = btn.dataset.tab === 'history'   ? '' : 'none';
+      document.getElementById('tab-playlists').style.display = btn.dataset.tab === 'playlists' ? '' : 'none';
+    });
+  });
+
+  // ── Favoritos ────────────────────────────────────────────
+  function renderFavorites() {
+    const favs = JSON.parse(localStorage.getItem(FAVORITES_KEY) || '[]');
+    const el   = document.getElementById('favorites-list');
+    el.innerHTML = favs.length
+      ? `<div class="track-list">${favs.map((t, i) => trackRow(t, i)).join('')}</div>`
+      : '<p style="color:var(--text-muted)">Aún no tienes favoritos.</p>';
+  }
+
+  // ── Historial ────────────────────────────────────────────
+  function renderHistory() {
+    const history = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]');
+    const el      = document.getElementById('history-list');
+    el.innerHTML = history.length
+      ? `<div class="track-list">${history.map((t, i) => trackRow(t, i)).join('')}</div>`
+      : '<p style="color:var(--text-muted)">Aún no has escuchado ninguna canción.</p>';
+  }
+
+  // ── Playlists ─────────────────────────────────────────────
+  let currentPlaylistId = null;
+
+  function renderPlaylistGrid() {
+    const playlists = getPlaylists();
+    const grid      = document.getElementById('playlist-grid');
+    const empty     = document.getElementById('pl-empty');
+    const countLbl  = document.getElementById('pl-count-label');
+
+    countLbl.textContent = playlists.length
+      ? `${playlists.length} playlist${playlists.length !== 1 ? 's' : ''}`
+      : '';
+
+    if (!playlists.length) {
+      grid.innerHTML = '';
+      empty.style.display = 'block';
+      return;
+    }
+    empty.style.display = 'none';
+    grid.innerHTML = playlists.map(pl => `
+      <div class="playlist-card" onclick="openPlaylist('${pl.id}')">
+        <div class="playlist-card-icon">🎵</div>
+        <div class="playlist-card-name">${pl.name}</div>
+        <div class="playlist-card-count">${pl.tracks.length} canción${pl.tracks.length !== 1 ? 'es' : ''}</div>
+        <button class="playlist-card-del" title="Eliminar playlist"
+                onclick="event.stopPropagation(); handleDeletePlaylist('${pl.id}', '${pl.name.replace(/'/g,"\\'")}')">✕</button>
+      </div>`).join('');
+  }
+
+  function openPlaylist(id) {
+    const pl = getPlaylists().find(p => p.id === id);
+    if (!pl) return;
+    currentPlaylistId = id;
+
+    document.getElementById('detail-name').textContent  = pl.name;
+    document.getElementById('detail-count').textContent =
+      `${pl.tracks.length} canción${pl.tracks.length !== 1 ? 'es' : ''}`;
+
+    const listEl = document.getElementById('detail-track-list');
+    const emptyEl = document.getElementById('detail-empty');
+    if (pl.tracks.length) {
+      emptyEl.style.display = 'none';
+      listEl.innerHTML = `<div class="track-list">${
+        pl.tracks.map((t, i) => playlistTrackRow(t, i, id)).join('')
+      }</div>`;
+    } else {
+      listEl.innerHTML = '';
+      emptyEl.style.display = 'block';
+    }
+
+    document.getElementById('playlists-view').style.display  = 'none';
+    document.getElementById('playlist-detail').style.display = 'block';
+  }
+
+  function playlistTrackRow(track, index, playlistId) {
+    const name = track.track_name || track.name || '—';
+    return `
+      <div class="track-row" data-id="${track.track_id}"
+           onclick="location.href='/catalogo/track.html?id=${track.track_id}'">
+        <div class="track-num">${index + 1}</div>
+        <div class="track-info">
+          <div class="track-name">${name}</div>
+          <div class="track-artist">${track.artist_name || ''}</div>
+        </div>
+        <div class="track-duration">${track.duration_ms ? msToTime(track.duration_ms) : '—'}</div>
+        <button class="playlist-remove-btn" title="Quitar de la playlist"
+                onclick="event.stopPropagation(); handleRemoveTrack('${playlistId}', '${track.track_id}')">✕</button>
+      </div>`;
+  }
+
+  function msToTime(ms) {
+    const s = Math.floor(ms / 1000);
+    return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+  }
+
+  window.showPlaylistList = function() {
+    currentPlaylistId = null;
+    document.getElementById('playlists-view').style.display  = 'block';
+    document.getElementById('playlist-detail').style.display = 'none';
+    renderPlaylistGrid();
+  };
+
+  window.openPlaylist = openPlaylist;
+
+  window.handleRemoveTrack = function(playlistId, trackId) {
+    removeTrackFromPlaylist(playlistId, trackId);
+    openPlaylist(playlistId);
+  };
+
+  window.handleDeletePlaylist = function(id, name) {
+    if (!confirm(`¿Eliminar la playlist "${name}"? Esta acción no se puede deshacer.`)) return;
+    deletePlaylist(id);
+    renderPlaylistGrid();
+  };
+
+  // Botón eliminar en vista detalle
+  document.getElementById('btn-delete-pl').addEventListener('click', () => {
+    const pl = getPlaylists().find(p => p.id === currentPlaylistId);
+    if (!pl) return;
+    if (!confirm(`¿Eliminar la playlist "${pl.name}"? Esta acción no se puede deshacer.`)) return;
+    deletePlaylist(currentPlaylistId);
+    showPlaylistList();
+  });
+
+  // ── Crear playlist ─────────────────────────────────────────
+  window.toggleCreateForm = function(show) {
+    document.getElementById('create-pl-form').style.display = show ? 'block' : 'none';
+    document.getElementById('create-pl-error').textContent = '';
+    if (show) {
+      document.getElementById('new-pl-name').value = '';
+      document.getElementById('new-pl-name').focus();
+    }
+  };
+
+  window.handleCreate = function() {
+    const name  = document.getElementById('new-pl-name').value.trim();
+    const errEl = document.getElementById('create-pl-error');
+    if (!name) { errEl.textContent = 'El nombre no puede estar vacío.'; return; }
+    if (getPlaylists().some(p => p.name.toLowerCase() === name.toLowerCase())) {
+      errEl.textContent = 'Ya existe una playlist con ese nombre.'; return;
+    }
+    createPlaylist(name);
+    toggleCreateForm(false);
+    renderPlaylistGrid();
+  };
+
+  document.getElementById('btn-create-pl').addEventListener('click', () => {
+    toggleCreateForm(true);
+  });
+
+  // ── Init ──────────────────────────────────────────────────
+  renderFavorites();
+  renderHistory();
+  renderPlaylistGrid();
+</script>
+</body>
+</html>

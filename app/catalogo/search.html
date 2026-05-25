@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Buscar — Tracklytics</title>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="/css/main.css"/>
+</head>
+<body>
+<div id="sidebar-root"></div>
+<div class="app-layout">
+  <main class="main-content">
+    <h1 class="section-title">Buscar</h1>
+
+    <div class="search-bar">
+      <span>🔍</span>
+      <input type="text" id="search-input" placeholder="Canciones, artistas, álbumes…" autofocus/>
+    </div>
+
+    <div class="tag-list" id="filter-tags">
+      <span class="tag active" data-filter="all">Todo</span>
+      <span class="tag" data-filter="tracks">Canciones</span>
+      <span class="tag" data-filter="artists">Artistas</span>
+      <span class="tag" data-filter="albums">Álbumes</span>
+    </div>
+
+    <div id="results"></div>
+  </main>
+</div>
+<div id="player-root"></div>
+
+<script type="module">
+  import { requireAuth } from '/js/auth.js';
+  import { renderSidebar, renderPlayer, trackRow, spinner } from '/js/components.js';
+  import { Tracks, Artists, Albums } from '/js/api.js';
+
+  if (!requireAuth()) throw new Error('not auth');
+  renderSidebar('catalogo/search.html');
+  renderPlayer();
+
+  let activeFilter = 'all';
+  let debounceTimer;
+
+  document.querySelectorAll('.tag').forEach(tag => {
+    tag.addEventListener('click', () => {
+      document.querySelectorAll('.tag').forEach(t => t.classList.remove('active'));
+      tag.classList.add('active');
+      activeFilter = tag.dataset.filter;
+      doSearch();
+    });
+  });
+
+  document.getElementById('search-input').addEventListener('input', () => {
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(doSearch, 350);
+  });
+
+  async function doSearch() {
+    const q = document.getElementById('search-input').value.trim();
+    const resultsEl = document.getElementById('results');
+    if (!q) { resultsEl.innerHTML = ''; return; }
+
+    resultsEl.innerHTML = spinner();
+    try {
+      const promises = [];
+      if (activeFilter === 'all' || activeFilter === 'tracks')  promises.push(Tracks.search(q, 10).then(r => ({ type: 'tracks',  data: r.data ?? r })));
+      if (activeFilter === 'all' || activeFilter === 'artists') promises.push(Artists.search(q, 6).then(r => ({ type: 'artists', data: r.data ?? r })));
+      if (activeFilter === 'all' || activeFilter === 'albums')  promises.push(Albums.search(q, 6).then(r => ({ type: 'albums',  data: r.data ?? r })));
+
+      const results = await Promise.all(promises);
+      let html = '';
+
+      for (const { type, data } of results) {
+        if (!data.length) continue;
+        if (type === 'tracks') {
+          html += `<h2 class="section-title mb-2">Canciones</h2><div class="track-list">${data.map((t, i) => trackRow(t, i)).join('')}</div><div class="mb-3"></div>`;
+        } else if (type === 'artists') {
+          html += `<h2 class="section-title mb-2">Artistas</h2><div class="grid-cards">${data.map(a => `
+            <div class="card" onclick="location.href='/catalogo/artist.html?id=${a.artist_id}'">
+              <div class="card-thumb">🎤</div>
+              <div class="card-title">${a.name}</div>
+            </div>`).join('')}</div><div class="mb-3"></div>`;
+        } else if (type === 'albums') {
+          html += `<h2 class="section-title mb-2">Álbumes</h2><div class="grid-cards">${data.map(a => `
+            <div class="card" onclick="location.href='/catalogo/album.html?id=${a.album_id}'">
+              <div class="card-thumb">💿</div>
+              <div class="card-title">${a.name}</div>
+              <div class="card-sub">${a.artist_name || ''}</div>
+            </div>`).join('')}</div><div class="mb-3"></div>`;
+        }
+      }
+
+      resultsEl.innerHTML = html || '<p class="text-muted">Sin resultados para "' + q + '"</p>';
+    } catch (err) {
+      resultsEl.innerHTML = `<div class="alert alert-error">${err.message}</div>`;
+    }
+  }
+</script>
+</body>
+</html>
