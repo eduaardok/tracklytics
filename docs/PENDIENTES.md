@@ -17,3 +17,14 @@
 - [ ] Dockerfile propio para Airflow (evitar reinstalar dependencias en cada arranque)
 - [ ] load_pocketbase.py integrado en docker compose up (actualmente es manual)
 - [ ] Diagramas ArchiMate en Archi como complemento a los UML
+
+## Migración pendiente: Favoritos, Historial y Playlists a ClickHouse
+
+- Actualmente los tres usan localStorage (se pierden al limpiar caché o cambiar dispositivo)
+- Migrar a 3 tablas nuevas en ClickHouse con motor MergeTree:
+  · tracklytics.USER_FAVORITES (con is_deleted para toggle)
+  · tracklytics.LISTENING_HISTORY (append-only)
+  · tracklytics.USER_PLAYLISTS + tracklytics.PLAYLIST_TRACKS
+- Crear endpoints FastAPI correspondientes
+- Actualizar library.html, track.html y components.js
+- Beneficio: persistencia real entre sesiones/dispositivos y analítica sobre comportamiento de usuarios

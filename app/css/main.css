@@ -465,7 +465,7 @@ input, select { outline: none; }
 
 .track-row {
   display: grid;
-  grid-template-columns: 2rem 1fr auto auto;
+  grid-template-columns: 2rem 1fr auto auto auto;
   align-items: center;
   gap: 1rem;
   padding: .5rem .75rem;
@@ -480,6 +480,7 @@ input, select { outline: none; }
 .track-info    { min-width: 0; }
 .track-name    { font-size: .9rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .track-artist  { font-size: .8rem; color: var(--text-muted); }
+.track-genre   { color: var(--accent); font-size: .75rem; font-weight: 500; }
 .track-duration{ font-size: .85rem; color: var(--text-muted); }
 
 /* ── Search bar ─────────────────────────────────────────── */
@@ -767,6 +768,7 @@ input, select { outline: none; }
 }
 
 /* ── Track menu button ───────────────────────────────────── */
+.track-fav-btn,
 .track-menu-btn {
   width: 28px;
   height: 28px;
@@ -775,13 +777,25 @@ input, select { outline: none; }
   align-items: center;
   justify-content: center;
   color: var(--text-muted);
-  font-size: 1.2rem;
+  font-size: 1rem;
   opacity: 0;
   transition: opacity .15s, background .15s, color .15s;
+  background: transparent;
+  border: none;
+  cursor: pointer;
 }
 
+.track-menu-btn { font-size: 1.2rem; }
+
+.track-row:hover .track-fav-btn,
 .track-row:hover .track-menu-btn { opacity: 1; }
-.track-menu-btn:hover { color: var(--text); background: var(--surface); }
+
+.track-fav-btn.active         { color: #e91e63; opacity: 1; }
+.track-fav-btn:hover          { color: #e91e63; }
+.track-menu-btn:hover         { color: var(--text); background: var(--surface); }
+
+.history-entry                { position: relative; }
+.history-time                 { font-size: .73rem; color: var(--text-muted); padding: 0 .75rem .3rem 3.75rem; margin-top: -.2rem; }
 
 /* ── Playlist modal ──────────────────────────────────────── */
 .modal-overlay {

@@ -1,5 +1,6 @@
 TRACKS_TOP = """
 SELECT
+    ft.fact_id,
     ft.track_id,
     ft.track_name,
     a.name  AS artist_name,
@@ -18,7 +19,7 @@ LIMIT {limit:UInt32}
 
 TRACKS_BY_ARTIST = """
 SELECT
-    ft.track_id, ft.track_name, ft.popularity, ft.duration_ms,
+    ft.fact_id, ft.track_id, ft.track_name, ft.popularity, ft.duration_ms,
     ft.danceability, ft.energy, ft.valence,
     a.name AS artist_name,
     g.name AS genre_name
@@ -32,7 +33,7 @@ LIMIT {limit:UInt32}
 
 TRACKS_BY_ALBUM = """
 SELECT
-    ft.track_id, ft.track_name, ft.popularity, ft.duration_ms,
+    ft.fact_id, ft.track_id, ft.track_name, ft.popularity, ft.duration_ms,
     ft.danceability, ft.energy, ft.valence,
     a.name AS artist_name,
     g.name AS genre_name
@@ -46,10 +47,12 @@ LIMIT {limit:UInt32}
 
 TRACKS_BY_GENRE = """
 SELECT
-    ft.track_id, ft.track_name, ft.popularity, ft.duration_ms,
+    ft.fact_id, ft.track_id, ft.track_name, ft.popularity, ft.duration_ms,
     ft.danceability, ft.energy, ft.valence,
-    a.name AS artist_name
+    a.name AS artist_name,
+    g.name AS genre_name
 FROM FACT_TRACKS ft
+JOIN DIM_GENRES  g ON ft.genre_id  = g.genre_id
 JOIN DIM_ARTISTS a ON ft.artist_id = a.artist_id
 WHERE ft.genre_id = {genre_id:Int32}
 ORDER BY ft.popularity DESC
@@ -164,9 +167,26 @@ GROUP BY g.genre_id, g.name, g.parent_genre, g.mood, g.origin_decade
 """
 
 
+TRACK_DETAIL_BY_FACT_ID = """
+SELECT
+    ft.fact_id, ft.track_id, ft.track_name, ft.popularity, ft.duration_ms,
+    ft.danceability, ft.energy, ft.loudness, ft.speechiness,
+    ft.acousticness, ft.instrumentalness, ft.liveness, ft.valence, ft.tempo,
+    a.name     AS artist_name, a.artist_id  AS artist_id,
+    al.name    AS album_name,  al.album_id  AS album_id,
+    g.name     AS genre_name,  g.genre_id   AS genre_id
+FROM FACT_TRACKS ft
+JOIN DIM_ARTISTS a  ON ft.artist_id = a.artist_id
+JOIN DIM_ALBUMS  al ON ft.album_id  = al.album_id
+JOIN DIM_GENRES  g  ON ft.genre_id  = g.genre_id
+WHERE ft.fact_id = {fact_id:Int64}
+"""
+
+
 def tracks_search_sql(where: str) -> str:
     return f"""
 SELECT
+    ft.fact_id,
     ft.track_id,
     ft.track_name,
     a.name  AS artist_name,

@@ -5,7 +5,8 @@ from paquetes.catalogo.queries import (
     ALBUM_DETAIL, ALBUMS_SEARCH,
     ARTIST_DETAIL, ARTISTS_SEARCH, ARTISTS_TOP,
     GENRE_DETAIL, GENRES_LIST,
-    TRACK_DETAIL, TRACKS_BY_ALBUM, TRACKS_BY_ARTIST, TRACKS_BY_GENRE, TRACKS_TOP,
+    TRACK_DETAIL, TRACK_DETAIL_BY_FACT_ID,
+    TRACKS_BY_ALBUM, TRACKS_BY_ARTIST, TRACKS_BY_GENRE, TRACKS_TOP,
     tracks_search_sql,
 )
 
@@ -61,6 +62,14 @@ def tracks_by_album(album_id: int, limit: int = Query(50, ge=1, le=200)):
 def tracks_by_genre(genre_id: int, limit: int = Query(50, ge=1, le=200)):
     rows = query_rows(TRACKS_BY_GENRE, {"genre_id": genre_id, "limit": limit})
     return {"data": rows}
+
+
+@router.get("/tracks/fact/{fact_id}")
+def track_detail_by_fact(fact_id: int):
+    row = query_one(TRACK_DETAIL_BY_FACT_ID, {"fact_id": fact_id})
+    if not row:
+        raise HTTPException(status_code=404, detail="Track not found")
+    return row
 
 
 @router.get("/tracks/{track_id}")

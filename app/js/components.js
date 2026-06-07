@@ -1,5 +1,7 @@
 import { getSession, logout } from './auth.js';
 import { getPlaylists, createPlaylist, addTrackToPlaylist } from './playlists.js';
+import { isFavorite, toggleFavorite } from './favorites.js';
+import { addToHistory } from './history.js';
 
 // ── Lucide SVG icons (18×18, stroke currentColor, stroke-width 2) ─────────────
 const ICON = {
@@ -263,6 +265,7 @@ window.__plModal = {
 };
 
 export function playTrack(track) {
+  addToHistory(track);
   currentTrack = track;
   isPlaying = true;
   progress = 0;
@@ -312,20 +315,29 @@ export function trackRow(track, index) {
   const name = track.track_name || track.name || '—';
   window.__trackCache[track.track_id] = track;
   return `
-    <div class="track-row" data-id="${track.track_id}" onclick="location.href='/catalogo/track.html?id=${track.track_id}'">
+    <div class="track-row" data-id="${track.track_id}" onclick="location.href='/catalogo/track.html?fact_id=${track.fact_id}'">
       <div class="track-num">${index + 1}</div>
       <div class="track-info">
         <div class="track-name">${name}</div>
-        <div class="track-artist">${track.artist_name || ''}</div>
+        <div class="track-artist">${track.artist_name || ''}${track.genre_name ? ` · <span class="track-genre">${track.genre_name}</span>` : ''}</div>
       </div>
       <div class="track-duration">${track.duration_ms ? msToTime(track.duration_ms) : '—'}</div>
+      <button class="track-fav-btn${isFavorite(track.track_id) ? ' active' : ''}" title="Favorito"
+        onclick="event.stopPropagation(); window.__favToggle(this, '${track.track_id}')">♥</button>
       <button class="track-menu-btn" title="Agregar a playlist"
         onclick="event.stopPropagation(); window.__plModal.open('${track.track_id}')">⋮</button>
     </div>`;
 }
 
-// ── Expose play globally for inline onclick ───────────────────────────────────
+// ── Expose play and favorites globally for inline onclick ─────────────────────
 window.__playTrack = playTrack;
+
+window.__favToggle = function(btn, trackId) {
+  const track = window.__trackCache[trackId];
+  if (!track) return;
+  const added = toggleFavorite(track);
+  btn.classList.toggle('active', added);
+};
 
 // ── Loading spinner ───────────────────────────────────────────────────────────
 export function spinner() {

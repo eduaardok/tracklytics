@@ -79,13 +79,12 @@
   import { requireAuth } from '/js/auth.js';
   import { renderSidebar, renderPlayer, trackRow } from '/js/components.js';
   import { getPlaylists, createPlaylist, removeTrackFromPlaylist, deletePlaylist } from '/js/playlists.js';
+  import { getFavorites } from '/js/favorites.js';
+  import { getHistory } from '/js/history.js';
 
   if (!requireAuth()) throw new Error('not auth');
   renderSidebar('biblioteca/library.html');
   renderPlayer();
-
-  const FAVORITES_KEY = 'tl_favorites';
-  const HISTORY_KEY   = 'tl_history';
 
   // ── Tabs ─────────────────────────────────────────────────
   document.querySelectorAll('.tab-btn').forEach(btn => {
@@ -98,9 +97,19 @@
     });
   });
 
+  function timeAgo(isoStr) {
+    const mins = Math.floor((Date.now() - new Date(isoStr).getTime()) / 60000);
+    if (mins < 1)  return 'ahora mismo';
+    if (mins < 60) return `hace ${mins} minuto${mins !== 1 ? 's' : ''}`;
+    const hours = Math.floor(mins / 60);
+    if (hours < 24) return `hace ${hours} hora${hours !== 1 ? 's' : ''}`;
+    const days = Math.floor(hours / 24);
+    return `hace ${days} día${days !== 1 ? 's' : ''}`;
+  }
+
   // ── Favoritos ────────────────────────────────────────────
   function renderFavorites() {
-    const favs = JSON.parse(localStorage.getItem(FAVORITES_KEY) || '[]');
+    const favs = getFavorites();
     const el   = document.getElementById('favorites-list');
     el.innerHTML = favs.length
       ? `<div class="track-list">${favs.map((t, i) => trackRow(t, i)).join('')}</div>`
@@ -109,11 +118,17 @@
 
   // ── Historial ────────────────────────────────────────────
   function renderHistory() {
-    const history = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]');
+    const history = getHistory();
     const el      = document.getElementById('history-list');
-    el.innerHTML = history.length
-      ? `<div class="track-list">${history.map((t, i) => trackRow(t, i)).join('')}</div>`
-      : '<p style="color:var(--text-muted)">Aún no has escuchado ninguna canción.</p>';
+    if (!history.length) {
+      el.innerHTML = '<p style="color:var(--text-muted)">Aún no has escuchado ninguna canción.</p>';
+      return;
+    }
+    el.innerHTML = `<div class="track-list">${history.map((entry, i) => `
+      <div class="history-entry">
+        ${trackRow(entry.track, i)}
+        <div class="history-time">${timeAgo(entry.played_at)}</div>
+      </div>`).join('')}</div>`;
   }
 
   // ── Playlists ─────────────────────────────────────────────

@@ -63,12 +63,13 @@ export async function pbRegister(email, password, name, role = 'user') {
 
 // ── App endpoints (FastAPI /app/v1) ─────────────────────────────────────────
 export const Tracks = {
-  top:    (limit = 20)               => apiFetch(`/app/v1/tracks/top?limit=${limit}`),
-  search: (q, limit = 20)            => apiFetch(`/app/v1/tracks/search?q=${encodeURIComponent(q)}&limit=${limit}`),
-  get:    (id)                       => apiFetch(`/app/v1/tracks/${id}`),
-  byArtist: (artistId, limit = 20)   => apiFetch(`/app/v1/tracks/by-artist/${artistId}?limit=${limit}`),
-  byAlbum:  (albumId,  limit = 20)   => apiFetch(`/app/v1/tracks/by-album/${albumId}?limit=${limit}`),
-  byGenre:  (genreId,  limit = 20)   => apiFetch(`/app/v1/tracks/by-genre/${genreId}?limit=${limit}`),
+  top:       (limit = 20)             => apiFetch(`/app/v1/tracks/top?limit=${limit}`),
+  search:    (q, limit = 20)          => apiFetch(`/app/v1/tracks/search?q=${encodeURIComponent(q)}&limit=${limit}`),
+  get:       (id)                     => apiFetch(`/app/v1/tracks/${id}`),
+  getByFact: (factId)                 => apiFetch(`/app/v1/tracks/fact/${factId}`),
+  byArtist:  (artistId, limit = 20)   => apiFetch(`/app/v1/tracks/by-artist/${artistId}?limit=${limit}`),
+  byAlbum:   (albumId,  limit = 20)   => apiFetch(`/app/v1/tracks/by-album/${albumId}?limit=${limit}`),
+  byGenre:   (genreId,  limit = 20)   => apiFetch(`/app/v1/tracks/by-genre/${genreId}?limit=${limit}`),
 };
 
 export const Artists = {

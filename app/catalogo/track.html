@@ -20,13 +20,16 @@
   import { requireAuth } from '/js/auth.js';
   import { renderSidebar, renderPlayer, playTrack } from '/js/components.js';
   import { Tracks } from '/js/api.js';
+  import { isFavorite, toggleFavorite } from '/js/favorites.js';
 
   if (!requireAuth()) throw new Error('not auth');
   renderSidebar('');
   renderPlayer();
 
-  const trackId = new URLSearchParams(location.search).get('id');
-  if (!trackId) { location.href = '/catalogo/home.html'; }
+  const params  = new URLSearchParams(location.search);
+  const factId  = params.get('fact_id');
+  const trackId = params.get('id');
+  if (!factId && !trackId) { location.href = '/catalogo/home.html'; }
 
   function fmt(ms) {
     const s = Math.floor(ms / 1000);
@@ -47,12 +50,17 @@
   async function load() {
     const el = document.getElementById('page-content');
     try {
-      const res   = await Tracks.get(trackId);
+      const res   = factId ? await Tracks.getByFact(factId) : await Tracks.get(trackId);
       const track = res.data ?? res;
 
-      // Cache para el modal de playlists
       window.__trackCache = window.__trackCache || {};
       window.__trackCache[track.track_id] = track;
+
+      window.__trackFavToggle = function() {
+        const added = toggleFavorite(track);
+        document.getElementById('fav-btn').textContent =
+          added ? '♥ Quitar de favoritos' : '♥ Añadir a favoritos';
+      };
 
       el.innerHTML = `
         <div class="page-header">
@@ -70,6 +78,10 @@
               <button class="btn btn-primary" style="max-width:140px"
                 onclick="window.__playTrack(${JSON.stringify(track).replace(/"/g,'&quot;')})">
                 ▶ Reproducir
+              </button>
+              <button class="btn btn-outline" id="fav-btn" style="max-width:220px"
+                onclick="window.__trackFavToggle()">
+                ${isFavorite(track.track_id) ? '♥ Quitar de favoritos' : '♥ Añadir a favoritos'}
               </button>
               <button class="btn btn-outline" style="max-width:180px"
                 onclick="window.__plModal.open('${track.track_id}')">
