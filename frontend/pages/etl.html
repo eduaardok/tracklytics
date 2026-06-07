@@ -1,114 +1,181 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="es" data-bs-theme="dark">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Tracklytics — ETL</title>
-  <link rel="stylesheet" href="../css/styles.css" />
+  <link rel="stylesheet" href="/libs/bootstrap.min.css" />
+  <link rel="stylesheet" href="/css/tracklytics-theme.css" />
 </head>
 <body>
 
-<nav class="navbar">
-  <a class="navbar-brand" href="/index.html">
-    <span class="logo-icon">T</span> Tracklytics
-  </a>
-  <ul class="navbar-nav">
-    <li><a href="/index.html">Dashboard</a></li>
-    <li><a href="/pages/genres.html">Géneros</a></li>
-    <li><a href="/pages/artists.html">Artistas</a></li>
-    <li><a href="/pages/etl.html" class="active">ETL</a></li>
-    <li><a href="/pages/crud.html">CRUD</a></li>
-  </ul>
-</nav>
+<!-- Mobile sidebar backdrop -->
+<div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeSidebar()"></div>
 
-<div class="page-content">
-  <h1 class="page-title">Panel ETL</h1>
+<div class="app-layout">
 
-  <div id="error-banner"></div>
+  <!-- ── Sidebar ─────────────────────────────────────────── -->
+  <nav class="sidebar" id="sidebar">
+    <a class="sidebar-brand" href="/index.html">
+      <span class="logo-icon">T</span>
+      Tracklytics
+    </a>
+    <ul class="sidebar-nav">
+      <li class="sidebar-item">
+        <a href="/index.html" class="sidebar-link">
+          <span class="sidebar-icon">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="1" y="1" width="6" height="6" rx="1.2"/><rect x="9" y="1" width="6" height="6" rx="1.2"/><rect x="1" y="9" width="6" height="6" rx="1.2"/><rect x="9" y="9" width="6" height="6" rx="1.2"/></svg>
+          </span>
+          Dashboard
+        </a>
+      </li>
+      <li class="sidebar-item">
+        <a href="/pages/genres.html" class="sidebar-link">
+          <span class="sidebar-icon">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M6 12.5V4l8-1.5v9"/><circle cx="4" cy="12.5" r="2"/><circle cx="12" cy="11.5" r="2"/></svg>
+          </span>
+          Géneros
+        </a>
+      </li>
+      <li class="sidebar-item">
+        <a href="/pages/artists.html" class="sidebar-link">
+          <span class="sidebar-icon">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="8" cy="5" r="3"/><path d="M2 14.5c0-3.3 2.7-6 6-6s6 2.7 6 6"/></svg>
+          </span>
+          Artistas
+        </a>
+      </li>
+      <li class="sidebar-item">
+        <a href="/pages/etl.html" class="sidebar-link active">
+          <span class="sidebar-icon">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M14 8A6 6 0 1 1 8 2"/><polyline points="14,2 14,8 8,8"/></svg>
+          </span>
+          ETL
+        </a>
+      </li>
+      <li class="sidebar-item">
+        <a href="/pages/crud.html" class="sidebar-link">
+          <span class="sidebar-icon">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="1" y="3" width="14" height="10" rx="1.2"/><line x1="1" y1="7" x2="15" y2="7"/><line x1="5" y1="7" x2="5" y2="13"/></svg>
+          </span>
+          CRUD
+        </a>
+      </li>
+    </ul>
+  </nav>
 
-  <div class="grid-2 mb-3" style="grid-template-columns: 2fr 1fr">
+  <!-- ── Main Content ─────────────────────────────────────── -->
+  <div class="main-content">
 
-    <!-- Último run -->
-    <div>
-      <h3 style="font-size:.95rem;color:var(--text-light);margin-bottom:.75rem;text-transform:uppercase;letter-spacing:.5px">Estado del Último Run</h3>
-      <div id="status-bar" class="status-bar" style="display:none"></div>
-      <div id="status-loading" class="loading-center"><div class="spinner"></div></div>
+    <!-- Mobile topbar -->
+    <div class="topbar">
+      <button class="topbar-toggle" onclick="openSidebar()" aria-label="Abrir menú">
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8"><line x1="3" y1="6" x2="17" y2="6"/><line x1="3" y1="10" x2="17" y2="10"/><line x1="3" y1="14" x2="17" y2="14"/></svg>
+      </button>
+      <span class="topbar-title">Tracklytics</span>
+    </div>
 
-      <div class="card" id="last-run-card" style="display:none">
+    <div class="page-content">
+      <h1 class="page-title">Panel ETL</h1>
+
+      <div id="error-banner"></div>
+
+      <div class="grid-2 mb-3" style="grid-template-columns: 2fr 1fr">
+
+        <!-- Último run -->
+        <div>
+          <h3 style="font-size:.8rem;color:var(--text-light);margin-bottom:.75rem;text-transform:uppercase;letter-spacing:.6px;font-family:'Plus Jakarta Sans',sans-serif;font-weight:700">Estado del Último Run</h3>
+          <div id="status-bar" class="status-bar" style="display:none"></div>
+          <div id="status-loading" class="loading-center"><div class="spinner"></div></div>
+
+          <div class="card" id="last-run-card" style="display:none">
+            <div class="table-wrapper">
+              <table class="table table-hover">
+                <thead><tr><th>Campo</th><th>Valor</th></tr></thead>
+                <tbody id="last-run-body"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- Trigger form -->
+        <div>
+          <h3 style="font-size:.8rem;color:var(--text-light);margin-bottom:.75rem;text-transform:uppercase;letter-spacing:.6px;font-family:'Plus Jakarta Sans',sans-serif;font-weight:700">Ejecutar ETL</h3>
+          <div class="card">
+            <div class="card-body">
+              <div class="form-group">
+                <label for="week-number">Número de semana (1–16)</label>
+                <input type="number" id="week-number" class="form-control"
+                       min="1" max="16" value="1" placeholder="1–16"
+                       oninput="updateBtnLabel()" />
+              </div>
+              <p style="font-size:.82rem;color:var(--text-light);margin:.25rem 0 .75rem">
+                Carga los datos reales + sintéticos acumulados hasta la semana seleccionada.
+                Los datos actuales serán reemplazados.
+              </p>
+              <button class="btn btn-success" id="btn-trigger" onclick="triggerETL()" style="width:100%">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle; margin-right: 6px;"><polygon points="5 3 19 12 5 21 5 3"/></svg>Cargar hasta semana 1
+              </button>
+              <div id="trigger-result" style="margin-top:.75rem"></div>
+              <hr style="margin:1rem 0;border-color:var(--border)" />
+              <button class="btn btn-danger" id="btn-clear" onclick="clearData()" style="width:100%">
+                Vaciar todos los datos
+              </button>
+              <div id="clear-result" style="margin-top:.75rem"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Historial -->
+      <div class="card">
+        <div class="card-header">
+          Historial de Ejecuciones
+          <button class="btn btn-secondary btn-sm" onclick="loadLogs(1)">Refrescar</button>
+        </div>
         <div class="table-wrapper">
-          <table>
-            <thead><tr><th>Campo</th><th>Valor</th></tr></thead>
-            <tbody id="last-run-body"></tbody>
+          <table class="table table-hover">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Semana</th>
+                <th>Estado</th>
+                <th>Leídos</th>
+                <th>Insertados</th>
+                <th>Rechazados</th>
+                <th>Duración (s)</th>
+                <th>Timestamp</th>
+              </tr>
+            </thead>
+            <tbody id="logs-tbody">
+              <tr><td colspan="8"><div class="loading-center"><div class="spinner"></div></div></td></tr>
+            </tbody>
           </table>
         </div>
-      </div>
-    </div>
-
-    <!-- Trigger form -->
-    <div>
-      <h3 style="font-size:.95rem;color:var(--text-light);margin-bottom:.75rem;text-transform:uppercase;letter-spacing:.5px">Ejecutar ETL</h3>
-      <div class="card">
-        <div class="card-body">
-          <div class="form-group">
-            <label for="week-number">Número de semana (1–16)</label>
-            <input type="number" id="week-number" class="form-control"
-                   min="1" max="16" value="1" placeholder="1–16"
-                   oninput="updateBtnLabel()" />
+        <div class="pagination">
+          <span class="pagination-info" id="logs-page-info">—</span>
+          <div class="pagination-btns">
+            <button class="btn btn-secondary btn-sm" id="btn-logs-prev" onclick="changePage(-1)" disabled>‹ Anterior</button>
+            <button class="btn btn-secondary btn-sm" id="btn-logs-next" onclick="changePage(1)"  disabled>Siguiente ›</button>
           </div>
-          <p style="font-size:.82rem;color:var(--text-light);margin:.25rem 0 .75rem">
-            Carga los datos reales + sintéticos acumulados hasta la semana seleccionada.
-            Los datos actuales serán reemplazados.
-          </p>
-          <button class="btn btn-success" id="btn-trigger" onclick="triggerETL()" style="width:100%">
-            ▶ Cargar hasta semana 1
-          </button>
-          <div id="trigger-result" style="margin-top:.75rem"></div>
-          <hr style="margin:1rem 0;border-color:var(--border)" />
-          <button class="btn btn-danger" id="btn-clear" onclick="clearData()" style="width:100%">
-            Vaciar todos los datos
-          </button>
-          <div id="clear-result" style="margin-top:.75rem"></div>
         </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Historial -->
-  <div class="card">
-    <div class="card-header">
-      Historial de Ejecuciones
-      <button class="btn btn-secondary btn-sm" onclick="loadLogs(1)">Refrescar</button>
-    </div>
-    <div class="table-wrapper">
-      <table>
-        <thead>
-          <tr>
-            <th>ID</th>
-            <th>Semana</th>
-            <th>Estado</th>
-            <th>Leídos</th>
-            <th>Insertados</th>
-            <th>Rechazados</th>
-            <th>Duración (s)</th>
-            <th>Timestamp</th>
-          </tr>
-        </thead>
-        <tbody id="logs-tbody">
-          <tr><td colspan="8"><div class="loading-center"><div class="spinner"></div></div></td></tr>
-        </tbody>
-      </table>
-    </div>
-    <div class="pagination">
-      <span class="pagination-info" id="logs-page-info">—</span>
-      <div class="pagination-btns">
-        <button class="btn btn-secondary btn-sm" id="btn-logs-prev" onclick="changePage(-1)" disabled>‹ Anterior</button>
-        <button class="btn btn-secondary btn-sm" id="btn-logs-next" onclick="changePage(1)"  disabled>Siguiente ›</button>
       </div>
     </div>
   </div>
 </div>
 
+<script src="/libs/bootstrap.bundle.min.js"></script>
 <script>
+// Sidebar mobile toggle
+function openSidebar() {
+  document.getElementById('sidebar').classList.add('sidebar-open');
+  document.getElementById('sidebar-backdrop').classList.add('active');
+}
+function closeSidebar() {
+  document.getElementById('sidebar').classList.remove('sidebar-open');
+  document.getElementById('sidebar-backdrop').classList.remove('active');
+}
+
 const API = '/api';
 let logsPage = 1;
 const logsLimit = 20;
@@ -229,7 +296,7 @@ async function loadLogs(page = 1) {
 
 function updateBtnLabel() {
   const n = parseInt(document.getElementById('week-number').value, 10) || 1;
-  document.getElementById('btn-trigger').textContent = `▶ Cargar hasta semana ${n}`;
+  document.getElementById('btn-trigger').textContent = `Cargar hasta semana ${n}`;
 }
 
 let _pollTimer = null;
@@ -249,7 +316,7 @@ function pollDagRun(dagRunId, weekNum) {
     if (ticks > MAX) {
       _stopPolling();
       resultEl.innerHTML =
-        `<div class="alert alert-warning">⏱ Tiempo de espera agotado. Revisa el historial manualmente.</div>`;
+        `<div class="alert alert-warning"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:6px"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>Tiempo de espera agotado. Revisa el historial manualmente.</div>`;
       document.getElementById('btn-trigger').disabled = false;
       updateBtnLabel();
       return;
@@ -263,8 +330,8 @@ function pollDagRun(dagRunId, weekNum) {
         loadLastRun();
         loadLogs(1);
         resultEl.innerHTML = state === 'success'
-          ? `<div class="alert alert-info">✅ ETL completado exitosamente — semana ${weekNum}.</div>`
-          : `<div class="alert alert-error">❌ ETL falló. Revisa el historial para más detalles.</div>`;
+          ? `<div class="alert alert-info"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:6px"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>ETL completado exitosamente — semana ${weekNum}.</div>`
+          : `<div class="alert alert-error"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:6px"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>ETL falló. Revisa el historial para más detalles.</div>`;
         document.getElementById('btn-trigger').disabled = false;
         updateBtnLabel();
       }

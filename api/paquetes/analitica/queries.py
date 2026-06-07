@@ -36,6 +36,20 @@ WHERE g.genre_id = {genre_id:Int32}
 GROUP BY g.genre_id, g.name
 """
 
+TRENDS_WEEKLY = """
+SELECT
+    d.week_number                    AS week_number,
+    any(d.period_label)              AS period_label,
+    count()                          AS track_count,
+    round(avg(ft.popularity),    2)  AS avg_popularity,
+    round(avg(ft.energy),        4)  AS avg_energy,
+    round(avg(ft.danceability),  4)  AS avg_danceability
+FROM FACT_TRACKS ft
+JOIN DIM_DATE d ON ft.date_id = d.date_id
+GROUP BY d.week_number
+ORDER BY d.week_number ASC
+"""
+
 ARTISTS_SEARCH = """
 SELECT artist_id, name
 FROM DIM_ARTISTS
@@ -51,14 +65,18 @@ SELECT count() AS n FROM DIM_ARTISTS WHERE lower(name) LIKE lower({pattern:Strin
 
 ARTIST_STATS = """
 SELECT
-    a.artist_id                      AS artist_id,
-    a.name                           AS name,
-    count()                          AS track_count,
-    round(avg(ft.popularity),   2)   AS avg_popularity,
-    round(avg(ft.energy),       4)   AS avg_energy,
-    round(avg(ft.danceability), 4)   AS avg_danceability,
-    round(avg(ft.valence),      4)   AS avg_valence,
-    countIf(ft.explicit_id = 1)      AS explicit_count
+    a.artist_id                          AS artist_id,
+    a.name                               AS name,
+    count()                              AS track_count,
+    round(avg(ft.popularity),      2)    AS avg_popularity,
+    round(avg(ft.energy),          4)    AS avg_energy,
+    round(avg(ft.danceability),    4)    AS avg_danceability,
+    round(avg(ft.valence),         4)    AS avg_valence,
+    round(avg(ft.acousticness),    4)    AS avg_acousticness,
+    round(avg(ft.speechiness),     4)    AS avg_speechiness,
+    round(avg(ft.instrumentalness),4)    AS avg_instrumentalness,
+    round(avg(ft.liveness),        4)    AS avg_liveness,
+    countIf(ft.explicit_id = 1)          AS explicit_count
 FROM FACT_TRACKS ft
 JOIN DIM_ARTISTS a ON ft.artist_id = a.artist_id
 WHERE a.artist_id = {artist_id:Int32}

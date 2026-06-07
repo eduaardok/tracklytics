@@ -24,11 +24,14 @@ const NAV_ITEMS = [
 ];
 
 const ANALYTICS_SUBS = [
-  { href: '/analytics/dashboard.html', label: 'Dashboard' },
-  { href: '/analytics/genres.html',    label: 'Géneros' },
-  { href: '/analytics/artists.html',   label: 'Artistas' },
-  { href: '/analytics/etl.html',       label: 'ETL' },
-  { href: '/analytics/crud.html',      label: 'CRUD' },
+  { href: '/analytics/dashboard.html',    label: 'Dashboard' },
+  { href: '/analytics/genres.html',       label: 'Géneros' },
+  { href: '/analytics/trends.html',       label: 'Tendencias' },
+  { href: '/analytics/artists.html',         label: 'Artistas' },
+  { href: '/analytics/compare-artists.html', label: 'Comparar Artistas' },
+  { href: '/analytics/etl.html',             label: 'ETL' },
+  { href: '/analytics/crud.html',         label: 'CRUD' },
+  { href: '/analytics/data-quality.html', label: 'Calidad de Datos', adminOnly: true },
 ];
 
 export function renderSidebar(activePage) {
@@ -42,7 +45,7 @@ export function renderSidebar(activePage) {
       ${ICON.barChart2}
       <span class="nav-text">Analítica</span>
     </a>
-    ${onAnalytics ? ANALYTICS_SUBS.map(s => `
+    ${onAnalytics ? ANALYTICS_SUBS.filter(s => !s.adminOnly || role === 'admin').map(s => `
       <a href="${s.href}" class="nav-link" style="padding-left:2.25rem;font-size:.82rem">
         <span class="nav-text">${s.label}</span>
       </a>`).join('') : ''}

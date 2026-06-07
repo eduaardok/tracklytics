@@ -1,89 +1,156 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="es" data-bs-theme="dark">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Tracklytics — Géneros</title>
-  <link rel="stylesheet" href="../css/styles.css" />
+  <link rel="stylesheet" href="/libs/bootstrap.min.css" />
+  <link rel="stylesheet" href="/css/tracklytics-theme.css" />
   <script src="https://cdn.plot.ly/plotly-2.32.0.min.js"></script>
 </head>
 <body>
 
-<nav class="navbar">
-  <a class="navbar-brand" href="/index.html">
-    <span class="logo-icon">T</span> Tracklytics
-  </a>
-  <ul class="navbar-nav">
-    <li><a href="/index.html">Dashboard</a></li>
-    <li><a href="/pages/genres.html" class="active">Géneros</a></li>
-    <li><a href="/pages/artists.html">Artistas</a></li>
-    <li><a href="/pages/etl.html">ETL</a></li>
-    <li><a href="/pages/crud.html">CRUD</a></li>
-  </ul>
-</nav>
+<!-- Mobile sidebar backdrop -->
+<div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeSidebar()"></div>
 
-<div class="page-content">
-  <h1 class="page-title">Tendencias de Géneros</h1>
+<div class="app-layout">
 
-  <div id="error-banner"></div>
+  <!-- ── Sidebar ─────────────────────────────────────────── -->
+  <nav class="sidebar" id="sidebar">
+    <a class="sidebar-brand" href="/index.html">
+      <span class="logo-icon">T</span>
+      Tracklytics
+    </a>
+    <ul class="sidebar-nav">
+      <li class="sidebar-item">
+        <a href="/index.html" class="sidebar-link">
+          <span class="sidebar-icon">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="1" y="1" width="6" height="6" rx="1.2"/><rect x="9" y="1" width="6" height="6" rx="1.2"/><rect x="1" y="9" width="6" height="6" rx="1.2"/><rect x="9" y="9" width="6" height="6" rx="1.2"/></svg>
+          </span>
+          Dashboard
+        </a>
+      </li>
+      <li class="sidebar-item">
+        <a href="/pages/genres.html" class="sidebar-link active">
+          <span class="sidebar-icon">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M6 12.5V4l8-1.5v9"/><circle cx="4" cy="12.5" r="2"/><circle cx="12" cy="11.5" r="2"/></svg>
+          </span>
+          Géneros
+        </a>
+      </li>
+      <li class="sidebar-item">
+        <a href="/pages/artists.html" class="sidebar-link">
+          <span class="sidebar-icon">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="8" cy="5" r="3"/><path d="M2 14.5c0-3.3 2.7-6 6-6s6 2.7 6 6"/></svg>
+          </span>
+          Artistas
+        </a>
+      </li>
+      <li class="sidebar-item">
+        <a href="/pages/etl.html" class="sidebar-link">
+          <span class="sidebar-icon">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M14 8A6 6 0 1 1 8 2"/><polyline points="14,2 14,8 8,8"/></svg>
+          </span>
+          ETL
+        </a>
+      </li>
+      <li class="sidebar-item">
+        <a href="/pages/crud.html" class="sidebar-link">
+          <span class="sidebar-icon">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="1" y="3" width="14" height="10" rx="1.2"/><line x1="1" y1="7" x2="15" y2="7"/><line x1="5" y1="7" x2="5" y2="13"/></svg>
+          </span>
+          CRUD
+        </a>
+      </li>
+    </ul>
+  </nav>
 
-  <!-- Tabla + detail panel -->
-  <div class="grid-2 mb-3" style="grid-template-columns: 1.2fr 1fr">
+  <!-- ── Main Content ─────────────────────────────────────── -->
+  <div class="main-content">
 
-    <div class="card">
-      <div class="card-header">
-        Géneros
-        <span class="text-muted" id="total-label"></span>
-      </div>
-      <div class="table-wrapper">
-        <table>
-          <thead>
-            <tr>
-              <th>#</th>
-              <th>Género</th>
-              <th>Tracks</th>
-              <th>Popularidad</th>
-              <th>Energía</th>
-              <th>Danceability</th>
-            </tr>
-          </thead>
-          <tbody id="genre-tbody">
-            <tr><td colspan="6"><div class="loading-center"><div class="spinner"></div></div></td></tr>
-          </tbody>
-        </table>
-      </div>
-      <div class="pagination">
-        <span class="pagination-info" id="page-info">—</span>
-        <div class="pagination-btns">
-          <button class="btn btn-secondary btn-sm" id="btn-prev" onclick="changePage(-1)" disabled>‹ Anterior</button>
-          <button class="btn btn-secondary btn-sm" id="btn-next" onclick="changePage(1)"  disabled>Siguiente ›</button>
-        </div>
-      </div>
+    <!-- Mobile topbar -->
+    <div class="topbar">
+      <button class="topbar-toggle" onclick="openSidebar()" aria-label="Abrir menú">
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8"><line x1="3" y1="6" x2="17" y2="6"/><line x1="3" y1="10" x2="17" y2="10"/><line x1="3" y1="14" x2="17" y2="14"/></svg>
+      </button>
+      <span class="topbar-title">Tracklytics</span>
     </div>
 
-    <div class="card">
-      <div class="card-header">Perfil de Audio: <span id="selected-genre-name">— selecciona un género</span></div>
-      <div class="card-body" style="padding:.5rem">
-        <div id="radar-chart" class="chart-container" style="min-height:300px">
-          <div class="empty-state">
-            <div class="empty-icon">📊</div>
-            <p>Haz clic en una fila de la tabla</p>
+    <div class="page-content">
+      <h1 class="page-title">Tendencias de Géneros</h1>
+
+      <div id="error-banner"></div>
+
+      <!-- Tabla + detail panel -->
+      <div class="grid-2 mb-3" style="grid-template-columns: 1.2fr 1fr">
+
+        <div class="card">
+          <div class="card-header">
+            Géneros
+            <span class="text-muted" id="total-label"></span>
+          </div>
+          <div class="table-wrapper">
+            <table class="table table-hover">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Género</th>
+                  <th>Tracks</th>
+                  <th>Popularidad</th>
+                  <th>Energía</th>
+                  <th>Danceability</th>
+                </tr>
+              </thead>
+              <tbody id="genre-tbody">
+                <tr><td colspan="6"><div class="loading-center"><div class="spinner"></div></div></td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="pagination">
+            <span class="pagination-info" id="page-info">—</span>
+            <div class="pagination-btns">
+              <button class="btn btn-secondary btn-sm" id="btn-prev" onclick="changePage(-1)" disabled>‹ Anterior</button>
+              <button class="btn btn-secondary btn-sm" id="btn-next" onclick="changePage(1)"  disabled>Siguiente ›</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">Perfil de Audio: <span id="selected-genre-name">— selecciona un género</span></div>
+          <div class="card-body" style="padding:.5rem">
+            <div id="radar-chart" class="chart-container" style="min-height:300px">
+              <div class="empty-state">
+                <div class="empty-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle; margin-right: 6px;"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></div>
+                <p>Haz clic en una fila de la tabla</p>
+              </div>
+            </div>
           </div>
         </div>
       </div>
-    </div>
-  </div>
 
-  <!-- Scatter -->
-  <div class="card">
-    <div class="card-header">Popularidad vs Energía por Género</div>
-    <div class="card-body" style="padding:.5rem">
-      <div id="scatter-chart" class="chart-container"></div>
+      <!-- Scatter -->
+      <div class="card">
+        <div class="card-header">Popularidad vs Energía por Género</div>
+        <div class="card-body" style="padding:.5rem">
+          <div id="scatter-chart" class="chart-container"></div>
+        </div>
+      </div>
     </div>
   </div>
 </div>
 
+<script src="/libs/bootstrap.bundle.min.js"></script>
 <script>
+// Sidebar mobile toggle
+function openSidebar() {
+  document.getElementById('sidebar').classList.add('sidebar-open');
+  document.getElementById('sidebar-backdrop').classList.add('active');
+}
+function closeSidebar() {
+  document.getElementById('sidebar').classList.remove('sidebar-open');
+  document.getElementById('sidebar-backdrop').classList.remove('active');
+}
+
 const API = '/api';
 let currentPage = 1;
 const limit = 20;

@@ -63,6 +63,32 @@ def dim_str_cols_sql(ch_db: str, ch_table: str) -> str:
     )
 
 
+DATA_QUALITY_COUNTS = """
+SELECT
+    count()                        AS total_records,
+    countIf(is_synthetic = false)  AS real_records,
+    countIf(is_synthetic = true)   AS synthetic_records
+FROM FACT_TRACKS
+"""
+
+DATA_QUALITY_REJECTION = """
+SELECT
+    round(avg(records_rejected / nullIf(records_read, 0)) * 100, 2) AS rejection_rate
+FROM ETL_LOGS
+"""
+
+DATA_QUALITY_LAST_LOAD = """
+SELECT
+    week_number,
+    status,
+    run_timestamp,
+    records_inserted
+FROM ETL_LOGS
+ORDER BY run_timestamp DESC
+LIMIT 1
+"""
+
+
 def dim_pk_sql(ch_db: str, ch_table: str) -> str:
     return (
         f"SELECT name FROM system.columns "

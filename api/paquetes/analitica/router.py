@@ -9,9 +9,17 @@ from paquetes.analitica.queries import (
     DASHBOARD_TOP_ARTISTS, DASHBOARD_TOP_GENRES,
     DASHBOARD_TOTAL_ARTISTS, DASHBOARD_TOTAL_GENRES, DASHBOARD_TOTAL_TRACKS,
     GENRE_AUDIO_PROFILE, GENRES_TOTAL, GENRES_TRENDS,
+    TRENDS_WEEKLY,
 )
 
 router = APIRouter(tags=["Analytics"])
+
+
+@router.get("/trends/weekly", tags=["Trends"])
+@cached(ttl=60)
+def trends_weekly():
+    rows = query_rows(TRENDS_WEEKLY)
+    return {"data": rows, "weeks": len(rows)}
 
 
 @router.get("/genres/trends", tags=["Genres"])

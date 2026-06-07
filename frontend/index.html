@@ -1,86 +1,153 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="es" data-bs-theme="dark">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Tracklytics — Dashboard</title>
-  <link rel="stylesheet" href="css/styles.css" />
+  <link rel="stylesheet" href="/libs/bootstrap.min.css" />
+  <link rel="stylesheet" href="/css/tracklytics-theme.css" />
   <script src="https://cdn.plot.ly/plotly-2.32.0.min.js"></script>
 </head>
 <body>
 
-<nav class="navbar">
-  <a class="navbar-brand" href="/index.html">
-    <span class="logo-icon">T</span> Tracklytics
-  </a>
-  <ul class="navbar-nav">
-    <li><a href="/index.html" class="active">Dashboard</a></li>
-    <li><a href="/pages/genres.html">Géneros</a></li>
-    <li><a href="/pages/artists.html">Artistas</a></li>
-    <li><a href="/pages/etl.html">ETL</a></li>
-    <li><a href="/pages/crud.html">CRUD</a></li>
-  </ul>
-</nav>
+<!-- Mobile sidebar backdrop -->
+<div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeSidebar()"></div>
 
-<div class="page-content">
-  <h1 class="page-title">Dashboard Ejecutivo</h1>
+<div class="app-layout">
 
-  <div id="error-banner"></div>
+  <!-- ── Sidebar ─────────────────────────────────────────── -->
+  <nav class="sidebar" id="sidebar">
+    <a class="sidebar-brand" href="/index.html">
+      <span class="logo-icon">T</span>
+      Tracklytics
+    </a>
+    <ul class="sidebar-nav">
+      <li class="sidebar-item">
+        <a href="/index.html" class="sidebar-link active">
+          <span class="sidebar-icon">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="1" y="1" width="6" height="6" rx="1.2"/><rect x="9" y="1" width="6" height="6" rx="1.2"/><rect x="1" y="9" width="6" height="6" rx="1.2"/><rect x="9" y="9" width="6" height="6" rx="1.2"/></svg>
+          </span>
+          Dashboard
+        </a>
+      </li>
+      <li class="sidebar-item">
+        <a href="/pages/genres.html" class="sidebar-link">
+          <span class="sidebar-icon">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M6 12.5V4l8-1.5v9"/><circle cx="4" cy="12.5" r="2"/><circle cx="12" cy="11.5" r="2"/></svg>
+          </span>
+          Géneros
+        </a>
+      </li>
+      <li class="sidebar-item">
+        <a href="/pages/artists.html" class="sidebar-link">
+          <span class="sidebar-icon">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="8" cy="5" r="3"/><path d="M2 14.5c0-3.3 2.7-6 6-6s6 2.7 6 6"/></svg>
+          </span>
+          Artistas
+        </a>
+      </li>
+      <li class="sidebar-item">
+        <a href="/pages/etl.html" class="sidebar-link">
+          <span class="sidebar-icon">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M14 8A6 6 0 1 1 8 2"/><polyline points="14,2 14,8 8,8"/></svg>
+          </span>
+          ETL
+        </a>
+      </li>
+      <li class="sidebar-item">
+        <a href="/pages/crud.html" class="sidebar-link">
+          <span class="sidebar-icon">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="1" y="3" width="14" height="10" rx="1.2"/><line x1="1" y1="7" x2="15" y2="7"/><line x1="5" y1="7" x2="5" y2="13"/></svg>
+          </span>
+          CRUD
+        </a>
+      </li>
+    </ul>
+  </nav>
 
-  <!-- KPIs -->
-  <div class="kpi-grid" id="kpi-grid">
-    <div class="kpi-card"><div class="kpi-label">Total Tracks</div><div class="kpi-value" id="kpi-tracks">—</div></div>
-    <div class="kpi-card"><div class="kpi-label">Total Géneros</div><div class="kpi-value" id="kpi-genres">—</div></div>
-    <div class="kpi-card"><div class="kpi-label">Total Artistas</div><div class="kpi-value" id="kpi-artists">—</div></div>
-    <div class="kpi-card" style="border-left-color: var(--success)">
-      <div class="kpi-label">Último ETL</div>
-      <div class="kpi-value" id="kpi-etl-status" style="font-size:1.1rem">—</div>
-      <div class="kpi-sub" id="kpi-etl-sub"></div>
+  <!-- ── Main Content ─────────────────────────────────────── -->
+  <div class="main-content">
+
+    <!-- Mobile topbar -->
+    <div class="topbar">
+      <button class="topbar-toggle" onclick="openSidebar()" aria-label="Abrir menú">
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8"><line x1="3" y1="6" x2="17" y2="6"/><line x1="3" y1="10" x2="17" y2="10"/><line x1="3" y1="14" x2="17" y2="14"/></svg>
+      </button>
+      <span class="topbar-title">Tracklytics</span>
     </div>
-    <div class="kpi-card" style="border-left-color: var(--warning)">
-      <div class="kpi-label">Popularidad Promedio</div>
-      <div class="kpi-value" id="kpi-popularity">—</div>
-    </div>
-    <div class="kpi-card" style="border-left-color: var(--teal-light)">
-      <div class="kpi-label">Energía Promedio</div>
-      <div class="kpi-value" id="kpi-energy">—</div>
-    </div>
-  </div>
 
-  <!-- Charts Row 1 -->
-  <div class="grid-2 mb-3">
-    <div class="card">
-      <div class="card-header">Géneros: Popularidad vs Energía (tamaño = tracks)</div>
-      <div class="card-body" style="padding: .5rem">
-        <div id="bubble-chart" class="chart-container"></div>
+    <div class="page-content">
+      <h1 class="page-title">Dashboard Ejecutivo</h1>
+
+      <div id="error-banner"></div>
+
+      <!-- KPIs -->
+      <div class="kpi-grid" id="kpi-grid">
+        <div class="kpi-card"><div class="kpi-label">Total Tracks</div><div class="kpi-value" id="kpi-tracks">—</div></div>
+        <div class="kpi-card"><div class="kpi-label">Total Géneros</div><div class="kpi-value" id="kpi-genres">—</div></div>
+        <div class="kpi-card"><div class="kpi-label">Total Artistas</div><div class="kpi-value" id="kpi-artists">—</div></div>
+        <div class="kpi-card" style="border-left-color: var(--success)">
+          <div class="kpi-label">Último ETL</div>
+          <div class="kpi-value" id="kpi-etl-status" style="font-size:1.1rem">—</div>
+          <div class="kpi-sub" id="kpi-etl-sub"></div>
+        </div>
+        <div class="kpi-card" style="border-left-color: var(--warning)">
+          <div class="kpi-label">Popularidad Promedio</div>
+          <div class="kpi-value" id="kpi-popularity">—</div>
+        </div>
+        <div class="kpi-card" style="border-left-color: var(--teal-light)">
+          <div class="kpi-label">Energía Promedio</div>
+          <div class="kpi-value" id="kpi-energy">—</div>
+        </div>
       </div>
-    </div>
-    <div class="card">
-      <div class="card-header">Perfil de Audio — Top Género: <span id="top-genre-name">—</span></div>
-      <div class="card-body" style="padding: .5rem">
-        <div id="radar-chart" class="chart-container"></div>
-      </div>
-    </div>
-  </div>
 
-  <!-- Charts Row 2 -->
-  <div class="grid-2">
-    <div class="card">
-      <div class="card-header">Top 10 Géneros por Tracks</div>
-      <div class="card-body" style="padding: .5rem">
-        <div id="genres-bar-chart" class="chart-container" style="min-height: 280px"></div>
+      <!-- Charts Row 1 -->
+      <div class="grid-2 mb-3">
+        <div class="card">
+          <div class="card-header">Géneros: Popularidad vs Energía (tamaño = tracks)</div>
+          <div class="card-body" style="padding: .5rem">
+            <div id="bubble-chart" class="chart-container"></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header">Perfil de Audio — Top Género: <span id="top-genre-name">—</span></div>
+          <div class="card-body" style="padding: .5rem">
+            <div id="radar-chart" class="chart-container"></div>
+          </div>
+        </div>
       </div>
-    </div>
-    <div class="card">
-      <div class="card-header">Top 10 Artistas por Tracks</div>
-      <div class="card-body" style="padding: .5rem">
-        <div id="artists-bar-chart" class="chart-container" style="min-height: 280px"></div>
+
+      <!-- Charts Row 2 -->
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-header">Top 10 Géneros por Tracks</div>
+          <div class="card-body" style="padding: .5rem">
+            <div id="genres-bar-chart" class="chart-container" style="min-height: 280px"></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header">Top 10 Artistas por Tracks</div>
+          <div class="card-body" style="padding: .5rem">
+            <div id="artists-bar-chart" class="chart-container" style="min-height: 280px"></div>
+          </div>
+        </div>
       </div>
     </div>
   </div>
 </div>
 
+<script src="/libs/bootstrap.bundle.min.js"></script>
 <script>
+// Sidebar mobile toggle
+function openSidebar() {
+  document.getElementById('sidebar').classList.add('sidebar-open');
+  document.getElementById('sidebar-backdrop').classList.add('active');
+}
+function closeSidebar() {
+  document.getElementById('sidebar').classList.remove('sidebar-open');
+  document.getElementById('sidebar-backdrop').classList.remove('active');
+}
+
 const API = '/api';
 
 const plotLayout = (extra = {}) => ({

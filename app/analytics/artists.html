@@ -64,6 +64,10 @@
             <div class="meta-item">Energía avg: <strong id="artist-energy">—</strong></div>
             <div class="meta-item">Danceability avg: <strong id="artist-dance">—</strong></div>
             <div class="meta-item">Valence avg: <strong id="artist-valence">—</strong></div>
+            <div class="meta-item">Acousticness avg: <strong id="artist-acoustic">—</strong></div>
+            <div class="meta-item">Speechiness avg: <strong id="artist-speech">—</strong></div>
+            <div class="meta-item">Instrumentalness avg: <strong id="artist-instru">—</strong></div>
+            <div class="meta-item">Liveness avg: <strong id="artist-live">—</strong></div>
             <div class="meta-item">Explícitas: <strong id="artist-explicit">—</strong></div>
           </div>
         </div>
@@ -89,7 +93,7 @@
     <!-- Empty state -->
     <div id="empty-state">
       <div class="empty-state">
-        <div class="empty-icon">🎵</div>
+        <div class="empty-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:6px"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg></div>
         <p>Busca un artista para ver sus estadísticas</p>
       </div>
     </div>
@@ -176,11 +180,15 @@
       document.getElementById('artist-avatar').textContent   = initials;
       document.getElementById('artist-name').textContent     = a.name ?? nameHint ?? '—';
       document.getElementById('artist-tracks').textContent   = (a.track_count ?? 0).toLocaleString();
-      document.getElementById('artist-pop').textContent      = a.avg_popularity   ?? '—';
-      document.getElementById('artist-energy').textContent   = a.avg_energy       ?? '—';
-      document.getElementById('artist-dance').textContent    = a.avg_danceability ?? '—';
-      document.getElementById('artist-valence').textContent  = a.avg_valence      ?? '—';
-      document.getElementById('artist-explicit').textContent = a.explicit_count   ?? '—';
+      document.getElementById('artist-pop').textContent      = a.avg_popularity      ?? '—';
+      document.getElementById('artist-energy').textContent   = a.avg_energy          ?? '—';
+      document.getElementById('artist-dance').textContent    = a.avg_danceability    ?? '—';
+      document.getElementById('artist-valence').textContent  = a.avg_valence         ?? '—';
+      document.getElementById('artist-acoustic').textContent = a.avg_acousticness    ?? '—';
+      document.getElementById('artist-speech').textContent   = a.avg_speechiness     ?? '—';
+      document.getElementById('artist-instru').textContent   = a.avg_instrumentalness ?? '—';
+      document.getElementById('artist-live').textContent     = a.avg_liveness        ?? '—';
+      document.getElementById('artist-explicit').textContent = a.explicit_count      ?? '—';
 
       const metrics    = ['Popularidad','Energía','Danceability','Valence'];
       const artistVals = [a.avg_popularity, a.avg_energy, a.avg_danceability, a.avg_valence];

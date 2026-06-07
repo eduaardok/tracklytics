@@ -8,6 +8,7 @@ from core.config import AIRFLOW_DAG, AIRFLOW_PASS, AIRFLOW_URL, AIRFLOW_USER, CH
 from core.database import execute, get_client, query_one, query_rows
 from paquetes.gestion_datos.queries import (
     ETL_LOGS, ETL_LOGS_TOTAL, ETL_STATUS_LAST,
+    DATA_QUALITY_COUNTS, DATA_QUALITY_REJECTION, DATA_QUALITY_LAST_LOAD,
     dim_list_sql, dim_list_total_sql, dim_pk_sql, dim_str_cols_sql,
     facts_list_sql,
 )
@@ -98,6 +99,35 @@ async def etl_run_status(run_id: str = Query(..., description="Airflow dag_run_i
         return {"run_id": run_id, "state": resp.json().get("state")}
     except httpx.RequestError as exc:
         raise HTTPException(status_code=502, detail=f"Cannot reach Airflow: {exc}")
+
+
+# ── Data Quality ──────────────────────────────────────────────────────────────
+
+@router.get("/data-quality", tags=["Data Management"])
+def data_quality():
+    try:
+        counts    = query_one(DATA_QUALITY_COUNTS)
+        rejection = query_one(DATA_QUALITY_REJECTION)
+        last_load = query_one(DATA_QUALITY_LAST_LOAD)
+
+        total     = counts["total_records"]     if counts else 0
+        real      = counts["real_records"]      if counts else 0
+        synthetic = counts["synthetic_records"] if counts else 0
+
+        real_pct      = round(real / total * 100, 1)      if total else 0.0
+        synthetic_pct = round(synthetic / total * 100, 1) if total else 0.0
+
+        return {
+            "total_records":    total,
+            "real_records":     real,
+            "synthetic_records": synthetic,
+            "real_pct":         real_pct,
+            "synthetic_pct":    synthetic_pct,
+            "last_load":        last_load,
+            "rejection_rate":   rejection["rejection_rate"] if rejection else None,
+        }
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Error fetching data quality: {exc}")
 
 
 # ── FACT_TRACKS (read-only) ───────────────────────────────────────────────────

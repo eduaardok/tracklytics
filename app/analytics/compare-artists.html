@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Comparar Artistas — Tracklytics</title>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="/css/main.css"/>
+  <link rel="stylesheet" href="/css/analytics.css"/>
+  <script src="https://cdn.plot.ly/plotly-2.32.0.min.js"></script>
+</head>
+<body>
+<div id="sidebar-root"></div>
+<div class="app-layout">
+  <main class="main-content">
+    <h1 class="page-title">Comparación de Artistas</h1>
+
+    <div id="error-banner"></div>
+
+    <!-- Search panels -->
+    <div class="grid-2 mb-3">
+
+      <!-- Panel A -->
+      <div class="card">
+        <div class="card-header" style="color:#8B5CF6;border-left:3px solid #8B5CF6;padding-left:.75rem">Artista A</div>
+        <div class="card-body">
+          <div id="selected-a" style="display:none;margin-bottom:.75rem">
+            <div style="display:flex;align-items:center;gap:.5rem">
+              <span id="selected-name-a"
+                style="background:rgba(139,92,246,.15);color:#8B5CF6;padding:.3rem .8rem;
+                       border-radius:6px;font-size:.9rem;font-weight:600;border:1px solid rgba(139,92,246,.3)"></span>
+              <button class="btn btn-secondary btn-sm" onclick="clearArtist('a')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+            </div>
+          </div>
+          <div class="search-row">
+            <div class="form-group" style="flex:1;margin:0">
+              <input type="text" id="search-input-a" class="form-control"
+                     placeholder="Buscar artista..." autocomplete="off"/>
+            </div>
+            <button class="btn btn-primary" onclick="searchArtist('a')">Buscar</button>
+          </div>
+          <div id="loading-a" class="loading-center" style="display:none"><div class="spinner"></div></div>
+          <div id="search-results-a" style="display:none;margin-top:.5rem">
+            <div class="table-wrapper">
+              <table><tbody id="results-tbody-a"></tbody></table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Panel B -->
+      <div class="card">
+        <div class="card-header" style="color:#f6ad55;border-left:3px solid #f6ad55;padding-left:.75rem">Artista B</div>
+        <div class="card-body">
+          <div id="selected-b" style="display:none;margin-bottom:.75rem">
+            <div style="display:flex;align-items:center;gap:.5rem">
+              <span id="selected-name-b"
+                style="background:rgba(246,173,85,.12);color:#f6ad55;padding:.3rem .8rem;
+                       border-radius:6px;font-size:.9rem;font-weight:600;border:1px solid rgba(246,173,85,.3)"></span>
+              <button class="btn btn-secondary btn-sm" onclick="clearArtist('b')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+            </div>
+          </div>
+          <div class="search-row">
+            <div class="form-group" style="flex:1;margin:0">
+              <input type="text" id="search-input-b" class="form-control"
+                     placeholder="Buscar artista..." autocomplete="off"/>
+            </div>
+            <button class="btn btn-primary" onclick="searchArtist('b')">Buscar</button>
+          </div>
+          <div id="loading-b" class="loading-center" style="display:none"><div class="spinner"></div></div>
+          <div id="search-results-b" style="display:none;margin-top:.5rem">
+            <div class="table-wrapper">
+              <table><tbody id="results-tbody-b"></tbody></table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Guide state: shown until both artists selected -->
+    <div id="guide-state">
+      <div class="empty-state">
+        <div class="empty-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:6px"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg></div>
+        <p>Selecciona dos artistas para comparar sus perfiles de audio</p>
+      </div>
+    </div>
+
+    <!-- Comparison results: hidden until both selected -->
+    <div id="comparison-results" style="display:none">
+
+      <div id="warnings-bar"></div>
+
+      <!-- Radar chart -->
+      <div class="card mb-3">
+        <div class="card-header">Perfil de Audio — Comparación</div>
+        <div class="card-body" style="padding:.5rem">
+          <div id="radar-chart" class="chart-container" style="min-height:340px"></div>
+        </div>
+      </div>
+
+      <!-- Comparison table -->
+      <div class="card">
+        <div class="card-header">Tabla Comparativa</div>
+        <div class="table-wrapper">
+          <table>
+            <thead>
+              <tr>
+                <th>Métrica</th>
+                <th id="th-a" style="color:#8B5CF6">Artista A</th>
+                <th id="th-b" style="color:#f6ad55">Artista B</th>
+                <th>Diferencia (B − A)</th>
+              </tr>
+            </thead>
+            <tbody id="compare-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+  </main>
+</div>
+<div id="player-root"></div>
+
+<script type="module">
+  import { requireAuth, hasAnalyticsAccess } from '/js/auth.js';
+  import { renderSidebar, renderPlayer } from '/js/components.js';
+  if (!requireAuth() || !hasAnalyticsAccess()) {
+    window.location.href = '/catalogo/home.html';
+    throw new Error('unauthorized');
+  }
+  renderSidebar('analytics');
+  renderPlayer();
+
+  const API    = '/api';
+  const COL_A  = '#8B5CF6';
+  const COL_B  = '#f6ad55';
+
+  const plotConfig = { responsive: true, displayModeBar: false };
+
+  let artistA = null;
+  let artistB = null;
+  const _debounce = {};
+
+  // ── Helpers ───────────────────────────────────────────────────────────────
+
+  function showError(msg) {
+    document.getElementById('error-banner').innerHTML =
+      `<div class="alert alert-error">${msg}</div>`;
+  }
+
+  async function fetchJSON(path) {
+    const res = await fetch(API + path);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
+  }
+
+  // ── Search ────────────────────────────────────────────────────────────────
+
+  async function searchArtist(side, page = 1) {
+    const name = document.getElementById(`search-input-${side}`).value.trim();
+    if (!name) return;
+
+    try {
+      const data = await fetchJSON(
+        `/artists/search?name=${encodeURIComponent(name)}&page=${page}&limit=8`
+      );
+      const rows = data.data ?? [];
+
+      const resultsEl = document.getElementById(`search-results-${side}`);
+      const tbody     = document.getElementById(`results-tbody-${side}`);
+      resultsEl.style.display = 'block';
+
+      if (!rows.length) {
+        tbody.innerHTML = `<tr><td class="text-muted" style="padding:.75rem 1rem">Sin resultados</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = rows.map(a => `
+        <tr>
+          <td>${a.name ?? '—'}</td>
+          <td>
+            <button class="btn btn-primary btn-sm"
+              onclick="selectArtist('${side}', ${a.artist_id}, '${(a.name ?? '').replace(/'/g, "\\'")}')">
+              Seleccionar
+            </button>
+          </td>
+        </tr>`).join('');
+
+    } catch (e) {
+      showError(`Error buscando artista: ${e.message}`);
+    }
+  }
+
+  // ── Select / Clear ────────────────────────────────────────────────────────
+
+  async function selectArtist(side, artistId, artistName) {
+    document.getElementById(`search-results-${side}`).style.display = 'none';
+    document.getElementById(`loading-${side}`).style.display        = 'flex';
+    document.getElementById('error-banner').innerHTML               = '';
+
+    try {
+      const stats = await fetchJSON(`/artists/${artistId}/stats`);
+      if (side === 'a') artistA = stats;
+      else              artistB = stats;
+
+      document.getElementById(`selected-name-${side}`).textContent = stats.name ?? artistName;
+      document.getElementById(`selected-${side}`).style.display    = 'block';
+      document.getElementById(`search-input-${side}`).value        = '';
+      updateComparison();
+
+    } catch (e) {
+      showError(`Error cargando artista: ${e.message}`);
+    } finally {
+      document.getElementById(`loading-${side}`).style.display = 'none';
+    }
+  }
+
+  function clearArtist(side) {
+    if (side === 'a') artistA = null;
+    else              artistB = null;
+    document.getElementById(`selected-${side}`).style.display       = 'none';
+    document.getElementById(`search-results-${side}`).style.display = 'none';
+    updateComparison();
+  }
+
+  // ── Comparison ────────────────────────────────────────────────────────────
+
+  function updateComparison() {
+    const guide   = document.getElementById('guide-state');
+    const results = document.getElementById('comparison-results');
+
+    if (!artistA || !artistB) {
+      guide.style.display   = 'block';
+      results.style.display = 'none';
+      return;
+    }
+
+    guide.style.display   = 'none';
+    results.style.display = 'block';
+
+    document.getElementById('th-a').textContent = artistA.name ?? 'Artista A';
+    document.getElementById('th-b').textContent = artistB.name ?? 'Artista B';
+
+    // Small sample warnings (< 5 tracks)
+    const warnings = [];
+    if ((artistA.track_count ?? 0) < 5)
+      warnings.push(`<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:6px"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>${artistA.name} tiene solo ${artistA.track_count} track(s) — muestra pequeña, los promedios pueden no ser representativos.`);
+    if ((artistB.track_count ?? 0) < 5)
+      warnings.push(`<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:6px"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>${artistB.name} tiene solo ${artistB.track_count} track(s) — muestra pequeña, los promedios pueden no ser representativos.`);
+    document.getElementById('warnings-bar').innerHTML = warnings
+      .map(w => `<div class="alert" style="border-left:3px solid #f6ad55;margin-bottom:.5rem;padding:.6rem .9rem">${w}</div>`)
+      .join('');
+
+    renderRadar();
+    renderTable();
+  }
+
+  // ── Radar ─────────────────────────────────────────────────────────────────
+
+  function renderRadar() {
+    // All 6 core audio features are already in 0-1 scale — no normalization needed.
+    // avg_popularity (0-100) kept out of radar to avoid distorting the scale.
+    const FEATURES = [
+      { key: 'avg_danceability',    label: 'Danceability'    },
+      { key: 'avg_energy',          label: 'Energy'          },
+      { key: 'avg_valence',         label: 'Valence'         },
+      { key: 'avg_acousticness',    label: 'Acousticness'    },
+      { key: 'avg_speechiness',     label: 'Speechiness'     },
+      { key: 'avg_instrumentalness',label: 'Instrumentalness'},
+      { key: 'avg_liveness',        label: 'Liveness'        },
+    ];
+
+    const labels = FEATURES.map(f => f.label);
+    const valA   = FEATURES.map(f => artistA[f.key] ?? 0);
+    const valB   = FEATURES.map(f => artistB[f.key] ?? 0);
+
+    Plotly.newPlot('radar-chart', [
+      {
+        type: 'scatterpolar',
+        r:    [...valA, valA[0]],
+        theta: [...labels, labels[0]],
+        fill: 'toself',
+        fillcolor: 'rgba(139,92,246,.2)',
+        line: { color: COL_A, width: 2.5 },
+        name: artistA.name ?? 'Artista A'
+      },
+      {
+        type: 'scatterpolar',
+        r:    [...valB, valB[0]],
+        theta: [...labels, labels[0]],
+        fill: 'toself',
+        fillcolor: 'rgba(246,173,85,.15)',
+        line: { color: COL_B, width: 2.5 },
+        name: artistB.name ?? 'Artista B'
+      }
+    ], {
+      polar: {
+        radialaxis: { visible: true, range: [0, 1], gridcolor: 'rgba(255,255,255,0.1)', tickfont: { size: 10 } },
+        bgcolor: 'transparent'
+      },
+      paper_bgcolor: 'transparent',
+      font: { family: "'Plus Jakarta Sans', system-ui", color: '#ffffff', size: 12 },
+      margin: { t: 40, r: 100, b: 40, l: 100 },
+      showlegend: true,
+      legend: { orientation: 'h', y: -0.1 }
+    }, plotConfig);
+  }
+
+  // ── Table ─────────────────────────────────────────────────────────────────
+
+  function renderTable() {
+    const ROWS = [
+      { key: 'track_count',           label: 'Tracks',             isInt: true,  higherWins: true  },
+      { key: 'avg_popularity',        label: 'Popularidad Avg',    isInt: false, higherWins: true  },
+      { key: 'avg_energy',            label: 'Energía',            isInt: false, higherWins: true  },
+      { key: 'avg_danceability',      label: 'Danceability',       isInt: false, higherWins: true  },
+      { key: 'avg_valence',           label: 'Valence',            isInt: false, higherWins: true  },
+      { key: 'avg_acousticness',      label: 'Acousticness',       isInt: false, higherWins: false },
+      { key: 'avg_speechiness',       label: 'Speechiness',        isInt: false, higherWins: false },
+      { key: 'avg_instrumentalness',  label: 'Instrumentalness',   isInt: false, higherWins: false },
+      { key: 'avg_liveness',          label: 'Liveness',           isInt: false, higherWins: false },
+      { key: 'explicit_count',        label: 'Tracks Explícitos',  isInt: true,  higherWins: false },
+    ];
+
+    const fmt = (v, isInt) =>
+      isInt ? Number(v).toLocaleString() : Number(v);
+
+    const fmtDiff = (diff, isInt) => {
+      if (diff === 0) return '=';
+      if (isInt) return diff > 0 ? `+${Math.round(diff)}` : `${Math.round(diff)}`;
+      return diff > 0 ? `+${diff.toFixed(3)}` : diff.toFixed(3);
+    };
+
+    const tbody = document.getElementById('compare-tbody');
+    tbody.innerHTML = ROWS.map(row => {
+      const va   = artistA[row.key] ?? 0;
+      const vb   = artistB[row.key] ?? 0;
+      const diff = vb - va;
+
+      let styleA = '', styleB = '';
+      if (row.higherWins && diff !== 0) {
+        styleA = diff < 0 ? `color:${COL_A};font-weight:600` : `color:var(--text-muted)`;
+        styleB = diff > 0 ? `color:${COL_B};font-weight:600` : `color:var(--text-muted)`;
+      }
+
+      const diffStyle = diff === 0 ? 'color:var(--text-muted)'
+        : diff > 0 ? `color:${COL_B}` : `color:${COL_A}`;
+
+      return `
+        <tr>
+          <td class="text-muted">${row.label}</td>
+          <td style="${styleA}">${fmt(va, row.isInt)}</td>
+          <td style="${styleB}">${fmt(vb, row.isInt)}</td>
+          <td style="${diffStyle};font-size:.85rem">${fmtDiff(diff, row.isInt)}</td>
+        </tr>`;
+    }).join('');
+  }
+
+  // ── Debounce inputs ───────────────────────────────────────────────────────
+
+  ['a', 'b'].forEach(side => {
+    const input = document.getElementById(`search-input-${side}`);
+    input.addEventListener('input', () => {
+      clearTimeout(_debounce[side]);
+      _debounce[side] = setTimeout(() => searchArtist(side), 400);
+    });
+    input.addEventListener('keydown', e => {
+      if (e.key === 'Enter') { clearTimeout(_debounce[side]); searchArtist(side); }
+    });
+  });
+
+  // Expose for inline onclick handlers
+  window.searchArtist = searchArtist;
+  window.selectArtist = selectArtist;
+  window.clearArtist  = clearArtist;
+</script>
+</body>
+</html>

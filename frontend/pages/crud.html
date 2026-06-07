@@ -1,96 +1,152 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="es" data-bs-theme="dark">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Tracklytics — CRUD</title>
-  <link rel="stylesheet" href="../css/styles.css" />
+  <link rel="stylesheet" href="/libs/bootstrap.min.css" />
+  <link rel="stylesheet" href="/css/tracklytics-theme.css" />
 </head>
 <body>
 
-<nav class="navbar">
-  <a class="navbar-brand" href="/index.html">
-    <span class="logo-icon">T</span> Tracklytics
-  </a>
-  <ul class="navbar-nav">
-    <li><a href="/index.html">Dashboard</a></li>
-    <li><a href="/pages/genres.html">Géneros</a></li>
-    <li><a href="/pages/artists.html">Artistas</a></li>
-    <li><a href="/pages/etl.html">ETL</a></li>
-    <li><a href="/pages/crud.html" class="active">CRUD</a></li>
-  </ul>
-</nav>
+<!-- Mobile sidebar backdrop -->
+<div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeSidebar()"></div>
 
-<div class="page-content">
-  <h1 class="page-title">Gestión de Tablas</h1>
+<div class="app-layout">
 
-  <div id="error-banner"></div>
+  <!-- ── Sidebar ─────────────────────────────────────────── -->
+  <nav class="sidebar" id="sidebar">
+    <a class="sidebar-brand" href="/index.html">
+      <span class="logo-icon">T</span>
+      Tracklytics
+    </a>
+    <ul class="sidebar-nav">
+      <li class="sidebar-item">
+        <a href="/index.html" class="sidebar-link">
+          <span class="sidebar-icon">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="1" y="1" width="6" height="6" rx="1.2"/><rect x="9" y="1" width="6" height="6" rx="1.2"/><rect x="1" y="9" width="6" height="6" rx="1.2"/><rect x="9" y="9" width="6" height="6" rx="1.2"/></svg>
+          </span>
+          Dashboard
+        </a>
+      </li>
+      <li class="sidebar-item">
+        <a href="/pages/genres.html" class="sidebar-link">
+          <span class="sidebar-icon">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M6 12.5V4l8-1.5v9"/><circle cx="4" cy="12.5" r="2"/><circle cx="12" cy="11.5" r="2"/></svg>
+          </span>
+          Géneros
+        </a>
+      </li>
+      <li class="sidebar-item">
+        <a href="/pages/artists.html" class="sidebar-link">
+          <span class="sidebar-icon">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="8" cy="5" r="3"/><path d="M2 14.5c0-3.3 2.7-6 6-6s6 2.7 6 6"/></svg>
+          </span>
+          Artistas
+        </a>
+      </li>
+      <li class="sidebar-item">
+        <a href="/pages/etl.html" class="sidebar-link">
+          <span class="sidebar-icon">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M14 8A6 6 0 1 1 8 2"/><polyline points="14,2 14,8 8,8"/></svg>
+          </span>
+          ETL
+        </a>
+      </li>
+      <li class="sidebar-item">
+        <a href="/pages/crud.html" class="sidebar-link active">
+          <span class="sidebar-icon">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="1" y="3" width="14" height="10" rx="1.2"/><line x1="1" y1="7" x2="15" y2="7"/><line x1="5" y1="7" x2="5" y2="13"/></svg>
+          </span>
+          CRUD
+        </a>
+      </li>
+    </ul>
+  </nav>
 
-  <!-- Table selector -->
-  <div class="card mb-3">
-    <div class="card-body" style="display:flex;align-items:flex-end;gap:1rem;flex-wrap:wrap">
-      <div class="form-group" style="margin:0;min-width:240px">
-        <label for="table-select">Tabla</label>
-        <select id="table-select" class="form-control" onchange="onTableChange()">
-          <option value="">— Seleccionar tabla —</option>
-          <optgroup label="Dimensiones">
-            <option value="artists">DIM_ARTISTS</option>
-            <option value="albums">DIM_ALBUMS</option>
-            <option value="genres">DIM_GENRES</option>
-            <option value="date">DIM_DATE</option>
-            <option value="musical_key">DIM_MUSICAL_KEY</option>
-            <option value="mode">DIM_MODE</option>
-            <option value="time_signature">DIM_TIME_SIGNATURE</option>
-            <option value="explicit_type">DIM_EXPLICIT_TYPE</option>
-            <option value="popularity_range">DIM_POPULARITY_RANGE</option>
-            <option value="tempo_range">DIM_TEMPO_RANGE</option>
-            <option value="energy_level">DIM_ENERGY_LEVEL</option>
-          </optgroup>
-          <optgroup label="Hechos">
-            <option value="__fact_tracks__">FACT_TRACKS (solo lectura)</option>
-          </optgroup>
-        </select>
-      </div>
-      <button class="btn btn-primary" id="btn-new" onclick="openModal()" style="display:none">
-        + Nuevo registro
+  <!-- ── Main Content ─────────────────────────────────────── -->
+  <div class="main-content">
+
+    <!-- Mobile topbar -->
+    <div class="topbar">
+      <button class="topbar-toggle" onclick="openSidebar()" aria-label="Abrir menú">
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8"><line x1="3" y1="6" x2="17" y2="6"/><line x1="3" y1="10" x2="17" y2="10"/><line x1="3" y1="14" x2="17" y2="14"/></svg>
       </button>
+      <span class="topbar-title">Tracklytics</span>
     </div>
-  </div>
 
-  <!-- Search filter -->
-  <div id="search-bar" style="display:none;margin-bottom:1rem">
-    <div class="search-row">
-      <div class="form-group">
-        <label for="search-input">Filtrar registros</label>
-        <input type="text" id="search-input" class="form-control"
-               placeholder="Buscar en columnas de texto…" autocomplete="off" />
+    <div class="page-content">
+      <h1 class="page-title">Gestión de Tablas</h1>
+
+      <div id="error-banner"></div>
+
+      <!-- Table selector -->
+      <div class="card mb-3">
+        <div class="card-body" style="display:flex;align-items:flex-end;gap:1rem;flex-wrap:wrap">
+          <div class="form-group" style="margin:0;min-width:240px">
+            <label for="table-select">Tabla</label>
+            <select id="table-select" class="form-control" onchange="onTableChange()">
+              <option value="">— Seleccionar tabla —</option>
+              <optgroup label="Dimensiones">
+                <option value="artists">DIM_ARTISTS</option>
+                <option value="albums">DIM_ALBUMS</option>
+                <option value="genres">DIM_GENRES</option>
+                <option value="date">DIM_DATE</option>
+                <option value="musical_key">DIM_MUSICAL_KEY</option>
+                <option value="mode">DIM_MODE</option>
+                <option value="time_signature">DIM_TIME_SIGNATURE</option>
+                <option value="explicit_type">DIM_EXPLICIT_TYPE</option>
+                <option value="popularity_range">DIM_POPULARITY_RANGE</option>
+                <option value="tempo_range">DIM_TEMPO_RANGE</option>
+                <option value="energy_level">DIM_ENERGY_LEVEL</option>
+              </optgroup>
+              <optgroup label="Hechos">
+                <option value="__fact_tracks__">FACT_TRACKS (solo lectura)</option>
+              </optgroup>
+            </select>
+          </div>
+          <button class="btn btn-primary" id="btn-new" onclick="openModal()" style="display:none">
+            + Nuevo registro
+          </button>
+        </div>
       </div>
-      <button class="btn btn-primary" onclick="applySearch()">Buscar</button>
-      <button class="btn btn-secondary" onclick="clearSearch()">Limpiar</button>
-    </div>
-  </div>
 
-  <!-- Data table -->
-  <div class="card" id="data-card" style="display:none">
-    <div class="card-header">
-      <span>
-        <span id="table-label">—</span>
-        <span id="readonly-badge" class="badge badge-info" style="display:none;margin-left:.5rem;vertical-align:middle">Solo lectura</span>
-      </span>
-      <span class="text-muted" id="total-label"></span>
-    </div>
-    <div class="table-wrapper">
-      <div id="table-loading" class="loading-center" style="display:none"><div class="spinner"></div></div>
-      <table id="data-table">
-        <thead id="data-thead"></thead>
-        <tbody id="data-tbody"></tbody>
-      </table>
-    </div>
-    <div class="pagination">
-      <span class="pagination-info" id="page-info">—</span>
-      <div class="pagination-btns">
-        <button class="btn btn-secondary btn-sm" id="btn-prev" onclick="changePage(-1)" disabled>‹ Anterior</button>
-        <button class="btn btn-secondary btn-sm" id="btn-next" onclick="changePage(1)"  disabled>Siguiente ›</button>
+      <!-- Search filter -->
+      <div id="search-bar" style="display:none;margin-bottom:1rem">
+        <div class="search-row">
+          <div class="form-group">
+            <label for="search-input">Filtrar registros</label>
+            <input type="text" id="search-input" class="form-control"
+                   placeholder="Buscar en columnas de texto…" autocomplete="off" />
+          </div>
+          <button class="btn btn-primary" onclick="applySearch()">Buscar</button>
+          <button class="btn btn-secondary" onclick="clearSearch()">Limpiar</button>
+        </div>
+      </div>
+
+      <!-- Data table -->
+      <div class="card" id="data-card" style="display:none">
+        <div class="card-header">
+          <span>
+            <span id="table-label">—</span>
+            <span id="readonly-badge" class="badge badge-info" style="display:none;margin-left:.5rem;vertical-align:middle">Solo lectura</span>
+          </span>
+          <span class="text-muted" id="total-label"></span>
+        </div>
+        <div class="table-wrapper">
+          <div id="table-loading" class="loading-center" style="display:none"><div class="spinner"></div></div>
+          <table id="data-table" class="table table-hover">
+            <thead id="data-thead"></thead>
+            <tbody id="data-tbody"></tbody>
+          </table>
+        </div>
+        <div class="pagination">
+          <span class="pagination-info" id="page-info">—</span>
+          <div class="pagination-btns">
+            <button class="btn btn-secondary btn-sm" id="btn-prev" onclick="changePage(-1)" disabled>‹ Anterior</button>
+            <button class="btn btn-secondary btn-sm" id="btn-next" onclick="changePage(1)"  disabled>Siguiente ›</button>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -131,7 +187,18 @@
   </div>
 </div>
 
+<script src="/libs/bootstrap.bundle.min.js"></script>
 <script>
+// Sidebar mobile toggle
+function openSidebar() {
+  document.getElementById('sidebar').classList.add('sidebar-open');
+  document.getElementById('sidebar-backdrop').classList.add('active');
+}
+function closeSidebar() {
+  document.getElementById('sidebar').classList.remove('sidebar-open');
+  document.getElementById('sidebar-backdrop').classList.remove('active');
+}
+
 const API = '/api';
 let currentTable  = '';
 let currentPage   = 1;

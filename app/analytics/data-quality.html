@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Calidad de Datos — Tracklytics</title>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="/css/main.css"/>
+  <link rel="stylesheet" href="/css/analytics.css"/>
+  <script src="https://cdn.plot.ly/plotly-2.32.0.min.js"></script>
+</head>
+<body>
+<div id="sidebar-root"></div>
+<div class="app-layout">
+  <main class="main-content">
+    <h1 class="page-title">Panel de Calidad de Datos</h1>
+
+    <div id="error-banner"></div>
+
+    <!-- KPIs -->
+    <div class="kpi-grid" id="kpi-grid">
+      <div class="kpi-card">
+        <div class="kpi-label">Total Registros</div>
+        <div class="kpi-value" id="kpi-total">—</div>
+      </div>
+      <div class="kpi-card" style="border-left-color:#68d391">
+        <div class="kpi-label">% Reales</div>
+        <div class="kpi-value" id="kpi-real-pct">—</div>
+        <div class="kpi-sub" id="kpi-real-sub"></div>
+      </div>
+      <div class="kpi-card" style="border-left-color:#f6ad55">
+        <div class="kpi-label">% Sintéticos</div>
+        <div class="kpi-value" id="kpi-synth-pct">—</div>
+        <div class="kpi-sub" id="kpi-synth-sub"></div>
+      </div>
+      <div class="kpi-card" style="border-left-color:#fc8181">
+        <div class="kpi-label">Tasa de Rechazo</div>
+        <div class="kpi-value" id="kpi-rejection">—</div>
+      </div>
+    </div>
+
+    <!-- Donut + Última carga -->
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-header">Composición: Reales vs Sintéticos</div>
+        <div class="card-body" style="padding:.5rem">
+          <div id="donut-chart" class="chart-container"></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-header">Última Carga ETL</div>
+        <div class="card-body">
+          <div class="table-wrapper">
+            <table>
+              <thead><tr><th>Campo</th><th>Valor</th></tr></thead>
+              <tbody id="last-load-body">
+                <tr><td colspan="2"><div class="loading-center"><div class="spinner"></div></div></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+<div id="player-root"></div>
+
+<script type="module">
+  import { requireRole } from '/js/auth.js';
+  import { renderSidebar, renderPlayer } from '/js/components.js';
+  if (!requireRole('admin')) throw new Error('unauthorized');
+  renderSidebar('analytics');
+  renderPlayer();
+
+  const API = '/api';
+
+  const plotConfig = { responsive: true, displayModeBar: false };
+
+  function showError(msg) {
+    document.getElementById('error-banner').innerHTML =
+      `<div class="alert alert-error">${msg}</div>`;
+  }
+
+  async function fetchJSON(path) {
+    const res = await fetch(API + path);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
+  }
+
+  function fmtDate(dt) {
+    if (!dt) return '—';
+    const s = String(dt);
+    return new Date(s.endsWith('Z') ? s : s + 'Z')
+      .toLocaleString('es-EC', { timeZone: 'America/Guayaquil' });
+  }
+
+  function statusBadge(status) {
+    const map = { success: 'badge-success', failed: 'badge-danger', running: 'badge-info', pending: 'badge-warning' };
+    return `<span class="badge ${map[status] ?? 'badge-info'}">${status ?? '—'}</span>`;
+  }
+
+  async function loadDataQuality() {
+    try {
+      const d = await fetchJSON('/data-quality');
+
+      document.getElementById('kpi-total').textContent      = (d.total_records    ?? 0).toLocaleString();
+      document.getElementById('kpi-real-pct').textContent   = `${d.real_pct       ?? 0}%`;
+      document.getElementById('kpi-real-sub').textContent   = `${(d.real_records   ?? 0).toLocaleString()} registros`;
+      document.getElementById('kpi-synth-pct').textContent  = `${d.synthetic_pct  ?? 0}%`;
+      document.getElementById('kpi-synth-sub').textContent  = `${(d.synthetic_records ?? 0).toLocaleString()} registros`;
+      document.getElementById('kpi-rejection').textContent  =
+        d.rejection_rate != null ? `${d.rejection_rate}%` : '—';
+
+      Plotly.newPlot('donut-chart', [{
+        labels: ['Reales', 'Sintéticos'],
+        values: [d.real_records ?? 0, d.synthetic_records ?? 0],
+        type: 'pie',
+        hole: 0.55,
+        marker: { colors: ['#8B5CF6', '#f6ad55'] },
+        textinfo: 'label+percent',
+        textfont: { color: '#ffffff', size: 13 },
+        hovertemplate: '<b>%{label}</b><br>%{value:,} registros<br>%{percent}<extra></extra>'
+      }], {
+        paper_bgcolor: 'transparent',
+        font: { family: "'Plus Jakarta Sans', system-ui", color: '#ffffff', size: 12 },
+        margin: { t: 20, r: 20, b: 40, l: 20 },
+        showlegend: true,
+        legend: { orientation: 'h', y: -0.12 }
+      }, plotConfig);
+
+      const ll = d.last_load;
+      const fields = ll ? [
+        ['Semana',     ll.week_number    ?? '—'],
+        ['Estado',     statusBadge(ll.status)],
+        ['Timestamp',  fmtDate(ll.run_timestamp)],
+        ['Insertados', (ll.records_inserted ?? 0).toLocaleString()],
+      ] : [['—', 'Sin datos de carga']];
+
+      document.getElementById('last-load-body').innerHTML =
+        fields.map(([k, v]) =>
+          `<tr><td class="text-muted" style="width:40%">${k}</td><td>${v}</td></tr>`
+        ).join('');
+
+    } catch (e) {
+      showError(`Error cargando calidad de datos: ${e.message}`);
+    }
+  }
+
+  loadDataQuality();
+</script>
+</body>
+</html>
