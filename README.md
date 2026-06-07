@@ -1,4 +1,4 @@
-# Tracklytics v2
+# Tracklytics
 
 [![ClickHouse](https://img.shields.io/badge/ClickHouse-24.3-FFCC01?style=for-the-badge&logo=clickhouse&logoColor=black)](https://clickhouse.com)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.111-009688?style=for-the-badge&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
@@ -7,16 +7,16 @@
 [![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?style=for-the-badge&logo=docker&logoColor=white)](https://docker.com)
 [![PocketBase](https://img.shields.io/badge/PocketBase-Auth-B8DBE4?style=for-the-badge&logo=pocketbase&logoColor=black)](https://pocketbase.io)
 
-![Records](https://img.shields.io/badge/Registros-313.550-8B5CF6?style=for-the-badge)
+![Records](https://img.shields.io/badge/Registros-513.550-8B5CF6?style=for-the-badge)
 ![Tables](https://img.shields.io/badge/Tablas_ClickHouse-15-8B5CF6?style=for-the-badge)
 ![Services](https://img.shields.io/badge/Servicios_Docker-8-8B5CF6?style=for-the-badge)
-![Progress](https://img.shields.io/badge/Avance-25%25_P1_Completada-22c55e?style=for-the-badge)
+![Progress](https://img.shields.io/badge/Avance(S5)-25%-22c55e?style=for-the-badge)
 
 > Plataforma de analítica musical e inteligencia de negocio sobre datos de Spotify,
 > construida con ClickHouse, Airflow, FastAPI y un frontend interactivo con Plotly.js.
 > Incluye una app musical tipo Spotify para usuarios finales con sistema de roles.
 
-Tracklytics v2 procesa 313.550 registros reales de Spotify más datos sintéticos semanales
+Tracklytics procesa 113.550 registros reales de Spotify más datos sintéticos semanales
 generados deterministamente, los almacena en un modelo dimensional columnar en ClickHouse,
 orquesta las cargas con Apache Airflow y los expone mediante una API REST, dashboards
 analíticos interactivos y una app musical completa servidos por Nginx.
@@ -33,7 +33,10 @@ analíticos interactivos y una app musical completa servidos por Nginx.
 | Orquestación ETL | Apache Airflow 2.9 |
 | API REST | FastAPI + Uvicorn (Python 3.11) |
 | App musical | HTML + CSS + JavaScript (puerto 8081) |
-| Analítica | HTML + JavaScript + Plotly.js |
+| UI Framework | Bootstrap 5 (local, sin CDN) |
+| Visualización | Plotly.js (gráficos analíticos interactivos) |
+| Íconos | Lucide SVG (inline, sin dependencias) |
+| Tipografía | Plus Jakarta Sans + Inter |
 | Servidor web | Nginx (reverse proxy) |
 | Auth | PocketBase JWT (roles: user / analyst / admin) |
 | Contenedores | Docker + Docker Compose |
@@ -121,9 +124,14 @@ Los volúmenes se recrean solos. No es necesario ningún paso manual adicional.
 | Servicio | URL | Acceso |
 |---|---|---|
 | App musical (Tracklytics) | http://localhost:8081 | Todos los roles |
-| Analítica — Dashboard | http://localhost:8081/analitica/dashboard.html | analyst / admin |
-| Analítica — ETL | http://localhost:8081/analitica/etl.html | admin |
-| Analítica — CRUD | http://localhost:8081/analitica/crud.html | admin |
+| Analítica — Dashboard | http://localhost:8081/analytics/dashboard.html | analyst / admin |
+| Analítica — Géneros | http://localhost:8081/analytics/genres.html | analyst / admin |
+| Analítica — Artistas | http://localhost:8081/analytics/artists.html | analyst / admin |
+| Analítica — Tendencias | http://localhost:8081/analytics/trends.html | analyst / admin |
+| Analítica — Comparar Artistas | http://localhost:8081/analytics/compare-artists.html | analyst / admin |
+| Analítica — ETL | http://localhost:8081/analytics/etl.html | admin |
+| Analítica — CRUD | http://localhost:8081/analytics/crud.html | admin |
+| Analítica — Calidad de Datos | http://localhost:8081/analytics/data-quality.html | admin |
 | API REST + Swagger | http://localhost:8000/docs | - |
 | Airflow UI | http://localhost:8080 | admin |
 | PocketBase Admin | http://localhost:8090/_/ | admin |
@@ -134,14 +142,40 @@ Credenciales Airflow: `admin` / valor de `AIRFLOW_PASSWORD` en `.env` (por defec
 
 ## Sistema de roles
 
-| Rol | App musical | Analítica Tracklytics |
-|-----|-------------|----------------------|
-| `user` | ✅ Acceso completo | ❌ Bloqueado |
-| `analyst` | ✅ Acceso completo | ✅ Dashboards y análisis |
-| `admin` | ✅ Acceso completo | ✅ Todo + ETL + CRUD |
+| Rol | App musical | Analítica | ETL + CRUD + Calidad de Datos |
+|-----|-------------|-----------|-------------------------------|
+| `user` | ✅ Acceso completo | ❌ Bloqueado | ❌ Bloqueado |
+| `analyst` | ✅ Acceso completo | ✅ Dashboards y análisis | ❌ Bloqueado |
+| `admin` | ✅ Acceso completo | ✅ Todo | ✅ Acceso completo |
 
 El rol `admin` solo se asigna desde PocketBase Admin (`http://localhost:8090/_/`).
 Los roles `user` y `analyst` se seleccionan durante el registro en la app.
+
+---
+
+## Funcionalidades por módulo
+
+### App musical (todos los roles)
+- Catálogo navegable con búsqueda en tiempo real (debounce 400ms) y filtro por los 114 géneros
+- Páginas de detalle de track con 7 atributos de audio (danceability, energy, valence, acousticness, speechiness, instrumentalness, liveness)
+- Perfil de artista con estadísticas agregadas desde ClickHouse
+- Detalle de álbum con tracklist — cada canción muestra su género, permitiendo identificar la misma canción en múltiples géneros (relación N:M resuelta via `fact_id`)
+- Reproductor de audio simulado con barra de progreso
+- Favoritos con botón ♥ (localStorage)
+- Historial de reproducción con tiempo relativo (localStorage, máx. 50 entradas)
+- Playlists: crear, añadir/quitar tracks, eliminar (localStorage)
+
+### Analítica (analyst / admin)
+- **Dashboard ejecutivo** — 6 KPIs globales, bubble chart géneros, radar del top género, top 10 géneros y artistas por Plotly.js con caché TTL 60s
+- **Géneros** — tabla de 114 géneros con métricas, radar de audio por género, scatter popularidad vs energía
+- **Artistas** — búsqueda, perfil con benchmark vs promedio del género
+- **Comparar Artistas A vs B** — radar doble de 7 ejes de audio, tabla comparativa con ganador resaltado por métrica
+- **Tendencias Temporales** — serie temporal semana a semana (DIM_DATE × FACT_TRACKS), eje Y dual (popularidad 0-100 / energía y danceability 0-1), selector de métricas
+
+### Gestión de datos (admin)
+- **Panel ETL** — disparo del DAG de Airflow con polling de las 5 tasks en tiempo real, historial de ejecuciones con métricas (leídos / insertados / rechazados / duración)
+- **CRUD dimensional** — gestión completa de las 11 tablas DIM, FACT_TRACKS en modo solo lectura
+- **Calidad de Datos** — proporción reales vs sintéticos con gráfico de dona, tasa de rechazo ETL, detalle de la última carga
 
 ---
 
@@ -159,15 +193,18 @@ tracklytics/
 │   ├── paquetes/
 │   │   ├── catalogo/            # Endpoints app musical
 │   │   ├── analitica/           # Endpoints dashboards (cache TTL 60s)
-│   │   └── gestion_datos/       # ETL, CRUD dimensiones
+│   │   └── gestion_datos/       # ETL, CRUD dimensiones, calidad de datos
 │   ├── api_Dockerfile
 │   └── requirements.txt
 ├── app/                         # App musical tipo Spotify (puerto 8081)
 │   ├── autenticacion/           # login.html, register.html, profile.html
 │   ├── catalogo/                # home.html, search.html, catalog.html, artist.html...
-│   ├── biblioteca/              # library.html
-│   ├── analitica/               # dashboard.html, genres.html, artists.html, etl.html, crud.html
-│   ├── js/                      # auth.js, api.js, components.js
+│   ├── biblioteca/              # library.html (favoritos, historial, playlists)
+│   ├── analytics/               # dashboard.html, genres.html, artists.html,
+│   │                            # trends.html, compare-artists.html,
+│   │                            # etl.html, crud.html, data-quality.html
+│   ├── js/                      # auth.js, api.js, components.js,
+│   │                            # favorites.js, history.js, playlists.js
 │   ├── css/                     # main.css, analytics.css
 │   ├── img/                     # logo.png
 │   ├── Dockerfile
@@ -176,7 +213,8 @@ tracklytics/
 │   └── spotify.csv              # Dataset fuente (113.550 registros)
 ├── docs/
 │   ├── PLAN.md                  # Plan maestro del proyecto (4 presentaciones)
-│   └── ARQUITECTURA.md          # Estructura por paquetes y decisiones técnicas
+│   ├── ARQUITECTURA.md          # Estructura por paquetes y decisiones técnicas
+│   └── PENDIENTES.md            # Mejoras futuras documentadas
 ├── etl/
 │   ├── bronze/                  # Extracción cruda desde PocketBase → Parquet
 │   ├── silver/                  # Limpieza, validación y normalización
@@ -225,6 +263,11 @@ ETL_LOGS           (historial de ejecuciones)
 ETL_BATCH_CONTROL  (control de idempotencia)
 ```
 
+> **Nota sobre duplicados en tracklist:** el dataset de Spotify asigna múltiples géneros
+> a una misma canción. En FACT_TRACKS esto se representa con una fila por combinación
+> `track_id × genre_id`. La navegación usa `fact_id` (PK único) para cargar la fila
+> exacta con su género correcto.
+
 ---
 
 ## Pipeline ETL — Capas Bronze / Silver / Gold
@@ -254,6 +297,9 @@ Los datos sintéticos se generan deterministamente (seed = semana × 42).
 ## Decisiones técnicas clave
 
 - **threading.local para ClickHouse** — cada thread de Uvicorn tiene su propio cliente para evitar errores de consultas concurrentes.
-- **Cache TTL 60s** — los endpoints analíticos pesados (dashboard ejecutivo, trends de géneros) usan caché en memoria para evitar re-ejecutar JOINs sobre 300k+ registros en cada request.
+- **Cache TTL 60s** — los endpoints analíticos pesados (dashboard ejecutivo, trends de géneros, tendencias semanales) usan caché en memoria para evitar re-ejecutar JOINs sobre 500k+ registros en cada request.
 - **Rutas absolutas en JS** — todos los imports usan `/js/auth.js` en lugar de `../js/auth.js` para que funcionen desde cualquier subcarpeta del frontend.
 - **Idempotencia ETL** — `ETL_BATCH_CONTROL` verifica si una semana ya fue cargada antes de insertar, evitando duplicados en recargas.
+- **fact_id para navegación** — la navegación al detalle de una canción usa `fact_id` (PK único de FACT_TRACKS) en vez de `track_id` (no único) para resolver correctamente la relación N:M entre tracks y géneros.
+- **Bootstrap 5 local** — servido desde `app/libs/` para garantizar funcionamiento offline durante presentaciones, sin depender de CDN.
+- **Tema oscuro violeta** — identidad visual con `#8B5CF6` como color primario, sidebar colapsable con íconos Lucide SVG inline, tipografía Plus Jakarta Sans + Inter.
