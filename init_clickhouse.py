@@ -255,6 +255,19 @@ DDL_STATEMENTS = [
     ) ENGINE = MergeTree()
     ORDER BY week_number
     """,
+
+    f"""
+    CREATE TABLE IF NOT EXISTS {DB}.FACT_ENGAGEMENT_USUARIO (
+        engagement_id   UUID DEFAULT generateUUIDv4(),
+        user_id         String,
+        fact_id         UInt64,
+        event_type      Enum8('favorito_add'=1, 'favorito_remove'=2, 'reproduccion'=3),
+        event_timestamp DateTime DEFAULT now(),
+        is_synthetic    Bool,
+        source          Enum8('app'=1, 'referencia'=2)
+    ) ENGINE = MergeTree()
+    ORDER BY (user_id, event_timestamp)
+    """,
 ]
 
 # ── Runner ────────────────────────────────────────────────────────────────────

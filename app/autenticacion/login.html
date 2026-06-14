@@ -3,31 +3,64 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Iniciar sesión — Tracklytics</title>
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&display=swap" rel="stylesheet"/>
+  <title>Tracklytics — Música que se siente</title>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet"/>
   <link rel="stylesheet" href="/css/main.css"/>
 </head>
-<body>
-<div class="auth-page">
-  <div class="auth-card">
-    <div class="auth-logo"><span class="logo-t">T</span><span class="logo-rest">racklytics</span></div>
-    <h1>Iniciar sesión</h1>
-    <div id="alert-box"></div>
-    <form id="login-form">
-      <div class="form-group">
-        <label>Correo electrónico</label>
-        <input type="email" id="email" placeholder="tu@email.com" required autocomplete="email"/>
+<body style="height:100vh; overflow:auto;">
+<div class="auth-split">
+
+  <!-- ── Panel izquierdo (hero) ─────────────────────── -->
+  <div class="auth-hero">
+    <div class="auth-hero-brand">
+      <span class="logo-t">T</span><span class="logo-rest">racklytics</span>
+    </div>
+    <p class="auth-hero-tagline">Analiza. Descubre. Escucha.</p>
+
+    <ul class="auth-hero-features">
+      <li>
+        <span class="auth-feature-icon">🎵</span>
+        <span><strong>Catálogo completo</strong> con miles de canciones, artistas y géneros</span>
+      </li>
+      <li>
+        <span class="auth-feature-icon">📊</span>
+        <span><strong>Analítica avanzada</strong> de tendencias, popularidad y comparativa de artistas</span>
+      </li>
+      <li>
+        <span class="auth-feature-icon">♥</span>
+        <span><strong>Biblioteca personal</strong> con favoritos, historial y playlists propias</span>
+      </li>
+      <li>
+        <span class="auth-feature-icon">▶</span>
+        <span><strong>Reproductor con cola</strong> de reproducción y navegación entre canciones</span>
+      </li>
+    </ul>
+  </div>
+
+  <!-- ── Panel derecho (form) ───────────────────────── -->
+  <div class="auth-form-panel">
+    <div class="auth-card">
+      <div class="auth-logo" style="font-size:1.5rem; margin-bottom:1.75rem">
+        Iniciar sesión
       </div>
-      <div class="form-group">
-        <label>Contraseña</label>
-        <input type="password" id="password" placeholder="••••••••" required autocomplete="current-password"/>
+      <div id="alert-box"></div>
+      <form id="login-form">
+        <div class="form-group">
+          <label>Correo electrónico</label>
+          <input type="email" id="email" placeholder="tu@email.com" required autocomplete="email"/>
+        </div>
+        <div class="form-group">
+          <label>Contraseña</label>
+          <input type="password" id="password" placeholder="••••••••" required autocomplete="current-password"/>
+        </div>
+        <button type="submit" class="btn btn-primary" id="submit-btn">Entrar</button>
+      </form>
+      <div class="auth-footer">
+        ¿No tienes cuenta? <a href="/autenticacion/register.html">Regístrate</a>
       </div>
-      <button type="submit" class="btn btn-primary" id="submit-btn">Entrar</button>
-    </form>
-    <div class="auth-footer">
-      ¿No tienes cuenta? <a href="/autenticacion/register.html">Regístrate</a>
     </div>
   </div>
+
 </div>
 
 <script type="module">
@@ -35,9 +68,9 @@
 
   if (isLoggedIn()) window.location.href = '/catalogo/home.html';
 
-  const form = document.getElementById('login-form');
+  const form     = document.getElementById('login-form');
   const alertBox = document.getElementById('alert-box');
-  const btn = document.getElementById('submit-btn');
+  const btn      = document.getElementById('submit-btn');
 
   form.addEventListener('submit', async e => {
     e.preventDefault();
@@ -45,7 +78,10 @@
     btn.disabled = true;
     btn.textContent = 'Ingresando…';
     try {
-      await login(document.getElementById('email').value, document.getElementById('password').value);
+      await login(
+        document.getElementById('email').value,
+        document.getElementById('password').value
+      );
       window.location.href = '/catalogo/home.html';
     } catch (err) {
       alertBox.innerHTML = `<div class="alert alert-error">${err.message}</div>`;

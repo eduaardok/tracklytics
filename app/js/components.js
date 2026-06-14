@@ -18,11 +18,11 @@ const ICON = {
 
 // ── Sidebar ──────────────────────────────────────────────────────────────────
 const NAV_ITEMS = [
-  { href: '/catalogo/home.html',      label: 'Inicio',        icon: ICON.house },
-  { href: '/catalogo/search.html',    label: 'Buscar',         icon: ICON.search },
-  { href: '/catalogo/catalog.html',   label: 'Catálogo',       icon: ICON.layoutGrid },
-  { href: '/catalogo/genres.html',    label: 'Géneros',        icon: ICON.music },
-  { href: '/biblioteca/library.html', label: 'Mi Biblioteca',  icon: ICON.library },
+  { href: '/catalogo/home.html',        label: 'Inicio',        icon: ICON.house },
+  { href: '/catalogo/search.html',      label: 'Buscar',         icon: ICON.search },
+  { href: '/catalogo/catalog.html',     label: 'Catálogo',       icon: ICON.layoutGrid },
+  { href: '/catalogo/genres.html',      label: 'Géneros',        icon: ICON.music },
+  { href: '/biblioteca/library.html',   label: 'Mi Biblioteca',  icon: ICON.library },
 ];
 
 const ANALYTICS_SUBS = [
@@ -122,15 +122,31 @@ export function renderSidebar(activePage) {
   });
 }
 
-// ── Player ────────────────────────────────────────────────────────────────────
-let currentTrack = null;
-let isPlaying    = false;
+// ── Player state (localStorage) ───────────────────────────────────────────────
+// Shape: { track, isPlaying, startedAt, elapsedMs, volume, queue, queueHistory }
+// queue: tracks after current (queue[0] = next). queueHistory: tracks before
+// current in reverse-chronological order (queueHistory[0] = previous), max 50.
+function _savePlayerState(patch) {
+  const state = _loadPlayerState();
+  localStorage.setItem('tl_player', JSON.stringify({ ...state, ...patch }));
+}
+function _loadPlayerState() {
+  try { return JSON.parse(localStorage.getItem('tl_player') || '{}'); }
+  catch { return {}; }
+}
+function _getVolume() {
+  const slider = document.querySelector('.volume-slider');
+  if (slider) return Number(slider.value);
+  return _loadPlayerState().volume ?? 80;
+}
+
+// Only remaining module-level player variable — needed by clearInterval across calls
 let progressTimer = null;
-let progress = 0;
 
 const GENRES_COLORS = ['#e91e63','#9c27b0','#3f51b5','#2196f3','#009688',
                        '#4caf50','#ff9800','#ff5722','#795548','#607d8b'];
 
+// ── Player ────────────────────────────────────────────────────────────────────
 export function renderPlayer() {
   document.getElementById('player-root').innerHTML = `
     <div class="player-bar">
@@ -158,12 +174,72 @@ export function renderPlayer() {
       <div class="player-volume">
         <span>🔊</span>
         <input type="range" class="volume-slider" min="0" max="100" value="80">
+        <button class="player-btn" id="queue-btn" title="Cola">☰</button>
+      </div>
+      <div class="player-queue-panel hidden" id="queue-panel">
+        <div class="queue-panel-header">
+          <span>Cola de reproducción</span>
+          <button class="queue-clear-btn" id="queue-clear">Limpiar</button>
+        </div>
+        <div id="queue-list"></div>
       </div>
     </div>`;
 
   document.getElementById('play-btn').addEventListener('click', togglePlay);
+  document.getElementById('prev-btn').addEventListener('click', _playPrev);
+  document.getElementById('next-btn').addEventListener('click', _playNext);
+
+  document.getElementById('queue-btn').addEventListener('click', () => {
+    document.getElementById('queue-panel').classList.toggle('hidden');
+    _renderQueuePanel();
+  });
+  document.getElementById('queue-clear').addEventListener('click', () => {
+    _savePlayerState({ queue: [] });
+    _renderQueuePanel();
+  });
 
   _initPlaylistModal();
+  _hydratePlayer();
+
+  // Sync player state across tabs — storage event only fires for OTHER tabs
+  window.addEventListener('storage', e => {
+    if (e.key === 'tl_player') _hydratePlayer();
+  });
+}
+
+// ── Rehidratación al cargar / cambio de pestaña ───────────────────────────────
+function _hydratePlayer() {
+  const state = _loadPlayerState();
+  if (!state.track) return;
+
+  const track   = state.track;
+  const totalMs = track.duration_ms || 180000;
+
+  const elapsed = (state.elapsedMs || 0) +
+    (state.isPlaying && state.startedAt ? Date.now() - state.startedAt : 0);
+
+  document.getElementById('player-title').textContent  = track.track_name || track.name || '';
+  document.getElementById('player-artist').textContent = track.artist_name || '';
+  document.getElementById('player-thumb').textContent  = '🎵';
+  document.getElementById('p-total').textContent       = msToTime(totalMs);
+
+  const slider = document.querySelector('.volume-slider');
+  if (slider) slider.value = state.volume ?? 80;
+
+  if (elapsed >= totalMs) {
+    _savePlayerState({ isPlaying: false, startedAt: null, elapsedMs: 0 });
+    document.getElementById('play-btn').textContent            = '▶';
+    document.getElementById('progress-fill').style.width      = '0%';
+    document.getElementById('p-current').textContent          = '0:00';
+  } else {
+    document.getElementById('progress-fill').style.width = `${(elapsed / totalMs) * 100}%`;
+    document.getElementById('p-current').textContent     = msToTime(elapsed);
+    document.getElementById('play-btn').textContent      = state.isPlaying ? '⏸' : '▶';
+    if (state.isPlaying) startProgress(totalMs, elapsed);
+  }
+
+  const queuePanel = document.getElementById('queue-panel');
+  if (queuePanel && !queuePanel.classList.contains('hidden')) _renderQueuePanel();
 }
 
 // ── Playlist modal ────────────────────────────────────────────────────────────
@@ -185,8 +261,9 @@ function _initPlaylistModal() {
       <div id="modal-list"></div>
       <div class="modal-new-playlist">
         <input id="modal-new-name" type="text" placeholder="Nueva playlist…" maxlength="60"
-               onkeydown="if(event.key==='Enter') window.__plModal.createAndAdd()"/>
-        <button class="btn btn-primary btn-sm" onclick="window.__plModal.createAndAdd()">Crear</button>
+               onkeydown="if(event.key==='Enter') window.__plModal.createAndAdd().catch(e=>console.error(e))"/>
+        <button class="btn btn-primary btn-sm"
+                onclick="window.__plModal.createAndAdd().catch(e=>console.error(e))">Crear</button>
       </div>
       <div id="modal-feedback" class="modal-feedback"></div>
     </div>`;
@@ -200,8 +277,10 @@ function _initPlaylistModal() {
 }
 
 window.__plModal = {
-  open(trackId) {
-    const track = window.__trackCache[trackId];
+  // open accepts fact_id (number, from trackRow) or track_id (string, from track.html)
+  // Both callers store the matching key in __trackCache before calling open().
+  open(id) {
+    const track = window.__trackCache[id];
     if (!track) return;
     window.__plModal._track = track;
 
@@ -221,15 +300,16 @@ window.__plModal = {
     this._track = null;
   },
 
-  _refresh() {
+  _refresh: async function() {
     const playlists = getPlaylists();
-    const listEl = document.getElementById('modal-list');
+    const listEl    = document.getElementById('modal-list');
     if (!playlists.length) {
       listEl.innerHTML = `<p class="modal-empty">Aún no tienes playlists. Crea una abajo.</p>`;
       return;
     }
     listEl.innerHTML = playlists.map(pl => `
-      <div class="modal-pl-item" onclick="window.__plModal.addTo('${pl.id}')">
+      <div class="modal-pl-item"
+           onclick="window.__plModal.addTo('${pl.id}').catch(e=>console.error(e))">
         <div class="modal-pl-info">
           <span class="modal-pl-name">${pl.name}</span>
           <span class="modal-pl-count">${pl.tracks.length} canción${pl.tracks.length !== 1 ? 'es' : ''}</span>
@@ -238,12 +318,12 @@ window.__plModal = {
       </div>`).join('');
   },
 
-  addTo(playlistId) {
+  addTo: async function(playlistId) {
     const track = this._track;
     if (!track) return;
     const added = addTrackToPlaylist(playlistId, track);
-    const pl = getPlaylists().find(p => p.id === playlistId);
-    const fb = document.getElementById('modal-feedback');
+    const pl    = getPlaylists().find(p => p.id === playlistId);
+    const fb    = document.getElementById('modal-feedback');
     fb.textContent = added
       ? `✓ Agregado a "${pl?.name}"`
       : `Ya está en "${pl?.name}"`;
@@ -251,7 +331,7 @@ window.__plModal = {
     this._refresh();
   },
 
-  createAndAdd() {
+  createAndAdd: async function() {
     const name = document.getElementById('modal-new-name').value.trim();
     if (!name) return;
     const pl = createPlaylist(name);
@@ -259,49 +339,152 @@ window.__plModal = {
     document.getElementById('modal-new-name').value = '';
     const fb = document.getElementById('modal-feedback');
     fb.textContent = `✓ Playlist "${pl.name}" creada`;
-    fb.className = 'modal-feedback modal-feedback-ok';
+    fb.className   = 'modal-feedback modal-feedback-ok';
     this._refresh();
   },
 };
 
-export function playTrack(track) {
-  addToHistory(track);
-  currentTrack = track;
-  isPlaying = true;
-  progress = 0;
+// ── Queue ─────────────────────────────────────────────────────────────────────
+export function setQueue(tracks, startIndex = 0) {
+  const current = tracks[startIndex];
+  const ahead   = tracks.slice(startIndex + 1);
+  // Reverse so queueHistory[0] = most recently played
+  const behind  = tracks.slice(0, startIndex).reverse();
+  playTrack(current);  // async fire-and-forget; its _savePlayerState runs as microtask
+  // This _savePlayerState runs synchronously (before playTrack's microtask resumes),
+  // so playTrack's subsequent _savePlayerState will spread-merge and preserve these.
+  _savePlayerState({ queue: ahead, queueHistory: behind });
+}
+
+function _playNext() {
+  const state = _loadPlayerState();
+  const queue = state.queue ?? [];
+  if (!queue.length) {
+    clearInterval(progressTimer);
+    _savePlayerState({ isPlaying: false, startedAt: null });
+    document.getElementById('play-btn').textContent       = '▶';
+    document.getElementById('progress-fill').style.width = '100%';
+    document.getElementById('p-current').textContent     = msToTime(state.track?.duration_ms || 180000);
+    return;
+  }
+  const nextTrack  = queue[0];
+  const history    = state.queueHistory ?? [];
+  const newHistory = state.track ? [state.track, ...history].slice(0, 50) : history;
+  _savePlayerState({ queue: queue.slice(1), queueHistory: newHistory });
+  playTrack(nextTrack);
+}
+
+function _playPrev() {
+  const state   = _loadPlayerState();
+  if (!state.track) return;
+  const elapsed = (state.elapsedMs || 0) +
+    (state.isPlaying && state.startedAt ? Date.now() - state.startedAt : 0);
+  const history = state.queueHistory ?? [];
+
+  if (elapsed > 3000 || !history.length) {
+    // Restart current track rather than going back
+    clearInterval(progressTimer);
+    _savePlayerState({ isPlaying: true, startedAt: Date.now(), elapsedMs: 0 });
+    const totalMs = state.track.duration_ms || 180000;
+    document.getElementById('p-total').textContent = msToTime(totalMs);
+    startProgress(totalMs, 0);
+    return;
+  }
+
+  const prevTrack = history[0];
+  const queue     = state.queue ?? [];
+  _savePlayerState({
+    queue:        state.track ? [state.track, ...queue] : queue,
+    queueHistory: history.slice(1),
+  });
+  playTrack(prevTrack);
+}
+
+function _renderQueuePanel() {
+  const queue  = _loadPlayerState().queue ?? [];
+  const listEl = document.getElementById('queue-list');
+  if (!listEl) return;
+  if (!queue.length) {
+    listEl.innerHTML = `<p class="queue-empty">La cola está vacía</p>`;
+    return;
+  }
+  listEl.innerHTML = queue.map((t, i) => `
+    <div class="queue-item">
+      <div class="queue-item-info">
+        <div class="queue-item-name">${t.track_name || t.name || '—'}</div>
+        <div class="queue-item-artist">${t.artist_name || ''}</div>
+      </div>
+      <button class="queue-remove-btn" title="Quitar de la cola"
+              onclick="window._removeFromQueue(${i})">✕</button>
+    </div>`).join('');
+}
+
+function _removeFromQueue(index) {
+  const state = _loadPlayerState();
+  const queue = [...(state.queue ?? [])];
+  queue.splice(index, 1);
+  _savePlayerState({ queue });
+  _renderQueuePanel();
+}
+// Exposed globally because _renderQueuePanel generates inline onclick strings
+window._removeFromQueue = _removeFromQueue;
+
+// ── playTrack ─────────────────────────────────────────────────────────────────
+export async function playTrack(track) {
+  await addToHistory(track);   // sync fire-and-forget; await is a no-op but explicit
+
+  _savePlayerState({
+    track,
+    isPlaying:  true,
+    startedAt:  Date.now(),
+    elapsedMs:  0,
+    volume:     _getVolume(),
+  });
 
   document.getElementById('player-title').textContent  = track.track_name || track.name || '';
   document.getElementById('player-artist').textContent = track.artist_name || '';
   document.getElementById('player-thumb').textContent  = '🎵';
-  document.getElementById('play-btn').textContent = '⏸';
+  document.getElementById('play-btn').textContent      = '⏸';
 
   const totalMs = track.duration_ms || 180000;
   document.getElementById('p-total').textContent = msToTime(totalMs);
-  startProgress(totalMs);
+  startProgress(totalMs, 0);
 }
 
+// ── togglePlay ────────────────────────────────────────────────────────────────
 function togglePlay() {
-  if (!currentTrack) return;
-  isPlaying = !isPlaying;
-  document.getElementById('play-btn').textContent = isPlaying ? '⏸' : '▶';
-  if (isPlaying) startProgress(currentTrack.duration_ms || 180000);
-  else clearInterval(progressTimer);
+  const state = _loadPlayerState();
+  if (!state.track) return;
+
+  const isNowPlaying = !state.isPlaying;
+  document.getElementById('play-btn').textContent = isNowPlaying ? '⏸' : '▶';
+
+  if (isNowPlaying) {
+    _savePlayerState({ isPlaying: true, startedAt: Date.now() });
+    startProgress(state.track.duration_ms || 180000, state.elapsedMs || 0);
+  } else {
+    const newElapsed = (state.elapsedMs || 0) +
+      (state.startedAt ? Date.now() - state.startedAt : 0);
+    clearInterval(progressTimer);
+    _savePlayerState({ isPlaying: false, startedAt: null, elapsedMs: newElapsed });
+  }
 }
 
-function startProgress(totalMs) {
+// ── startProgress ─────────────────────────────────────────────────────────────
+function startProgress(totalMs, fromMs = 0) {
   clearInterval(progressTimer);
-  const step = 500;
+  let elapsed = fromMs;
+  const step  = 500;
   progressTimer = setInterval(() => {
-    progress += step;
-    if (progress >= totalMs) {
-      progress = 0;
+    elapsed += step;
+    if (elapsed >= totalMs) {
       clearInterval(progressTimer);
-      isPlaying = false;
-      document.getElementById('play-btn').textContent = '▶';
+      _playNext();  // advances queue or stops if empty
+      return;
     }
-    const pct = (progress / totalMs) * 100;
+    const pct = Math.min((elapsed / totalMs) * 100, 100);
     document.getElementById('progress-fill').style.width = pct + '%';
-    document.getElementById('p-current').textContent = msToTime(progress);
+    document.getElementById('p-current').textContent     = msToTime(elapsed);
   }, step);
 }
 
@@ -313,7 +496,8 @@ function msToTime(ms) {
 // ── Track row ─────────────────────────────────────────────────────────────────
 export function trackRow(track, index) {
   const name = track.track_name || track.name || '—';
-  window.__trackCache[track.track_id] = track;
+  // Key by fact_id (number) — __plModal.open and __favToggle receive this same value
+  window.__trackCache[track.fact_id] = track;
   return `
     <div class="track-row" data-id="${track.track_id}" onclick="location.href='/catalogo/track.html?fact_id=${track.fact_id}'">
       <div class="track-num">${index + 1}</div>
@@ -322,21 +506,39 @@ export function trackRow(track, index) {
         <div class="track-artist">${track.artist_name || ''}${track.genre_name ? ` · <span class="track-genre">${track.genre_name}</span>` : ''}</div>
       </div>
       <div class="track-duration">${track.duration_ms ? msToTime(track.duration_ms) : '—'}</div>
-      <button class="track-fav-btn${isFavorite(track.track_id) ? ' active' : ''}" title="Favorito"
-        onclick="event.stopPropagation(); window.__favToggle(this, '${track.track_id}')">♥</button>
+      <button class="track-queue-btn" title="Añadir a cola"
+        onclick="event.stopPropagation(); window.__queueAdd(${track.fact_id}, this)">⊕</button>
+      <button class="track-fav-btn${isFavorite(track.fact_id) ? ' active' : ''}" title="Favorito"
+        onclick="event.stopPropagation(); window.__favToggle(this, ${track.fact_id})">♥</button>
       <button class="track-menu-btn" title="Agregar a playlist"
-        onclick="event.stopPropagation(); window.__plModal.open('${track.track_id}')">⋮</button>
+        onclick="event.stopPropagation(); window.__plModal.open(${track.fact_id})">⋮</button>
     </div>`;
 }
 
-// ── Expose play and favorites globally for inline onclick ─────────────────────
+// ── Expose globals for inline onclick ────────────────────────────────────────
 window.__playTrack = playTrack;
 
-window.__favToggle = function(btn, trackId) {
-  const track = window.__trackCache[trackId];
+window.__favToggle = function(btn, factId) {
+  const track = window.__trackCache[factId];
   if (!track) return;
   const added = toggleFavorite(track);
   btn.classList.toggle('active', added);
+};
+
+window.__queueAdd = function(factId, btn) {
+  const track = window.__trackCache[factId];
+  if (!track) return;
+  const state = _loadPlayerState();
+  _savePlayerState({ queue: [...(state.queue ?? []), track] });
+  // brief visual feedback on the button
+  if (btn) {
+    const orig = btn.textContent;
+    btn.textContent = '✓';
+    btn.style.color = 'var(--accent)';
+    setTimeout(() => { btn.textContent = orig; btn.style.color = ''; }, 1200);
+  }
+  const panel = document.getElementById('queue-panel');
+  if (panel && !panel.classList.contains('hidden')) _renderQueuePanel();
 };
 
 // ── Loading spinner ───────────────────────────────────────────────────────────
@@ -352,4 +554,30 @@ export function alert(msg, type = 'error') {
 // ── Genre colors ──────────────────────────────────────────────────────────────
 export function genreColor(index) {
   return GENRES_COLORS[index % GENRES_COLORS.length];
+}
+
+// ── Cover art (gradient placeholder) ─────────────────────────────────────────
+export function coverArt(seed = 0, size = 'md', emoji = '🎵') {
+  const i   = Math.abs(Math.round(seed)) % GENRES_COLORS.length;
+  const c1  = GENRES_COLORS[i];
+  const c2  = GENRES_COLORS[(i + 3) % GENRES_COLORS.length];
+  return `<div class="cover-art cover-art-${size}"
+               style="background:linear-gradient(135deg,${c1},${c2})"
+               aria-hidden="true">${emoji}</div>`;
+}
+
+// ── Empty state ───────────────────────────────────────────────────────────────
+export function emptyState(icon, title, sub = '', ctaHtml = '') {
+  return `<div class="empty-state">
+    <div class="empty-state-icon">${icon}</div>
+    <div class="empty-state-title">${title}</div>
+    ${sub    ? `<div class="empty-state-sub">${sub}</div>` : ''}
+    ${ctaHtml ? ctaHtml : ''}
+  </div>`;
+}
+
+// ── Skeleton rows ─────────────────────────────────────────────────────────────
+export function skeletonRows(n = 5) {
+  return Array.from({ length: n },
+    () => '<div class="skeleton skeleton-row"></div>').join('');
 }

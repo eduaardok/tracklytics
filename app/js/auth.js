@@ -49,6 +49,7 @@ export function hasAnalyticsAccess() {
 export function logout() {
   localStorage.removeItem('pb_token');
   localStorage.removeItem('pb_user');
+  localStorage.removeItem('pb_user_id');
   window.location.href = '/autenticacion/login.html';
 }
 
@@ -59,6 +60,7 @@ export async function login(email, password) {
   // which auth-with-password may omit when they are empty.
   const fullRecord = await pbGetUser(data.record.id, data.token);
   localStorage.setItem('pb_user', JSON.stringify(fullRecord));
+  localStorage.setItem('pb_user_id', fullRecord.id);
   return fullRecord;
 }
 

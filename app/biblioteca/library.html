@@ -13,6 +13,8 @@
   <main class="main-content">
     <h1 class="section-title">Mi Biblioteca</h1>
 
+    <div class="stat-cards" id="lib-stats"></div>
+
     <div class="library-tabs">
       <button class="tab-btn active" data-tab="favorites">Favoritos</button>
       <button class="tab-btn" data-tab="history">Historial</button>
@@ -57,7 +59,7 @@
       <!-- Vista detalle de playlist -->
       <div id="playlist-detail" style="display:none">
         <div class="playlist-detail-header">
-          <button class="playlist-detail-back" onclick="showPlaylistList()">← Volver</button>
+          <button class="playlist-detail-back" onclick="window.showPlaylistList()">← Volver</button>
           <div>
             <div style="font-size:1.2rem; font-weight:800" id="detail-name"></div>
             <div style="font-size:.82rem; color:var(--text-muted)" id="detail-count"></div>
@@ -77,10 +79,10 @@
 
 <script type="module">
   import { requireAuth } from '/js/auth.js';
-  import { renderSidebar, renderPlayer, trackRow } from '/js/components.js';
-  import { getPlaylists, createPlaylist, removeTrackFromPlaylist, deletePlaylist } from '/js/playlists.js';
-  import { getFavorites } from '/js/favorites.js';
-  import { getHistory } from '/js/history.js';
+  import { renderSidebar, renderPlayer, trackRow, setQueue, coverArt, emptyState, skeletonRows, genreColor } from '/js/components.js';
+  import { initPlaylists, getPlaylists, createPlaylist, removeTrackFromPlaylist, deletePlaylist } from '/js/playlists.js';
+  import { initFavorites, getFavorites } from '/js/favorites.js';
+  import { initHistory, getHistory } from '/js/history.js';
 
   if (!requireAuth()) throw new Error('not auth');
   renderSidebar('biblioteca/library.html');
@@ -108,27 +110,66 @@
   }
 
   // ── Favoritos ────────────────────────────────────────────
-  function renderFavorites() {
+  let _favTracks = [];
+  window.__setQueueFavs = () => setQueue(_favTracks, 0);
+
+  async function renderFavorites() {
     const favs = getFavorites();
-    const el   = document.getElementById('favorites-list');
-    el.innerHTML = favs.length
-      ? `<div class="track-list">${favs.map((t, i) => trackRow(t, i)).join('')}</div>`
-      : '<p style="color:var(--text-muted)">Aún no tienes favoritos.</p>';
+    _favTracks  = favs;
+    const el    = document.getElementById('favorites-list');
+    if (!favs.length) {
+      el.innerHTML = emptyState(
+        '♥',
+        'Sin favoritos aún',
+        'Dale ♥ a una canción para guardarla aquí.',
+        '<a href="/catalogo/catalog.html" class="btn btn-primary btn-sm">Explorar catálogo</a>'
+      );
+      return;
+    }
+    el.innerHTML = `
+      <div style="margin-bottom:.75rem">
+        <button class="btn btn-primary btn-sm" onclick="window.__setQueueFavs()">▶ Reproducir todo</button>
+      </div>
+      <div class="track-list">${favs.map((t, i) => trackRow(t, i)).join('')}</div>`;
   }
 
   // ── Historial ────────────────────────────────────────────
-  function renderHistory() {
+  async function renderHistory() {
     const history = getHistory();
     const el      = document.getElementById('history-list');
     if (!history.length) {
-      el.innerHTML = '<p style="color:var(--text-muted)">Aún no has escuchado ninguna canción.</p>';
+      el.innerHTML = emptyState(
+        '🕐',
+        'Historial vacío',
+        'Las canciones que escuches aparecerán aquí.'
+      );
       return;
     }
     el.innerHTML = `<div class="track-list">${history.map((entry, i) => `
       <div class="history-entry">
-        ${trackRow(entry.track, i)}
-        <div class="history-time">${timeAgo(entry.played_at)}</div>
+        ${trackRow(entry, i)}
+        <div class="history-time">${timeAgo(entry.event_timestamp)}</div>
       </div>`).join('')}</div>`;
+  }
+
+  // ── Mosaic cover helper ───────────────────────────────────
+  function mosaicCover(pl) {
+    const tracks = pl.tracks || [];
+    if (!tracks.length) return coverArt(0, 'md', '🎵');
+    const ids = [...new Set(tracks.map(t => t.genre_id || 0))].slice(0, 4);
+    if (ids.length === 1) {
+      return `<div class="playlist-card-mosaic single">
+        <div class="mosaic-cell" style="background:${genreColor(ids[0] % 10)}"></div>
+      </div>`;
+    }
+    if (ids.length === 2) {
+      return `<div class="playlist-card-mosaic two">
+        ${ids.map(id => `<div class="mosaic-cell" style="background:${genreColor(id % 10)}"></div>`).join('')}
+      </div>`;
+    }
+    return `<div class="playlist-card-mosaic">
+      ${ids.slice(0, 4).map(id => `<div class="mosaic-cell" style="background:${genreColor(id % 10)}"></div>`).join('')}
+    </div>`;
   }
 
   // ── Playlists ─────────────────────────────────────────────
@@ -151,16 +192,16 @@
     }
     empty.style.display = 'none';
     grid.innerHTML = playlists.map(pl => `
-      <div class="playlist-card" onclick="openPlaylist('${pl.id}')">
-        <div class="playlist-card-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:6px"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg></div>
+      <div class="playlist-card" onclick="window.openPlaylist('${pl.id}')">
+        ${mosaicCover(pl)}
         <div class="playlist-card-name">${pl.name}</div>
         <div class="playlist-card-count">${pl.tracks.length} canción${pl.tracks.length !== 1 ? 'es' : ''}</div>
         <button class="playlist-card-del" title="Eliminar playlist"
-                onclick="event.stopPropagation(); handleDeletePlaylist('${pl.id}', '${pl.name.replace(/'/g,"\\'")}')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+                onclick="event.stopPropagation(); window.handleDeletePlaylist('${pl.id}', '${pl.name.replace(/'/g,"\\'")}')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
       </div>`).join('');
   }
 
-  function openPlaylist(id) {
+  window.openPlaylist = function(id) {
     const pl = getPlaylists().find(p => p.id === id);
     if (!pl) return;
     currentPlaylistId = id;
@@ -169,7 +210,7 @@
     document.getElementById('detail-count').textContent =
       `${pl.tracks.length} canción${pl.tracks.length !== 1 ? 'es' : ''}`;
 
-    const listEl = document.getElementById('detail-track-list');
+    const listEl  = document.getElementById('detail-track-list');
     const emptyEl = document.getElementById('detail-empty');
     if (pl.tracks.length) {
       emptyEl.style.display = 'none';
@@ -183,7 +224,7 @@
 
     document.getElementById('playlists-view').style.display  = 'none';
     document.getElementById('playlist-detail').style.display = 'block';
-  }
+  };
 
   function playlistTrackRow(track, index, playlistId) {
     const name = track.track_name || track.name || '—';
@@ -197,7 +238,7 @@
         </div>
         <div class="track-duration">${track.duration_ms ? msToTime(track.duration_ms) : '—'}</div>
         <button class="playlist-remove-btn" title="Quitar de la playlist"
-                onclick="event.stopPropagation(); handleRemoveTrack('${playlistId}', '${track.track_id}')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+                onclick="event.stopPropagation(); window.handleRemoveTrack('${playlistId}', '${track.track_id}')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
       </div>`;
   }
 
@@ -213,11 +254,9 @@
     renderPlaylistGrid();
   };
 
-  window.openPlaylist = openPlaylist;
-
   window.handleRemoveTrack = function(playlistId, trackId) {
     removeTrackFromPlaylist(playlistId, trackId);
-    openPlaylist(playlistId);
+    window.openPlaylist(playlistId);
   };
 
   window.handleDeletePlaylist = function(id, name) {
@@ -232,7 +271,7 @@
     if (!pl) return;
     if (!confirm(`¿Eliminar la playlist "${pl.name}"? Esta acción no se puede deshacer.`)) return;
     deletePlaylist(currentPlaylistId);
-    showPlaylistList();
+    window.showPlaylistList();
   });
 
   // ── Crear playlist ─────────────────────────────────────────
@@ -253,18 +292,43 @@
       errEl.textContent = 'Ya existe una playlist con ese nombre.'; return;
     }
     createPlaylist(name);
-    toggleCreateForm(false);
+    window.toggleCreateForm(false);
     renderPlaylistGrid();
   };
 
   document.getElementById('btn-create-pl').addEventListener('click', () => {
-    toggleCreateForm(true);
+    window.toggleCreateForm(true);
   });
 
   // ── Init ──────────────────────────────────────────────────
-  renderFavorites();
-  renderHistory();
-  renderPlaylistGrid();
+  (async () => {
+    await Promise.all([initFavorites(), initHistory(), initPlaylists()]);
+
+    const favCount  = getFavorites().length;
+    const histCount = getHistory(200).length;
+    const plCount   = getPlaylists().length;
+
+    document.getElementById('lib-stats').innerHTML = `
+      <div class="stat-card">
+        <div class="stat-card-icon">♥</div>
+        <div class="stat-card-number">${favCount}</div>
+        <div class="stat-card-label">Favoritos</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-card-icon">🕐</div>
+        <div class="stat-card-number">${histCount}</div>
+        <div class="stat-card-label">Escuchadas</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-card-icon">🎵</div>
+        <div class="stat-card-number">${plCount}</div>
+        <div class="stat-card-label">Playlists</div>
+      </div>`;
+
+    await renderFavorites();
+    await renderHistory();
+    renderPlaylistGrid();
+  })();
 </script>
 </body>
 </html>

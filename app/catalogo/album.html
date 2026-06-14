@@ -18,8 +18,9 @@
 
 <script type="module">
   import { requireAuth } from '/js/auth.js';
-  import { renderSidebar, renderPlayer, trackRow } from '/js/components.js';
+  import { renderSidebar, renderPlayer, trackRow, coverArt, skeletonRows, setQueue, genreColor } from '/js/components.js';
   import { Albums, Tracks } from '/js/api.js';
+  import { initFavorites } from '/js/favorites.js';
 
   if (!requireAuth()) throw new Error('not auth');
   renderSidebar('');
@@ -28,8 +29,14 @@
   const albumId = new URLSearchParams(location.search).get('id');
   if (!albumId) { location.href = '/catalogo/catalog.html'; }
 
+  function _colorIdx(id) {
+    const n = parseInt(id, 10);
+    return (isNaN(n) ? id.charCodeAt(0) : n) % 10;
+  }
+
   async function load() {
     const el = document.getElementById('page-content');
+    el.innerHTML = skeletonRows(3);
     try {
       const [albumRes, tracksRes] = await Promise.all([
         Albums.get(albumId),
@@ -38,13 +45,24 @@
       const album  = albumRes.data  ?? albumRes;
       const tracks = tracksRes.data ?? tracksRes;
 
+      window.__albumTracks = tracks;
+      window.__setQueue    = setQueue;
+
+      const ci = _colorIdx(albumId);
+      const c1 = genreColor(ci);
+      const c2 = genreColor((ci + 3) % 10);
+
       el.innerHTML = `
-        <div class="page-header">
-          <div class="page-thumb"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:6px"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/></svg></div>
-          <div class="page-meta">
-            <div class="page-type">Álbum</div>
-            <div class="page-name">${album.name}</div>
-            <div class="page-sub">${album.release_year || ''} · ${tracks.length} canciones</div>
+        <div class="detail-hero" style="background:linear-gradient(135deg,${c1},${c2})">
+          ${coverArt(ci, 'xl', '💿')}
+          <div class="detail-hero-meta">
+            <div class="detail-hero-type">Álbum</div>
+            <div class="detail-hero-name">${album.name}</div>
+            <div class="detail-hero-sub">${album.release_year || ''} · ${tracks.length} canciones</div>
+            <div class="detail-hero-actions">
+              <button class="btn btn-primary"
+                onclick="window.__setQueue(window.__albumTracks, 0)">▶ Reproducir todo</button>
+            </div>
           </div>
         </div>
 
@@ -79,6 +97,7 @@
     }
   }
 
+  await initFavorites();
   load();
 </script>
 </body>

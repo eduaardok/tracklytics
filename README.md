@@ -7,19 +7,19 @@
 [![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?style=for-the-badge&logo=docker&logoColor=white)](https://docker.com)
 [![PocketBase](https://img.shields.io/badge/PocketBase-Auth-B8DBE4?style=for-the-badge&logo=pocketbase&logoColor=black)](https://pocketbase.io)
 
-![Records](https://img.shields.io/badge/Registros-513.550-8B5CF6?style=for-the-badge)
-![Tables](https://img.shields.io/badge/Tablas_ClickHouse-15-8B5CF6?style=for-the-badge)
+![Records](https://img.shields.io/badge/Registros-600.000+-8B5CF6?style=for-the-badge)
+![Tables](https://img.shields.io/badge/Tablas_ClickHouse-16-8B5CF6?style=for-the-badge)
 ![Services](https://img.shields.io/badge/Servicios_Docker-8-8B5CF6?style=for-the-badge)
-![Progress](https://img.shields.io/badge/Avance(S5)-25%-22c55e?style=for-the-badge)
+![Progress](https://img.shields.io/badge/Avance(S6)-50%-22c55e?style=for-the-badge)
 
 > Plataforma de analítica musical e inteligencia de negocio sobre datos de Spotify,
 > construida con ClickHouse, Airflow, FastAPI y un frontend interactivo con Plotly.js.
 > Incluye una app musical tipo Spotify para usuarios finales con sistema de roles.
 
-Tracklytics procesa 113.550 registros reales de Spotify más datos sintéticos semanales
-generados deterministamente, los almacena en un modelo dimensional columnar en ClickHouse,
-orquesta las cargas con Apache Airflow y los expone mediante una API REST, dashboards
-analíticos interactivos y una app musical completa servidos por Nginx.
+Tracklytics procesa un dataset base de 113.550 registros reales de Spotify más datos sintéticos
+semanales acumulados (≈600.000–700.000 registros en S6), los almacena en un modelo dimensional
+columnar en ClickHouse, orquesta las cargas con Apache Airflow y los expone mediante una API REST,
+dashboards analíticos interactivos y una app musical completa servidos por Nginx.
 
 ---
 
@@ -27,9 +27,9 @@ analíticos interactivos y una app musical completa servidos por Nginx.
 
 | Capa | Tecnología |
 |---|---|
-| Fuente de datos | PocketBase (113.550 registros Spotify) |
+| Fuente de datos | PocketBase — dataset base `spotify_tracks` (113.550 registros) + `playlists` / `playlist_tracks` |
 | Staging | Parquet (vía PyArrow) |
-| Base de datos | ClickHouse 24.3 (MergeTree) |
+| Base de datos | ClickHouse 24.3 (MergeTree) — catálogo (`FACT_TRACKS`) + engagement (`FACT_ENGAGEMENT_USUARIO`) |
 | Orquestación ETL | Apache Airflow 2.9 |
 | API REST | FastAPI + Uvicorn (Python 3.11) |
 | App musical | HTML + CSS + JavaScript (puerto 8081) |
@@ -94,8 +94,8 @@ docker compose up -d
 Docker Compose levanta automáticamente todos los servicios en el orden correcto:
 
 1. **PocketBase** y **ClickHouse** arrancan primero.
-2. **pb-init** crea la colección `spotify_tracks` y carga los 113.550 registros desde el CSV (tarda ~5 min).
-3. **init-db** crea el schema dimensional en ClickHouse.
+2. **pb-init** crea las colecciones `spotify_tracks`, `playlists` y `playlist_tracks` en PocketBase y carga los 113.550 registros desde el CSV (tarda ~5 min).
+3. **init-db** crea el schema dimensional en ClickHouse, incluyendo `FACT_ENGAGEMENT_USUARIO`.
 4. **Airflow**, **API**, **Frontend analítico** y **App musical** quedan disponibles.
 
 > **Nota:** En la primera ejecución espera ~5–7 minutos a que `pb-init` termine antes de lanzar el ETL.
@@ -160,10 +160,15 @@ Los roles `user` y `analyst` se seleccionan durante el registro en la app.
 - Páginas de detalle de track con 7 atributos de audio (danceability, energy, valence, acousticness, speechiness, instrumentalness, liveness)
 - Perfil de artista con estadísticas agregadas desde ClickHouse
 - Detalle de álbum con tracklist — cada canción muestra su género, permitiendo identificar la misma canción en múltiples géneros (relación N:M resuelta via `fact_id`)
-- Reproductor de audio simulado con barra de progreso
-- Favoritos con botón ♥ (localStorage)
-- Historial de reproducción con tiempo relativo (localStorage, máx. 50 entradas)
-- Playlists: crear, añadir/quitar tracks, eliminar (localStorage)
+- Reproductor persistente entre páginas: estado completo en `localStorage` (`tl_player`), rehidratación automática al navegar, sincronización entre pestañas
+- Cola de reproducción: botón ⊕ en cada canción, panel de cola, prev/next con regla de 3 s (reiniciar vs. ir atrás)
+- Secciones "Continuar escuchando" (últimas 6 reproducidas) y "Para ti" (géneros de favoritos) en home
+- Cover art por gradiente en artistas, álbumes, géneros y playlists; heroes con gradiente en páginas de detalle
+- Empty states ilustrados (ícono + texto + CTA) y skeletons animados de carga en toda la app
+- Stat cards de actividad (♥ favoritos / 🕐 escuchadas / 🎵 playlists) en Biblioteca y Perfil
+- Favoritos con botón ♥ — persistidos en ClickHouse (`FACT_ENGAGEMENT_USUARIO`) vía `POST /biblioteca/favoritos`
+- Historial de reproducción con tiempo relativo — persistido en ClickHouse vía `POST /biblioteca/historial`
+- Playlists: crear, añadir/quitar tracks, eliminar — almacenadas en PocketBase (`playlists` / `playlist_tracks`)
 
 ### Analítica (analyst / admin)
 - **Dashboard ejecutivo** — 6 KPIs globales, bubble chart géneros, radar del top género, top 10 géneros y artistas por Plotly.js con caché TTL 60s
@@ -191,7 +196,8 @@ tracklytics/
 │   │   ├── cache.py             # Cache en memoria con TTL
 │   │   └── deps.py              # FastAPI dependencies
 │   ├── paquetes/
-│   │   ├── catalogo/            # Endpoints app musical
+│   │   ├── catalogo/            # Endpoints app musical (tracks, artistas, álbumes, géneros)
+│   │   ├── biblioteca/          # Endpoints engagement (favoritos, historial, playlists)
 │   │   ├── analitica/           # Endpoints dashboards (cache TTL 60s)
 │   │   └── gestion_datos/       # ETL, CRUD dimensiones, calidad de datos
 │   ├── api_Dockerfile
@@ -221,7 +227,8 @@ tracklytics/
 │   ├── gold/                    # Carga dimensional en ClickHouse + sintéticos
 │   ├── utils/                   # clickhouse_client.py, pocketbase_client.py
 │   ├── dags/
-│   │   └── tracklytics_etl.py   # DAG Airflow: bronze→silver→gold→synthetic→log
+│   │   ├── tracklytics_etl.py          # DAG principal: bronze→silver→gold→synthetic→log
+│   │   └── engagement_referencia.py    # DAG engagement: eventos sintéticos correlacionados con popularity
 │   └── etl_Dockerfile
 ├── frontend/                    # Dashboard analítico legacy (puerto 80)
 ├── docker-compose.yml
@@ -232,7 +239,7 @@ tracklytics/
 
 ## Modelo de datos
 
-15 tablas en ClickHouse organizadas en esquema estrella:
+16 tablas en ClickHouse organizadas en esquema estrella:
 
 ```
 PocketBase ──► Bronze (Parquet crudo)
@@ -243,10 +250,10 @@ PocketBase ──► Bronze (Parquet crudo)
                    ▼
          ┌─────────────────────────┐
          │       FACT_TRACKS       │
-         │   (~313k–1.6M filas)    │
-         │   MergeTree             │
-         │   ORDER BY (genre_id,   │
-         │             artist_id)  │
+         │  (~313k–1.6M filas)     │
+         │  MergeTree              │
+         │  ORDER BY (genre_id,    │
+         │            artist_id)   │
          └──────────┬──────────────┘
                     │ FK lógicas
         ┌───────────┼───────────────┐
@@ -259,9 +266,27 @@ PocketBase ──► Bronze (Parquet crudo)
    DIM_TEMPO_RANGE
    DIM_ENERGY_LEVEL
 
+FACT_ENGAGEMENT_USUARIO  (favoritos, historial y reproducción por usuario)
+   engagement_id   UUID
+   user_id         String    — id de PocketBase
+   fact_id         UInt64    — FK a FACT_TRACKS
+   event_type      Enum8     — 'favorito_add' | 'favorito_remove' | 'reproduccion'
+   event_timestamp DateTime
+   is_synthetic    UInt8     — 1 = generado por engagement_referencia DAG
+   source          String    — 'app' | 'referencia'
+   MergeTree ORDER BY (user_id, event_timestamp)
+
 ETL_LOGS           (historial de ejecuciones)
 ETL_BATCH_CONTROL  (control de idempotencia)
 ```
+
+**PocketBase — colecciones S6:**
+
+| Colección | Campos | Uso |
+|---|---|---|
+| `spotify_tracks` | *(existente)* | Dataset base de catálogo |
+| `playlists` | `id`, `user` (→ users), `name`, `created` | Playlists de usuario |
+| `playlist_tracks` | `id`, `playlist` (→ playlists), `fact_id`, `position`, `created` | Canciones en playlists |
 
 > **Nota sobre duplicados en tracklist:** el dataset de Spotify asigna múltiples géneros
 > a una misma canción. En FACT_TRACKS esto se representa con una fila por combinación
@@ -278,19 +303,56 @@ ETL_BATCH_CONTROL  (control de idempotencia)
 | **Silver** | Parquet Bronze | STG_RAW_TRACKS | Limpieza, dedup, validación de rangos |
 | **Gold** | STG_RAW_TRACKS | FACT_TRACKS + DIMs | Modelo dimensional + datos sintéticos |
 
-El DAG de Airflow ejecuta las tasks en secuencia:
+El DAG principal (`tracklytics_etl`) ejecuta las tasks en secuencia:
 ```
 task_bronze → task_silver → task_gold → task_synthetic → task_log
 ```
+
+El DAG secundario (`engagement_referencia`) genera eventos de engagement sintéticos correlacionados
+con la popularidad de las canciones: cuanta más popularidad tiene un track, más eventos de
+`reproduccion` y `favorito_add` se insertan en `FACT_ENGAGEMENT_USUARIO`. Se ejecuta independientemente
+del ETL principal y sirve para poblar datos de demostración coherentes.
 
 | Semanas | Registros totales | Tiempo aprox. |
 |---------|-------------------|---------------|
 | 1       | 113.550           | ~35 s         |
 | 2       | 213.550           | ~1.2 min      |
 | 4       | 413.550           | ~1.5 min      |
+| 6       | ~613.550          | ~1.8 min      |
 | 16      | 1.613.550         | ~5 min        |
 
 Los datos sintéticos se generan deterministamente (seed = semana × 42).
+
+---
+
+## Historial de sprints
+
+| Sprint | Foco principal | Entregables clave |
+|--------|---------------|-------------------|
+| S1 | Infraestructura base | Docker Compose, PocketBase, ClickHouse schema, ETL Bronze/Silver/Gold |
+| S2 | API + Dashboard analítico | FastAPI, endpoints catálogo/analítica, Dashboard ejecutivo con Plotly.js |
+| S3 | App musical base | Login/registro, catálogo navegable, búsqueda, página track/artista/álbum |
+| S4 | Roles y analítica avanzada | Comparar artistas (CU-23), tendencias temporales (CU-24), calidad de datos (CU-25) |
+| S5 | Engagement de usuario | `fact_id` routing, favoritos ♥ persistidos en ClickHouse, historial, género visible en tracklist |
+| S6 | UX completa + reproductor | Ver detalle abajo |
+
+### S6 — detalle
+
+**Backend:**
+- `FACT_ENGAGEMENT_USUARIO` — nueva tabla MergeTree en ClickHouse para favoritos, historial y reproducción, con `ORDER BY (user_id, event_timestamp)`
+- PocketBase: colecciones `playlists` y `playlist_tracks` para playlists de usuario
+- 5 nuevos endpoints FastAPI en `api/paquetes/biblioteca/`: `GET/POST /favoritos`, `GET/POST /historial`, `GET/DELETE /playlists`
+- DAG `engagement_referencia` — genera eventos sintéticos correlacionados con popularidad de canciones
+
+**Frontend (Bloques A–F):**
+- Reproductor persistente: estado completo en `localStorage` (`tl_player`), rehidratación al navegar
+- Cola de reproducción: botón ⊕ en cada canción, panel de cola above player bar, prev/next con regla de 3 s
+- Cover art por gradiente (degradado CSS de dos colores del paleta de géneros) en toda la app
+- Heroes con gradiente en páginas de detalle (artista, álbum, track, género)
+- Secciones "Continuar escuchando" y "Para ti" en home, alimentadas por historial y favoritos
+- Stat cards de actividad (♥ / 🕐 / 🎵) en Biblioteca y Perfil
+- Empty states ilustrados y skeletons animados de carga en todos los listados
+- Login rediseñado como split-screen con panel hero (features) + formulario
 
 ---
 
@@ -303,3 +365,4 @@ Los datos sintéticos se generan deterministamente (seed = semana × 42).
 - **fact_id para navegación** — la navegación al detalle de una canción usa `fact_id` (PK único de FACT_TRACKS) en vez de `track_id` (no único) para resolver correctamente la relación N:M entre tracks y géneros.
 - **Bootstrap 5 local** — servido desde `app/libs/` para garantizar funcionamiento offline durante presentaciones, sin depender de CDN.
 - **Tema oscuro violeta** — identidad visual con `#8B5CF6` como color primario, sidebar colapsable con íconos Lucide SVG inline, tipografía Plus Jakarta Sans + Inter.
+- **Estado del reproductor en localStorage** — `tl_player` persiste `{ track, isPlaying, startedAt, elapsedMs, volume, queue, queueHistory }` entre páginas; `playTrack()` guarda `startedAt: Date.now()`; la rehidratación recalcula el elapsed sin `setInterval` acumulado.

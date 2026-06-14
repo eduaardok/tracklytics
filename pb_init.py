@@ -112,6 +112,76 @@ def ensure_users_role_field(token: str) -> None:
     else:
         print(f"[pb-init] WARNING: no se pudo agregar 'role': {patch.status_code} — {patch.text[:200]}")
 
+
+def get_collection_id(token: str, name: str) -> str | None:
+    """Returns the real PocketBase id of a collection, or None if it does not exist."""
+    resp = httpx.get(
+        f"{PB_URL}/api/collections/{name}",
+        headers={"Authorization": f"Bearer {token}"},
+        timeout=30,
+    )
+    if resp.status_code == 404:
+        return None
+    resp.raise_for_status()
+    return resp.json()["id"]
+
+
+def ensure_collection(token: str, schema: dict) -> None:
+    """Creates collection from schema if it does not already exist (idempotent)."""
+    name = schema["name"]
+    resp = httpx.get(
+        f"{PB_URL}/api/collections/{name}",
+        headers={"Authorization": f"Bearer {token}"},
+        timeout=30,
+    )
+    if resp.status_code == 200:
+        print(f"[pb-init] Colección '{name}' ya existe. Sin cambios.")
+        return
+    if resp.status_code != 404:
+        resp.raise_for_status()
+
+    create_resp = httpx.post(
+        f"{PB_URL}/api/collections",
+        json=schema,
+        headers={"Authorization": f"Bearer {token}"},
+        timeout=30,
+    )
+    if create_resp.status_code not in (200, 201):
+        raise RuntimeError(
+            f"Error creando '{name}': {create_resp.status_code} — {create_resp.text[:400]}"
+        )
+    print(f"[pb-init] Colección '{name}' creada ({len(schema['fields'])} campos).")
+
+
+def ensure_collection_rules(token: str, name: str, rules: dict) -> None:
+    """Applies API access rules to a collection only when they differ (idempotent)."""
+    resp = httpx.get(
+        f"{PB_URL}/api/collections/{name}",
+        headers={"Authorization": f"Bearer {token}"},
+        timeout=30,
+    )
+    resp.raise_for_status()
+    current = resp.json()
+
+    rule_keys = ("listRule", "viewRule", "createRule", "updateRule", "deleteRule")
+    diff = {k: v for k, v in rules.items() if k in rule_keys and current.get(k) != v}
+
+    if not diff:
+        print(f"[pb-init] Reglas de '{name}' ya están configuradas. Sin cambios.")
+        return
+
+    patch = httpx.patch(
+        f"{PB_URL}/api/collections/{name}",
+        json=diff,
+        headers={"Authorization": f"Bearer {token}"},
+        timeout=30,
+    )
+    if patch.status_code not in (200, 204):
+        raise RuntimeError(
+            f"Error aplicando reglas a '{name}': {patch.status_code} — {patch.text[:300]}"
+        )
+    print(f"[pb-init] Reglas de '{name}' actualizadas: {', '.join(diff)}.")
+
 # ── Transformación ─────────────────────────────────────────────────────────────
 
 def clean_row(row: dict) -> dict:
@@ -173,6 +243,72 @@ def main() -> None:
     print("[pb-init] Autenticado.")
 
     ensure_users_role_field(token)
+
+    # ── Colecciones auxiliares (playlists / playlist_tracks) ──────────────────
+    users_id = get_collection_id(token, "users")
+    if users_id is None:
+        print("[pb-init] ERROR: colección 'users' no encontrada — PocketBase no inicializado correctamente.")
+        sys.exit(1)
+
+    playlists_schema = {
+        "name": "playlists",
+        "type": "base",
+        "fields": [
+            {"name": "name", "type": "text",     "required": True},
+            {"name": "user", "type": "relation", "required": True,
+             "collectionId": users_id, "cascadeDelete": False, "maxSelect": 1},
+        ],
+    }
+    try:
+        ensure_collection(token, playlists_schema)
+    except RuntimeError as exc:
+        print(f"[pb-init] ERROR: {exc}")
+        sys.exit(1)
+
+    try:
+        ensure_collection_rules(token, "playlists", {
+            "listRule":   "user = @request.auth.id",
+            "viewRule":   "user = @request.auth.id",
+            "createRule": '@request.auth.id != "" && user = @request.auth.id',
+            "updateRule": "user = @request.auth.id",
+            "deleteRule": "user = @request.auth.id",
+        })
+    except RuntimeError as exc:
+        print(f"[pb-init] ERROR: {exc}")
+        sys.exit(1)
+
+    playlists_id = get_collection_id(token, "playlists")
+    if playlists_id is None:
+        print("[pb-init] ERROR: colección 'playlists' no encontrada tras creación.")
+        sys.exit(1)
+
+    playlist_tracks_schema = {
+        "name": "playlist_tracks",
+        "type": "base",
+        "fields": [
+            {"name": "playlist", "type": "relation", "required": True,
+             "collectionId": playlists_id, "cascadeDelete": False, "maxSelect": 1},
+            {"name": "fact_id",  "type": "number",   "required": True},
+            {"name": "position", "type": "number",   "required": True},
+        ],
+    }
+    try:
+        ensure_collection(token, playlist_tracks_schema)
+    except RuntimeError as exc:
+        print(f"[pb-init] ERROR: {exc}")
+        sys.exit(1)
+
+    try:
+        ensure_collection_rules(token, "playlist_tracks", {
+            "listRule":   "playlist.user = @request.auth.id",
+            "viewRule":   "playlist.user = @request.auth.id",
+            "createRule": "playlist.user = @request.auth.id",
+            "updateRule": "playlist.user = @request.auth.id",
+            "deleteRule": "playlist.user = @request.auth.id",
+        })
+    except RuntimeError as exc:
+        print(f"[pb-init] ERROR: {exc}")
+        sys.exit(1)
 
     # ── Verificar colección ───────────────────────────────────────────────────
     count = collection_count(token)

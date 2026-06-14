@@ -34,7 +34,7 @@
 
 <script type="module">
   import { requireAuth } from '/js/auth.js';
-  import { renderSidebar, renderPlayer, trackRow, genreColor } from '/js/components.js';
+  import { renderSidebar, renderPlayer, trackRow, coverArt, skeletonRows, setQueue, genreColor } from '/js/components.js';
   import { Genres, Tracks } from '/js/api.js';
 
   if (!requireAuth()) throw new Error('not auth');
@@ -84,9 +84,11 @@
     const tracksTitle = document.getElementById('genre-tracks-title');
     const listEl      = document.getElementById('genre-tracks-list');
 
+    window.__genreTracks = [];
+    window.__setQueue    = setQueue;
     detailEl.style.display = 'block';
     nameEl.textContent = fallbackName;
-    listEl.innerHTML = '<div class="loading-center"><div class="spinner"></div></div>';
+    listEl.innerHTML = skeletonRows(2);
     detailEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
 
     try {
@@ -96,6 +98,10 @@
       ]);
       const genre  = genreRes.data ?? genreRes;
       const tracks = tracksRes.data ?? tracksRes;
+
+      window.__genreTracks = tracks;
+      document.getElementById('genre-thumb').innerHTML =
+        coverArt(parseInt(genreId) % 10 || 0, 'lg', '🎵');
 
       nameEl.textContent = genre.name;
       subEl.textContent  = [genre.parent_genre, genre.origin_decade ? genre.origin_decade + 's' : null]
@@ -122,9 +128,16 @@
         </div>` : ''}`;
 
       tracksTitle.textContent = `Canciones de ${genre.name}`;
-      listEl.innerHTML = tracks.length
-        ? `<div class="track-list">${tracks.map((t, i) => trackRow(t, i)).join('')}</div>`
-        : '<p style="color:var(--text-muted)">Sin canciones disponibles.</p>';
+      if (tracks.length) {
+        listEl.innerHTML = `
+          <div style="margin-bottom:.75rem">
+            <button class="btn btn-primary btn-sm"
+              onclick="window.__setQueue(window.__genreTracks, 0)">▶ Reproducir todo</button>
+          </div>
+          <div class="track-list">${tracks.map((t, i) => trackRow(t, i)).join('')}</div>`;
+      } else {
+        listEl.innerHTML = '<p style="color:var(--text-muted)">Sin canciones disponibles.</p>';
+      }
     } catch (err) {
       listEl.innerHTML = `<div class="alert alert-error">${err.message}</div>`;
     }

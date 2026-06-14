@@ -5,6 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from core.database import get_client
 from paquetes.analitica.router import router as analitica_router
+from paquetes.biblioteca.router import router as biblioteca_router
 from paquetes.catalogo.router import router as catalogo_router
 from paquetes.gestion_datos.router import router as gestion_router
 
@@ -36,3 +37,4 @@ app.add_middleware(
 app.include_router(catalogo_router)
 app.include_router(analitica_router)
 app.include_router(gestion_router)
+app.include_router(biblioteca_router)

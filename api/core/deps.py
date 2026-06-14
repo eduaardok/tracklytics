@@ -15,7 +15,7 @@ async def get_current_user(authorization: str = Header(None)) -> dict:
     token = authorization.removeprefix("Bearer ").strip()
     try:
         async with httpx.AsyncClient(timeout=5) as client:
-            resp = await client.get(
+            resp = await client.post(
                 f"{PB_URL}/api/collections/users/auth-refresh",
                 headers={"Authorization": f"Bearer {token}"},
             )

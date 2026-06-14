@@ -37,8 +37,9 @@
 
 <script type="module">
   import { requireAuth } from '/js/auth.js';
-  import { renderSidebar, renderPlayer, trackRow, spinner } from '/js/components.js';
+  import { renderSidebar, renderPlayer, trackRow, setQueue, spinner } from '/js/components.js';
   import { Tracks, Genres } from '/js/api.js';
+  import { initFavorites } from '/js/favorites.js';
 
   if (!requireAuth()) throw new Error('not auth');
   renderSidebar('catalogo/catalog.html');
@@ -90,6 +91,15 @@
   function renderPage() {
     const slice = allTracks.slice(0, (page + 1) * PAGE_SIZE);
     listEl.innerHTML = `<div class="track-list">${slice.map((t, i) => trackRow(t, i)).join('')}</div>`;
+    // Replace row-click navigation with setQueue (click a track → play it + enqueue the rest).
+    // Buttons (♥ ⋮) already stopPropagation so they are unaffected.
+    listEl.querySelectorAll('.track-row').forEach((row, i) => {
+      row.onclick = null;
+      row.addEventListener('click', e => {
+        if (e.target.closest('button')) return;
+        setQueue(allTracks, i);
+      });
+    });
     loadMore.style.display = slice.length < allTracks.length ? 'inline-flex' : 'none';
   }
 
@@ -102,6 +112,7 @@
     });
   });
 
+  await initFavorites();
   loadGenres();
   loadTracks();
 </script>

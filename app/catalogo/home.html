@@ -16,9 +16,19 @@
       <p>¿Qué quieres escuchar hoy?</p>
     </div>
 
+    <section id="continue-section" style="display:none" class="mb-4">
+      <h2 class="section-title">Continuar escuchando</h2>
+      <div id="continue-list"></div>
+    </section>
+
+    <section id="para-ti-section" style="display:none" class="mb-4">
+      <h2 class="section-title">Para ti</h2>
+      <div id="para-ti-list"></div>
+    </section>
+
     <section class="mb-4">
       <h2 class="section-title">Top canciones</h2>
-      <div id="top-tracks"><div class="loading-center"><div class="spinner"></div></div></div>
+      <div id="top-tracks"></div>
     </section>
 
     <section class="mb-4">
@@ -36,8 +46,10 @@
 
 <script type="module">
   import { requireAuth, getSession } from '/js/auth.js';
-  import { renderSidebar, renderPlayer, trackRow, spinner, genreColor } from '/js/components.js';
+  import { renderSidebar, renderPlayer, trackRow, coverArt, skeletonRows, setQueue, genreColor } from '/js/components.js';
   import { Tracks, Artists, Genres } from '/js/api.js';
+  import { initFavorites, getFavorites } from '/js/favorites.js';
+  import { initHistory, getHistory } from '/js/history.js';
 
   if (!requireAuth()) throw new Error('not auth');
 
@@ -45,27 +57,83 @@
   renderPlayer();
 
   const user = getSession();
-  document.getElementById('greeting').textContent = user?.name?.split(' ')[0] || user?.email?.split('@')[0] || 'Hola';
+  document.getElementById('greeting').textContent =
+    user?.name?.split(' ')[0] || user?.email?.split('@')[0] || 'Hola';
 
+  // ── Personalización ───────────────────────────────────────
+  function renderContinue() {
+    const history = getHistory(6);
+    if (!history.length) return;
+    window.__histTracks = history;
+    window.__playHistEntry = (i) => setQueue([window.__histTracks[i]], 0);
+    document.getElementById('continue-section').style.display = '';
+    document.getElementById('continue-list').innerHTML = `
+      <div class="continue-grid">
+        ${history.map((entry, i) => `
+          <div class="continue-card" onclick="window.__playHistEntry(${i})">
+            ${coverArt(i, 'sm', '🎵')}
+            <div class="continue-card-meta">
+              <div class="continue-card-name">${entry.track_name || '—'}</div>
+              <div class="continue-card-artist">${entry.artist_name || ''}</div>
+            </div>
+          </div>`).join('')}
+      </div>`;
+  }
+
+  function renderParaTi() {
+    const favs = getFavorites();
+    if (!favs.length) return;
+    const seen   = new Set();
+    const genres = [];
+    for (const f of favs) {
+      if (f.genre_name && !seen.has(f.genre_name)) {
+        seen.add(f.genre_name);
+        genres.push(f.genre_name);
+        if (genres.length === 4) break;
+      }
+    }
+    if (!genres.length) return;
+    document.getElementById('para-ti-section').style.display = '';
+    document.getElementById('para-ti-list').innerHTML = `
+      <div class="grid-cards">
+        ${genres.map((g, i) => `
+          <div class="card" style="cursor:default">
+            ${coverArt(i, 'md', '🎵')}
+            <div class="card-title">${g}</div>
+          </div>`).join('')}
+      </div>`;
+  }
+
+  // ── Canciones ─────────────────────────────────────────────
   async function loadTracks() {
+    document.getElementById('top-tracks').innerHTML = skeletonRows(5);
     try {
       const res    = await Tracks.top(20);
       const tracks = res.data ?? res;
+      window.__homeTracks = tracks;
       document.getElementById('top-tracks').innerHTML =
         `<div class="track-list">${tracks.map((t, i) => trackRow(t, i)).join('')}</div>`;
+      document.querySelectorAll('#top-tracks .track-row').forEach((row, i) => {
+        row.onclick = null;
+        row.addEventListener('click', e => {
+          if (e.target.closest('button')) return;
+          setQueue(window.__homeTracks, i);
+        });
+      });
     } catch (err) {
       document.getElementById('top-tracks').innerHTML =
         `<div class="alert alert-error">${err.message}</div>`;
     }
   }
 
+  // ── Artistas ──────────────────────────────────────────────
   async function loadArtists() {
     try {
       const res     = await Artists.top(8);
       const artists = res.data ?? res;
-      document.getElementById('top-artists').innerHTML = artists.map(a => `
+      document.getElementById('top-artists').innerHTML = artists.map((a, i) => `
         <div class="card" onclick="location.href='/catalogo/artist.html?id=${a.artist_id}'">
-          <div class="card-thumb"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:6px"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg></div>
+          ${coverArt(i, 'md', '🎤')}
           <div class="card-title">${a.name}</div>
           <div class="card-sub">${a.track_count ?? ''} canciones</div>
         </div>`).join('');
@@ -74,13 +142,14 @@
     }
   }
 
+  // ── Géneros ───────────────────────────────────────────────
   async function loadGenres() {
     try {
       const res    = await Genres.list();
       const genres = (res.data ?? res).slice(0, 8);
       document.getElementById('top-genres').innerHTML = genres.map((g, i) => `
-        <div class="card" onclick="location.href='/catalogo/genres.html?id=${g.genre_id}'"
-             style="border-left: 3px solid ${genreColor(i)}">
+        <div class="card" onclick="location.href='/catalogo/genres.html?id=${g.genre_id}'">
+          ${coverArt(i, 'md', '🎵')}
           <div class="card-title">${g.name}</div>
           <div class="card-sub">${g.track_count ?? ''} canciones</div>
         </div>`).join('');
@@ -89,6 +158,10 @@
     }
   }
 
+  // ── Init ──────────────────────────────────────────────────
+  await Promise.all([initFavorites(), initHistory()]);
+  renderContinue();
+  renderParaTi();
   loadTracks();
   loadArtists();
   loadGenres();

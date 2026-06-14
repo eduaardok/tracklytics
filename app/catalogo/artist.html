@@ -18,8 +18,9 @@
 
 <script type="module">
   import { requireAuth } from '/js/auth.js';
-  import { renderSidebar, renderPlayer, trackRow } from '/js/components.js';
+  import { renderSidebar, renderPlayer, trackRow, coverArt, skeletonRows, setQueue, genreColor } from '/js/components.js';
   import { Artists, Tracks } from '/js/api.js';
+  import { initFavorites } from '/js/favorites.js';
 
   if (!requireAuth()) throw new Error('not auth');
   renderSidebar('');
@@ -28,8 +29,14 @@
   const artistId = new URLSearchParams(location.search).get('id');
   if (!artistId) { location.href = '/catalogo/catalog.html'; }
 
+  function _colorIdx(id) {
+    const n = parseInt(id, 10);
+    return (isNaN(n) ? id.charCodeAt(0) : n) % 10;
+  }
+
   async function load() {
     const el = document.getElementById('page-content');
+    el.innerHTML = skeletonRows(3);
     try {
       const [artistRes, tracksRes] = await Promise.all([
         Artists.get(artistId),
@@ -38,13 +45,24 @@
       const artist = artistRes.data ?? artistRes;
       const tracks = tracksRes.data ?? tracksRes;
 
+      window.__artistTracks = tracks;
+      window.__setQueue     = setQueue;
+
+      const ci = _colorIdx(artistId);
+      const c1 = genreColor(ci);
+      const c2 = genreColor((ci + 3) % 10);
+
       el.innerHTML = `
-        <div class="page-header">
-          <div class="page-thumb"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:6px"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg></div>
-          <div class="page-meta">
-            <div class="page-type">Artista</div>
-            <div class="page-name">${artist.name}</div>
-            <div class="page-sub">${artist.track_count ?? tracks.length} canciones</div>
+        <div class="detail-hero" style="background:linear-gradient(135deg,${c1},${c2})">
+          ${coverArt(ci, 'xl', '🎤')}
+          <div class="detail-hero-meta">
+            <div class="detail-hero-type">Artista</div>
+            <div class="detail-hero-name">${artist.name}</div>
+            <div class="detail-hero-sub">${artist.track_count ?? tracks.length} canciones${artist.country ? ' · ' + artist.country : ''}</div>
+            <div class="detail-hero-actions">
+              <button class="btn btn-primary"
+                onclick="window.__setQueue(window.__artistTracks, 0)">▶ Reproducir todo</button>
+            </div>
           </div>
         </div>
 
@@ -86,6 +104,7 @@
     }
   }
 
+  await initFavorites();
   load();
 </script>
 </body>

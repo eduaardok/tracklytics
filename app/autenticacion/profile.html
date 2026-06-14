@@ -19,12 +19,15 @@
 <script type="module">
   import { requireAuth, getSession, logout } from '/js/auth.js';
   import { renderSidebar, renderPlayer } from '/js/components.js';
+  import { initFavorites, getFavorites } from '/js/favorites.js';
+  import { initHistory, getHistory } from '/js/history.js';
+  import { initPlaylists, getPlaylists } from '/js/playlists.js';
 
   if (!requireAuth()) throw new Error('not auth');
   renderSidebar('profile.html');
   renderPlayer();
 
-  const user = getSession();
+  const user    = getSession();
   const initial = (user?.name?.[0] ?? user?.email?.[0] ?? '?').toUpperCase();
 
   document.getElementById('profile-root').innerHTML = `
@@ -48,7 +51,12 @@
       </button>
     </div>
 
-    <div id="edit-section" style="display:none; max-width:400px">
+    <h2 class="section-title">Mi actividad</h2>
+    <div id="activity-stats" class="stat-cards">
+      <div class="stat-card"><div class="loading-center" style="padding:.5rem"><div class="spinner" style="width:1.5rem;height:1.5rem"></div></div></div>
+    </div>
+
+    <div id="edit-section" style="display:none; max-width:400px; margin-top:2rem">
       <h2 class="section-title">Editar perfil</h2>
       <div id="edit-alert"></div>
       <div class="form-group">
@@ -67,6 +75,27 @@
     localStorage.setItem('pb_user', JSON.stringify(updated));
     document.getElementById('edit-alert').innerHTML = '<div class="alert alert-success">Guardado localmente.</div>';
   });
+
+  await Promise.all([initFavorites(), initHistory(), initPlaylists()]);
+  const favCount  = getFavorites().length;
+  const histCount = getHistory(200).length;
+  const plCount   = getPlaylists().length;
+  document.getElementById('activity-stats').innerHTML = `
+    <div class="stat-card">
+      <div class="stat-card-icon">♥</div>
+      <div class="stat-card-number">${favCount}</div>
+      <div class="stat-card-label">Favoritos</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-card-icon">🕐</div>
+      <div class="stat-card-number">${histCount}</div>
+      <div class="stat-card-label">Escuchadas</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-card-icon">🎵</div>
+      <div class="stat-card-number">${plCount}</div>
+      <div class="stat-card-label">Playlists</div>
+    </div>`;
 </script>
 </body>
 </html>
