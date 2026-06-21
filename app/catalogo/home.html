@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Inicio — Tracklytics</title>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&display=swap" rel="stylesheet"/>
+  <link rel="icon" type="image/png" href="/img/logo.png"/>
   <link rel="stylesheet" href="/css/main.css"/>
 </head>
 <body>
@@ -46,7 +47,7 @@
 
 <script type="module">
   import { requireAuth, getSession } from '/js/auth.js';
-  import { renderSidebar, renderPlayer, trackRow, coverArt, skeletonRows, setQueue, genreColor } from '/js/components.js';
+  import { renderSidebar, renderPlayer, trackRow, coverArt, skeletonRows, setQueue, genreColor, GLYPH } from '/js/components.js';
   import { Tracks, Artists, Genres } from '/js/api.js';
   import { initFavorites, getFavorites } from '/js/favorites.js';
   import { initHistory, getHistory } from '/js/history.js';
@@ -71,7 +72,7 @@
       <div class="continue-grid">
         ${history.map((entry, i) => `
           <div class="continue-card" onclick="window.__playHistEntry(${i})">
-            ${coverArt(i, 'sm', '🎵')}
+            ${coverArt(i, 'sm')}
             <div class="continue-card-meta">
               <div class="continue-card-name">${entry.track_name || '—'}</div>
               <div class="continue-card-artist">${entry.artist_name || ''}</div>
@@ -98,7 +99,7 @@
       <div class="grid-cards">
         ${genres.map((g, i) => `
           <div class="card" style="cursor:default">
-            ${coverArt(i, 'md', '🎵')}
+            ${coverArt(i, 'md')}
             <div class="card-title">${g}</div>
           </div>`).join('')}
       </div>`;
@@ -133,7 +134,7 @@
       const artists = res.data ?? res;
       document.getElementById('top-artists').innerHTML = artists.map((a, i) => `
         <div class="card" onclick="location.href='/catalogo/artist.html?id=${a.artist_id}'">
-          ${coverArt(i, 'md', '🎤')}
+          ${coverArt(i, 'md', GLYPH.mic)}
           <div class="card-title">${a.name}</div>
           <div class="card-sub">${a.track_count ?? ''} canciones</div>
         </div>`).join('');
@@ -149,7 +150,7 @@
       const genres = (res.data ?? res).slice(0, 8);
       document.getElementById('top-genres').innerHTML = genres.map((g, i) => `
         <div class="card" onclick="location.href='/catalogo/genres.html?id=${g.genre_id}'">
-          ${coverArt(i, 'md', '🎵')}
+          ${coverArt(i, 'md')}
           <div class="card-title">${g.name}</div>
           <div class="card-sub">${g.track_count ?? ''} canciones</div>
         </div>`).join('');

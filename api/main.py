@@ -8,6 +8,7 @@ from paquetes.analitica.router import router as analitica_router
 from paquetes.biblioteca.router import router as biblioteca_router
 from paquetes.catalogo.router import router as catalogo_router
 from paquetes.gestion_datos.router import router as gestion_router
+from paquetes.suscripciones.router import router as suscripciones_router
 
 
 @asynccontextmanager
@@ -38,3 +39,4 @@ app.include_router(catalogo_router)
 app.include_router(analitica_router)
 app.include_router(gestion_router)
 app.include_router(biblioteca_router)
+app.include_router(suscripciones_router)

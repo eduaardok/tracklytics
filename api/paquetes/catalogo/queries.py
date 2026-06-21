@@ -201,5 +201,15 @@ JOIN DIM_ARTISTS a ON ft.artist_id = a.artist_id
 JOIN DIM_GENRES  g ON ft.genre_id  = g.genre_id
 {where}
 ORDER BY ft.popularity DESC
-LIMIT {{limit:UInt32}}
+LIMIT {{limit:UInt32}} OFFSET {{offset:UInt32}}
+"""
+
+
+def tracks_search_count_sql(where: str) -> str:
+    return f"""
+SELECT count() AS total
+FROM FACT_TRACKS ft
+JOIN DIM_ARTISTS a ON ft.artist_id = a.artist_id
+JOIN DIM_GENRES  g ON ft.genre_id  = g.genre_id
+{where}
 """

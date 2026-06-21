@@ -138,3 +138,16 @@ export function deletePlaylist(playlistId) {
   _cache = _cache.filter(p => p.id !== playlistId);
   _pbFetch('DELETE', `/api/collections/playlists/records/${playlistId}`).catch(console.error);
 }
+
+// ── renamePlaylist — sync optimistic + fire-and-forget ───────────────────────
+export function renamePlaylist(playlistId, newName) {
+  const name = newName.trim();
+  if (!name) return false;
+
+  const pl = _cache.find(p => p.id === playlistId);
+  if (!pl) return false;
+
+  pl.name = name;
+  _pbFetch('PATCH', `/api/collections/playlists/records/${playlistId}`, { name }).catch(console.error);
+  return true;
+}

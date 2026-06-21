@@ -31,3 +31,10 @@ def verify_analytics_access(user: dict = Depends(get_current_user)) -> dict:
     if role not in ("admin", "analyst"):
         raise HTTPException(status_code=403, detail="Insufficient permissions")
     return user
+
+
+def require_b2c_user(user: dict = Depends(get_current_user)) -> dict:
+    role = user.get("record", {}).get("role", "")
+    if role == "analyst":
+        raise HTTPException(status_code=403, detail="La biblioteca personal es exclusiva de Usuario B2C")
+    return user

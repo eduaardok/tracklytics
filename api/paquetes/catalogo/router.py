@@ -7,7 +7,7 @@ from paquetes.catalogo.queries import (
     GENRE_DETAIL, GENRES_LIST,
     TRACK_DETAIL, TRACK_DETAIL_BY_FACT_ID,
     TRACKS_BY_ALBUM, TRACKS_BY_ARTIST, TRACKS_BY_GENRE, TRACKS_TOP,
-    tracks_search_sql,
+    tracks_search_count_sql, tracks_search_sql,
 )
 
 router = APIRouter(prefix="/app/v1", tags=["App"])
@@ -23,12 +23,13 @@ def tracks_top(limit: int = Query(20, ge=1, le=200)):
 
 @router.get("/tracks/search")
 def tracks_search(
-    q:     str = Query(""),
-    genre: str = Query(""),
-    limit: int = Query(50, ge=1, le=100),
+    q:      str = Query(""),
+    genre:  str = Query(""),
+    limit:  int = Query(50, ge=1, le=100),
+    offset: int = Query(0, ge=0),
 ):
     conditions: list[str] = []
-    params: dict = {"limit": limit}
+    params: dict = {"limit": limit, "offset": offset}
 
     if q.strip():
         params["q"] = f"%{q.strip()}%"
@@ -43,7 +44,8 @@ def tracks_search(
 
     where = f"WHERE {' AND '.join(conditions)}" if conditions else ""
     rows = query_rows(tracks_search_sql(where), params)
-    return {"data": rows, "total": len(rows)}
+    total = query_one(tracks_search_count_sql(where), params)["total"]
+    return {"data": rows, "total": total, "limit": limit, "offset": offset}
 
 
 @router.get("/tracks/by-artist/{artist_id}")

@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Canción — Tracklytics</title>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&display=swap" rel="stylesheet"/>
+  <link rel="icon" type="image/png" href="/img/logo.png"/>
   <link rel="stylesheet" href="/css/main.css"/>
 </head>
 <body>
@@ -69,7 +70,7 @@
 
       el.innerHTML = `
         <div class="detail-hero" style="background:linear-gradient(135deg,${c1},${c2})">
-          ${coverArt(ci, 'xl', '🎵')}
+          ${coverArt(ci, 'xl')}
           <div class="detail-hero-meta">
             <div class="detail-hero-type">Canción</div>
             <div class="detail-hero-name">${track.track_name || '—'}</div>

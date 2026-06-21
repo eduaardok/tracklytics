@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Tracklytics — Música que se siente</title>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet"/>
+  <link rel="icon" type="image/png" href="/img/logo.png"/>
   <link rel="stylesheet" href="/css/main.css"/>
 </head>
 <body style="height:100vh; overflow:auto;">
@@ -13,28 +14,40 @@
   <!-- ── Panel izquierdo (hero) ─────────────────────── -->
   <div class="auth-hero">
     <div class="auth-hero-brand">
-      <span class="logo-t">T</span><span class="logo-rest">racklytics</span>
+      <img src="/img/logo.png" alt="" class="auth-hero-logo"
+           onerror="this.remove()">
+      <span class="auth-hero-wordmark"><span class="logo-t">T</span><span class="logo-rest">racklytics</span></span>
     </div>
     <p class="auth-hero-tagline">Analiza. Descubre. Escucha.</p>
 
     <ul class="auth-hero-features">
       <li>
-        <span class="auth-feature-icon">🎵</span>
-        <span><strong>Catálogo completo</strong> con miles de canciones, artistas y géneros</span>
+        <span class="auth-feature-icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg></span>
+        <span><strong>Catálogo completo</strong>Miles de canciones, artistas y géneros para explorar</span>
       </li>
       <li>
-        <span class="auth-feature-icon">📊</span>
-        <span><strong>Analítica avanzada</strong> de tendencias, popularidad y comparativa de artistas</span>
+        <span class="auth-feature-icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" x2="18" y1="20" y2="10"/><line x1="12" x2="12" y1="20" y2="4"/><line x1="6" x2="6" y1="20" y2="14"/></svg></span>
+        <span><strong>Analítica avanzada</strong>Tendencias, popularidad y comparativa de artistas</span>
       </li>
       <li>
-        <span class="auth-feature-icon">♥</span>
-        <span><strong>Biblioteca personal</strong> con favoritos, historial y playlists propias</span>
+        <span class="auth-feature-icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.29 1.51 4.04 3 5.5l7 7Z"/></svg></span>
+        <span><strong>Biblioteca personal</strong>Favoritos, historial y playlists propias, siempre a mano</span>
       </li>
       <li>
-        <span class="auth-feature-icon">▶</span>
-        <span><strong>Reproductor con cola</strong> de reproducción y navegación entre canciones</span>
+        <span class="auth-feature-icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="6 3 20 12 6 21 6 3"/></svg></span>
+        <span><strong>Reproducción continua</strong>Cola de canciones y navegación fluida entre pistas</span>
       </li>
     </ul>
+
+    <div class="auth-eq" aria-hidden="true">
+      <span></span><span></span><span></span><span></span><span></span>
+    </div>
+
+    <div class="auth-hero-techs">
+      <span>PocketBase</span>
+      <span>ClickHouse</span>
+      <span>FastAPI</span>
+    </div>
   </div>
 
   <!-- ── Panel derecho (form) ───────────────────────── -->

@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Mi Biblioteca — Tracklytics</title>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&display=swap" rel="stylesheet"/>
+  <link rel="icon" type="image/png" href="/img/logo.png"/>
   <link rel="stylesheet" href="/css/main.css"/>
 </head>
 <body>
@@ -64,7 +65,9 @@
             <div style="font-size:1.2rem; font-weight:800" id="detail-name"></div>
             <div style="font-size:.82rem; color:var(--text-muted)" id="detail-count"></div>
           </div>
-          <button class="btn btn-outline btn-sm" style="margin-left:auto; border-color:var(--danger); color:#fc8181"
+          <button class="btn btn-outline btn-sm" style="margin-left:auto"
+                  id="btn-rename-pl"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:6px"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>Renombrar</button>
+          <button class="btn btn-outline btn-sm" style="border-color:var(--danger); color:#fc8181"
                   id="btn-delete-pl"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:6px"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>Eliminar playlist</button>
         </div>
         <div id="detail-track-list"></div>
@@ -79,8 +82,8 @@
 
 <script type="module">
   import { requireAuth } from '/js/auth.js';
-  import { renderSidebar, renderPlayer, trackRow, setQueue, coverArt, emptyState, skeletonRows, genreColor } from '/js/components.js';
-  import { initPlaylists, getPlaylists, createPlaylist, removeTrackFromPlaylist, deletePlaylist } from '/js/playlists.js';
+  import { renderSidebar, renderPlayer, trackRow, setQueue, coverArt, emptyState, skeletonRows, genreColor, GLYPH } from '/js/components.js';
+  import { initPlaylists, getPlaylists, createPlaylist, removeTrackFromPlaylist, deletePlaylist, renamePlaylist } from '/js/playlists.js';
   import { initFavorites, getFavorites } from '/js/favorites.js';
   import { initHistory, getHistory } from '/js/history.js';
 
@@ -119,9 +122,9 @@
     const el    = document.getElementById('favorites-list');
     if (!favs.length) {
       el.innerHTML = emptyState(
-        '♥',
+        GLYPH.heart,
         'Sin favoritos aún',
-        'Dale ♥ a una canción para guardarla aquí.',
+        'Marca una canción como favorita para guardarla aquí.',
         '<a href="/catalogo/catalog.html" class="btn btn-primary btn-sm">Explorar catálogo</a>'
       );
       return;
@@ -139,7 +142,7 @@
     const el      = document.getElementById('history-list');
     if (!history.length) {
       el.innerHTML = emptyState(
-        '🕐',
+        GLYPH.clock,
         'Historial vacío',
         'Las canciones que escuches aparecerán aquí.'
       );
@@ -155,7 +158,7 @@
   // ── Mosaic cover helper ───────────────────────────────────
   function mosaicCover(pl) {
     const tracks = pl.tracks || [];
-    if (!tracks.length) return coverArt(0, 'md', '🎵');
+    if (!tracks.length) return coverArt(0, 'md');
     const ids = [...new Set(tracks.map(t => t.genre_id || 0))].slice(0, 4);
     if (ids.length === 1) {
       return `<div class="playlist-card-mosaic single">
@@ -274,6 +277,22 @@
     window.showPlaylistList();
   });
 
+  // Botón renombrar en vista detalle
+  document.getElementById('btn-rename-pl').addEventListener('click', () => {
+    const pl = getPlaylists().find(p => p.id === currentPlaylistId);
+    if (!pl) return;
+    const newName = prompt('Nuevo nombre de la playlist:', pl.name);
+    if (newName === null) return;
+    const trimmed = newName.trim();
+    if (!trimmed) return;
+    if (getPlaylists().some(p => p.id !== pl.id && p.name.toLowerCase() === trimmed.toLowerCase())) {
+      alert('Ya existe una playlist con ese nombre.');
+      return;
+    }
+    renamePlaylist(pl.id, trimmed);
+    document.getElementById('detail-name').textContent = trimmed;
+  });
+
   // ── Crear playlist ─────────────────────────────────────────
   window.toggleCreateForm = function(show) {
     document.getElementById('create-pl-form').style.display = show ? 'block' : 'none';
@@ -310,17 +329,17 @@
 
     document.getElementById('lib-stats').innerHTML = `
       <div class="stat-card">
-        <div class="stat-card-icon">♥</div>
+        <div class="stat-card-icon">${GLYPH.heart}</div>
         <div class="stat-card-number">${favCount}</div>
         <div class="stat-card-label">Favoritos</div>
       </div>
       <div class="stat-card">
-        <div class="stat-card-icon">🕐</div>
+        <div class="stat-card-icon">${GLYPH.clock}</div>
         <div class="stat-card-number">${histCount}</div>
         <div class="stat-card-label">Escuchadas</div>
       </div>
       <div class="stat-card">
-        <div class="stat-card-icon">🎵</div>
+        <div class="stat-card-icon">${GLYPH.music}</div>
         <div class="stat-card-number">${plCount}</div>
         <div class="stat-card-label">Playlists</div>
       </div>`;

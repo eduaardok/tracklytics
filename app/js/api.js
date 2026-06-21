@@ -64,7 +64,8 @@ export async function pbRegister(email, password, name, role = 'user') {
 // ── App endpoints (FastAPI /app/v1) ─────────────────────────────────────────
 export const Tracks = {
   top:       (limit = 20)             => apiFetch(`/app/v1/tracks/top?limit=${limit}`),
-  search:    (q, limit = 20)          => apiFetch(`/app/v1/tracks/search?q=${encodeURIComponent(q)}&limit=${limit}`),
+  search:    (q, limit = 20, offset = 0, genre = '') =>
+    apiFetch(`/app/v1/tracks/search?q=${encodeURIComponent(q)}&limit=${limit}&offset=${offset}&genre=${encodeURIComponent(genre)}`),
   get:       (id)                     => apiFetch(`/app/v1/tracks/${id}`),
   getByFact: (factId)                 => apiFetch(`/app/v1/tracks/fact/${factId}`),
   byArtist:  (artistId, limit = 20)   => apiFetch(`/app/v1/tracks/by-artist/${artistId}?limit=${limit}`),
@@ -86,4 +87,14 @@ export const Albums = {
 export const Genres = {
   list:   ()   => apiFetch(`/app/v1/genres`),
   get:    (id) => apiFetch(`/app/v1/genres/${id}`),
+};
+
+export const Suscripciones = {
+  planes:    ()                       => apiFetch(`/app/v1/suscripciones/planes`),
+  activa:    ()                       => apiFetch(`/app/v1/suscripciones/activa`),
+  confirmar: (plan_id, metodo_pago)   => apiFetch(`/app/v1/suscripciones`, {
+    method: 'POST',
+    body: JSON.stringify({ plan_id, metodo_pago }),
+  }),
+  cancelar:  (id)                     => apiFetch(`/app/v1/suscripciones/${id}/cancelar`, { method: 'POST' }),
 };

@@ -310,6 +310,43 @@ def main() -> None:
         print(f"[pb-init] ERROR: {exc}")
         sys.exit(1)
 
+    # ── Colección: suscripciones ──────────────────────────────────────────────
+    suscripciones_schema = {
+        "name": "suscripciones",
+        "type": "base",
+        "fields": [
+            {"name": "usuario_o_cliente", "type": "relation", "required": True,
+             "collectionId": users_id, "cascadeDelete": False, "maxSelect": 1},
+            {"name": "tipo_plan", "type": "text",   "required": True},
+            # required=False: PocketBase trata 0 como "vacío" en campos number
+            # requeridos, y el plan free legítimamente tiene monto=0.
+            {"name": "monto",     "type": "number", "required": False},
+            {"name": "moneda",    "type": "text",   "required": True},
+            {"name": "estado",    "type": "text",   "required": True},
+            # fecha_inicio (RF-SUS-003): PocketBase no agrega created/updated
+            # automáticamente en colecciones base; hay que declararlos.
+            {"name": "created", "type": "autodate", "onCreate": True, "onUpdate": False},
+        ],
+    }
+    try:
+        ensure_collection(token, suscripciones_schema)
+    except RuntimeError as exc:
+        print(f"[pb-init] ERROR: {exc}")
+        sys.exit(1)
+
+    try:
+        # No se define deleteRule: las suscripciones no se eliminan, solo se
+        # cancelan (campo `estado`), preservando el rastro auditable (RNF-SUS-002).
+        ensure_collection_rules(token, "suscripciones", {
+            "listRule":   "usuario_o_cliente = @request.auth.id",
+            "viewRule":   "usuario_o_cliente = @request.auth.id",
+            "createRule": '@request.auth.id != "" && usuario_o_cliente = @request.auth.id',
+            "updateRule": "usuario_o_cliente = @request.auth.id",
+        })
+    except RuntimeError as exc:
+        print(f"[pb-init] ERROR: {exc}")
+        sys.exit(1)
+
     # ── Verificar colección ───────────────────────────────────────────────────
     count = collection_count(token)
 

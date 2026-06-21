@@ -7,17 +7,17 @@
 [![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?style=for-the-badge&logo=docker&logoColor=white)](https://docker.com)
 [![PocketBase](https://img.shields.io/badge/PocketBase-Auth-B8DBE4?style=for-the-badge&logo=pocketbase&logoColor=black)](https://pocketbase.io)
 
-![Records](https://img.shields.io/badge/Registros-600.000+-8B5CF6?style=for-the-badge)
+![Records](https://img.shields.io/badge/Registros-700.000+-8B5CF6?style=for-the-badge)
 ![Tables](https://img.shields.io/badge/Tablas_ClickHouse-16-8B5CF6?style=for-the-badge)
 ![Services](https://img.shields.io/badge/Servicios_Docker-8-8B5CF6?style=for-the-badge)
-![Progress](https://img.shields.io/badge/Avance(S6)-50%-22c55e?style=for-the-badge)
+![Progress](https://img.shields.io/badge/Avance_S7-50%25-22c55e?style=for-the-badge)
 
 > Plataforma de analítica musical e inteligencia de negocio sobre datos de Spotify,
 > construida con ClickHouse, Airflow, FastAPI y un frontend interactivo con Plotly.js.
 > Incluye una app musical tipo Spotify para usuarios finales con sistema de roles.
 
 Tracklytics procesa un dataset base de 113.550 registros reales de Spotify más datos sintéticos
-semanales acumulados (≈600.000–700.000 registros en S6), los almacena en un modelo dimensional
+semanales acumulados (713.550 registros confirmados en S7), los almacena en un modelo dimensional
 columnar en ClickHouse, orquesta las cargas con Apache Airflow y los expone mediante una API REST,
 dashboards analíticos interactivos y una app musical completa servidos por Nginx.
 
@@ -169,6 +169,7 @@ Los roles `user` y `analyst` se seleccionan durante el registro en la app.
 - Favoritos con botón ♥ — persistidos en ClickHouse (`FACT_ENGAGEMENT_USUARIO`) vía `POST /biblioteca/favoritos`
 - Historial de reproducción con tiempo relativo — persistido en ClickHouse vía `POST /biblioteca/historial`
 - Playlists: crear, añadir/quitar tracks, eliminar — almacenadas en PocketBase (`playlists` / `playlist_tracks`)
+- Gestión de suscripción: planes free/premium (B2C) o básico/pro/enterprise (B2B), confirmar y cancelar, consulta del plan activo — `app/autenticacion/planes.html`, vía `api/paquetes/suscripciones/`
 
 ### Analítica (analyst / admin)
 - **Dashboard ejecutivo** — 6 KPIs globales, bubble chart géneros, radar del top género, top 10 géneros y artistas por Plotly.js con caché TTL 60s
@@ -198,6 +199,7 @@ tracklytics/
 │   ├── paquetes/
 │   │   ├── catalogo/            # Endpoints app musical (tracks, artistas, álbumes, géneros)
 │   │   ├── biblioteca/          # Endpoints engagement (favoritos, historial, playlists)
+│   │   ├── suscripciones/       # Endpoints planes, confirmar, activa, cancelar
 │   │   ├── analitica/           # Endpoints dashboards (cache TTL 60s)
 │   │   └── gestion_datos/       # ETL, CRUD dimensiones, calidad de datos
 │   ├── api_Dockerfile
@@ -230,6 +232,9 @@ tracklytics/
 │   │   ├── tracklytics_etl.py          # DAG principal: bronze→silver→gold→synthetic→log
 │   │   └── engagement_referencia.py    # DAG engagement: eventos sintéticos correlacionados con popularity
 │   └── etl_Dockerfile
+├── openspec/                    # Spec Driven Development — constitución, propuestas, specs y diseños
+│   ├── config.yaml              # Constitución del proyecto (stack, reglas RT-01..RT-06, modelos de datos)
+│   └── changes/                 # catalogo, suscripciones, analitica, partners, ingesta
 ├── frontend/                    # Dashboard analítico legacy (puerto 80)
 ├── docker-compose.yml
 └── .env                         # Variables de entorno (no versionado)
@@ -280,13 +285,14 @@ ETL_LOGS           (historial de ejecuciones)
 ETL_BATCH_CONTROL  (control de idempotencia)
 ```
 
-**PocketBase — colecciones S6:**
+**PocketBase — colecciones:**
 
 | Colección | Campos | Uso |
 |---|---|---|
 | `spotify_tracks` | *(existente)* | Dataset base de catálogo |
 | `playlists` | `id`, `user` (→ users), `name`, `created` | Playlists de usuario |
 | `playlist_tracks` | `id`, `playlist` (→ playlists), `fact_id`, `position`, `created` | Canciones en playlists |
+| `suscripciones` | `id`, `usuario_o_cliente` (→ users), `tipo_plan`, `monto`, `moneda`, `estado`, `created` | Suscripción activa/cancelada de Usuario B2C o Cliente B2B |
 
 > **Nota sobre duplicados en tracklist:** el dataset de Spotify asigna múltiples géneros
 > a una misma canción. En FACT_TRACKS esto se representa con una fila por combinación
@@ -325,6 +331,38 @@ Los datos sintéticos se generan deterministamente (seed = semana × 42).
 
 ---
 
+## Metodología de desarrollo
+
+Desde la semana 7 (S7), las nuevas capabilities del módulo operativo de Tracklytics se especifican
+con **Spec Driven Development** usando [OpenSpec](https://github.com/Fission-AI/OpenSpec) antes de
+escribir código.
+
+**Flujo de trabajo:**
+
+1. **Constitución del proyecto** (`openspec/config.yaml`) — stack obligatorio, reglas del docente
+   (RT-01 a RT-06), modelo de datos técnico y de negocio, estándares de calidad ISO 25010.
+2. **Propuesta de capability** (`/opsx:propose`) — qué cambia y por qué, en `proposal.md`.
+3. **Especificación formal** (`specs/<capability>/spec.md`) — requisitos, escenarios WHEN/THEN,
+   criterios de aceptación y tabla de trazabilidad de 5 niveles (empresarial → departamento →
+   paquete → caso de uso → historia de usuario).
+4. **Diseño técnico** (`design.md`) — en qué base de datos vive cada entidad (PocketBase vs
+   ClickHouse) y por qué, con alternativas descartadas.
+5. **Implementación** (`/opsx:apply`) — desarrollo guiado por un checklist verificable (`tasks.md`).
+6. **Archivado** — la capability implementada se mueve de `openspec/changes/` a `openspec/specs/`.
+
+**Capabilities especificadas en S7** — mapeadas a los 16 casos de uso operativos (CU-O01–CU-O16)
+de la especificación de negocio:
+
+| Capability | Casos de uso | Estado |
+|---|---|---|
+| `catalogo` | CU-O01–CU-O05 | Implementada (reconciliada con el código real existente) |
+| `suscripciones` | CU-O06 | Implementada desde cero |
+| `analitica` | CU-O07–CU-O11, CU-O16 | Especificada, pendiente de implementación |
+| `partners` | CU-O12 | Especificada, pendiente de implementación |
+| `ingesta` | CU-O13–CU-O15 | Especificada, pendiente de implementación |
+
+---
+
 ## Historial de sprints
 
 | Sprint | Foco principal | Entregables clave |
@@ -335,6 +373,7 @@ Los datos sintéticos se generan deterministamente (seed = semana × 42).
 | S4 | Roles y analítica avanzada | Comparar artistas (CU-23), tendencias temporales (CU-24), calidad de datos (CU-25) |
 | S5 | Engagement de usuario | `fact_id` routing, favoritos ♥ persistidos en ClickHouse, historial, género visible en tracklist |
 | S6 | UX completa + reproductor | Ver detalle abajo |
+| S7 | Spec Driven Development (OpenSpec) | Ver detalle abajo |
 
 ### S6 — detalle
 
@@ -353,6 +392,31 @@ Los datos sintéticos se generan deterministamente (seed = semana × 42).
 - Stat cards de actividad (♥ / 🕐 / 🎵) en Biblioteca y Perfil
 - Empty states ilustrados y skeletons animados de carga en todos los listados
 - Login rediseñado como split-screen con panel hero (features) + formulario
+
+### S7 — detalle
+
+**Especificación (OpenSpec):**
+- Constitución técnica del proyecto formalizada en `openspec/config.yaml`: stack obligatorio, reglas del docente (RT-01 a RT-06), modelo de datos técnico y de negocio, estándares ISO 25010
+- 5 capabilities del módulo operativo especificadas con trazabilidad de 5 niveles (empresarial → departamento → paquete → CU-O → historia de usuario): `catalogo`, `suscripciones`, `analitica`, `partners`, `ingesta`
+
+**Conciliación e implementación — `catalogo`:**
+- Detectado y documentado en `design.md`: favoritos e historial se escriben de forma síncrona y directa desde FastAPI a ClickHouse (`FACT_ENGAGEMENT_USUARIO`), no vía PocketBase como asumía el diseño original — registrado como excepción consciente al patrón batch del catálogo (sigue cumpliendo RT-01: el movimiento de datos ocurre desde Python)
+- Gating B2B/analyst en los 5 endpoints de `/app/v1/biblioteca` vía la dependencia `require_b2c_user` (`api/core/deps.py`)
+- Paginación real (`limit`/`offset` + `total`) en `GET /app/v1/tracks/search`, reemplazando el límite fijo anterior
+- Filtro de género agregado a la UI de búsqueda (`app/catalogo/search.html`)
+- Rename de playlist (PocketBase + UI en `app/biblioteca/library.html`)
+
+**Implementación desde cero — `suscripciones`:**
+- Colección PocketBase `suscripciones` (`usuario_o_cliente`, `tipo_plan`, `monto`, `moneda`, `estado`, `created`)
+- 5 endpoints FastAPI en `api/paquetes/suscripciones/`: `GET /planes`, `POST /` (confirmar), `GET /activa`, `POST /{id}/cancelar`
+- Dependencia `require_active_subscription` reutilizable, consumida (sin redefinirse) por la capability `analitica`
+- Vista de planes y "mi plan" en el frontend (`app/autenticacion/planes.html`)
+
+**Verificación:**
+- `catalogo` y `suscripciones` verificadas end-to-end con requests reales contra los endpoints en ejecución (no solo revisión de código), incluyendo casos de error y aislamiento entre usuarios
+
+**Pendiente de implementación:**
+- `analitica`, `partners` e `ingesta` quedan especificadas y aprobadas en OpenSpec, listas para implementarse en el siguiente sprint
 
 ---
 

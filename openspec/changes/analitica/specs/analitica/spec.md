@@ -1,0 +1,131 @@
+# Capability: analitica
+
+## Objetivo
+
+Proveer a Cliente B2B y Data Analyst/BI Lead un conjunto de paneles analíticos sobre el catálogo musical: dashboard ejecutivo de KPIs, perfiles de audio por género, comparación de artistas, tendencias temporales, índice de desempeño relativo (engagement propio vs. popularidad de mercado), y reporte diario operativo.
+
+## Contexto
+
+Esta capability es el corazón del producto B2B: convierte el catálogo musical y los datos de comportamiento de usuarios (capability `catalogo`) en inteligencia accionable para sellos, productoras y agencias, sustentando OE4 (Inteligencia de Negocio Centralizada) y el modelo data flywheel.
+
+## Actores
+
+- **Cliente B2B**: consume los dashboards bajo su suscripción.
+- **Data Analyst / BI Lead**: configura y supervisa los modelos analíticos.
+
+## Tabla de trazabilidad
+
+| Nivel empresarial | Departamento | Paquete | Caso de uso | Historia de usuario |
+|---|---|---|---|---|
+| Operativo | Cliente B2B / Data Analyst-BI Lead | Inteligencia de negocio y comparativa | CU-O07 Consultar dashboard ejecutivo de KPIs del catálogo | Como Cliente B2B, quiero ver un dashboard con los KPIs principales del catálogo, para evaluar tendencias del mercado de un vistazo |
+| Operativo | Cliente B2B / Data Analyst-BI Lead | Inteligencia de negocio y comparativa | CU-O08 Analizar perfiles de audio por género | Como Cliente B2B, quiero ver el perfil de audio promedio de un género, para entender qué lo caracteriza musicalmente |
+| Operativo | Cliente B2B / Data Analyst-BI Lead | Inteligencia de negocio y comparativa | CU-O09 Comparar artistas (A vs. B y benchmark de género) | Como Cliente B2B, quiero comparar un artista contra otro o contra el promedio del género, para posicionar mejor mis decisiones comerciales |
+| Operativo | Cliente B2B / Data Analyst-BI Lead | Inteligencia de negocio y comparativa | CU-O10 Consultar tendencias temporales por semana | Como Cliente B2B, quiero ver la evolución semanal de métricas del catálogo, para detectar tendencias emergentes |
+| Operativo | Cliente B2B | Inteligencia de negocio y comparativa | CU-O11 Consultar índice de desempeño relativo (mercado vs. Tracklytics) | Como Cliente B2B, quiero ver el engagement interno de mis artistas comparado con su popularidad de mercado, para identificar oportunidades de promoción diferencial |
+| Operativo | Data Analyst / BI Lead | Inteligencia de negocio y comparativa | CU-O16 Generar reporte diario operativo | Como Data Analyst/BI Lead, quiero generar un reporte diario con suscripciones, adquisiciones e ingestas del día, para dar seguimiento operativo continuo |
+
+## ADDED Requirements
+
+### Requirement: Dashboard ejecutivo de KPIs
+El sistema SHALL mostrar un dashboard con KPIs agregados del catálogo (total tracks, total artistas, total géneros, popularidad promedio, energy promedio, danceability promedio) en una sola pantalla. Las consultas del dashboard ejecutivo SHALL completarse en menos de 3 segundos en condiciones normales (volumen actual ~700k registros en FACT_TRACKS).
+
+#### Scenario: Mostrar KPIs agregados del catálogo
+- **WHEN** un Cliente B2B o Data Analyst/BI Lead con acceso autorizado abre el dashboard ejecutivo
+- **THEN** el sistema muestra en una sola pantalla el total de tracks, total de artistas, total de géneros, popularidad promedio, energy promedio y danceability promedio, en menos de 3 segundos
+
+### Requirement: Perfil de audio por género
+El sistema SHALL permitir seleccionar un género y mostrar su perfil de audio como gráfico de radar con los 7 atributos principales.
+
+#### Scenario: Consulta exitosa de perfil de audio por género
+- **WHEN** existen tracks registrados para un género en FACT_TRACKS y el Cliente B2B selecciona ese género
+- **THEN** el sistema muestra el radar de 7 atributos de audio promedio para ese género en menos de 3 segundos
+
+### Requirement: Comparación lado a lado de dos artistas
+El sistema SHALL permitir seleccionar dos artistas y mostrar una comparación lado a lado de sus métricas de audio.
+
+#### Scenario: Comparar dos artistas seleccionados
+- **WHEN** un Cliente B2B selecciona dos artistas a comparar
+- **THEN** el sistema muestra una comparación lado a lado de las métricas de audio de ambos artistas
+
+### Requirement: Benchmark de artista contra su género
+El sistema SHALL permitir comparar un artista contra el promedio de su género (benchmark). El benchmark de género SHALL calcularse sobre el promedio de todos los tracks de ese género en FACT_TRACKS, sin excluir outliers.
+
+#### Scenario: Comparar artista contra el promedio del género
+- **WHEN** un Cliente B2B selecciona un artista y su género para benchmark
+- **THEN** el sistema muestra la comparación del artista contra el promedio de todos los tracks de ese género, sin excluir outliers
+
+### Requirement: Tendencias temporales por semana
+El sistema SHALL mostrar la evolución de popularidad y energy promedio por semana de carga (`load_week`) en un gráfico de serie temporal.
+
+#### Scenario: Consultar serie temporal para un rango de semanas válido
+- **WHEN** un Cliente B2B solicita la serie temporal para un rango de semanas válido
+- **THEN** el sistema muestra la evolución de popularidad y energy promedio por semana, sin errores
+
+### Requirement: Cálculo de engagement_score
+El sistema SHALL calcular y mostrar el `engagement_score` normalizado (0-100) por track/artista, a partir de favoritos, reproducciones y adiciones a playlist.
+
+#### Scenario: Calcular engagement_score de un track con interacciones
+- **WHEN** un track tiene interacciones de usuario registradas (favoritos, reproducciones o adiciones a playlist)
+- **THEN** el sistema calcula su `engagement_score` normalizado en el rango 0-100
+
+### Requirement: Índice de desempeño relativo (Mercado vs. Tracklytics)
+El sistema SHALL calcular el índice de desempeño relativo (`engagement_score / popularity`) y mostrarlo en una vista comparativa "Mercado vs. Tracklytics". El índice de desempeño relativo SHALL calcularse únicamente para tracks que tienen al menos una interacción de usuario registrada (favorito, reproducción o adición a playlist), y SHALL recalcularse de forma consistente cada vez que cambian los datos de engagement subyacentes, sin requerir intervención manual.
+
+#### Scenario: Mostrar índice de desempeño relativo de un track con engagement
+- **WHEN** un Cliente B2B consulta el índice de desempeño relativo de un track que tiene al menos una interacción de usuario registrada
+- **THEN** el sistema muestra el índice (`engagement_score / popularity`) en la vista "Mercado vs. Tracklytics"
+
+#### Scenario: Consulta de índice de desempeño relativo sin datos de engagement
+- **WHEN** un track no tiene ninguna interacción de usuario registrada y el Cliente B2B intenta consultar su índice de desempeño relativo
+- **THEN** el sistema indica que no hay datos de engagement suficientes para calcular el índice, en lugar de mostrar un valor incorrecto o vacío sin explicación
+
+### Requirement: Reporte diario operativo
+El sistema SHALL permitir generar un reporte diario que agregue suscripciones, adquisiciones e ingestas del día corriente.
+
+#### Scenario: Generar reporte diario operativo
+- **WHEN** un Data Analyst/BI Lead solicita el reporte diario operativo
+- **THEN** el sistema genera un reporte consolidado con suscripciones, adquisiciones e ingestas del día corriente
+
+### Requirement: Acceso a paneles analíticos condicionado a suscripción activa
+El acceso a los paneles analíticos B2B SHALL requerir una suscripción activa (ver capability `suscripciones`); un Cliente B2B sin plan activo no puede consultar estos dashboards.
+
+#### Scenario: Acceso sin suscripción activa
+- **WHEN** un Cliente B2B sin una suscripción activa intenta acceder a cualquier panel analítico
+- **THEN** el sistema le niega el acceso y lo redirige a la pantalla de suscripción
+
+### Requirement: Legibilidad de los gráficos analíticos
+Todos los gráficos SHALL mantener proporciones legibles, sin miniaturas ilegibles ni gráficos alargados que distorsionen la lectura de los datos.
+
+#### Scenario: Gráfico mantiene proporciones legibles
+- **WHEN** se renderiza cualquier gráfico de los paneles analíticos (radar, comparativo, serie temporal, scatter)
+- **THEN** el gráfico mantiene proporciones legibles, sin miniaturas ilegibles ni distorsión de los datos
+
+## Entradas
+
+- Género seleccionado (perfil de audio).
+- Dos artistas a comparar, o un artista + su género (benchmark).
+- Rango de semanas a consultar (tendencias temporales).
+- Track o artista identificado (índice de desempeño relativo).
+- Fecha (reporte diario operativo).
+
+## Salidas
+
+- Dashboard de KPIs con valores agregados.
+- Gráfico de radar de perfil de audio por género.
+- Gráfico comparativo de artistas.
+- Serie temporal de métricas por semana.
+- Vista "Mercado vs. Tracklytics" (scatter con línea de referencia 1:1).
+- Reporte diario consolidado (suscripciones, adquisiciones, ingestas).
+
+## Dependencias
+
+- **ClickHouse**: FACT_TRACKS, DIM_ARTISTS, DIM_GENRES, DIM_DATE (modelo técnico, solo lectura).
+- **FACT_ENGAGEMENT_USUARIO** (modelo de negocio) para `engagement_score` e índice de desempeño relativo.
+- **Capability `catalogo`**: fuente de las interacciones de usuario (favoritos, reproducciones, playlists) que alimentan el engagement.
+- **Capability `suscripciones`**: gating de acceso por plan activo.
+
+## Fuera de alcance
+
+- Modelos predictivos de Machine Learning (predicción de tendencias, churn B2B); estos pertenecen al nivel táctico/estratégico (CU-T07, CU-E05), no a esta capability operativa.
+- Exportación de reportes a PDF/Excel.
+- Comparación de más de dos artistas simultáneamente.

@@ -1,0 +1,138 @@
+schema: spec-driven
+
+context: |
+  ## Proyecto: Tracklytics v2
+
+  Plataforma de analítica musical B2B2C, proyecto académico de 16 semanas
+  (UTEQ, Construcción del Software, sexto semestre). Empresa ficticia de
+  analítica musical orientada a sellos discográficos, productoras, curadores
+  de playlists y agencias de artistas, con una capa B2C freemium de
+  exploración musical que alimenta de datos de comportamiento al motor
+  analítico B2B (modelo data flywheel).
+
+  ## Stack tecnológico obligatorio (no negociable)
+
+  - Fuente de datos: PocketBase — contiene el dataset real de Spotify
+    (~114k registros base), es permanente e inmutable, nunca se modifica
+    directo desde el frontend.
+  - Staging: archivos Parquet como capa intermedia transitoria entre
+    PocketBase y ClickHouse (se eliminan tras cada carga exitosa).
+  - Base de datos analítica principal: ClickHouse (columnar, motor
+    MergeTree). Nunca PostgreSQL, SQLite ni MongoDB para datos analíticos.
+  - PocketBase también almacena entidades operativas propias de la app
+    (playlists, favoritos, historial) con reglas de acceso por usuario.
+  - ETL y generación de datos: Python (pandas, pyarrow, clickhouse-connect),
+    orquestado con Apache Airflow.
+  - API: FastAPI, con inyección de dependencias, caché TTL, y cliente
+    ClickHouse en `threading.local` (nunca singleton global, por
+    concurrencia entre páginas del frontend).
+  - Contenedores: Docker + Docker Compose. `docker compose up` debe levantar
+    todo sin pasos manuales adicionales.
+  - Frontend: HTML + CSS + JavaScript vanilla, Bootstrap 5 servido en local
+    (sin CDN), Plotly.js para visualizaciones, iconos Lucide SVG inline.
+    Organizado en paquetes funcionales: autenticacion/, catalogo/,
+    biblioteca/, analitica/.
+  - Control de versiones: Git + GitHub.
+
+  ## Arquitectura del pipeline
+
+  PocketBase (fuente real) → Python ETL → Parquet (stage en disco) →
+  ClickHouse (FACT + DIMs).
+
+  El flujo siempre pasa por Parquet. Nunca se inserta directo de PocketBase
+  a ClickHouse. Todo movimiento de datos ocurre desde Python (regla
+  docente RT-01).
+
+  ## Reglas del docente (no negociables)
+
+  - RT-01: todo movimiento de datos ocurre desde Python.
+  - RT-02: dataset con más de 100k registros y más de 12 columnas.
+  - RT-03: todos los servicios corren en Docker.
+  - RT-04: interfaz web funcional con dashboards interactivos.
+  - RT-05: ClickHouse es la única fuente analítica principal.
+  - RT-06: mínimo 10 tablas relacionadas al contexto del negocio.
+
+  ## Modelo de datos técnico (catálogo musical)
+
+  Data warehouse dimensional: 1 tabla de hechos (FACT_TRACKS) + 11 tablas
+  de dimensión (DIM_ARTISTS, DIM_ALBUMS, DIM_GENRES, DIM_DATE,
+  DIM_MUSICAL_KEY, DIM_MODE, DIM_TIME_SIGNATURE, DIM_EXPLICIT_TYPE,
+  DIM_POPULARITY_RANGE, DIM_TEMPO_RANGE, DIM_ENERGY_LEVEL) + 3 tablas de
+  infraestructura (STG_RAW_TRACKS, ETL_LOGS, ETL_BATCH_CONTROL).
+  FACT_TRACKS crece de ~114k a ~1.6M registros durante el semestre
+  (+100k/semana sintéticos). track_id no es único: el mismo track puede
+  aparecer en múltiples géneros (relación N:M resuelta con filas en FACT).
+
+  ## Modelo de datos de negocio (separado del técnico)
+
+  FACT_SUSCRIPCION, FACT_ADQUISICION, FACT_INTEGRACION_PARTNER,
+  FACT_DISPONIBILIDAD, FACT_INGESTA_DATOS, FACT_ENGAGEMENT_USUARIO, con
+  dimensiones DIM_TIEMPO, DIM_REGION, DIM_CLIENTE, DIM_PARTNER,
+  DIM_PLAN_SUSCRIPCION, DIM_CANAL_MARKETING, DIM_COMPONENTE_INFRAESTRUCTURA.
+  Este modelo de negocio es independiente del modelo técnico FACT_TRACKS;
+  no deben conflactarse en ningún artefacto generado.
+
+  ## Regla crítica de framing de datos sintéticos
+
+  La generación de datos sintéticos (DAGs de Airflow, seeds reproducibles
+  `seed = week_number * 42`, flag `is_synthetic`) es un mecanismo de
+  simulación académica únicamente. NUNCA debe aparecer en specs,
+  propuestas, diseños o documentación orientada a negocio. En cualquier
+  artefacto de cara a negocio (proposal.md, spec.md, design.md), la
+  ingesta de nuevos lotes de datos se describe como ingesta/integración
+  desde fuentes externas de streaming, con validación de calidad — nunca
+  como generación sintética. El detalle de la simulación académica vive
+  solo en una nota metodológica separada, jamás en la spec funcional.
+
+  ## Roles del sistema
+
+  Tres roles: user (Usuario B2C), analyst (Data Analyst / BI Lead /
+  Cliente B2B), admin (Lead Data Engineer / CTO). Ver actores completos
+  en la especificación de negocio (sección de actores).
+
+  ## Calidad de software (ISO 25010) — debe evidenciarse en código y arquitectura
+
+  - Adecuación funcional: el sistema hace exactamente lo especificado.
+  - Eficiencia de rendimiento: cargas masivas en ClickHouse vía INSERT en
+    batches de mínimo 50.000 filas; recarga completa de ~800k registros en
+    segundos.
+  - Compatibilidad: servicios intercomunicados correctamente vía Docker
+    Compose (8 servicios).
+  - Capacidad de interacción: interfaz web usable, dashboards claros con
+    Plotly.js.
+  - Fiabilidad: pipeline idempotente (ETL_BATCH_CONTROL evita duplicar
+    semanas ya cargadas), manejo de errores, logs de ejecución en
+    ETL_LOGS.
+  - Seguridad: credenciales solo vía variables de entorno, nunca
+    hardcodeadas.
+  - Mantenibilidad: código modular, comentado, separación de
+    responsabilidades por paquete funcional.
+  - Flexibilidad: el sistema acepta nuevos lotes semanales sin cambios
+    estructurales al modelo de datos.
+  - Safety: validaciones en el ETL antes de insertar a ClickHouse.
+
+  ## Convenciones de documentación de specs
+
+  - Cada especificación de capability debe incluir una tabla de
+    trazabilidad de 5 niveles: nivel empresarial → departamento/actor →
+    paquete (módulo) → caso de uso (código CU-O) → historia de usuario.
+  - Las historias de usuario siguen el formato: "Como [actor], quiero
+    [acción], para [beneficio]" — una por cada caso de uso operativo.
+  - No se reutiliza código del sprint anterior (modelo relacional en
+    PostgreSQL); ese stack ya no es parte del proyecto.
+
+rules:
+  proposal:
+    - Usar terminología del stack real del proyecto (ClickHouse, PocketBase,
+      FastAPI, Docker) en vez de ejemplos genéricos.
+    - Nunca mencionar generación de datos sintéticos, seeds o is_synthetic
+      como si fuera lógica de negocio.
+  specs:
+    - Cada spec.md debe incluir tabla de trazabilidad de 5 niveles
+      (empresarial / departamento / paquete / CU-O / historia de usuario)
+      antes del detalle de requisitos.
+    - Cada caso de uso operativo debe tener su historia de usuario en
+      formato Como/quiero/para.
+  design:
+    - El diseño técnico debe especificar explícitamente en qué base de
+      datos vive cada entidad (PocketBase vs ClickHouse) y por qué.

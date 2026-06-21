@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Géneros — Tracklytics</title>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&display=swap" rel="stylesheet"/>
+  <link rel="icon" type="image/png" href="/img/logo.png"/>
   <link rel="stylesheet" href="/css/main.css"/>
 </head>
 <body>
@@ -101,7 +102,7 @@
 
       window.__genreTracks = tracks;
       document.getElementById('genre-thumb').innerHTML =
-        coverArt(parseInt(genreId) % 10 || 0, 'lg', '🎵');
+        coverArt(parseInt(genreId) % 10 || 0, 'lg');
 
       nameEl.textContent = genre.name;
       subEl.textContent  = [genre.parent_genre, genre.origin_decade ? genre.origin_decade + 's' : null]

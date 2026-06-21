@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Álbum — Tracklytics</title>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&display=swap" rel="stylesheet"/>
+  <link rel="icon" type="image/png" href="/img/logo.png"/>
   <link rel="stylesheet" href="/css/main.css"/>
 </head>
 <body>
@@ -18,7 +19,7 @@
 
 <script type="module">
   import { requireAuth } from '/js/auth.js';
-  import { renderSidebar, renderPlayer, trackRow, coverArt, skeletonRows, setQueue, genreColor } from '/js/components.js';
+  import { renderSidebar, renderPlayer, trackRow, coverArt, skeletonRows, setQueue, genreColor, GLYPH } from '/js/components.js';
   import { Albums, Tracks } from '/js/api.js';
   import { initFavorites } from '/js/favorites.js';
 
@@ -54,7 +55,7 @@
 
       el.innerHTML = `
         <div class="detail-hero" style="background:linear-gradient(135deg,${c1},${c2})">
-          ${coverArt(ci, 'xl', '💿')}
+          ${coverArt(ci, 'xl', GLYPH.disc)}
           <div class="detail-hero-meta">
             <div class="detail-hero-type">Álbum</div>
             <div class="detail-hero-name">${album.name}</div>
