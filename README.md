@@ -10,7 +10,7 @@
 ![Records](https://img.shields.io/badge/Registros-900.000+-8B5CF6?style=for-the-badge)
 ![Tables](https://img.shields.io/badge/Tablas_ClickHouse-18-8B5CF6?style=for-the-badge)
 ![Services](https://img.shields.io/badge/Servicios_Docker-5-8B5CF6?style=for-the-badge)
-![Progress](https://img.shields.io/badge/Avance_S8-Módulo_operativo_completo-22c55e?style=for-the-badge)
+![Progress](https://img.shields.io/badge/Avance_S9-QA%20%2B%20rendimiento%20%2B%20seek-22c55e?style=for-the-badge)
 
 > Plataforma de analítica musical e inteligencia de negocio sobre datos de Spotify,
 > construida con ClickHouse, Airflow, FastAPI y un frontend interactivo con Plotly.js.
@@ -174,7 +174,7 @@ API key por header (`X-API-Key`), resuelta contra la colección `partners`.
 - Páginas de detalle de track con 7 atributos de audio (danceability, energy, valence, acousticness, speechiness, instrumentalness, liveness)
 - Perfil de artista con estadísticas agregadas desde ClickHouse
 - Detalle de álbum con tracklist — cada canción muestra su género, permitiendo identificar la misma canción en múltiples géneros (relación N:M resuelta via `fact_id`)
-- Reproductor persistente entre páginas: estado completo en `localStorage` (`tl_player`), rehidratación automática al navegar, sincronización entre pestañas
+- Reproductor persistente entre páginas: estado completo en `localStorage` (`tl_player`), rehidratación automática al navegar, sincronización entre pestañas; barra de progreso navegable (clic + arrastre con Pointer Events API) con knob visual
 - Cola de reproducción: botón ⊕ en cada canción, panel de cola, prev/next con regla de 3 s (reiniciar vs. ir atrás)
 - Secciones "Continuar escuchando" (últimas 6 reproducidas) y "Para ti" (géneros de favoritos) en home
 - Cover art por gradiente en artistas, álbumes, géneros y playlists; heroes con gradiente en páginas de detalle
@@ -193,7 +193,7 @@ API key por header (`X-API-Key`), resuelta contra la colección `partners`.
 - **Benchmark de Género** — un artista contra el promedio de su género predominante, sin exclusión de outliers
 - **Tendencias Temporales** — serie temporal semana a semana (DIM_DATE × FACT_TRACKS), eje Y dual (popularidad 0-100 / energía y danceability 0-1), selector de métricas
 - **Mercado vs. Tracklytics** — `engagement_score` (0-100, calculado on-the-fly desde `FACT_ENGAGEMENT_USUARIO`) contra popularidad, con mensaje explícito cuando no hay interacciones suficientes
-- **Reporte Diario** (admin únicamente) — ingestas y actividad de engagement del día corriente
+- **Reporte Diario** (admin únicamente) — ingestas y actividad de engagement del día corriente; exportación a PDF vía `window.print()` con layout limpio (`@media print`)
 - Bloqueo de acceso sin suscripción activa: toast + redirect a Planes (sin duplicarse, deduplicado por página)
 
 ### Gestión de datos (admin únicamente)
@@ -247,7 +247,7 @@ tracklytics/
 ├── dataset/
 │   └── spotify.csv              # Dataset fuente (113.550 registros)
 ├── docs/
-│   ├── BITACORA_S6.md, BITACORA_S7.md, BITACORA_S8.md  # Bitácoras semanales
+│   ├── BITACORA_S6.md, BITACORA_S7.md, BITACORA_S8.md, BITACORA_S9.md  # Bitácoras semanales
 │   ├── ARQUITECTURA.MD          # Estructura por paquetes propuesta (histórico, ver nota en el archivo)
 │   └── PENDIENTES.md            # Pendientes vigentes, deuda técnica y mejoras futuras
 ├── etl/

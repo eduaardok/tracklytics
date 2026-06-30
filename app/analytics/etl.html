@@ -56,6 +56,17 @@
                 Forzar recarga (si la semana ya fue cargada — RN-ING-001)
               </label>
             </div>
+            <div class="form-group" style="margin:.75rem 0 .25rem">
+              <label for="synthetic-mode" style="font-size:.85rem">Distribución de datos sintéticos</label>
+              <select id="synthetic-mode" class="form-control" style="margin-top:.35rem">
+                <option value="uniform">Uniforme — aleatorio plano (por defecto)</option>
+                <option value="normal">Normal — gaussiana con valores musicalmente realistas</option>
+                <option value="empirical">Empírica — copia la distribución de los datos reales</option>
+              </select>
+              <p style="font-size:.78rem;color:var(--text-muted);margin:.3rem 0 0">
+                Solo aplica para semanas 2 en adelante (los sintéticos).
+              </p>
+            </div>
             <button class="btn btn-success" id="btn-trigger" onclick="triggerETL()" style="width:100%">
               ▶ Cargar hasta semana 1
             </button>
@@ -345,7 +356,8 @@
         `<div class="alert alert-warning">Ingresa un número de semana entre 1 y 16.</div>`;
       return;
     }
-    const forzarRecarga = document.getElementById('forzar-recarga').checked;
+    const forzarRecarga  = document.getElementById('forzar-recarga').checked;
+    const syntheticMode  = document.getElementById('synthetic-mode').value;
 
     _stopPolling();
     const btn = document.getElementById('btn-trigger');
@@ -358,7 +370,7 @@
       const result = await fetchJSON('/app/v1/ingesta/ejecuciones', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ week_number: weekNum, forzar_recarga: forzarRecarga })
+        body: JSON.stringify({ week_number: weekNum, forzar_recarga: forzarRecarga, synthetic_mode: syntheticMode })
       });
       const ejecucionId = result.ejecucion_id;
       if (!ejecucionId) throw new Error('Airflow no devolvió un identificador de ejecución');

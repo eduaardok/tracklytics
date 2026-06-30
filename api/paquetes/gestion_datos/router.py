@@ -1,5 +1,5 @@
 import asyncio
-from typing import Any, Optional
+from typing import Any, Literal, Optional
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -297,6 +297,7 @@ _STAGE_BY_TASK = {
 class EjecucionIngestaRequest(BaseModel):
     week_number: int
     forzar_recarga: bool = False
+    synthetic_mode: Literal["uniform", "normal", "empirical"] = "uniform"
 
 
 async def _airflow_has_active_run() -> bool:
@@ -335,7 +336,7 @@ async def _airflow_has_active_run() -> bool:
 _trigger_lock = asyncio.Lock()
 
 
-async def _trigger_guarded(week_number: int, forzar_recarga: bool) -> dict:
+async def _trigger_guarded(week_number: int, forzar_recarga: bool, synthetic_mode: str = "uniform") -> dict:
     """Aplica idempotencia (RF-ING-003/RN-ING-001) y el guard de concurrencia
     antes de disparar la ejecución en Airflow. El disparo en sí (truncar +
     POST a Airflow) se mantiene exactamente como ya estaba."""
@@ -363,7 +364,7 @@ async def _trigger_guarded(week_number: int, forzar_recarga: bool) -> dict:
             raise HTTPException(status_code=502, detail=f"Cannot reach Airflow: {exc}")
 
         _truncate_fact_tables()
-        payload = {"conf": {"week_number": week_number}}
+        payload = {"conf": {"week_number": week_number, "synthetic_mode": synthetic_mode}}
         url = f"{AIRFLOW_URL}/api/v1/dags/{AIRFLOW_DAG}/dagRuns"
         try:
             async with httpx.AsyncClient(timeout=10) as client:
@@ -378,6 +379,7 @@ async def _trigger_guarded(week_number: int, forzar_recarga: bool) -> dict:
         "ejecucion_id":   airflow_data.get("dag_run_id"),
         "week_number":    week_number,
         "forzado":        forzar_recarga and ya_cargada,
+        "synthetic_mode": synthetic_mode,
         "airflow":        airflow_data,
     }
 
@@ -385,7 +387,7 @@ async def _trigger_guarded(week_number: int, forzar_recarga: bool) -> dict:
 @v1_router.post("/ejecuciones", status_code=202)
 async def crear_ejecucion(body: EjecucionIngestaRequest):
     """RF-ING-001: dispara la ingesta de un período/lote en Airflow."""
-    return await _trigger_guarded(body.week_number, body.forzar_recarga)
+    return await _trigger_guarded(body.week_number, body.forzar_recarga, body.synthetic_mode)
 
 
 @v1_router.get("/ejecuciones/{ejecucion_id}")

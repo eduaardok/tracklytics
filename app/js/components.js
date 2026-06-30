@@ -1,5 +1,5 @@
 import { getSession, logout } from './auth.js';
-import { getPlaylists, createPlaylist, addTrackToPlaylist } from './playlists.js';
+import { initPlaylists, getPlaylists, createPlaylist, addTrackToPlaylist } from './playlists.js';
 import { isFavorite, toggleFavorite } from './favorites.js';
 import { addToHistory } from './history.js';
 
@@ -166,11 +166,13 @@ export function renderPlayer() {
   document.getElementById('player-root').innerHTML = `
     <div class="player-bar">
       <div class="player-track" id="player-track">
-        <div class="player-thumb" id="player-thumb">🎵</div>
-        <div class="player-meta">
+        <div class="player-thumb" id="player-thumb">${GLYPH.music}</div>
+        <div class="player-meta" id="player-nav" style="cursor:pointer;flex:1;min-width:0;overflow:hidden">
           <div class="player-title" id="player-title">Selecciona una canción</div>
           <div class="player-artist" id="player-artist"></div>
         </div>
+        <button class="player-btn player-fav-btn" id="player-fav-btn" title="Favorito" style="flex-shrink:0;font-size:1rem">♥</button>
+        <button class="player-btn" id="player-pl-btn" title="Agregar a playlist" style="flex-shrink:0;font-size:1.1rem">⋮</button>
       </div>
       <div class="player-controls">
         <div class="player-buttons">
@@ -187,7 +189,7 @@ export function renderPlayer() {
         </div>
       </div>
       <div class="player-volume">
-        <span>🔊</span>
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;opacity:.6"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>
         <input type="range" class="volume-slider" min="0" max="100" value="80">
         <button class="player-btn" id="queue-btn" title="Cola">☰</button>
       </div>
@@ -214,11 +216,76 @@ export function renderPlayer() {
   });
 
   _initPlaylistModal();
+  initPlaylists().catch(() => {});
   _hydratePlayer();
+  _initSeek();
 
   // Sync player state across tabs — storage event only fires for OTHER tabs
   window.addEventListener('storage', e => {
     if (e.key === 'tl_player') _hydratePlayer();
+  });
+}
+
+// ── Seek (clic + arrastre en la barra de progreso) ───────────────────────────
+function _initSeek() {
+  const bar = document.getElementById('progress-bar');
+  if (!bar) return;
+
+  function frac(e) {
+    const r = bar.getBoundingClientRect();
+    return Math.max(0, Math.min((e.clientX - r.left) / r.width, 1));
+  }
+
+  function applySeek(f) {
+    const state   = _loadPlayerState();
+    if (!state.track) return;
+    const totalMs = state.track.duration_ms || 180000;
+    const newMs   = f * totalMs;
+    document.getElementById('progress-fill').style.width = `${f * 100}%`;
+    document.getElementById('p-current').textContent     = msToTime(newMs);
+    if (state.isPlaying) {
+      _savePlayerState({ elapsedMs: newMs, startedAt: Date.now() });
+      startProgress(totalMs, newMs);
+    } else {
+      _savePlayerState({ elapsedMs: newMs });
+    }
+  }
+
+  bar.addEventListener('pointerdown', e => {
+    const state = _loadPlayerState();
+    if (!state.track) return;
+    bar.setPointerCapture(e.pointerId);
+    clearInterval(progressTimer);
+    const f = frac(e);
+    const totalMs = state.track.duration_ms || 180000;
+    document.getElementById('progress-fill').style.width = `${f * 100}%`;
+    document.getElementById('p-current').textContent     = msToTime(f * totalMs);
+    e.preventDefault();
+  });
+
+  bar.addEventListener('pointermove', e => {
+    if (!bar.hasPointerCapture(e.pointerId)) return;
+    const state = _loadPlayerState();
+    if (!state.track) return;
+    const f = frac(e);
+    const totalMs = state.track.duration_ms || 180000;
+    document.getElementById('progress-fill').style.width = `${f * 100}%`;
+    document.getElementById('p-current').textContent     = msToTime(f * totalMs);
+  });
+
+  bar.addEventListener('pointerup',     e => { if (bar.hasPointerCapture(e.pointerId)) applySeek(frac(e)); });
+  bar.addEventListener('pointercancel', e => {
+    if (!bar.hasPointerCapture(e.pointerId)) return;
+    // Drag cancelled — restore to last saved position
+    const state = _loadPlayerState();
+    if (state.track) {
+      const elapsed = (state.elapsedMs || 0) +
+        (state.isPlaying && state.startedAt ? Date.now() - state.startedAt : 0);
+      const totalMs = state.track.duration_ms || 180000;
+      document.getElementById('progress-fill').style.width = `${Math.min(elapsed / totalMs, 1) * 100}%`;
+      document.getElementById('p-current').textContent     = msToTime(elapsed);
+      if (state.isPlaying) startProgress(totalMs, elapsed);
+    }
   });
 }
 
@@ -235,8 +302,30 @@ function _hydratePlayer() {
 
   document.getElementById('player-title').textContent  = track.track_name || track.name || '';
   document.getElementById('player-artist').textContent = track.artist_name || '';
-  document.getElementById('player-thumb').textContent  = '🎵';
   document.getElementById('p-total').textContent       = msToTime(totalMs);
+
+  window.__trackCache[track.fact_id] = track;
+
+  const favBtn = document.getElementById('player-fav-btn');
+  if (favBtn) {
+    favBtn.classList.toggle('active', isFavorite(track.fact_id));
+    favBtn.onclick = () => {
+      const added = toggleFavorite(track);
+      favBtn.classList.toggle('active', added);
+    };
+  }
+  const plBtn = document.getElementById('player-pl-btn');
+  if (plBtn) {
+    plBtn.onclick = () => {
+      if (window.__plModal) window.__plModal.open(track.fact_id);
+    };
+  }
+  const navEl = document.getElementById('player-nav');
+  if (navEl) {
+    navEl.onclick = () => {
+      window.location.href = `/catalogo/track.html?fact_id=${track.fact_id}`;
+    };
+  }
 
   const slider = document.querySelector('.volume-slider');
   if (slider) slider.value = state.volume ?? 80;
@@ -349,7 +438,7 @@ window.__plModal = {
   createAndAdd: async function() {
     const name = document.getElementById('modal-new-name').value.trim();
     if (!name) return;
-    const pl = createPlaylist(name);
+    const pl = await createPlaylist(name);
     if (this._track) addTrackToPlaylist(pl.id, this._track);
     document.getElementById('modal-new-name').value = '';
     const fb = document.getElementById('modal-feedback');
@@ -458,8 +547,30 @@ export async function playTrack(track) {
 
   document.getElementById('player-title').textContent  = track.track_name || track.name || '';
   document.getElementById('player-artist').textContent = track.artist_name || '';
-  document.getElementById('player-thumb').textContent  = '🎵';
   document.getElementById('play-btn').textContent      = '⏸';
+
+  window.__trackCache[track.fact_id] = track;
+
+  const favBtn = document.getElementById('player-fav-btn');
+  if (favBtn) {
+    favBtn.classList.toggle('active', isFavorite(track.fact_id));
+    favBtn.onclick = () => {
+      const added = toggleFavorite(track);
+      favBtn.classList.toggle('active', added);
+    };
+  }
+  const plBtn = document.getElementById('player-pl-btn');
+  if (plBtn) {
+    plBtn.onclick = () => {
+      if (window.__plModal) window.__plModal.open(track.fact_id);
+    };
+  }
+  const navEl = document.getElementById('player-nav');
+  if (navEl) {
+    navEl.onclick = () => {
+      window.location.href = `/catalogo/track.html?fact_id=${track.fact_id}`;
+    };
+  }
 
   const totalMs = track.duration_ms || 180000;
   document.getElementById('p-total').textContent = msToTime(totalMs);

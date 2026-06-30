@@ -8,6 +8,26 @@
   <link rel="icon" type="image/png" href="/img/logo.png"/>
   <link rel="stylesheet" href="/css/main.css"/>
   <link rel="stylesheet" href="/css/analytics.css"/>
+  <style>
+    @media print {
+      #sidebar-root, #player-root, .card:first-of-type, #error-banner, #empty-state, #btn-pdf { display: none !important; }
+      body { background: #fff !important; color: #000 !important; }
+      .app-layout { display: block !important; }
+      .main-content { padding: 0 !important; }
+      .page-title { color: #000 !important; font-size: 1.4rem; margin-bottom: .25rem; }
+      .print-header { display: block !important; font-size: .8rem; color: #555; margin-bottom: 1.5rem; }
+      .card { border: 1px solid #ddd !important; background: #fff !important; box-shadow: none !important; break-inside: avoid; }
+      .card-header { background: #f5f5f5 !important; color: #000 !important; padding: .5rem .75rem !important; font-weight: 600; }
+      .kpi-card { border: 1px solid #ddd !important; background: #fff !important; box-shadow: none !important; }
+      .kpi-label { color: #555 !important; }
+      .kpi-value { color: #000 !important; }
+      table { border-collapse: collapse; width: 100%; }
+      th, td { border: 1px solid #ccc; padding: .35rem .6rem; color: #000 !important; }
+      th { background: #f0f0f0 !important; }
+      .alert { border: 1px solid #ccc !important; background: #fff !important; color: #333 !important; }
+    }
+    .print-header { display: none; }
+  </style>
 </head>
 <body>
 <div id="sidebar-root"></div>
@@ -25,11 +45,13 @@
             <input type="date" id="fecha-input" class="form-control"/>
           </div>
           <button class="btn btn-primary" onclick="loadReporte()">Generar reporte</button>
+          <button id="btn-pdf" class="btn btn-secondary" onclick="window.print()" style="display:none">Descargar PDF</button>
         </div>
       </div>
     </div>
 
     <div id="report-body" style="display:none">
+      <p class="print-header" id="print-header"></p>
       <div class="kpi-grid" id="kpi-grid">
         <div class="kpi-card"><div class="kpi-label">Corridas ETL</div><div class="kpi-value" id="kpi-corridas">—</div></div>
         <div class="kpi-card"><div class="kpi-label">Registros Insertados</div><div class="kpi-value" id="kpi-inserted">—</div></div>
@@ -55,7 +77,10 @@
         </div>
       </div>
 
-      <div class="alert" style="border-left:3px solid #f6ad55;margin-top:1rem;padding:.75rem 1rem" id="nota-banner"></div>
+      <div id="nota-banner" style="display:none;margin-top:1rem;padding:.6rem 1rem;border-radius:8px;background:rgba(246,173,85,.08);border:1px solid rgba(246,173,85,.3);font-size:.85rem;color:var(--text-muted);display:flex;align-items:flex-start;gap:.5rem">
+        <span style="color:#f6ad55;font-size:1rem;flex-shrink:0">⚠</span>
+        <span id="nota-text"></span>
+      </div>
     </div>
 
     <div id="empty-state">
@@ -109,6 +134,9 @@
 
       document.getElementById('empty-state').style.display = 'none';
       document.getElementById('report-body').style.display = 'block';
+      document.getElementById('btn-pdf').style.display = '';
+      document.getElementById('print-header').textContent =
+        `Reporte Diario Operativo — ${data.fecha} — Generado el ${new Date().toLocaleString('es-CO')}`;
 
       document.getElementById('kpi-corridas').textContent = data.ingestas.corridas ?? 0;
       document.getElementById('kpi-inserted').textContent = (data.ingestas.records_inserted ?? 0).toLocaleString();
@@ -121,7 +149,11 @@
         ? engagement.map(e => `<tr><td>${e.event_type}</td><td>${e.total}</td></tr>`).join('')
         : `<tr><td colspan="2" class="text-muted" style="padding:.75rem">Sin actividad este día</td></tr>`;
 
-      document.getElementById('nota-banner').textContent = data.nota ?? '';
+      const nota = data.nota ?? '';
+      if (nota) {
+        document.getElementById('nota-text').textContent = nota;
+        document.getElementById('nota-banner').style.display = 'flex';
+      }
 
     } catch (e) {
       if (!e.accessDenied) showError(`Error generando el reporte: ${e.message}`);

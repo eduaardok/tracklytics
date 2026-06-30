@@ -80,11 +80,15 @@ El sistema SHALL calcular el índice de desempeño relativo (`engagement_score /
 - **THEN** el sistema indica que no hay datos de engagement suficientes para calcular el índice, en lugar de mostrar un valor incorrecto o vacío sin explicación
 
 ### Requirement: Reporte diario operativo
-El sistema SHALL permitir generar un reporte diario que agregue suscripciones, adquisiciones e ingestas del día corriente.
+El sistema SHALL permitir generar un reporte diario que agregue ingestas y engagement del día, con indicación explícita de los pendientes tácticos aún no implementados (suscripciones, adquisiciones). El reporte SHALL poder descargarse como PDF desde el propio navegador.
 
 #### Scenario: Generar reporte diario operativo
-- **WHEN** un Data Analyst/BI Lead solicita el reporte diario operativo
-- **THEN** el sistema genera un reporte consolidado con suscripciones, adquisiciones e ingestas del día corriente
+- **WHEN** un Data Analyst/BI Lead solicita el reporte diario para una fecha dada
+- **THEN** el sistema muestra ingestas ETL (corridas, registros leídos/insertados/rechazados) y engagement por tipo de evento del día, más un aviso de pendiente táctico para suscripciones y adquisiciones
+
+#### Scenario: Exportar reporte a PDF
+- **WHEN** el reporte ya está generado y el usuario hace clic en "Descargar PDF"
+- **THEN** el navegador abre el diálogo de impresión con una vista limpia (sin sidebar ni controles), lista para guardar como PDF
 
 ### Requirement: Acceso a paneles analíticos condicionado a suscripción activa
 El acceso a los paneles analíticos B2B SHALL requerir una suscripción activa (ver capability `suscripciones`); un Cliente B2B sin plan activo no puede consultar estos dashboards.
@@ -115,7 +119,7 @@ Todos los gráficos SHALL mantener proporciones legibles, sin miniaturas ilegibl
 - Gráfico comparativo de artistas.
 - Serie temporal de métricas por semana.
 - Vista "Mercado vs. Tracklytics" (scatter con línea de referencia 1:1).
-- Reporte diario consolidado (suscripciones, adquisiciones, ingestas).
+- Reporte diario con ingestas ETL + engagement del día, aviso de pendiente táctico para suscripciones/adquisiciones, y botón de exportación a PDF.
 
 ## Dependencias
 
@@ -127,5 +131,6 @@ Todos los gráficos SHALL mantener proporciones legibles, sin miniaturas ilegibl
 ## Fuera de alcance
 
 - Modelos predictivos de Machine Learning (predicción de tendencias, churn B2B); estos pertenecen al nivel táctico/estratégico (CU-T07, CU-E05), no a esta capability operativa.
-- Exportación de reportes a PDF/Excel.
+- Exportación de reportes a Excel.
+- Exportación a PDF de paneles distintos al reporte diario.
 - Comparación de más de dos artistas simultáneamente.

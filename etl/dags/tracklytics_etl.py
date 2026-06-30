@@ -47,6 +47,17 @@ with DAG(
             description="Semanas a cargar (1-16). "
                         "Semana 1 = solo reales. Semana N = reales + (N-1)×100k sintéticos.",
         ),
+        "synthetic_mode": Param(
+            default="uniform",
+            type="string",
+            enum=["uniform", "normal", "empirical"],
+            description=(
+                "Modo de distribución para datos sintéticos (semanas 2+). "
+                "uniform: distribuciones planas aleatorias. "
+                "normal: gaussianas centradas en valores musicalmente realistas. "
+                "empirical: resamplea directo de los datos reales (semana 1)."
+            ),
+        ),
     },
 ) as dag:
 

@@ -120,7 +120,9 @@
   });
 
   function timeAgo(isoStr) {
-    const mins = Math.floor((Date.now() - new Date(isoStr).getTime()) / 60000);
+    // ClickHouse DateTime se devuelve sin zona horaria; forzar UTC para parseo correcto
+    const utc  = isoStr && !/Z|[+-]\d{2}:\d{2}$/.test(isoStr) ? isoStr.replace(' ', 'T') + 'Z' : isoStr;
+    const mins = Math.floor((Date.now() - new Date(utc).getTime()) / 60000);
     if (mins < 1)  return 'ahora mismo';
     if (mins < 60) return `hace ${mins} minuto${mins !== 1 ? 's' : ''}`;
     const hours = Math.floor(mins / 60);

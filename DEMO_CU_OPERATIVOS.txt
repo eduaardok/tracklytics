@@ -1,0 +1,351 @@
+TRACKLYTICS — GUÍA DE DEMOSTRACIÓN: CASOS DE USO OPERATIVOS
+=============================================================
+URL BASE: http://localhost:8081
+Generado: 2026-06-30
+
+CREDENCIALES DE USUARIO
+-----------------------
+  Usuario B2C   →  usuario.b2c@tracklytics.dev  /  Tracklytics2026!   (role: user)
+  Cliente B2B   →  cliente.b2b@tracklytics.dev  /  Tracklytics2026!   (role: analyst)
+  Admin/LDE     →  admin.demo@tracklytics.dev    /  Tracklytics2026!   (role: admin)
+  Partner API   →  X-API-Key: demobasico2026key1234567890ab            (tier: basico)
+
+=============================================================
+
+CU-O01 — REGISTRARSE, INICIAR Y CERRAR SESIÓN
+----------------------------------------------
+Actor      : Usuario B2C / Cliente B2B
+Pantalla   : /autenticacion/register.html  y  /autenticacion/login.html
+
+Pasos para demostrar:
+  1. Ir a /autenticacion/register.html
+     → Crear una cuenta nueva con cualquier email y contraseña
+     → El sistema registra al usuario y redirige a /catalogo/home.html
+  2. Cerrar sesión desde el menú de perfil (icono usuario, top derecha)
+     → El sistema invalida la sesión y redirige a /autenticacion/login.html
+  3. Iniciar sesión con las credenciales del paso 1
+     → El sistema autentica y redirige a /catalogo/home.html
+
+Alternativa rápida: iniciar sesión directo con usuario.b2c@tracklytics.dev
+
+
+=============================================================
+
+CU-O02 — BUSCAR Y EXPLORAR CATÁLOGO MUSICAL
+--------------------------------------------
+Actor      : Usuario B2C o Cliente B2B
+Usuario    : usuario.b2c@tracklytics.dev / Tracklytics2026!
+Pantallas  : /catalogo/home.html  →  /catalogo/search.html
+
+Pasos para demostrar:
+  1. Iniciar sesión como Usuario B2C
+  2. Ir a /catalogo/home.html
+     → Verificar que aparecen Top Tracks y géneros populares
+  3. Ir a /catalogo/search.html
+     → Buscar "bad bunny" por artista
+     → Cambiar filtro a "género" y buscar "reggaeton"
+     → Cambiar filtro a "nombre" y buscar "aguacero"
+  4. Verificar paginación con los controles de página
+
+
+=============================================================
+
+CU-O03 — CONSULTAR DETALLE DE TRACK / ARTISTA / ÁLBUM / GÉNERO
+---------------------------------------------------------------
+Actor      : Usuario B2C o Cliente B2B
+Usuario    : usuario.b2c@tracklytics.dev / Tracklytics2026!
+Pantallas  : /catalogo/track.html   /catalogo/artist.html
+             /catalogo/album.html   /catalogo/genres.html (catálogo)
+
+Pasos para demostrar:
+  1. Desde /catalogo/search.html buscar "aguacero" y hacer clic en el track
+     → Pantalla /catalogo/track.html muestra: nombre, artista, álbum,
+       género(s) concatenados (ej. "reggaeton / latin"), 7 atributos de audio
+       (popularidad, energía, danceability, etc.) y gráfico radar
+  2. Hacer clic en el nombre del artista (enlace en el detalle)
+     → Pantalla /catalogo/artist.html muestra discografía y top tracks
+  3. Hacer clic en el nombre del álbum
+     → Pantalla /catalogo/album.html muestra tracklist completo
+  4. Verificar que un track con múltiples géneros los muestra concatenados
+     (ej. "pop / dance pop") en todas las vistas, sin filas duplicadas
+
+
+=============================================================
+
+CU-O04 — GESTIONAR FAVORITOS Y PLAYLISTS
+-----------------------------------------
+Actor      : Usuario B2C (exclusivo)
+Usuario    : usuario.b2c@tracklytics.dev / Tracklytics2026!
+Pantallas  : /catalogo/track.html  →  /biblioteca/library.html
+
+Pasos para demostrar — Favoritos:
+  1. Iniciar sesión como Usuario B2C
+  2. Navegar a cualquier track (ej. buscar "aguacero")
+  3. En la barra del reproductor (parte inferior), hacer clic en ♥
+     → El botón se pone rosa (activo) de forma inmediata (optimistic UI)
+  4. Ir a /biblioteca/library.html → pestaña "Favoritos"
+     → El track aparece en la lista con géneros concatenados
+
+Pasos para demostrar — Playlists:
+  1. En la barra del reproductor, hacer clic en ⋮
+     → Aparece el modal "Agregar a playlist"
+  2. Escribir un nombre en "Nueva playlist…" y hacer clic en "Crear"
+     → La playlist se crea y el track se agrega automáticamente
+  3. Ir a /biblioteca/library.html → pestaña "Playlists"
+     → La playlist aparece con el track
+  4. Verificar que un Cliente B2B NO puede acceder a esta sección
+     (iniciar sesión como cliente.b2b@tracklytics.dev → la biblioteca
+     personal muestra mensaje de acceso denegado)
+
+
+=============================================================
+
+CU-O05 — CONSULTAR HISTORIAL DE REPRODUCCIÓN
+---------------------------------------------
+Actor      : Usuario B2C (exclusivo)
+Usuario    : usuario.b2c@tracklytics.dev / Tracklytics2026!
+Pantalla   : /biblioteca/library.html
+
+Pasos para demostrar:
+  1. Iniciar sesión como Usuario B2C
+  2. Reproducir 2-3 tracks distintos haciendo clic en ellos
+     (desde search, home o cualquier lista)
+  3. Ir a /biblioteca/library.html → pestaña "Historial"
+     → Los tracks reproducidos aparecen ordenados del más reciente
+       al más antiguo, con el tiempo relativo (ej. "hace 2 minutos")
+  4. Verificar que el historial es de solo lectura (no hay botón de borrar)
+
+
+=============================================================
+
+CU-O06 — SUSCRIBIRSE A PLAN PREMIUM O PLAN B2B
+------------------------------------------------
+Actor      : Usuario B2C o Cliente B2B
+Usuario    : usuario.b2c@tracklytics.dev / Tracklytics2026!
+Pantalla   : /autenticacion/planes.html
+
+Pasos para demostrar — B2C:
+  1. Iniciar sesión como Usuario B2C
+  2. Ir a /autenticacion/planes.html
+     → Aparecen los planes B2C: Free, Plus (4.99 USD), Pro (9.99 USD)
+  3. Hacer clic en "Suscribirse" en el plan Plus
+     → El sistema registra la suscripción y muestra confirmación
+  4. El plan activo queda marcado con indicador visual
+
+Pasos para demostrar — B2B:
+  1. Iniciar sesión como Cliente B2B (cliente.b2b@tracklytics.dev)
+  2. Ir a /autenticacion/planes.html
+     → Aparecen planes B2B: Starter, Professional, Enterprise
+  3. Seleccionar un plan B2B y suscribirse
+
+
+=============================================================
+
+CU-O07 — CONSULTAR DASHBOARD EJECUTIVO DE KPIs DEL CATÁLOGO
+------------------------------------------------------------
+Actor      : Cliente B2B o Admin
+Usuario    : cliente.b2b@tracklytics.dev / Tracklytics2026!
+Pantalla   : /analytics/dashboard.html
+
+Pasos para demostrar:
+  1. Iniciar sesión como Cliente B2B
+  2. Ir a /analytics/dashboard.html
+     → Aparecen KPIs: total tracks, artistas, álbumes, géneros,
+       popularidad promedio, energía promedio, valence promedio
+  3. Verificar que un Usuario B2C sin plan analítico no puede acceder
+     (iniciar sesión como usuario.b2c@tracklytics.dev → redirige a suscripción)
+
+
+=============================================================
+
+CU-O08 — ANALIZAR PERFIL DE AUDIO POR GÉNERO
+--------------------------------------------
+Actor      : Cliente B2B o Admin
+Usuario    : cliente.b2b@tracklytics.dev / Tracklytics2026!
+Pantalla   : /analytics/genres.html
+
+Pasos para demostrar:
+  1. Iniciar sesión como Cliente B2B
+  2. Ir a /analytics/genres.html
+  3. Seleccionar un género (ej. "reggaeton") del selector
+     → Aparece gráfico radar con el perfil de audio promedio:
+       energía, danceability, valence, acousticness, etc.
+  4. Cambiar a otro género (ej. "classical") y comparar visualmente
+
+
+=============================================================
+
+CU-O09 — COMPARAR ARTISTAS (A vs. B Y BENCHMARK DE GÉNERO)
+-----------------------------------------------------------
+Actor      : Cliente B2B o Admin
+Usuario    : cliente.b2b@tracklytics.dev / Tracklytics2026!
+Pantalla   : /analytics/compare-artists.html
+
+Pasos para demostrar:
+  1. Iniciar sesión como Cliente B2B
+  2. Ir a /analytics/compare-artists.html
+  3. Buscar "Bad Bunny" en el primer campo y seleccionarlo
+  4. Buscar "J Balvin" en el segundo campo y seleccionarlo
+  5. Hacer clic en "Comparar"
+     → Gráfico comparativo de atributos de audio entre ambos artistas
+       más línea de benchmark del género al que pertenecen
+  6. Alternativamente, marcar "Comparar contra benchmark del género"
+     para ver un solo artista vs. su género
+
+
+=============================================================
+
+CU-O10 — CONSULTAR TENDENCIAS TEMPORALES POR SEMANA
+----------------------------------------------------
+Actor      : Cliente B2B o Admin
+Usuario    : cliente.b2b@tracklytics.dev / Tracklytics2026!
+Pantalla   : /analytics/trends.html
+
+Pasos para demostrar:
+  1. Iniciar sesión como Cliente B2B
+  2. Ir a /analytics/trends.html
+  3. Seleccionar métrica "Popularidad promedio" y rango de semanas
+     → Serie temporal que muestra la evolución semana a semana
+  4. Cambiar a "Energía" o "Danceability" y observar la tendencia
+  5. Verificar que se distinguen los datos reales (semana 1)
+     de los sintéticos (semanas 2+) si aplica
+
+
+=============================================================
+
+CU-O11 — CONSULTAR ÍNDICE DE DESEMPEÑO RELATIVO (MERCADO vs. TRACKLYTICS)
+--------------------------------------------------------------------------
+Actor      : Cliente B2B
+Usuario    : cliente.b2b@tracklytics.dev / Tracklytics2026!
+Pantalla   : /analytics/mercado-vs-tracklytics.html
+
+Pasos para demostrar:
+  1. Iniciar sesión como Cliente B2B
+  2. Ir a /analytics/mercado-vs-tracklytics.html
+     → Scatter plot: eje X = popularidad de mercado (Spotify),
+       eje Y = engagement interno (FACT_ENGAGEMENT_USUARIO)
+     → Línea de referencia 1:1: puntos sobre la línea = mayor
+       engagement interno que popularidad externa (oportunidad)
+  3. Verificar que un Admin también puede acceder
+     (iniciar sesión como admin.demo@tracklytics.dev)
+
+
+=============================================================
+
+CU-O12 — CONSUMIR DATOS DEL CATÁLOGO MEDIANTE INTEGRACIÓN (PARTNER API)
+------------------------------------------------------------------------
+Actor      : Partner / Integrador
+API Key    : demobasico2026key1234567890ab  (tier: basico)
+Pantallas  : /partners/landing.html   (demo pública, sin login)
+             /partners/console.html   (consola autenticada)
+
+Pasos para demostrar — Landing pública:
+  1. Abrir /partners/landing.html sin iniciar sesión
+     → Muestra la propuesta de valor de la API de partners,
+       tiers disponibles, instrucciones de autenticación
+       y un ejemplo de curl en vivo
+
+Pasos para demostrar — Consola:
+  1. Iniciar sesión como Admin (admin.demo@tracklytics.dev)
+  2. Ir a /partners/console.html
+  3. Ingresar la API key: demobasico2026key1234567890ab
+  4. Ejecutar una consulta de tracks
+     → Respuesta JSON con los campos del tier básico
+       (track_name, artist_name, genre_name, popularity)
+
+Pasos para demostrar — API directa (curl):
+  curl -H "X-API-Key: demobasico2026key1234567890ab" \
+       http://localhost:8081/api/partners/v1/tracks?limit=5
+
+  → Respuesta JSON con tracks del catálogo limitada al tier básico
+  → Cada llamada queda registrada en LOG_LLAMADAS_PARTNER (ClickHouse)
+
+
+=============================================================
+
+CU-O13 — EJECUTAR Y MONITOREAR LA INGESTA DE DATOS DE CATÁLOGO
+---------------------------------------------------------------
+Actor      : Admin / Lead Data Engineer
+Usuario    : admin.demo@tracklytics.dev / Tracklytics2026!
+Pantalla   : /analytics/etl.html
+
+Pasos para demostrar:
+  1. Iniciar sesión como Admin
+  2. Ir a /analytics/etl.html
+  3. En "Semana a cargar" seleccionar semana 2
+  4. Seleccionar distribución: "Normal — gaussiana con valores musicalmente realistas"
+  5. Hacer clic en "Ejecutar ETL"
+     → El sistema dispara el DAG en Airflow y muestra el estado en tiempo real
+     → Al completar aparece "ETL completado exitosamente"
+  6. En el historial de cargas aparece la nueva ejecución con
+     registros leídos, insertados y rechazados
+
+
+=============================================================
+
+CU-O14 — AUDITAR HISTORIAL Y CALIDAD DE LAS CARGAS DE DATOS
+------------------------------------------------------------
+Actor      : Admin / Lead Data Engineer
+Usuario    : admin.demo@tracklytics.dev / Tracklytics2026!
+Pantalla   : /analytics/etl.html  (sección historial inferior)
+
+Pasos para demostrar:
+  1. Iniciar sesión como Admin
+  2. Ir a /analytics/etl.html
+  3. Desplazarse a la sección "Historial de cargas"
+     → Tabla con todas las ejecuciones ETL: fecha, semana, registros
+       leídos / insertados / rechazados, tasa de rechazo, estado
+  4. Verificar que una tasa de rechazo > 1% aparece marcada visualmente
+     como "requiere revisión"
+  5. Verificar que la última carga exitosa aparece en el indicador
+     superior de estado
+
+
+=============================================================
+
+CU-O15 — ADMINISTRAR (CRUD) DIMENSIONES DEL CATÁLOGO
+-----------------------------------------------------
+Actor      : Admin / Lead Data Engineer
+Usuario    : admin.demo@tracklytics.dev / Tracklytics2026!
+Pantalla   : /analytics/crud.html
+
+Pasos para demostrar:
+  1. Iniciar sesión como Admin
+  2. Ir a /analytics/crud.html
+  3. Seleccionar dimensión "Géneros" del selector
+     → Aparece la tabla con todos los géneros existentes
+  4. Hacer clic en "Agregar" → ingresar un nuevo género → guardar
+     → El género aparece en la tabla
+  5. Editar un registro existente y guardar cambios
+  6. Eliminar el registro recién creado
+  7. Verificar que un Usuario B2C no puede acceder a esta pantalla
+
+
+=============================================================
+
+CU-O16 — GENERAR REPORTE DIARIO OPERATIVO
+------------------------------------------
+Actor      : Admin / Data Analyst / BI Lead
+Usuario    : admin.demo@tracklytics.dev / Tracklytics2026!
+Pantalla   : /analytics/reporte-diario.html
+
+Pasos para demostrar:
+  1. Iniciar sesión como Admin
+  2. Ir a /analytics/reporte-diario.html
+     → La página carga automáticamente el reporte del día actual
+  3. Verificar KPIs de ingestas ETL del día
+     (si no hay corridas hoy, los valores serán 0 — es correcto)
+  4. Verificar tabla de engagement: reproducciones y favoritos del día
+  5. Verificar el aviso de pendiente táctico al pie:
+     "Pendiente táctico: métricas de suscripciones..."
+  6. Para ver datos de ingestas: cambiar la fecha a 2026-06-25
+     y hacer clic en "Generar reporte" → aparecen 7 corridas ETL
+  7. Con el reporte visible, hacer clic en "Descargar PDF"
+     → El navegador abre el diálogo de impresión con vista limpia
+     → Guardar como PDF
+
+  NOTA: Solo usuarios con role=admin pueden acceder a esta pantalla.
+  Un Cliente B2B es redirigido automáticamente a /catalogo/home.html.
+
+=============================================================
+FIN DEL DOCUMENTO

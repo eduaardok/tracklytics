@@ -65,11 +65,30 @@ El sistema SHALL permitir filtrar los resultados de búsqueda por género, entre
 - **THEN** el sistema retorna únicamente los tracks que pertenecen al género seleccionado
 
 ### Requirement: Detalle de track por fact_id
-El sistema SHALL mostrar el detalle de un track identificado por su `fact_id` (no `track_id`, dado que un mismo track puede repetirse en múltiples géneros), incluyendo sus 7 atributos de audio principales.
+El sistema SHALL mostrar el detalle de un track identificado por su `fact_id` como punto de entrada, resolviendo internamente todos los géneros asociados al mismo `track_id` y presentándolos agregados, incluyendo sus 7 atributos de audio principales.
 
-#### Scenario: Consultar detalle de un track
-- **WHEN** un usuario solicita el detalle de un track mediante su `fact_id`
-- **THEN** el sistema muestra los 7 atributos de audio principales del track junto con su artista, álbum y género
+#### Scenario: Consultar detalle de un track con un único género
+- **WHEN** un usuario solicita el detalle de un track mediante su `fact_id` y ese track pertenece a un solo género
+- **THEN** el sistema muestra los 7 atributos de audio principales del track junto con su artista, álbum y el género único
+
+#### Scenario: Consultar detalle de un track con múltiples géneros
+- **WHEN** un usuario solicita el detalle de un track mediante su `fact_id` y ese track pertenece a más de un género en FACT_TRACKS
+- **THEN** el sistema muestra los 7 atributos de audio principales del track junto con su artista, álbum y todos sus géneros concatenados (ej. "pop / dance pop"), sin repetir la fila por cada género
+
+### Requirement: Tracks con múltiples géneros en vistas de lista
+El sistema SHALL mostrar cada track una única vez en todas las vistas de lista (top tracks, por artista, por álbum, búsqueda, favoritos, historial), agregando todos los géneros del track en un solo campo cuando este pertenezca a más de uno.
+
+#### Scenario: Track multi-género en lista de álbum, artista o búsqueda
+- **WHEN** un usuario navega a la lista de canciones de un álbum, artista o resultado de búsqueda, y hay tracks que pertenecen a múltiples géneros
+- **THEN** el sistema muestra cada track una sola vez con todos sus géneros concatenados (ej. "pop / dance pop"), sin duplicar la fila por género
+
+#### Scenario: Track multi-género en favoritos o historial
+- **WHEN** un usuario consulta su lista de favoritos o su historial de reproducción, y alguno de los tracks pertenece a múltiples géneros
+- **THEN** el sistema muestra todos los géneros del track concatenados (ej. "pop / dance pop") en esa vista, con la misma presentación que en las listas de catálogo
+
+#### Scenario: Track con un único género en lista
+- **WHEN** un track pertenece a un único género
+- **THEN** el sistema lo muestra normalmente con su género sin concatenación
 
 ### Requirement: Navegación cruzada desde el detalle
 El sistema SHALL permitir navegación cruzada entre track, artista, álbum y género desde la vista de detalle.
@@ -119,6 +138,17 @@ El sistema SHALL registrar automáticamente cada reproducción en el historial d
 - **WHEN** un usuario intenta editar o eliminar manualmente un registro individual de su historial
 - **THEN** el sistema rechaza la operación
 
+### Requirement: Reproductor persistente con barra de progreso navegable
+El sistema SHALL mostrar un reproductor persistente en todas las páginas que permita controlar la reproducción (play/pause, anterior, siguiente) y SHALL permitir al usuario posicionarse en cualquier punto de la simulación de tiempo haciendo clic o arrastrando la barra de progreso. El estado del reproductor (track activo, posición, cola) SHALL persistir en `localStorage` y sobrevivir la navegación entre páginas.
+
+#### Scenario: Navegar a un punto específico de la barra de progreso
+- **WHEN** un usuario hace clic o arrastra sobre la barra de progreso mientras hay un track activo
+- **THEN** el sistema mueve la posición de reproducción al punto seleccionado de forma inmediata, actualiza el tiempo transcurrido, y continúa o mantiene pausa según el estado previo
+
+#### Scenario: Estado del reproductor persiste al navegar entre páginas
+- **WHEN** un usuario navega a otra página mientras hay un track activo
+- **THEN** el reproductor se rehidrata automáticamente con el mismo track, posición aproximada y estado de reproducción previos
+
 ### Requirement: Acceso de solo lectura al catálogo para Cliente B2B
 Un Cliente B2B SHALL tener acceso de solo lectura al catálogo; no puede gestionar favoritos, playlists ni historial (estos son exclusivos de Usuario B2C).
 
@@ -146,7 +176,7 @@ El sistema SHALL asegurar que las credenciales nunca se almacenen ni transmitan 
 
 - Token de sesión válido o mensaje de error de autenticación.
 - Lista paginada de tracks que coinciden con la búsqueda.
-- Vista de detalle con atributos de audio, artista, álbum, género.
+- Vista de detalle con atributos de audio, artista, álbum y género(s) agregados.
 - Confirmación de favorito/playlist actualizada, o mensaje de error.
 - Historial de reproducción ordenado cronológicamente.
 

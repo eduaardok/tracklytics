@@ -242,7 +242,8 @@ def v1_reporte_diario(fecha: date | None = Query(None)):
         "suscripciones": None,
         "adquisiciones": None,
         "nota": (
-            "suscripciones y adquisiciones no se reportan: FACT_SUSCRIPCION y "
-            "FACT_ADQUISICION no existen en el ClickHouse actual."
+            "Pendiente táctico: métricas de suscripciones (altas, bajas, churn) "
+            "y adquisiciones no se incluyen aún — requieren el ETL de suscripciones "
+            "PocketBase → ClickHouse, previsto para la capa táctica."
         ),
     }

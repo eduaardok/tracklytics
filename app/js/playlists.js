@@ -69,25 +69,22 @@ export function getPlaylists() {
   return [..._cache];
 }
 
-// ── createPlaylist — sync optimistic + fire-and-forget ───────────────────────
-// Must be sync: components.js __plModal.createAndAdd() uses pl.id immediately
-// after calling this to call addTrackToPlaylist(pl.id, track).
-// Limitation: the temp ID is replaced by the real PocketBase ID asynchronously;
-// any addTrackToPlaylist call that races the API will use the temp ID and fail
-// at the PocketBase layer (no-op silently). Fix in next step when components.js
-// is updated to await createPlaylist.
-export function createPlaylist(name) {
+// ── createPlaylist — async: aguarda el ID real de PocketBase antes de retornar ─
+export async function createPlaylist(name) {
   const tempId = `temp_${Date.now()}`;
   const newPl  = { id: tempId, name: name.trim(), tracks: [] };
   _cache.push(newPl);
 
-  _pbFetch('POST', '/api/collections/playlists/records', {
-    name: name.trim(),
-    user: _userId(),
-  }).then(res => {
+  try {
+    const res = await _pbFetch('POST', '/api/collections/playlists/records', {
+      name: name.trim(),
+      user: _userId(),
+    });
     const pl = _cache.find(p => p.id === tempId);
     if (pl) pl.id = res.id;
-  }).catch(console.error);
+  } catch (e) {
+    console.error(e);
+  }
 
   return newPl;
 }

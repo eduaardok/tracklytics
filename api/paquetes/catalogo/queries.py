@@ -1,46 +1,63 @@
 TRACKS_TOP = """
 SELECT
-    ft.fact_id,
+    min(ft.fact_id)                                   AS fact_id,
     ft.track_id,
     ft.track_name,
-    a.name  AS artist_name,
-    g.name  AS genre_name,
-    ft.popularity,
-    ft.duration_ms,
-    ft.danceability,
-    ft.energy,
-    ft.valence
+    a.name                                            AS artist_name,
+    arrayStringConcat(groupUniqArray(g.name), ' / ') AS genre_name,
+    max(ft.popularity)                                AS popularity,
+    any(ft.duration_ms)                               AS duration_ms,
+    any(ft.danceability)                              AS danceability,
+    any(ft.energy)                                    AS energy,
+    any(ft.valence)                                   AS valence
 FROM FACT_TRACKS ft
 JOIN DIM_ARTISTS a ON ft.artist_id = a.artist_id
 JOIN DIM_GENRES  g ON ft.genre_id  = g.genre_id
-ORDER BY ft.popularity DESC
+WHERE ft.is_synthetic = 0
+GROUP BY ft.track_id, ft.track_name, ft.artist_id, a.name
+ORDER BY popularity DESC
 LIMIT {limit:UInt32}
+SETTINGS use_query_cache = 1, query_cache_ttl = 120, query_cache_share_between_users = 1
 """
 
 TRACKS_BY_ARTIST = """
 SELECT
-    ft.fact_id, ft.track_id, ft.track_name, ft.popularity, ft.duration_ms,
-    ft.danceability, ft.energy, ft.valence,
-    a.name AS artist_name,
-    g.name AS genre_name
+    min(ft.fact_id)                                   AS fact_id,
+    ft.track_id,
+    ft.track_name,
+    any(ft.popularity)                                AS popularity,
+    any(ft.duration_ms)                               AS duration_ms,
+    any(ft.danceability)                              AS danceability,
+    any(ft.energy)                                    AS energy,
+    any(ft.valence)                                   AS valence,
+    a.name                                            AS artist_name,
+    arrayStringConcat(groupUniqArray(g.name), ' / ') AS genre_name
 FROM FACT_TRACKS ft
 JOIN DIM_ARTISTS a ON ft.artist_id = a.artist_id
 JOIN DIM_GENRES  g ON ft.genre_id  = g.genre_id
 WHERE ft.artist_id = {artist_id:Int32}
-ORDER BY ft.popularity DESC
+GROUP BY ft.track_id, ft.track_name, ft.artist_id, a.name
+ORDER BY any(ft.popularity) DESC
 LIMIT {limit:UInt32}
 """
 
 TRACKS_BY_ALBUM = """
 SELECT
-    ft.fact_id, ft.track_id, ft.track_name, ft.popularity, ft.duration_ms,
-    ft.danceability, ft.energy, ft.valence,
-    a.name AS artist_name,
-    g.name AS genre_name
+    min(ft.fact_id)                              AS fact_id,
+    ft.track_id,
+    ft.track_name,
+    any(ft.popularity)                           AS popularity,
+    any(ft.duration_ms)                          AS duration_ms,
+    any(ft.danceability)                         AS danceability,
+    any(ft.energy)                               AS energy,
+    any(ft.valence)                              AS valence,
+    a.name                                       AS artist_name,
+    arrayStringConcat(groupUniqArray(g.name), ' / ') AS genre_name
 FROM FACT_TRACKS ft
 JOIN DIM_ARTISTS a ON ft.artist_id = a.artist_id
 JOIN DIM_GENRES  g ON ft.genre_id  = g.genre_id
 WHERE ft.album_id = {album_id:Int32}
+GROUP BY ft.track_id, ft.track_name, ft.artist_id, a.name
 ORDER BY ft.track_name
 LIMIT {limit:UInt32}
 """
@@ -61,17 +78,29 @@ LIMIT {limit:UInt32}
 
 TRACK_DETAIL = """
 SELECT
-    ft.track_id, ft.track_name, ft.popularity, ft.duration_ms,
-    ft.danceability, ft.energy, ft.loudness, ft.speechiness,
-    ft.acousticness, ft.instrumentalness, ft.liveness, ft.valence, ft.tempo,
-    a.name     AS artist_name, a.artist_id  AS artist_id,
-    al.name    AS album_name,  al.album_id  AS album_id,
-    g.name     AS genre_name
+    ft.track_id, ft.track_name,
+    any(ft.popularity)                                AS popularity,
+    any(ft.duration_ms)                               AS duration_ms,
+    any(ft.danceability)                              AS danceability,
+    any(ft.energy)                                    AS energy,
+    any(ft.loudness)                                  AS loudness,
+    any(ft.speechiness)                               AS speechiness,
+    any(ft.acousticness)                              AS acousticness,
+    any(ft.instrumentalness)                          AS instrumentalness,
+    any(ft.liveness)                                  AS liveness,
+    any(ft.valence)                                   AS valence,
+    any(ft.tempo)                                     AS tempo,
+    a.name                                            AS artist_name,
+    ft.artist_id                                      AS artist_id,
+    al.name                                           AS album_name,
+    ft.album_id                                       AS album_id,
+    arrayStringConcat(groupUniqArray(g.name), ' / ') AS genre_name
 FROM FACT_TRACKS ft
 JOIN DIM_ARTISTS a  ON ft.artist_id = a.artist_id
 JOIN DIM_ALBUMS  al ON ft.album_id  = al.album_id
 JOIN DIM_GENRES  g  ON ft.genre_id  = g.genre_id
 WHERE ft.track_id = {track_id:String}
+GROUP BY ft.track_id, ft.track_name, ft.artist_id, a.name, ft.album_id, al.name
 LIMIT 1
 """
 
@@ -140,7 +169,7 @@ SELECT
     al.album_type         AS album_type,
     al.total_tracks_listed AS total_tracks_listed,
     al.language           AS language,
-    count()                      AS track_count,
+    count(DISTINCT ft.track_id)  AS track_count,
     round(avg(ft.popularity), 2) AS avg_popularity
 FROM FACT_TRACKS ft
 JOIN DIM_ALBUMS al ON ft.album_id = al.album_id
@@ -169,45 +198,60 @@ GROUP BY g.genre_id, g.name, g.parent_genre, g.mood, g.origin_decade
 
 TRACK_DETAIL_BY_FACT_ID = """
 SELECT
-    ft.fact_id, ft.track_id, ft.track_name, ft.popularity, ft.duration_ms,
-    ft.danceability, ft.energy, ft.loudness, ft.speechiness,
-    ft.acousticness, ft.instrumentalness, ft.liveness, ft.valence, ft.tempo,
-    a.name     AS artist_name, a.artist_id  AS artist_id,
-    al.name    AS album_name,  al.album_id  AS album_id,
-    g.name     AS genre_name,  g.genre_id   AS genre_id
+    min(ft.fact_id)                                   AS fact_id,
+    ft.track_id, ft.track_name,
+    any(ft.popularity)                                AS popularity,
+    any(ft.duration_ms)                               AS duration_ms,
+    any(ft.danceability)                              AS danceability,
+    any(ft.energy)                                    AS energy,
+    any(ft.loudness)                                  AS loudness,
+    any(ft.speechiness)                               AS speechiness,
+    any(ft.acousticness)                              AS acousticness,
+    any(ft.instrumentalness)                          AS instrumentalness,
+    any(ft.liveness)                                  AS liveness,
+    any(ft.valence)                                   AS valence,
+    any(ft.tempo)                                     AS tempo,
+    a.name                                            AS artist_name,
+    ft.artist_id                                      AS artist_id,
+    al.name                                           AS album_name,
+    ft.album_id                                       AS album_id,
+    arrayStringConcat(groupUniqArray(g.name), ' / ') AS genre_name,
+    any(g.genre_id)                                   AS genre_id
 FROM FACT_TRACKS ft
 JOIN DIM_ARTISTS a  ON ft.artist_id = a.artist_id
 JOIN DIM_ALBUMS  al ON ft.album_id  = al.album_id
 JOIN DIM_GENRES  g  ON ft.genre_id  = g.genre_id
-WHERE ft.fact_id = {fact_id:Int64}
+WHERE ft.track_id = (SELECT track_id FROM FACT_TRACKS WHERE fact_id = {fact_id:Int64} LIMIT 1)
+GROUP BY ft.track_id, ft.track_name, ft.artist_id, a.name, ft.album_id, al.name
 """
 
 
 def tracks_search_sql(where: str) -> str:
     return f"""
 SELECT
-    ft.fact_id,
+    min(ft.fact_id)                                   AS fact_id,
     ft.track_id,
     ft.track_name,
-    a.name  AS artist_name,
-    g.name  AS genre_name,
-    ft.popularity,
-    ft.duration_ms,
-    ft.danceability,
-    ft.energy,
-    ft.valence
+    a.name                                            AS artist_name,
+    arrayStringConcat(groupUniqArray(g.name), ' / ') AS genre_name,
+    any(ft.popularity)                                AS popularity,
+    any(ft.duration_ms)                               AS duration_ms,
+    any(ft.danceability)                              AS danceability,
+    any(ft.energy)                                    AS energy,
+    any(ft.valence)                                   AS valence
 FROM FACT_TRACKS ft
 JOIN DIM_ARTISTS a ON ft.artist_id = a.artist_id
 JOIN DIM_GENRES  g ON ft.genre_id  = g.genre_id
 {where}
-ORDER BY ft.popularity DESC
+GROUP BY ft.track_id, ft.track_name, ft.artist_id, a.name
+ORDER BY any(ft.popularity) DESC
 LIMIT {{limit:UInt32}} OFFSET {{offset:UInt32}}
 """
 
 
 def tracks_search_count_sql(where: str) -> str:
     return f"""
-SELECT count() AS total
+SELECT count(DISTINCT ft.track_id) AS total
 FROM FACT_TRACKS ft
 JOIN DIM_ARTISTS a ON ft.artist_id = a.artist_id
 JOIN DIM_GENRES  g ON ft.genre_id  = g.genre_id

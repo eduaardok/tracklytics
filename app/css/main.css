@@ -587,6 +587,7 @@ input, select { outline: none; }
 
 .player-btn { color: var(--text-muted); transition: color .15s; }
 .player-btn:hover { color: var(--text); }
+.player-fav-btn.active { color: #e91e63; }
 
 .player-btn.play-btn {
   width: 34px; height: 34px;
@@ -610,7 +611,10 @@ input, select { outline: none; }
   border-radius: 2px;
   cursor: pointer;
   position: relative;
+  transition: height .15s;
+  overflow: visible;
 }
+.progress-bar:hover { height: 6px; }
 
 .progress-fill {
   height: 100%;
@@ -618,7 +622,20 @@ input, select { outline: none; }
   border-radius: 2px;
   width: 0%;
   transition: width .1s linear;
+  position: relative;
 }
+.progress-fill::after {
+  content: '';
+  position: absolute;
+  right: -5px; top: 50%;
+  transform: translateY(-50%) scale(0);
+  width: 12px; height: 12px;
+  background: #fff;
+  border-radius: 50%;
+  transition: transform .15s;
+  pointer-events: none;
+}
+.progress-bar:hover .progress-fill::after { transform: translateY(-50%) scale(1); }
 
 .progress-time { font-size: .75rem; color: var(--text-muted); width: 36px; text-align: center; }
 
@@ -1401,19 +1418,26 @@ input, select { outline: none; }
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: .1em;
-  opacity: .75;
+  color: rgba(255,255,255,.8);
+  text-shadow: 0 1px 4px rgba(0,0,0,.7);
   margin-bottom: .35rem;
 }
 .detail-hero-name {
   font-size: clamp(1.5rem, 4vw, 2.6rem);
   font-weight: 900;
   line-height: 1.1;
+  text-shadow: 0 2px 8px rgba(0,0,0,.7);
   margin-bottom: .5rem;
 }
 .detail-hero-sub {
   font-size: .9rem;
-  opacity: .8;
+  color: rgba(255,255,255,.85);
+  text-shadow: 0 1px 5px rgba(0,0,0,.6);
   margin-bottom: 1rem;
+}
+.detail-hero-sub a {
+  color: rgba(255,255,255,.9);
+  text-shadow: 0 1px 5px rgba(0,0,0,.6);
 }
 .detail-hero-actions {
   display: flex;
