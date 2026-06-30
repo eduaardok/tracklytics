@@ -5,9 +5,13 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from core.database import get_client
 from paquetes.analitica.router import router as analitica_router
+from paquetes.analitica.router import v1_router as analitica_v1_router
 from paquetes.biblioteca.router import router as biblioteca_router
 from paquetes.catalogo.router import router as catalogo_router
 from paquetes.gestion_datos.router import router as gestion_router
+from paquetes.gestion_datos.router import v1_router as gestion_v1_router
+from paquetes.partners.logging_mw import partner_call_logger
+from paquetes.partners.router import router as partners_router
 from paquetes.suscripciones.router import router as suscripciones_router
 
 
@@ -35,8 +39,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.middleware("http")(partner_call_logger)
+
 app.include_router(catalogo_router)
 app.include_router(analitica_router)
+app.include_router(analitica_v1_router)
 app.include_router(gestion_router)
+app.include_router(gestion_v1_router)
 app.include_router(biblioteca_router)
 app.include_router(suscripciones_router)
+app.include_router(partners_router)

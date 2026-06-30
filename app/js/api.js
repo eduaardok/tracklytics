@@ -1,3 +1,5 @@
+import { showToast } from './toast.js';
+
 const API_BASE = '/api';
 const PB_BASE  = 'http://localhost:8090';
 
@@ -18,6 +20,10 @@ export async function apiFetch(path, opts = {}) {
       : Array.isArray(detail)
         ? detail.map(e => e.msg || JSON.stringify(e)).join('; ')
         : `HTTP ${res.status}`;
+    // 403 siempre es un rechazo de autorización (rol/tier/suscripción) — se
+    // notifica aquí, una sola vez por llamada, para que ningún consumidor de
+    // apiFetch (favoritos, historial, etc.) tenga que repetir este manejo.
+    if (res.status === 403) showToast(msg, 'warning');
     throw new Error(msg);
   }
   return res.json();

@@ -1,3 +1,171 @@
+from core.config import CH_DB as _DB
+
+# ── analitica v1 (OpenSpec): dashboard, perfil, comparación, benchmark,
+# tendencias, engagement, desempeño relativo, reporte diario ──────────────────
+# Todas las queries usan referencias completas `{_DB}.TABLA` (p.ej.
+# tracklytics.FACT_TRACKS) para dejar explícito que esta capability lee
+# exclusivamente del ClickHouse existente, sin acoplarse a otra instancia.
+
+DASHBOARD_KPIS = f"""
+SELECT
+    (SELECT count() FROM {_DB}.FACT_TRACKS)                    AS total_tracks,
+    (SELECT count() FROM {_DB}.DIM_ARTISTS)                    AS total_artists,
+    (SELECT count() FROM {_DB}.DIM_GENRES)                     AS total_genres,
+    (SELECT round(avg(popularity), 2)   FROM {_DB}.FACT_TRACKS) AS avg_popularity,
+    (SELECT round(avg(energy), 4)       FROM {_DB}.FACT_TRACKS) AS avg_energy,
+    (SELECT round(avg(danceability), 4) FROM {_DB}.FACT_TRACKS) AS avg_danceability
+"""
+
+GENRE_AUDIO_PROFILE_V1 = f"""
+SELECT
+    g.genre_id                         AS genre_id,
+    g.name                             AS name,
+    round(avg(ft.danceability),     4) AS danceability,
+    round(avg(ft.energy),           4) AS energy,
+    round(avg(ft.speechiness),      4) AS speechiness,
+    round(avg(ft.acousticness),     4) AS acousticness,
+    round(avg(ft.instrumentalness), 4) AS instrumentalness,
+    round(avg(ft.liveness),         4) AS liveness,
+    round(avg(ft.valence),          4) AS valence,
+    count()                            AS track_count
+FROM {_DB}.FACT_TRACKS ft
+JOIN {_DB}.DIM_GENRES g ON ft.genre_id = g.genre_id
+WHERE g.genre_id = {{genre_id:Int32}}
+GROUP BY g.genre_id, g.name
+"""
+
+ARTIST_AUDIO_STATS_V1 = f"""
+SELECT
+    a.artist_id                          AS artist_id,
+    a.name                                AS name,
+    count()                              AS track_count,
+    round(avg(ft.popularity),       2)   AS avg_popularity,
+    round(avg(ft.danceability),     4)   AS avg_danceability,
+    round(avg(ft.energy),           4)   AS avg_energy,
+    round(avg(ft.speechiness),      4)   AS avg_speechiness,
+    round(avg(ft.acousticness),     4)   AS avg_acousticness,
+    round(avg(ft.instrumentalness), 4)   AS avg_instrumentalness,
+    round(avg(ft.liveness),         4)   AS avg_liveness,
+    round(avg(ft.valence),          4)   AS avg_valence
+FROM {_DB}.FACT_TRACKS ft
+JOIN {_DB}.DIM_ARTISTS a ON ft.artist_id = a.artist_id
+WHERE a.artist_id = {{artist_id:Int32}}
+GROUP BY a.artist_id, a.name
+"""
+
+ARTIST_PREDOMINANT_GENRE = f"""
+SELECT genre_id, count() AS n
+FROM {_DB}.FACT_TRACKS
+WHERE artist_id = {{artist_id:Int32}}
+GROUP BY genre_id
+ORDER BY n DESC
+LIMIT 1
+"""
+
+TENDENCIAS_LOAD_WEEK = f"""
+SELECT
+    load_week                       AS load_week,
+    count()                         AS track_count,
+    round(avg(popularity), 2)       AS avg_popularity,
+    round(avg(energy), 4)           AS avg_energy
+FROM {_DB}.FACT_TRACKS
+{{where}}
+GROUP BY load_week
+ORDER BY load_week
+"""
+
+# raw_score por fact_id: reproduccion x1 + favorito_add x3 (RF-ANA-006).
+# No existe un evento de tipo "playlist_add" en FACT_ENGAGEMENT_USUARIO hoy
+# (ver decisiones de diseño), por lo que ese término del raw_score es 0.
+ENGAGEMENT_BY_FACT = f"""
+WITH agg AS (
+    SELECT
+        countIf(event_type = 'reproduccion') AS reproducciones,
+        countIf(event_type = 'favorito_add') AS favoritos,
+        countIf(event_type = 'reproduccion') + countIf(event_type = 'favorito_add') * 3 AS raw_score
+    FROM {_DB}.FACT_ENGAGEMENT_USUARIO
+    WHERE fact_id = {{fact_id:UInt64}}
+),
+max_raw AS (
+    SELECT max(raw) AS max_raw_score
+    FROM (
+        SELECT countIf(event_type = 'reproduccion') + countIf(event_type = 'favorito_add') * 3 AS raw
+        FROM {_DB}.FACT_ENGAGEMENT_USUARIO
+        GROUP BY fact_id
+    )
+)
+SELECT
+    agg.reproducciones                                                          AS reproducciones,
+    agg.favoritos                                                               AS favoritos,
+    agg.raw_score                                                               AS raw_score,
+    max_raw.max_raw_score                                                       AS max_raw_score,
+    if(agg.raw_score > 0 AND max_raw.max_raw_score > 0,
+       least(100, round(agg.raw_score / max_raw.max_raw_score * 100)), 0)       AS engagement_score
+FROM agg, max_raw
+"""
+
+ENGAGEMENT_BY_ARTIST = f"""
+WITH artist_facts AS (
+    SELECT fact_id FROM {_DB}.FACT_TRACKS WHERE artist_id = {{artist_id:Int32}}
+),
+agg AS (
+    SELECT
+        countIf(event_type = 'reproduccion') AS reproducciones,
+        countIf(event_type = 'favorito_add') AS favoritos,
+        countIf(event_type = 'reproduccion') + countIf(event_type = 'favorito_add') * 3 AS raw_score
+    FROM {_DB}.FACT_ENGAGEMENT_USUARIO
+    WHERE fact_id IN (SELECT fact_id FROM artist_facts)
+),
+max_raw AS (
+    SELECT max(raw) AS max_raw_score
+    FROM (
+        SELECT countIf(event_type = 'reproduccion') + countIf(event_type = 'favorito_add') * 3 AS raw
+        FROM {_DB}.FACT_ENGAGEMENT_USUARIO
+        GROUP BY fact_id
+    )
+)
+SELECT
+    agg.reproducciones                                                          AS reproducciones,
+    agg.favoritos                                                               AS favoritos,
+    agg.raw_score                                                               AS raw_score,
+    max_raw.max_raw_score                                                       AS max_raw_score,
+    if(agg.raw_score > 0 AND max_raw.max_raw_score > 0,
+       least(100, round(agg.raw_score / max_raw.max_raw_score * 100)), 0)       AS engagement_score
+FROM agg, max_raw
+"""
+
+TRACK_POPULARITY = f"""
+SELECT ft.fact_id, ft.track_id, ft.track_name, ft.popularity, a.name AS artist_name
+FROM {_DB}.FACT_TRACKS ft
+JOIN {_DB}.DIM_ARTISTS a ON ft.artist_id = a.artist_id
+WHERE ft.fact_id = {{fact_id:UInt64}}
+"""
+
+# Reporte diario operativo (RF-ANA-008): agrega ingestas (ETL_LOGS) y
+# actividad de engagement (FACT_ENGAGEMENT_USUARIO) del día corriente.
+# FACT_SUSCRIPCION y FACT_ADQUISICION no existen en el esquema ClickHouse
+# actual (ver decisiones de diseño) — no se agregan datos de suscripciones
+# ni adquisiciones para no inventar una fuente de datos inexistente.
+REPORTE_DIARIO_INGESTAS = f"""
+SELECT
+    count()                     AS corridas,
+    sum(records_read)           AS records_read,
+    sum(records_inserted)       AS records_inserted,
+    sum(records_rejected)       AS records_rejected,
+    groupArray(status)          AS statuses
+FROM {_DB}.ETL_LOGS
+WHERE toDate(run_timestamp) = {{fecha:Date}}
+"""
+
+REPORTE_DIARIO_ENGAGEMENT = f"""
+SELECT
+    event_type AS event_type,
+    count()    AS total
+FROM {_DB}.FACT_ENGAGEMENT_USUARIO
+WHERE toDate(event_timestamp) = {{fecha:Date}}
+GROUP BY event_type
+"""
+
 GENRES_TRENDS = """
 SELECT
     g.genre_id                      AS genre_id,

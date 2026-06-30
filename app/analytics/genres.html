@@ -77,8 +77,9 @@
 <div id="player-root"></div>
 
 <script type="module">
-  import { requireAuth, hasAnalyticsAccess } from '/js/auth.js';
+  import { requireAuth, hasAnalyticsAccess, getToken } from '/js/auth.js';
   import { renderSidebar, renderPlayer } from '/js/components.js';
+  import { showToast } from '/js/toast.js';
   if (!requireAuth() || !hasAnalyticsAccess()) {
     window.location.href = '/catalogo/home.html';
     throw new Error('unauthorized');
@@ -97,8 +98,22 @@
       `<div class="alert alert-error">${msg}</div>`;
   }
 
+  // loadGenres + loadScatter corren en paralelo al iniciar la página; sin
+  // este guard, un 403 dispara el toast y el redirect dos veces.
+  let _accessDenied = false;
+
   async function fetchJSON(path) {
-    const res = await fetch(API + path);
+    const res = await fetch(API + path, { headers: { Authorization: `Bearer ${getToken()}` } });
+    if (res.status === 403) {
+      if (!_accessDenied) {
+        _accessDenied = true;
+        showToast('Se requiere una suscripción activa para acceder a este panel. Redirigiendo a Planes…', 'warning');
+        setTimeout(() => { window.location.href = '/autenticacion/planes.html'; }, 2200);
+      }
+      const err = new Error('access_denied');
+      err.accessDenied = true;
+      throw err;
+    }
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return res.json();
   }
@@ -134,7 +149,7 @@
       `).join('');
 
     } catch (e) {
-      showError(`Error cargando géneros: ${e.message}`);
+      if (!e.accessDenied) showError(`Error cargando géneros: ${e.message}`);
     }
   }
 

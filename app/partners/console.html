@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Consola Partners — Tracklytics</title>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&display=swap" rel="stylesheet"/>
+  <link rel="icon" type="image/png" href="/img/logo.png"/>
+  <link rel="stylesheet" href="/css/main.css"/>
+  <link rel="stylesheet" href="/css/analytics.css"/>
+  <style>
+    .endpoint-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: .6rem; margin-bottom: 1rem; }
+    .endpoint-btn {
+      background: var(--surface2); border: 1px solid var(--border); color: var(--text);
+      border-radius: var(--radius); padding: .65rem .75rem; font-size: .82rem; font-weight: 600;
+      cursor: pointer; text-align: left; transition: border-color .15s, background .15s;
+    }
+    .endpoint-btn:hover { border-color: var(--accent); background: var(--accent-soft); }
+    .endpoint-btn.active { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
+    .endpoint-btn .ep-tier { display: block; font-size: .7rem; font-weight: 700; opacity: .7; margin-top: .15rem; }
+    #json-output {
+      background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 1rem; font-family: 'Cascadia Code', Consolas, monospace; font-size: .8rem;
+      white-space: pre-wrap; word-break: break-word; max-height: 480px; overflow-y: auto; color: #9ae6b4;
+    }
+    .resp-meta { display: flex; gap: .75rem; align-items: center; margin-bottom: .6rem; font-size: .82rem; flex-wrap: wrap; }
+  </style>
+</head>
+<body>
+<div id="sidebar-root"></div>
+<div class="app-layout">
+  <main class="main-content">
+    <h1 class="page-title">Consola de pruebas — API de Partners</h1>
+    <p style="color:var(--text-muted); font-size:.88rem; margin-top:-1rem; margin-bottom:1.25rem">
+      Herramienta interna (solo staff) para verificar CU-O12 sin usar curl. La API key se envía directo al backend
+      por header <code>X-API-Key</code> — esta consola no usa tu sesión de PocketBase para llamar a <code>/partners/v1/*</code>,
+      igual que lo haría un partner externo real.
+      <a href="/partners/landing.html" target="_blank" style="color:var(--accent)">Ver landing pública de demo →</a>
+    </p>
+
+    <div id="error-banner"></div>
+
+    <div class="card mb-3">
+      <div class="card-header">Credenciales</div>
+      <div class="card-body">
+        <div class="form-group">
+          <label for="api-key">API Key del partner</label>
+          <input type="text" id="api-key" class="form-control" placeholder="Pega aquí la API key (header X-API-Key)"/>
+        </div>
+      </div>
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-header">Endpoint a probar</div>
+      <div class="card-body">
+        <div class="endpoint-grid" id="endpoint-grid"></div>
+
+        <div id="param-fields" class="form-group" style="display:none">
+          <label id="param-label"></label>
+          <input type="number" id="param-input" class="form-control" min="1" value="1"/>
+        </div>
+
+        <button class="btn btn-success" id="btn-send">▶ Enviar solicitud</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">Respuesta</div>
+      <div class="card-body">
+        <div class="resp-meta" id="resp-meta"></div>
+        <pre id="json-output">Sin solicitudes enviadas aún.</pre>
+      </div>
+    </div>
+  </main>
+</div>
+<div id="player-root"></div>
+
+<script type="module">
+  import { requireRole } from '/js/auth.js';
+  import { renderSidebar, renderPlayer } from '/js/components.js';
+  if (!requireRole('admin')) throw new Error('unauthorized');
+  renderSidebar('partners');
+  renderPlayer();
+
+  // RF-PAR-002/003: cada endpoint declara el tier mínimo requerido — igual
+  // que en api/paquetes/partners/router.py — para que la consola muestre de
+  // entrada qué tier necesita cada prueba.
+  const ENDPOINTS = [
+    { id: 'tracks',       label: 'Tracks (lista)',      tier: 'básico',     method: 'GET', path: () => '/partners/v1/tracks?limit=10&page=1' },
+    { id: 'track',        label: 'Track (detalle)',     tier: 'básico',     method: 'GET', path: (v) => `/partners/v1/tracks/${v}`, param: 'fact_id' },
+    { id: 'export',       label: 'Tracks (export)',     tier: 'enterprise', method: 'GET', path: () => '/partners/v1/tracks/export?limit=10&page=1' },
+    { id: 'artistas',     label: 'Artistas (lista)',    tier: 'básico',     method: 'GET', path: () => '/partners/v1/artistas?limit=10&page=1' },
+    { id: 'artista',      label: 'Artista (detalle)',   tier: 'básico',     method: 'GET', path: (v) => `/partners/v1/artistas/${v}`, param: 'artist_id' },
+    { id: 'albumes',      label: 'Álbumes (lista)',      tier: 'básico',     method: 'GET', path: () => '/partners/v1/albumes?limit=10&page=1' },
+    { id: 'album',        label: 'Álbum (detalle)',      tier: 'básico',     method: 'GET', path: (v) => `/partners/v1/albumes/${v}`, param: 'album_id' },
+    { id: 'generos',      label: 'Géneros (lista)',      tier: 'básico',     method: 'GET', path: () => '/partners/v1/generos?limit=10&page=1' },
+    { id: 'genero',       label: 'Género (detalle)',     tier: 'básico',     method: 'GET', path: (v) => `/partners/v1/generos/${v}`, param: 'genre_id' },
+  ];
+
+  let selected = ENDPOINTS[0];
+
+  function renderEndpoints() {
+    document.getElementById('endpoint-grid').innerHTML = ENDPOINTS.map(ep => `
+      <button class="endpoint-btn ${ep.id === selected.id ? 'active' : ''}" data-id="${ep.id}">
+        ${ep.label}
+        <span class="ep-tier">tier mínimo: ${ep.tier}</span>
+      </button>`).join('');
+
+    document.querySelectorAll('.endpoint-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        selected = ENDPOINTS.find(e => e.id === btn.dataset.id);
+        renderEndpoints();
+        const needsParam = !!selected.param;
+        document.getElementById('param-fields').style.display = needsParam ? 'block' : 'none';
+        if (needsParam) document.getElementById('param-label').textContent = selected.param;
+      });
+    });
+  }
+  renderEndpoints();
+
+  function showError(msg) {
+    document.getElementById('error-banner').innerHTML = `<div class="alert alert-error">${msg}</div>`;
+  }
+
+  document.getElementById('btn-send').addEventListener('click', async () => {
+    document.getElementById('error-banner').innerHTML = '';
+    const apiKey = document.getElementById('api-key').value.trim();
+    if (!apiKey) { showError('Ingresa una API key.'); return; }
+
+    const path = selected.param
+      ? selected.path(document.getElementById('param-input').value || '1')
+      : selected.path();
+
+    const btn = document.getElementById('btn-send');
+    btn.disabled = true;
+    btn.textContent = 'Enviando…';
+    const start = performance.now();
+
+    try {
+      const res = await fetch('/api' + path, {
+        method: selected.method,
+        headers: { 'X-API-Key': apiKey },
+      });
+      const ms = (performance.now() - start).toFixed(0);
+      const body = await res.json().catch(() => ({}));
+
+      const statusClass = res.ok ? 'badge-success' : (res.status === 403 ? 'badge-warning' : 'badge-danger');
+      document.getElementById('resp-meta').innerHTML = `
+        <span class="badge ${statusClass}">HTTP ${res.status}</span>
+        <span class="text-muted">${ms} ms</span>
+        <span class="text-muted">${selected.method} ${path}</span>`;
+      document.getElementById('json-output').textContent = JSON.stringify(body, null, 2);
+    } catch (e) {
+      showError(`Error de red: ${e.message}`);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = '▶ Enviar solicitud';
+    }
+  });
+</script>
+</body>
+</html>

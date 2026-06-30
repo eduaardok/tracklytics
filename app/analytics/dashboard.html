@@ -74,7 +74,8 @@
 <div id="player-root"></div>
 
 <script type="module">
-  import { requireAuth, hasAnalyticsAccess } from '/js/auth.js';
+  import { requireAuth, hasAnalyticsAccess, getToken } from '/js/auth.js';
+  import { showToast } from '/js/toast.js';
   import { renderSidebar, renderPlayer } from '/js/components.js';
   if (!requireAuth() || !hasAnalyticsAccess()) {
     window.location.href = '/catalogo/home.html';
@@ -100,8 +101,23 @@
       `<div class="alert alert-error">${msg}</div>`;
   }
 
+  // Varias funciones de carga llaman a fetchJSON en paralelo al iniciar la
+  // página (loadDashboard + loadGenreCharts); sin este guard, un 403 dispara
+  // el toast y el redirect una vez por cada llamada simultánea.
+  let _accessDenied = false;
+
   async function fetchJSON(path) {
-    const res = await fetch(API + path);
+    const res = await fetch(API + path, { headers: { Authorization: `Bearer ${getToken()}` } });
+    if (res.status === 403) {
+      if (!_accessDenied) {
+        _accessDenied = true;
+        showToast('Se requiere una suscripción activa para acceder a este panel. Redirigiendo a Planes…', 'warning');
+        setTimeout(() => { window.location.href = '/autenticacion/planes.html'; }, 2200);
+      }
+      const err = new Error('access_denied');
+      err.accessDenied = true;
+      throw err;
+    }
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return res.json();
   }
@@ -147,7 +163,7 @@
       }], plotLayout({ margin: { t: 10, r: 20, b: 30, l: 130 }, xaxis: { title: 'Tracks', gridcolor: 'rgba(255,255,255,0.08)' } }), plotConfig);
 
     } catch (e) {
-      showError(`Error cargando el dashboard: ${e.message}`);
+      if (!e.accessDenied) showError(`Error cargando el dashboard: ${e.message}`);
     }
   }
 

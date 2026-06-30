@@ -55,10 +55,12 @@
       el.innerHTML = `<p class="text-muted">No tienes una suscripción activa.</p>`;
       return;
     }
+    const created = activa.created ? new Date(activa.created.replace(' ', 'T')) : null;
+    const fechaTxt = created && !isNaN(created) ? created.toLocaleDateString() : '—';
     el.innerHTML = `
       <div class="card" style="max-width:420px">
         <div class="card-title">Plan activo: ${activa.tipo_plan}</div>
-        <div class="card-sub">${activa.monto > 0 ? `${activa.monto} ${activa.moneda}` : 'Gratis'} · desde ${new Date(activa.created).toLocaleDateString()}</div>
+        <div class="card-sub">${activa.monto > 0 ? `${activa.monto} ${activa.moneda}` : 'Gratis'} · desde ${fechaTxt}</div>
         <button class="btn btn-outline btn-sm" style="margin-top:.75rem; border-color:var(--danger); color:#fc8181" id="btn-cancel-active">
           Cancelar suscripción
         </button>
@@ -74,15 +76,20 @@
     });
   }
 
-  function renderPlans(planes) {
+  function renderPlans(planes, activa) {
     planesDisponibles = planes;
-    document.getElementById('plans-grid').innerHTML = planes.map(p => `
-      <div class="card">
-        <div class="card-title">${p.nombre}</div>
-        <div class="card-sub">${p.descripcion}</div>
+    document.getElementById('plans-grid').innerHTML = planes.map(p => {
+      const esActual = activa?.tipo_plan === p.id;
+      return `
+      <div class="card plan-card ${esActual ? 'plan-card-current' : ''}">
+        <div class="card-title">${p.nombre}${esActual ? ' <span class="plan-current-badge">Plan actual</span>' : ''}</div>
+        <div class="plan-card-desc">${p.descripcion}</div>
         <div class="card-sub" style="font-weight:700; margin:.4rem 0">${p.precio > 0 ? `${p.precio} ${p.moneda}/mes` : 'Gratis'}</div>
-        <button class="btn btn-primary btn-sm" onclick="window.__selectPlan('${p.id}')">Suscribirme</button>
-      </div>`).join('');
+        ${esActual
+          ? `<button class="btn btn-outline btn-sm" disabled>Ya tienes este plan</button>`
+          : `<button class="btn btn-primary btn-sm" onclick="window.__selectPlan('${p.id}')">Suscribirme</button>`}
+      </div>`;
+    }).join('');
   }
 
   window.__selectPlan = function(planId) {
@@ -127,8 +134,9 @@
       Suscripciones.planes(),
       Suscripciones.activa(),
     ]);
-    renderPlans(planesRes.data ?? planesRes);
-    renderCurrentPlan((activaRes.data ?? activaRes) || null);
+    const activa = activaRes.data ?? null;
+    renderPlans(planesRes.data ?? planesRes, activa);
+    renderCurrentPlan(activa);
   }
 
   loadAll().catch(err => {

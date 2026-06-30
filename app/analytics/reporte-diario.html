@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Reporte Diario Operativo — Tracklytics</title>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&display=swap" rel="stylesheet"/>
+  <link rel="icon" type="image/png" href="/img/logo.png"/>
+  <link rel="stylesheet" href="/css/main.css"/>
+  <link rel="stylesheet" href="/css/analytics.css"/>
+</head>
+<body>
+<div id="sidebar-root"></div>
+<div class="app-layout">
+  <main class="main-content">
+    <h1 class="page-title">Reporte Diario Operativo</h1>
+
+    <div id="error-banner"></div>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <div class="search-row">
+          <div class="form-group" style="margin:0">
+            <label for="fecha-input">Fecha</label>
+            <input type="date" id="fecha-input" class="form-control"/>
+          </div>
+          <button class="btn btn-primary" onclick="loadReporte()">Generar reporte</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="report-body" style="display:none">
+      <div class="kpi-grid" id="kpi-grid">
+        <div class="kpi-card"><div class="kpi-label">Corridas ETL</div><div class="kpi-value" id="kpi-corridas">—</div></div>
+        <div class="kpi-card"><div class="kpi-label">Registros Insertados</div><div class="kpi-value" id="kpi-inserted">—</div></div>
+        <div class="kpi-card"><div class="kpi-label">Registros Rechazados</div><div class="kpi-value" id="kpi-rejected">—</div></div>
+      </div>
+
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-header">Ingestas (ETL_LOGS) del día</div>
+          <div class="card-body">
+            <p>Registros leídos: <strong id="ingestas-read">—</strong></p>
+            <p>Estados de las corridas: <span id="ingestas-statuses" class="text-muted">—</span></p>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header">Engagement del día</div>
+          <div class="table-wrapper">
+            <table>
+              <thead><tr><th>Tipo de evento</th><th>Total</th></tr></thead>
+              <tbody id="engagement-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="alert" style="border-left:3px solid #f6ad55;margin-top:1rem;padding:.75rem 1rem" id="nota-banner"></div>
+    </div>
+
+    <div id="empty-state">
+      <div class="empty-state"><p>Selecciona una fecha y genera el reporte</p></div>
+    </div>
+  </main>
+</div>
+<div id="player-root"></div>
+
+<script type="module">
+  import { requireAuth, hasAnalyticsAccess, getRole, getToken } from '/js/auth.js';
+  import { renderSidebar, renderPlayer } from '/js/components.js';
+  import { showToast } from '/js/toast.js';
+  if (!requireAuth() || !hasAnalyticsAccess() || getRole() !== 'admin') {
+    window.location.href = '/catalogo/home.html';
+    throw new Error('unauthorized: reporte diario es exclusivo de Data Analyst/BI Lead');
+  }
+  renderSidebar('analytics');
+  renderPlayer();
+
+  const API = '/api';
+
+  function showError(msg) {
+    document.getElementById('error-banner').innerHTML = `<div class="alert alert-error">${msg}</div>`;
+  }
+
+  let _accessDenied = false;
+
+  async function fetchJSON(path) {
+    const res = await fetch(API + path, { headers: { Authorization: `Bearer ${getToken()}` } });
+    if (res.status === 403) {
+      if (!_accessDenied) {
+        _accessDenied = true;
+        showToast('Acceso restringido a Data Analyst/BI Lead. Redirigiendo…', 'warning');
+        setTimeout(() => { window.location.href = '/catalogo/home.html'; }, 2200);
+      }
+      const err = new Error('access_denied');
+      err.accessDenied = true;
+      throw err;
+    }
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
+  }
+
+  async function loadReporte() {
+    const fecha = document.getElementById('fecha-input').value;
+    document.getElementById('error-banner').innerHTML = '';
+    try {
+      const qs   = fecha ? `?fecha=${fecha}` : '';
+      const data = await fetchJSON(`/app/v1/analitica/reporte-diario${qs}`);
+
+      document.getElementById('empty-state').style.display = 'none';
+      document.getElementById('report-body').style.display = 'block';
+
+      document.getElementById('kpi-corridas').textContent = data.ingestas.corridas ?? 0;
+      document.getElementById('kpi-inserted').textContent = (data.ingestas.records_inserted ?? 0).toLocaleString();
+      document.getElementById('kpi-rejected').textContent = (data.ingestas.records_rejected ?? 0).toLocaleString();
+      document.getElementById('ingestas-read').textContent = (data.ingestas.records_read ?? 0).toLocaleString();
+      document.getElementById('ingestas-statuses').textContent = (data.ingestas.statuses ?? []).join(', ') || 'Sin corridas este día';
+
+      const engagement = data.engagement_por_tipo ?? [];
+      document.getElementById('engagement-tbody').innerHTML = engagement.length
+        ? engagement.map(e => `<tr><td>${e.event_type}</td><td>${e.total}</td></tr>`).join('')
+        : `<tr><td colspan="2" class="text-muted" style="padding:.75rem">Sin actividad este día</td></tr>`;
+
+      document.getElementById('nota-banner').textContent = data.nota ?? '';
+
+    } catch (e) {
+      if (!e.accessDenied) showError(`Error generando el reporte: ${e.message}`);
+    }
+  }
+
+  // Default to today
+  document.getElementById('fecha-input').value = new Date().toISOString().slice(0, 10);
+
+  window.loadReporte = loadReporte;
+  loadReporte();
+</script>
+</body>
+</html>

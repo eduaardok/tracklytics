@@ -18,10 +18,11 @@ from datetime import datetime, timedelta
 from airflow import DAG
 from airflow.models.param import Param
 from airflow.operators.python import PythonOperator
+from airflow.utils.trigger_rule import TriggerRule
 
 from bronze.extractor import run_bronze
 from silver.cleaner import run_silver
-from gold.loader import run_gold, run_log
+from gold.loader import run_gold, run_log, run_log_failure
 from gold.synthetic import run_synthetic
 
 
@@ -55,4 +56,14 @@ with DAG(
     task_synthetic = PythonOperator(task_id="task_synthetic", python_callable=run_synthetic)
     task_log       = PythonOperator(task_id="task_log",       python_callable=run_log)
 
+    # RF-ING-004: toda ejecución (exitosa o fallida) queda auditada en ETL_LOGS.
+    # Se dispara solo si alguna de las tasks anteriores falla (no afecta el
+    # camino feliz, que sigue terminando en task_log).
+    task_log_failure = PythonOperator(
+        task_id="task_log_failure",
+        python_callable=run_log_failure,
+        trigger_rule=TriggerRule.ONE_FAILED,
+    )
+
     task_bronze >> task_silver >> task_gold >> task_synthetic >> task_log
+    [task_bronze, task_silver, task_gold, task_synthetic] >> task_log_failure

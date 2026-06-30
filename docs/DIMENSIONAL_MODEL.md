@@ -402,3 +402,11 @@ A partir de la semana 2, el ETL genera +100k registros sintéticos por semana:
 | +1 | STG_RAW_TRACKS | Infraestructura | Temporal |
 | +2 | ETL_LOGS | Infraestructura | ~16 |
 | +3 | ETL_BATCH_CONTROL | Infraestructura | ~16 |
+
+> **Nota de alcance (S6/S8):** este documento cubre exclusivamente el modelo dimensional
+> técnico del catálogo (las 15 tablas listadas arriba). Desde S6 existe además
+> `FACT_ENGAGEMENT_USUARIO` (favoritos/historial/reproducción) y desde S8
+> `LOG_LLAMADAS_PARTNER` (log operativo de la API de partners) — ambas en la misma
+> instancia de ClickHouse, pero clasificadas como modelo de datos *de negocio*, no
+> técnico, según `openspec/config.yaml`. Ver `README.md` § Modelo de datos y
+> `docs/BITACORA_S6.md`/`BITACORA_S8.md` para su esquema completo.

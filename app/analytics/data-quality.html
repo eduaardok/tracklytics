@@ -67,8 +67,9 @@
 <div id="player-root"></div>
 
 <script type="module">
-  import { requireRole } from '/js/auth.js';
+  import { requireRole, getToken } from '/js/auth.js';
   import { renderSidebar, renderPlayer } from '/js/components.js';
+  import { showToast } from '/js/toast.js';
   if (!requireRole('admin')) throw new Error('unauthorized');
   renderSidebar('analytics');
   renderPlayer();
@@ -82,8 +83,20 @@
       `<div class="alert alert-error">${msg}</div>`;
   }
 
+  let _accessDenied = false;
+
   async function fetchJSON(path) {
-    const res = await fetch(API + path);
+    const res = await fetch(API + path, { headers: { Authorization: `Bearer ${getToken()}` } });
+    if (res.status === 403) {
+      if (!_accessDenied) {
+        _accessDenied = true;
+        showToast('Acceso restringido a Lead Data Engineer. Redirigiendo…', 'warning');
+        setTimeout(() => { window.location.href = '/catalogo/home.html'; }, 2200);
+      }
+      const err = new Error('access_denied');
+      err.accessDenied = true;
+      throw err;
+    }
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return res.json();
   }
@@ -143,7 +156,7 @@
         ).join('');
 
     } catch (e) {
-      showError(`Error cargando calidad de datos: ${e.message}`);
+      if (!e.accessDenied) showError(`Error cargando calidad de datos: ${e.message}`);
     }
   }
 

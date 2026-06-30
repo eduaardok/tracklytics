@@ -95,3 +95,47 @@ def dim_pk_sql(ch_db: str, ch_table: str) -> str:
         f"WHERE database = '{ch_db}' AND table = '{ch_table}' "
         f"ORDER BY position LIMIT 1"
     )
+
+
+def dim_fk_references_sql(fk_column: str) -> str:
+    """RN-ING-004: cuenta referencias en FACT_TRACKS antes de eliminar un
+    valor de dimensión."""
+    return f"SELECT count() AS n FROM FACT_TRACKS WHERE {fk_column} = {{record_id:Int64}}"
+
+
+# ── OpenSpec `ingesta` v1 ──────────────────────────────────────────────────────
+
+ETL_BATCH_EXISTS = "SELECT count() AS n FROM ETL_BATCH_CONTROL WHERE week_number = {week_number:UInt8}"
+
+CARGAS_HISTORIAL = """
+SELECT
+    log_id,
+    run_timestamp,
+    week_number,
+    status,
+    records_read,
+    records_inserted,
+    records_rejected,
+    duration_seconds,
+    round(records_rejected / nullIf(records_read, 0) * 100, 4) AS tasa_rechazo_pct
+FROM ETL_LOGS
+ORDER BY run_timestamp DESC
+LIMIT {limit:UInt32}
+OFFSET {offset:UInt32}
+"""
+
+CARGAS_ULTIMA = """
+SELECT
+    log_id,
+    run_timestamp,
+    week_number,
+    status,
+    records_read,
+    records_inserted,
+    records_rejected,
+    duration_seconds,
+    round(records_rejected / nullIf(records_read, 0) * 100, 4) AS tasa_rechazo_pct
+FROM ETL_LOGS
+ORDER BY run_timestamp DESC
+LIMIT 1
+"""

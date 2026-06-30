@@ -126,12 +126,10 @@
 <div id="player-root"></div>
 
 <script type="module">
-  import { requireAuth, hasAnalyticsAccess } from '/js/auth.js';
+  import { requireRole, getToken } from '/js/auth.js';
   import { renderSidebar, renderPlayer } from '/js/components.js';
-  if (!requireAuth() || !hasAnalyticsAccess()) {
-    window.location.href = '/catalogo/home.html';
-    throw new Error('unauthorized');
-  }
+  import { showToast } from '/js/toast.js';
+  if (!requireRole('admin')) throw new Error('unauthorized');
   renderSidebar('analytics');
   renderPlayer();
 
@@ -154,11 +152,29 @@
     document.getElementById('error-banner').innerHTML = '';
   }
 
+  let _accessDenied = false;
+
   async function fetchJSON(path, opts = {}) {
-    const res = await fetch(API + path, opts);
+    const res = await fetch(API + path, {
+      ...opts,
+      headers: { ...(opts.headers || {}), Authorization: `Bearer ${getToken()}` },
+    });
+    if (res.status === 403) {
+      if (!_accessDenied) {
+        _accessDenied = true;
+        showToast('Acceso restringido a Lead Data Engineer. Redirigiendo…', 'warning');
+        setTimeout(() => { window.location.href = '/catalogo/home.html'; }, 2200);
+      }
+      const err = new Error('access_denied');
+      err.accessDenied = true;
+      throw err;
+    }
     if (!res.ok) {
       const txt = await res.text().catch(() => '');
-      throw new Error(`HTTP ${res.status}${txt ? ': ' + txt : ''}`);
+      const err = new Error(`HTTP ${res.status}${txt ? ': ' + txt : ''}`);
+      err.status = res.status;
+      err.body   = txt;
+      throw err;
     }
     return res.json();
   }
@@ -263,7 +279,7 @@
       }).join('');
 
     } catch (e) {
-      showError(`Error cargando tabla: ${e.message}`);
+      if (!e.accessDenied) showError(`Error cargando tabla: ${e.message}`);
     } finally {
       document.getElementById('table-loading').style.display = 'none';
     }
@@ -350,12 +366,23 @@
       closeModal();
       loadTable(currentPage);
     } catch (e) {
-      showError(`Error guardando: ${e.message}`);
+      if (!e.accessDenied) showError(`Error guardando: ${e.message}`);
     } finally {
       btn.disabled = false;
     }
   }
 
+  async function _deleteRecord(confirmar = false) {
+    const qs  = confirmar ? '?confirmar=true' : '';
+    const res = await fetch(`${API}/dim/${currentTable}/${deletingId}${qs}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${getToken()}` },
+    });
+    return res;
+  }
+
+  // RN-ING-004 / Escenario 4: si el valor está referenciado por FACT_TRACKS,
+  // el backend responde 409 y exige confirmar=true para forzar la eliminación.
   async function confirmDelete() {
     if (deletingId === null) return;
     const btn = document.getElementById('btn-confirm-delete');
@@ -363,12 +390,30 @@
     clearError();
 
     try {
-      const res = await fetch(`${API}/dim/${currentTable}/${deletingId}`, { method: 'DELETE' });
+      let res = await _deleteRecord(false);
+
+      if (res.status === 409) {
+        const body = await res.json().catch(() => ({}));
+        const forzar = confirm(
+          `${body.detail || 'Este valor está referenciado por FACT_TRACKS.'}\n\n¿Eliminar de todas formas?`
+        );
+        if (!forzar) { closeConfirm(); return; }
+        res = await _deleteRecord(true);
+      }
+
+      if (res.status === 403) {
+        if (!_accessDenied) {
+          _accessDenied = true;
+          showToast('Acceso restringido a Lead Data Engineer. Redirigiendo…', 'warning');
+          setTimeout(() => { window.location.href = '/catalogo/home.html'; }, 2200);
+        }
+        return;
+      }
       if (res.status !== 204 && !res.ok) throw new Error(`HTTP ${res.status}`);
       closeConfirm();
       loadTable(currentPage);
     } catch (e) {
-      showError(`Error eliminando: ${e.message}`);
+      if (!e.accessDenied) showError(`Error eliminando: ${e.message}`);
       closeConfirm();
     } finally {
       btn.disabled = false;

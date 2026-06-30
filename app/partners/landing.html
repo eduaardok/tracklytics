@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Tracklytics for Partners</title>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet"/>
+  <link rel="icon" type="image/png" href="/img/logo.png"/>
+  <link rel="stylesheet" href="/css/main.css"/>
+  <style>
+    body { height: auto; overflow: auto; }
+
+    .pl-banner {
+      background: rgba(214,158,46,.15); border-bottom: 1px solid rgba(214,158,46,.4);
+      color: #f6ad55; text-align: center; padding: .6rem 1rem; font-size: .85rem; font-weight: 600;
+    }
+    .pl-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 1.5rem 3rem; border-bottom: 1px solid var(--border);
+    }
+    .pl-header .brand { display: flex; align-items: center; gap: .6rem; font-weight: 800; font-size: 1.2rem; }
+    .pl-header .brand img { height: 32px; }
+    .pl-hero { padding: 4rem 3rem 2rem; max-width: 900px; }
+    .pl-hero h1 { font-size: 2.4rem; font-weight: 800; margin-bottom: 1rem; line-height: 1.2; }
+    .pl-hero p { color: var(--text-muted); font-size: 1.05rem; max-width: 640px; }
+
+    .pl-section { padding: 2rem 3rem; max-width: 1100px; }
+    .pl-section h2 { font-size: 1.4rem; font-weight: 700; margin-bottom: 1.25rem; }
+
+    .tier-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1.25rem; }
+    .tier-card {
+      background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+      padding: 1.5rem; display: flex; flex-direction: column; gap: .5rem;
+    }
+    .tier-card.featured { border-color: var(--accent); background: var(--surface2); }
+    .tier-card h3 { font-size: 1.1rem; font-weight: 800; }
+    .tier-card ul { list-style: none; margin-top: .5rem; display: flex; flex-direction: column; gap: .4rem; }
+    .tier-card li { font-size: .85rem; color: var(--text-muted); padding-left: 1.1rem; position: relative; }
+    .tier-card li::before { content: '✓'; position: absolute; left: 0; color: var(--accent); font-weight: 700; }
+
+    .code-block {
+      background: #0a0a12; border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 1rem; font-family: 'Cascadia Code', Consolas, monospace; font-size: .82rem;
+      color: #9ae6b4; overflow-x: auto; white-space: pre;
+    }
+
+    .try-now { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; align-items: start; }
+    @media (max-width: 760px) { .try-now { grid-template-columns: 1fr; } }
+    #demo-output {
+      background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 1rem; font-family: 'Cascadia Code', Consolas, monospace; font-size: .78rem;
+      white-space: pre-wrap; word-break: break-word; max-height: 320px; overflow-y: auto; color: #9ae6b4;
+    }
+  </style>
+</head>
+<body>
+
+<div class="pl-banner">
+  ⚠ Esta página es una demostración previa a producción del programa de Partners de Tracklytics — no representa una oferta comercial activa.
+</div>
+
+<div class="pl-header">
+  <a href="/" class="brand">
+    <img src="/img/logo.png" alt="" onerror="this.remove()"/>
+    <span><span class="logo-t">T</span>racklytics <span style="color:var(--text-muted); font-weight:600">for Partners</span></span>
+  </a>
+  <a href="/autenticacion/login.html" class="btn btn-outline btn-sm">Ir a la app →</a>
+</div>
+
+<div class="pl-hero">
+  <h1>Integra el catálogo de Tracklytics directamente en tu sistema</h1>
+  <p>
+    Sellos discográficos y distribuidoras pueden consumir nuestro catálogo musical — tracks, artistas, álbumes
+    y géneros — de forma programática vía API key, sin fuerza de ventas ni integraciones manuales.
+    Tú decides cuánto acceso necesitas según tu tier.
+  </p>
+</div>
+
+<div class="pl-section">
+  <h2>Tiers de acceso</h2>
+  <div class="tier-grid">
+    <div class="tier-card">
+      <h3>Básico</h3>
+      <p style="color:var(--text-muted); font-size:.85rem">Catálogo esencial para integraciones simples.</p>
+      <ul>
+        <li>Tracks, artistas, álbumes y géneros (lista + detalle)</li>
+        <li>Campos: nombre, artista, género, popularidad</li>
+      </ul>
+    </div>
+    <div class="tier-card featured">
+      <h3>Pro</h3>
+      <p style="color:var(--text-muted); font-size:.85rem">Perfil de audio para recomendación y análisis.</p>
+      <ul>
+        <li>Todo lo de Básico</li>
+        <li>+ duración, danceability, energy, valence, tempo</li>
+      </ul>
+    </div>
+    <div class="tier-card">
+      <h3>Enterprise</h3>
+      <p style="color:var(--text-muted); font-size:.85rem">Acceso completo y exportación masiva.</p>
+      <ul>
+        <li>Todo lo de Pro</li>
+        <li>+ loudness, speechiness, acousticness, instrumentalness, liveness</li>
+        <li>Endpoint de exportación masiva (<code>/tracks/export</code>)</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<div class="pl-section">
+  <h2>Autenticación</h2>
+  <p style="color:var(--text-muted); font-size:.88rem; margin-bottom:.75rem">
+    Cada solicitud se autentica con una API key enviada por header — nunca por query string.
+  </p>
+  <div class="code-block">curl https://api.tracklytics.dev/partners/v1/tracks?limit=10 \
+  -H "X-API-Key: TU_API_KEY"</div>
+</div>
+
+<div class="pl-section">
+  <h2>Pruébalo ahora</h2>
+  <p style="color:var(--text-muted); font-size:.88rem; margin-bottom:1rem">
+    Usa una API key de demo para ver una respuesta real del catálogo (solo lectura, tier básico).
+  </p>
+  <div class="try-now">
+    <div>
+      <div class="form-group">
+        <label>API Key</label>
+        <input type="text" id="demo-key" class="form-control" placeholder="Pega tu API key de demo aquí"/>
+      </div>
+      <button class="btn btn-primary btn-sm" id="demo-send">▶ Probar GET /partners/v1/tracks</button>
+    </div>
+    <pre id="demo-output">Sin solicitudes enviadas aún.</pre>
+  </div>
+</div>
+
+<script type="module">
+  document.getElementById('demo-send').addEventListener('click', async () => {
+    const key = document.getElementById('demo-key').value.trim();
+    const out = document.getElementById('demo-output');
+    if (!key) { out.textContent = 'Ingresa una API key.'; return; }
+    out.textContent = 'Enviando…';
+    try {
+      const res = await fetch('/api/partners/v1/tracks?limit=5&page=1', { headers: { 'X-API-Key': key } });
+      const body = await res.json().catch(() => ({}));
+      out.textContent = `HTTP ${res.status}\n\n` + JSON.stringify(body, null, 2);
+    } catch (e) {
+      out.textContent = `Error de red: ${e.message}`;
+    }
+  });
+</script>
+</body>
+</html>

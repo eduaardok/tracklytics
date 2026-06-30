@@ -157,6 +157,9 @@ services:
       AIRFLOW_USER:        ${AIRFLOW_USER:-admin}
       AIRFLOW_PASSWORD:    ${AIRFLOW_PASSWORD:-tracklytics2026}
       AIRFLOW_DAG_ID:      ${AIRFLOW_DAG_ID:-tracklytics_etl}
+      POCKETBASE_URL:      ${POCKETBASE_URL}
+      POCKETBASE_EMAIL:    ${POCKETBASE_EMAIL}
+      POCKETBASE_PASSWORD: ${POCKETBASE_PASSWORD}
     networks:
       - tracklytics-net
 
@@ -236,22 +239,6 @@ services:
       - pocketbase
     ports:
       - "8081:80"
-    networks:
-      - tracklytics-net
-
-  # ─────────────────────────────────────────
-  # 7. Frontend  — Nginx sirve HTML/CSS/JS
-  # ─────────────────────────────────────────
-  frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-    container_name: tracklytics_frontend
-    restart: unless-stopped
-    depends_on:
-      - api
-    ports:
-      - "80:80"
     networks:
       - tracklytics-net
 

@@ -42,16 +42,20 @@ const ANALYTICS_SUBS = [
   { href: '/analytics/trends.html',       label: 'Tendencias' },
   { href: '/analytics/artists.html',         label: 'Artistas' },
   { href: '/analytics/compare-artists.html', label: 'Comparar Artistas' },
-  { href: '/analytics/etl.html',             label: 'ETL' },
-  { href: '/analytics/crud.html',         label: 'CRUD' },
+  { href: '/analytics/benchmark.html',          label: 'Benchmark Género' },
+  { href: '/analytics/mercado-vs-tracklytics.html', label: 'Mercado vs. Tracklytics' },
+  { href: '/analytics/reporte-diario.html',  label: 'Reporte Diario', adminOnly: true },
+  { href: '/analytics/etl.html',             label: 'ETL', adminOnly: true },
+  { href: '/analytics/crud.html',         label: 'CRUD', adminOnly: true },
   { href: '/analytics/data-quality.html', label: 'Calidad de Datos', adminOnly: true },
+  { href: '/partners/console.html',       label: 'Partners (consola)', adminOnly: true },
 ];
 
 export function renderSidebar(activePage) {
   const user = getSession();
   const role = user?.role ?? 'user';
   const showAnalytics = role === 'admin' || role === 'analyst';
-  const onAnalytics = activePage.startsWith('analytics');
+  const onAnalytics = activePage.startsWith('analytics') || activePage.startsWith('partners');
 
   const analyticsHtml = showAnalytics ? `
     <a href="/analytics/dashboard.html" class="nav-link ${onAnalytics ? 'active' : ''}">

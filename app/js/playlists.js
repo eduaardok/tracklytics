@@ -98,7 +98,7 @@ export function createPlaylist(name) {
 export function addTrackToPlaylist(playlistId, track) {
   const pl = _cache.find(p => p.id === playlistId);
   if (!pl) return false;
-  if (pl.tracks.some(t => t.track_id === track.track_id)) return false;
+  if (pl.tracks.some(t => t.fact_id === track.fact_id)) return false;
 
   pl.tracks.push(track);
 

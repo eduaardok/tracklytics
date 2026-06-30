@@ -292,3 +292,29 @@ def run_log(**context):
         os.remove(parquet_path)
 
     print(f"[log] Semana {week} completada. Insertados: {inserted_count}. Duración: {duration:.1f}s")
+
+
+def run_log_failure(**context):
+    """RF-ING-004: registra en ETL_LOGS una ejecución fallida con las
+    métricas parciales disponibles hasta el punto de falla. Se ejecuta solo
+    cuando alguna task previa (bronze/silver/gold/synthetic) falla
+    (trigger_rule=ONE_FAILED en la DAG); no corre en el camino feliz."""
+    cfg    = get_config()
+    client = get_client(cfg)
+
+    week         = context["params"]["week_number"]
+    records_read = context["ti"].xcom_pull(task_ids="task_bronze", key="records_read") or 0
+    etl_start_ts = context["ti"].xcom_pull(task_ids="task_bronze", key="etl_start_ts")
+
+    duration = 0.0
+    if etl_start_ts:
+        duration = (datetime.utcnow() - datetime.fromisoformat(etl_start_ts)).total_seconds()
+
+    next_log_id = int(scalar(client, "SELECT max(log_id) FROM ETL_LOGS") or 0) + 1
+    client.insert(
+        "ETL_LOGS",
+        [(next_log_id, week, records_read, 0, 0, duration, "failed")],
+        column_names=["log_id", "week_number", "records_read", "records_inserted",
+                      "records_rejected", "duration_seconds", "status"],
+    )
+    print(f"[log_failure] Semana {week} registrada como fallida. Leídos: {records_read}.")

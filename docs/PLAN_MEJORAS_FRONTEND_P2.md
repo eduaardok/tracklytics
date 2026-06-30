@@ -1,3 +1,8 @@
+> ✅ **Implementado en S6** (ver `BITACORA_S6.md` y README § Historial de sprints). Este
+> documento queda como registro histórico del plan original — todas las fases (0 a 9)
+> se ejecutaron. La única excepción explícita es la nota de la sección 3.1 sobre audio
+> real, que sigue sin implementarse y está repreguntada en `docs/PENDIENTES.md`.
+
 # Plan de Mejoras — Frontend Tracklytics (P2: Reproductor, Favoritos, Playlists, Perfil)
 
 ## 0. Contexto y vínculo con la documentación estratégica (EV04)

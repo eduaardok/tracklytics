@@ -347,6 +347,33 @@ def main() -> None:
         print(f"[pb-init] ERROR: {exc}")
         sys.exit(1)
 
+    # ── Colección: partners ────────────────────────────────────────────────────
+    # Directorio de partners/API keys para la capability `partners`. El alta y
+    # gestión de partners es responsabilidad de CU-T03 (administración táctica
+    # de partners), que no está implementada en este repo — esta colección es
+    # el mínimo sustrato de almacenamiento para que `partners` tenga algo que
+    # consumir. Deliberadamente sin reglas (ningún listRule/viewRule/etc.): solo
+    # el superusuario de PocketBase puede gestionarla, ya que no existe un
+    # "usuario partner" autenticado vía PocketBase — la API key se valida desde
+    # FastAPI usando credenciales de superusuario, no una sesión de partner.
+    partners_schema = {
+        "name": "partners",
+        "type": "base",
+        "fields": [
+            {"name": "nombre",           "type": "text", "required": True},
+            {"name": "api_key",          "type": "text", "required": True},
+            {"name": "tier",             "type": "text", "required": True},
+            {"name": "estado",           "type": "text", "required": True},
+            {"name": "fecha_expiracion", "type": "date", "required": False},
+            {"name": "created", "type": "autodate", "onCreate": True, "onUpdate": False},
+        ],
+    }
+    try:
+        ensure_collection(token, partners_schema)
+    except RuntimeError as exc:
+        print(f"[pb-init] ERROR: {exc}")
+        sys.exit(1)
+
     # ── Verificar colección ───────────────────────────────────────────────────
     count = collection_count(token)
 

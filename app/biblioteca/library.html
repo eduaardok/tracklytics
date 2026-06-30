@@ -81,15 +81,32 @@
 <div id="player-root"></div>
 
 <script type="module">
-  import { requireAuth } from '/js/auth.js';
+  import { requireAuth, getSession } from '/js/auth.js';
   import { renderSidebar, renderPlayer, trackRow, setQueue, coverArt, emptyState, skeletonRows, genreColor, GLYPH } from '/js/components.js';
   import { initPlaylists, getPlaylists, createPlaylist, removeTrackFromPlaylist, deletePlaylist, renamePlaylist } from '/js/playlists.js';
   import { initFavorites, getFavorites } from '/js/favorites.js';
   import { initHistory, getHistory } from '/js/history.js';
+  import { showToast } from '/js/toast.js';
 
   if (!requireAuth()) throw new Error('not auth');
   renderSidebar('biblioteca/library.html');
   renderPlayer();
+
+  // RN-CAT-004: la biblioteca personal (favoritos/historial) es exclusiva de
+  // Usuario B2C. Se verifica el rol aquí, de forma proactiva, en vez de
+  // esperar al 403 del backend en cada llamada — así el Cliente B2B ve un
+  // único mensaje claro al entrar, no un error por cada pestaña.
+  const _isB2B = getSession()?.role === 'analyst';
+  if (_isB2B) {
+    showToast('La biblioteca personal es exclusiva de Usuario B2C. Tu cuenta es de Cliente B2B.', 'warning', 6000);
+    document.querySelector('main.main-content').innerHTML = `
+      <h1 class="section-title">Mi Biblioteca</h1>
+      <div class="alert alert-error" style="max-width:560px">
+        Esta sección (favoritos, historial y playlists personales) es exclusiva de Usuario B2C.
+        Tu cuenta tiene rol de Cliente B2B — usa el panel de <a href="/analytics/dashboard.html" style="color:#fc8181;text-decoration:underline">Analítica</a> en su lugar.
+      </div>`;
+    throw new Error('blocked: B2B no tiene acceso a biblioteca personal');
+  }
 
   // ── Tabs ─────────────────────────────────────────────────
   document.querySelectorAll('.tab-btn').forEach(btn => {

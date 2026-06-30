@@ -50,10 +50,17 @@
               Carga los datos reales + sintéticos acumulados hasta la semana seleccionada.
               Los datos actuales serán reemplazados.
             </p>
+            <div class="form-group" style="display:flex;align-items:center;gap:.5rem;margin:.5rem 0">
+              <input type="checkbox" id="forzar-recarga" style="width:auto"/>
+              <label for="forzar-recarga" style="margin:0;font-size:.85rem">
+                Forzar recarga (si la semana ya fue cargada — RN-ING-001)
+              </label>
+            </div>
             <button class="btn btn-success" id="btn-trigger" onclick="triggerETL()" style="width:100%">
               ▶ Cargar hasta semana 1
             </button>
             <div id="trigger-result" style="margin-top:.75rem"></div>
+            <div id="stage-tracker" style="margin-top:.5rem"></div>
             <hr style="margin:1rem 0;border-color:var(--border)"/>
             <button class="btn btn-danger" id="btn-clear" onclick="clearData()" style="width:100%">
               Vaciar todos los datos
@@ -80,12 +87,13 @@
               <th>Leídos</th>
               <th>Insertados</th>
               <th>Rechazados</th>
+              <th>Tasa Rechazo</th>
               <th>Duración (s)</th>
               <th>Timestamp</th>
             </tr>
           </thead>
           <tbody id="logs-tbody">
-            <tr><td colspan="8"><div class="loading-center"><div class="spinner"></div></div></td></tr>
+            <tr><td colspan="9"><div class="loading-center"><div class="spinner"></div></div></td></tr>
           </tbody>
         </table>
       </div>
@@ -102,12 +110,10 @@
 <div id="player-root"></div>
 
 <script type="module">
-  import { requireAuth, hasAnalyticsAccess } from '/js/auth.js';
+  import { requireRole, getToken } from '/js/auth.js';
   import { renderSidebar, renderPlayer } from '/js/components.js';
-  if (!requireAuth() || !hasAnalyticsAccess()) {
-    window.location.href = '/catalogo/home.html';
-    throw new Error('unauthorized');
-  }
+  import { showToast } from '/js/toast.js';
+  if (!requireRole('admin')) throw new Error('unauthorized');
   renderSidebar('analytics');
   renderPlayer();
 
@@ -120,8 +126,26 @@
       `<div class="alert alert-error">${msg}</div>`;
   }
 
+  // El poll de pollDagRun() llama a fetchJSON cada 5s; sin este guard, un 403
+  // (p.ej. sesión revocada a mitad de un monitoreo) repetiría el toast y el
+  // redirect en cada tick.
+  let _accessDenied = false;
+
   async function fetchJSON(path, opts = {}) {
-    const res = await fetch(API + path, opts);
+    const res = await fetch(API + path, {
+      ...opts,
+      headers: { ...(opts.headers || {}), Authorization: `Bearer ${getToken()}` },
+    });
+    if (res.status === 403) {
+      if (!_accessDenied) {
+        _accessDenied = true;
+        showToast('Acceso restringido a Lead Data Engineer. Redirigiendo…', 'warning');
+        setTimeout(() => { window.location.href = '/catalogo/home.html'; }, 2200);
+      }
+      const err = new Error('access_denied');
+      err.accessDenied = true;
+      throw err;
+    }
     if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text()}`);
     return res.json();
   }
@@ -148,58 +172,65 @@
     return `<span class="badge ${map[status] ?? 'badge-info'}">${status ?? '—'}</span>`;
   }
 
-  async function loadLastRun() {
-    document.getElementById('status-loading').style.display = 'flex';
-    try {
-      const row = await fetchJSON('/etl/status');
+  function rechazoBadge(pct) {
+    if (pct == null) return '—';
+    const high = pct > 1.0;
+    return `<span class="badge ${high ? 'badge-danger' : 'badge-success'}">${pct.toFixed(2)}%${high ? ' · Requiere revisión' : ''}</span>`;
+  }
 
-      const statusClass = { success: 'success', failed: 'failed', running: 'running' }[row.status] ?? 'running';
-      const statusLabel = { success: 'Exitoso', failed: 'Fallido', running: 'En ejecución' }[row.status] ?? row.status;
-
-      const bar = document.getElementById('status-bar');
-      bar.className = `status-bar ${statusClass}`;
-      bar.innerHTML = `
-        <div class="status-dot ${statusClass}"></div>
-        <div>
-          <strong>${statusLabel}</strong> — Semana ${row.week_number ?? '?'}
-          <div class="text-muted" style="margin-top:.2rem">${fmtDate(row.run_timestamp)}</div>
-        </div>
-        <div style="margin-left:auto;text-align:right">
-          <div>Insertados: <strong>${(row.records_inserted ?? 0).toLocaleString()}</strong></div>
-          ${row.records_rejected ? `<div class="text-muted">Rechazados: ${row.records_rejected}</div>` : ''}
-        </div>
-      `;
-      bar.style.display = 'flex';
-
-      const fields = [
-        ['Log ID',     row.log_id],
-        ['Semana',     row.week_number],
-        ['Estado',     statusBadge(row.status)],
-        ['Leídos',     (row.records_read ?? 0).toLocaleString()],
-        ['Insertados', (row.records_inserted ?? 0).toLocaleString()],
-        ['Rechazados', (row.records_rejected ?? 0).toLocaleString()],
-        ['Duración',   fmtDuration(row.duration_seconds)],
-        ['Timestamp',  fmtDate(row.run_timestamp)],
-      ];
-
-      document.getElementById('last-run-body').innerHTML =
-        fields.map(([k,v]) => `<tr><td class="text-muted" style="width:40%">${k}</td><td>${v}</td></tr>`).join('');
-      document.getElementById('last-run-card').style.display = 'block';
-
-    } catch (e) {
-      if (!e.message.includes('404')) showError(`Error cargando estado ETL: ${e.message}`);
+  // RF-ING-006: indicador de la última carga, leído de la misma respuesta
+  // que el historial (GET /app/v1/ingesta/cargas → ultima_carga).
+  function renderLastRun(row) {
+    document.getElementById('status-loading').style.display = 'none';
+    if (!row) {
       document.getElementById('status-bar').innerHTML = '';
-    } finally {
-      document.getElementById('status-loading').style.display = 'none';
+      return;
     }
+
+    const statusClass = { success: 'success', failed: 'failed', running: 'running' }[row.status] ?? 'running';
+    const statusLabel = { success: 'Exitoso', failed: 'Fallido', running: 'En ejecución' }[row.status] ?? row.status;
+
+    const bar = document.getElementById('status-bar');
+    bar.className = `status-bar ${statusClass}`;
+    bar.innerHTML = `
+      <div class="status-dot ${statusClass}"></div>
+      <div>
+        <strong>${statusLabel}</strong> — Semana ${row.week_number ?? '?'}
+        <div class="text-muted" style="margin-top:.2rem">${fmtDate(row.run_timestamp)}</div>
+      </div>
+      <div style="margin-left:auto;text-align:right">
+        <div>Insertados: <strong>${(row.records_inserted ?? 0).toLocaleString()}</strong></div>
+        ${row.records_rejected ? `<div class="text-muted">Rechazados: ${row.records_rejected} (${rechazoBadge(row.tasa_rechazo_pct)})</div>` : ''}
+      </div>
+    `;
+    bar.style.display = 'flex';
+
+    const fields = [
+      ['Log ID',       row.log_id],
+      ['Semana',       row.week_number],
+      ['Estado',       statusBadge(row.status)],
+      ['Leídos',       (row.records_read ?? 0).toLocaleString()],
+      ['Insertados',   (row.records_inserted ?? 0).toLocaleString()],
+      ['Rechazados',   (row.records_rejected ?? 0).toLocaleString()],
+      ['Tasa Rechazo', rechazoBadge(row.tasa_rechazo_pct)],
+      ['Duración',     fmtDuration(row.duration_seconds)],
+      ['Timestamp',    fmtDate(row.run_timestamp)],
+    ];
+
+    document.getElementById('last-run-body').innerHTML =
+      fields.map(([k,v]) => `<tr><td class="text-muted" style="width:40%">${k}</td><td>${v}</td></tr>`).join('');
+    document.getElementById('last-run-card').style.display = 'block';
   }
 
   async function loadLogs(page = 1) {
     logsPage = page;
+    document.getElementById('status-loading').style.display = 'flex';
     try {
-      const data = await fetchJSON(`/etl/logs?page=${page}&limit=${logsLimit}`);
+      const data = await fetchJSON(`/app/v1/ingesta/cargas?page=${page}&limit=${logsLimit}`);
       const logs  = data.data  ?? [];
       const total = data.total ?? 0;
+
+      renderLastRun(data.ultima_carga);
 
       document.getElementById('logs-page-info').textContent =
         `Pág. ${page} — ${((page-1)*logsLimit)+1}–${Math.min(page*logsLimit, total)} de ${total}`;
@@ -208,7 +239,7 @@
 
       const tbody = document.getElementById('logs-tbody');
       if (!logs.length) {
-        tbody.innerHTML = `<tr><td colspan="8"><div class="empty-state"><p>Sin registros ETL</p></div></td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="9"><div class="empty-state"><p>Sin registros ETL</p></div></td></tr>`;
         return;
       }
 
@@ -220,12 +251,15 @@
           <td>${(l.records_read ?? 0).toLocaleString()}</td>
           <td>${(l.records_inserted ?? 0).toLocaleString()}</td>
           <td>${(l.records_rejected ?? 0).toLocaleString()}</td>
+          <td>${rechazoBadge(l.tasa_rechazo_pct)}</td>
           <td>${fmtDuration(l.duration_seconds)}</td>
           <td style="font-size:.8rem">${fmtDate(l.run_timestamp)}</td>
         </tr>
       `).join('');
     } catch (e) {
-      showError(`Error cargando historial: ${e.message}`);
+      if (!e.accessDenied) showError(`Error cargando historial: ${e.message}`);
+    } finally {
+      document.getElementById('status-loading').style.display = 'none';
     }
   }
 
@@ -240,7 +274,34 @@
     if (_pollTimer) { clearInterval(_pollTimer); _pollTimer = null; }
   }
 
-  function pollDagRun(dagRunId, weekNum) {
+  const STAGE_LABELS = {
+    extraccion:              'Extracción',
+    transformacion_staging:  'Transformación a staging',
+    carga_clickhouse:        'Carga a ClickHouse',
+    auditoria:                'Auditoría',
+  };
+  const STAGE_ORDER = ['extraccion', 'transformacion_staging', 'carga_clickhouse', 'auditoria'];
+
+  // RF-ING-002: monitoreo en tiempo real por etapa (extracción → staging → ClickHouse).
+  function renderStages(etapas) {
+    const seen = new Map();
+    for (const e of etapas) {
+      const prev = seen.get(e.etapa);
+      // Si una etapa tiene varias tasks (gold + synthetic), prioriza el peor estado.
+      const rank = s => ({ failed: 3, running: 2, queued: 1, success: 0, upstream_failed: 3, skipped: 0 })[s] ?? 1;
+      if (!prev || rank(e.estado) > rank(prev)) seen.set(e.etapa, e.estado);
+    }
+    document.getElementById('stage-tracker').innerHTML = `
+      <div style="display:flex;gap:.5rem;flex-wrap:wrap">
+        ${STAGE_ORDER.filter(s => seen.has(s)).map(s => {
+          const estado = seen.get(s);
+          const cls = { success: 'badge-success', failed: 'badge-danger', running: 'badge-info' }[estado] ?? 'badge-warning';
+          return `<span class="badge ${cls}">${STAGE_LABELS[s]}: ${estado ?? '—'}</span>`;
+        }).join('')}
+      </div>`;
+  }
+
+  function pollDagRun(ejecucionId, weekNum) {
     _stopPolling();
     let ticks = 0;
     const MAX = 120;
@@ -258,11 +319,12 @@
       }
 
       try {
-        const data = await fetchJSON(`/etl/run-status?run_id=${encodeURIComponent(dagRunId)}`);
-        const state = data.state;
+        const data  = await fetchJSON(`/app/v1/ingesta/ejecuciones/${encodeURIComponent(ejecucionId)}`);
+        const state = data.estado;
+        renderStages(data.etapas ?? []);
+
         if (state === 'success' || state === 'failed') {
           _stopPolling();
-          loadLastRun();
           loadLogs(1);
           resultEl.innerHTML = state === 'success'
             ? `<div class="alert alert-info"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:6px"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>ETL completado exitosamente — semana ${weekNum}.</div>`
@@ -283,30 +345,34 @@
         `<div class="alert alert-warning">Ingresa un número de semana entre 1 y 16.</div>`;
       return;
     }
+    const forzarRecarga = document.getElementById('forzar-recarga').checked;
 
     _stopPolling();
     const btn = document.getElementById('btn-trigger');
     btn.disabled = true;
     btn.textContent = 'Enviando…';
     document.getElementById('trigger-result').innerHTML = '';
+    document.getElementById('stage-tracker').innerHTML = '';
 
     try {
-      const result = await fetchJSON('/etl/trigger', {
+      const result = await fetchJSON('/app/v1/ingesta/ejecuciones', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ week_number: weekNum })
+        body: JSON.stringify({ week_number: weekNum, forzar_recarga: forzarRecarga })
       });
-      const dagRunId = result?.airflow?.dag_run_id;
-      if (!dagRunId) throw new Error('Airflow no devolvió dag_run_id');
+      const ejecucionId = result.ejecucion_id;
+      if (!ejecucionId) throw new Error('Airflow no devolvió un identificador de ejecución');
       document.getElementById('trigger-result').innerHTML =
         `<div class="alert alert-info" style="display:flex;align-items:center;gap:.6rem">
           <div class="spinner" style="width:16px;height:16px;border-width:2px;flex-shrink:0"></div>
           DAG en cola — monitoreando semana ${weekNum}…
         </div>`;
-      pollDagRun(dagRunId, weekNum);
+      pollDagRun(ejecucionId, weekNum);
     } catch (e) {
-      document.getElementById('trigger-result').innerHTML =
-        `<div class="alert alert-error">Error: ${e.message}</div>`;
+      if (!e.accessDenied) {
+        document.getElementById('trigger-result').innerHTML =
+          `<div class="alert alert-error">Error: ${e.message}</div>`;
+      }
       btn.disabled = false;
       updateBtnLabel();
     }
@@ -322,10 +388,12 @@
       await fetchJSON('/etl/clear', { method: 'POST' });
       document.getElementById('clear-result').innerHTML =
         `<div class="alert alert-info">Datos vaciados correctamente.</div>`;
-      setTimeout(() => { loadLastRun(); loadLogs(1); }, 800);
+      setTimeout(() => { loadLogs(1); }, 800);
     } catch (e) {
-      document.getElementById('clear-result').innerHTML =
-        `<div class="alert alert-error">Error: ${e.message}</div>`;
+      if (!e.accessDenied) {
+        document.getElementById('clear-result').innerHTML =
+          `<div class="alert alert-error">Error: ${e.message}</div>`;
+      }
     } finally {
       btn.disabled = false;
       btn.textContent = 'Vaciar todos los datos';
@@ -343,7 +411,6 @@
   window.loadLogs       = loadLogs;
   window.changePage     = changePage;
 
-  loadLastRun();
   loadLogs();
 </script>
 </body>

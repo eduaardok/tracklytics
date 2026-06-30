@@ -268,6 +268,25 @@ DDL_STATEMENTS = [
     ) ENGINE = MergeTree()
     ORDER BY (user_id, event_timestamp)
     """,
+
+    # ── Log operativo de llamadas de la API de partners (capability `partners`) ─
+    # No es FACT_INTEGRACION_PARTNER (esa la alimentaría un pipeline ETL futuro,
+    # fuera de alcance de esta capability): este es el registro crudo por
+    # llamada, escrito directamente por FastAPI igual que FACT_ENGAGEMENT_USUARIO.
+    f"""
+    CREATE TABLE IF NOT EXISTS {DB}.LOG_LLAMADAS_PARTNER (
+        log_id       UUID DEFAULT generateUUIDv4(),
+        partner_id   String,
+        api_key_used String,
+        endpoint     String,
+        tier_usado   String,
+        resultado    Enum8('success'=1, 'auth_rejected'=2, 'tier_rejected'=3, 'error'=4),
+        registros    UInt32,
+        duracion_ms  Float32,
+        timestamp    DateTime DEFAULT now()
+    ) ENGINE = MergeTree()
+    ORDER BY (partner_id, timestamp)
+    """,
 ]
 
 # ── Runner ────────────────────────────────────────────────────────────────────
