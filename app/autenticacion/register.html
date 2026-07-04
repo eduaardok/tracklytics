@@ -70,6 +70,10 @@
           <label>Contraseña</label>
           <input type="password" id="password" placeholder="Mínimo 8 caracteres" minlength="8" required autocomplete="new-password"/>
         </div>
+        <div class="form-group">
+          <label>País</label>
+          <input type="text" id="pais" placeholder="Tu país" autocomplete="country-name"/>
+        </div>
 
         <div class="form-group">
           <label>Tipo de cuenta</label>
@@ -107,6 +111,7 @@
 
 <script type="module">
   import { register, isLoggedIn } from '/js/auth.js';
+  import { Suscripciones } from '/js/api.js';
 
   if (isLoggedIn()) window.location.href = '/catalogo/home.html';
 
@@ -126,8 +131,17 @@
         document.getElementById('password').value,
         document.getElementById('name').value,
         role,
+        document.getElementById('pais').value,
       );
-      window.location.href = '/catalogo/home.html';
+
+      if (role === 'user') {
+        // Auto-asignar plan Free al registrarse
+        try { await Suscripciones.confirmar('free', null); } catch (_) {}
+        window.location.href = '/catalogo/home.html';
+      } else {
+        // B2B: debe seleccionar un plan antes de entrar
+        window.location.href = '/autenticacion/planes.html?onboarding=1';
+      }
     } catch (err) {
       alertBox.innerHTML = `<div class="alert alert-error">${err.message}</div>`;
       btn.disabled = false;

@@ -9,6 +9,7 @@ from datetime import date, datetime
 import numpy as np
 import pandas as pd
 
+from gold.portada import cargar_cache_portadas
 from utils.clickhouse_client import get_client, get_date_id, load_lookup, scalar
 from utils.config import get_config
 
@@ -161,6 +162,14 @@ def run_gold(**context):
                               "origin_region", "mood", "description"],
             )
 
+    # Portadas ya resueltas en sesiones anteriores (etl/gold/portadas_cache.json,
+    # fuera del volumen de ClickHouse — ver comentario en portada.py). Se
+    # restauran aquí, en el propio INSERT masivo de creación, en vez de con
+    # un UPDATE posterior: mucho más barato en ClickHouse (un INSERT vs. miles
+    # de mutaciones ALTER UPDATE) y evita perder cobertura ya ganada tras un
+    # `docker compose down -v` o una recarga a los ~113.550 registros reales.
+    _cache = cargar_cache_portadas()
+
     # ── DIM_ALBUMS ────────────────────────────────────────────────────────────
     if _count("DIM_ALBUMS") == 0:
         albums = [
@@ -174,10 +183,10 @@ def run_gold(**context):
                 batch = albums[start:start + 50_000]
                 client.insert(
                     "DIM_ALBUMS",
-                    [(start + i, name, 0, "Studio", 0, "", "")
+                    [(start + i, name, 0, "Studio", 0, "", 0, _cache["albumes"].get(name))
                      for i, name in enumerate(batch, 1)],
                     column_names=["album_id", "name", "release_year", "album_type",
-                                  "total_tracks_listed", "language", "label"],
+                                  "total_tracks_listed", "language", "sello_id", "imagen_url"],
                 )
 
     # ── DIM_ARTISTS (split por ";") ───────────────────────────────────────────
@@ -198,60 +207,76 @@ def run_gold(**context):
                 batch = unique_artists[start:start + 50_000]
                 client.insert(
                     "DIM_ARTISTS",
-                    [(start + i, name, "", 0, "", "Solo", True)
+                    [(start + i, name, "", 0, "Solo", True, 0, _cache["artistas"].get(name))
                      for i, name in enumerate(batch, 1)],
                     column_names=["artist_id", "name", "country", "debut_year",
-                                  "record_label", "artist_type", "active"],
+                                  "artist_type", "active", "sello_id", "imagen_url"],
                 )
 
     # ── FACT_TRACKS: registros reales (semana 1, vectorizado) ─────────────────
-    genre_map  = load_lookup(client, "DIM_GENRES",  "name", "genre_id")
-    album_map  = load_lookup(client, "DIM_ALBUMS",  "name", "album_id")
-    artist_map = load_lookup(client, "DIM_ARTISTS", "name", "artist_id")
-    date_id_1  = get_date_id(client, 1)
+    # Guard de idempotencia (mismo patrón que las dimensiones de arriba,
+    # `if _count(tabla) == 0`): los registros reales son inmutables (siempre
+    # semana 1, mismo dataset base) y no deben re-insertarse en cada corrida
+    # del DAG — a diferencia de los datos sintéticos (`run_synthetic`), que sí
+    # varían por semana y sí deben poder correr repetidamente. Antes de este
+    # guard, una re-corrida de `task_gold` (incluso accidental — ej.
+    # `airflow tasks test` sobre una tarea downstream que arrastra sus
+    # dependencias upstream) duplicaba los 113 550 `fact_id` reales completos,
+    # cada uno con un mapeo a track distinto por el orden no determinista de
+    # extracción (ver docs/decisiones-refactorizacion.md §20).
+    real_count_existente = scalar(client, "SELECT count() FROM FACT_TRACKS WHERE source_type = 'real'") or 0
+    if real_count_existente > 0:
+        print(f"[gold] {real_count_existente} registros reales ya cargados — se omite el insert (idempotencia).")
+        n_real = real_count_existente
+    else:
+        genre_map  = load_lookup(client, "DIM_GENRES",  "name", "genre_id")
+        album_map  = load_lookup(client, "DIM_ALBUMS",  "name", "album_id")
+        artist_map = load_lookup(client, "DIM_ARTISTS", "name", "artist_id")
+        date_id_1  = get_date_id(client, 1)
 
-    stg_df     = client.query_df("SELECT * FROM STG_RAW_TRACKS")
-    n_real     = len(stg_df)
-    pop_arr    = stg_df["popularity"].to_numpy(dtype=np.int32)
-    tempo_arr  = stg_df["tempo"].to_numpy(dtype=np.float32)
-    energy_arr = stg_df["energy"].to_numpy(dtype=np.float32)
+        stg_df     = client.query_df("SELECT * FROM STG_RAW_TRACKS")
+        n_real     = len(stg_df)
+        pop_arr    = stg_df["popularity"].to_numpy(dtype=np.int32)
+        tempo_arr  = stg_df["tempo"].to_numpy(dtype=np.float32)
+        energy_arr = stg_df["energy"].to_numpy(dtype=np.float32)
 
-    real_df = pd.DataFrame({
-        "fact_id":             np.arange(1, n_real + 1, dtype=np.int64),
-        "track_id":            stg_df["track_id"].astype(str),
-        "track_name":          stg_df["track_name"].astype(str),
-        "artist_id":           stg_df["artists"].astype(str).str.split(";").str[0].str.strip()
-                               .map(artist_map).fillna(1).astype(np.int64),
-        "album_id":            stg_df["album_name"].astype(str).map(album_map).fillna(1).astype(np.int64),
-        "genre_id":            stg_df["track_genre"].astype(str).map(genre_map).fillna(1).astype(np.int64),
-        "date_id":             date_id_1,
-        "key_id":              stg_df["key"].astype(int) + 1,
-        "mode_id":             stg_df["mode"].astype(int) + 1,
-        "time_signature_id":   stg_df["time_signature"].astype(int).map(_TS_MAP).fillna(3).astype(int),
-        "explicit_id":         stg_df["explicit"].astype(int) + 1,
-        "popularity_range_id": np.where(pop_arr <= 33, 1, np.where(pop_arr <= 66, 2, 3)),
-        "tempo_range_id":      np.where(tempo_arr < 90, 1, np.where(tempo_arr < 120, 2,
-                               np.where(tempo_arr < 150, 3, 4))),
-        "energy_level_id":     np.where(energy_arr <= 0.33, 1, np.where(energy_arr <= 0.66, 2, 3)),
-        "popularity":          pop_arr,
-        "duration_ms":         stg_df["duration_ms"].astype(int),
-        "danceability":        stg_df["danceability"].astype(float),
-        "energy":              energy_arr,
-        "loudness":            stg_df["loudness"].astype(float),
-        "speechiness":         stg_df["speechiness"].astype(float),
-        "acousticness":        stg_df["acousticness"].astype(float),
-        "instrumentalness":    stg_df["instrumentalness"].astype(float),
-        "liveness":            stg_df["liveness"].astype(float),
-        "valence":             stg_df["valence"].astype(float),
-        "tempo":               tempo_arr,
-        "load_week":           1,
-        "is_synthetic":        False,
-    })
+        real_df = pd.DataFrame({
+            "fact_id":             np.arange(1, n_real + 1, dtype=np.int64),
+            "track_id":            stg_df["track_id"].astype(str),
+            "track_name":          stg_df["track_name"].astype(str),
+            "artist_id":           stg_df["artists"].astype(str).str.split(";").str[0].str.strip()
+                                   .map(artist_map).fillna(1).astype(np.int64),
+            "album_id":            stg_df["album_name"].astype(str).map(album_map).fillna(1).astype(np.int64),
+            "genre_id":            stg_df["track_genre"].astype(str).map(genre_map).fillna(1).astype(np.int64),
+            "date_id":             date_id_1,
+            "key_id":              stg_df["key"].astype(int) + 1,
+            "mode_id":             stg_df["mode"].astype(int) + 1,
+            "time_signature_id":   stg_df["time_signature"].astype(int).map(_TS_MAP).fillna(3).astype(int),
+            "explicit_id":         stg_df["explicit"].astype(int) + 1,
+            "popularity_range_id": np.where(pop_arr <= 33, 1, np.where(pop_arr <= 66, 2, 3)),
+            "tempo_range_id":      np.where(tempo_arr < 90, 1, np.where(tempo_arr < 120, 2,
+                                   np.where(tempo_arr < 150, 3, 4))),
+            "energy_level_id":     np.where(energy_arr <= 0.33, 1, np.where(energy_arr <= 0.66, 2, 3)),
+            "popularity":          pop_arr,
+            "duration_ms":         stg_df["duration_ms"].astype(int),
+            "danceability":        stg_df["danceability"].astype(float),
+            "energy":              energy_arr,
+            "loudness":            stg_df["loudness"].astype(float),
+            "speechiness":         stg_df["speechiness"].astype(float),
+            "acousticness":        stg_df["acousticness"].astype(float),
+            "instrumentalness":    stg_df["instrumentalness"].astype(float),
+            "liveness":            stg_df["liveness"].astype(float),
+            "valence":             stg_df["valence"].astype(float),
+            "tempo":               tempo_arr,
+            "load_week":           1,
+            "source_type":         "real",
+        })
 
-    for start in range(0, n_real, 50_000):
-        client.insert_df("FACT_TRACKS", real_df.iloc[start:start + 50_000])
+        for start in range(0, n_real, 50_000):
+            client.insert_df("FACT_TRACKS", real_df.iloc[start:start + 50_000])
 
-    print(f"[gold] {n_real} registros reales insertados (semana 1)")
+        print(f"[gold] {n_real} registros reales insertados (semana 1)")
+
     context["ti"].xcom_push(key="next_id",    value=n_real + 1)
     context["ti"].xcom_push(key="real_count", value=n_real)
 

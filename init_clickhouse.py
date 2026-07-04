@@ -16,6 +16,11 @@ import sys
 
 import clickhouse_connect
 
+# Consola Windows por defecto usa cp1252, que no puede imprimir ✓/✗ — fuerza
+# UTF-8 en stdout para que el script no truene al final de una corrida exitosa.
+if sys.stdout.encoding and sys.stdout.encoding.lower() != "utf-8":
+    sys.stdout.reconfigure(encoding="utf-8")
+
 # ── Conexión ──────────────────────────────────────────────────────────────────
 
 HOST = os.getenv("CLICKHOUSE_HOST",     "localhost")
@@ -59,13 +64,17 @@ DDL_STATEMENTS = [
     """,
 
     # ── Dimensiones ───────────────────────────────────────────────────────────
+    # NOTA (capability `distribucion`): `record_label`/`label` (texto libre) fueron
+    # reemplazados por `sello_id` (FK a DIM_SELLO_DISCOGRAFICO, ver más abajo). En una
+    # instalación existente esta migración se aplica con `scripts/migrar_sellos.py`
+    # (CREATE TABLE IF NOT EXISTS no altera una tabla ya creada con el esquema viejo).
     f"""
     CREATE TABLE IF NOT EXISTS {DB}.DIM_ARTISTS (
         artist_id    UInt32,
         name         String,
         country      String,
         debut_year   UInt16,
-        record_label String,
+        sello_id     UInt32 DEFAULT 0,
         artist_type  String,
         active       Bool
     ) ENGINE = MergeTree()
@@ -80,7 +89,7 @@ DDL_STATEMENTS = [
         album_type          String,
         total_tracks_listed UInt16,
         language            String,
-        label               String
+        sello_id            UInt32 DEFAULT 0
     ) ENGINE = MergeTree()
     ORDER BY album_id
     """,
@@ -224,7 +233,7 @@ DDL_STATEMENTS = [
         valence             Float32,
         tempo               Float32,
         load_week           UInt8,
-        is_synthetic        Bool,
+        source_type         Enum8('real'=1, 'synthetic'=2, 'user_uploaded'=3),
         inserted_at         DateTime DEFAULT now()
     ) ENGINE = MergeTree()
     ORDER BY (genre_id, artist_id, load_week)
@@ -287,6 +296,485 @@ DDL_STATEMENTS = [
     ) ENGINE = MergeTree()
     ORDER BY (partner_id, timestamp)
     """,
+
+    # ── Capability `seguridad`: identidad, sesiones, permisos, auditoría ────────
+    # Excepción deliberada a RT-05 (documentada en design.md de la capability
+    # `seguridad`): dominio operativo/transaccional modelado en ClickHouse.
+    # PocketBase sigue siendo el único almacén de credenciales; estas tablas son
+    # un espejo/log analítico y de auditoría, nunca la fuente de verdad para
+    # autorización en caliente.
+    f"""
+    CREATE TABLE IF NOT EXISTS {DB}.DIM_USUARIO (
+        usuario_id     String,
+        email          String,
+        nombre         String,
+        pais           String,
+        fecha_registro DateTime,
+        rol            String,
+        actualizado_en DateTime DEFAULT now()
+    ) ENGINE = ReplacingMergeTree(actualizado_en)
+    ORDER BY usuario_id
+    """,
+
+    f"""
+    CREATE TABLE IF NOT EXISTS {DB}.DIM_DISPOSITIVO (
+        dispositivo_id     String,
+        usuario_id         String,
+        tipo               String,
+        os                 String,
+        app_version        String,
+        primera_vez_visto  DateTime DEFAULT now()
+    ) ENGINE = MergeTree()
+    ORDER BY (usuario_id, dispositivo_id)
+    """,
+
+    # FACT_SESION: apertura (login) e cierre (logout) son dos INSERT distintos
+    # sobre el mismo sesion_id; ReplacingMergeTree resuelve a la fila de cierre
+    # cuando existe (fecha_fin_version pasa de 0 a 1). Una sesión sin logout
+    # explícito queda con fecha_fin/duracion en NULL indefinidamente — ver
+    # design.md, decisión "FACT_SESION con apertura/cierre".
+    f"""
+    CREATE TABLE IF NOT EXISTS {DB}.FACT_SESION (
+        sesion_id          String,
+        usuario_id         String,
+        dispositivo_id     String,
+        fecha_inicio       DateTime,
+        fecha_fin          Nullable(DateTime),
+        duracion           Nullable(Float32),
+        fecha_fin_version  UInt8 DEFAULT 0
+    ) ENGINE = ReplacingMergeTree(fecha_fin_version)
+    ORDER BY sesion_id
+    """,
+
+    # FACT_PERMISO_USUARIO: append-only. El estado vigente de un permiso se
+    # resuelve con argMax(permitido, fecha_asignacion) por
+    # (usuario_id, recurso, accion) — nunca se borra una fila (ver design.md).
+    f"""
+    CREATE TABLE IF NOT EXISTS {DB}.FACT_PERMISO_USUARIO (
+        usuario_id       String,
+        recurso          String,
+        accion           String,
+        permitido        Bool,
+        fecha_asignacion DateTime DEFAULT now(),
+        asignado_por     String
+    ) ENGINE = MergeTree()
+    ORDER BY (usuario_id, recurso, accion, fecha_asignacion)
+    """,
+
+    f"""
+    CREATE TABLE IF NOT EXISTS {DB}.FACT_AUDIT_LOG (
+        audit_id       UUID DEFAULT generateUUIDv4(),
+        usuario_id     String,
+        accion         String,
+        tabla_afectada String,
+        antes          String,
+        despues        String,
+        timestamp      DateTime DEFAULT now()
+    ) ENGINE = MergeTree()
+    ORDER BY (usuario_id, timestamp)
+    """,
+
+    f"""
+    CREATE TABLE IF NOT EXISTS {DB}.FACT_ERROR_SISTEMA (
+        error_id   UUID DEFAULT generateUUIDv4(),
+        codigo     String,
+        mensaje    String,
+        servicio   String,
+        usuario_id Nullable(String),
+        timestamp  DateTime DEFAULT now(),
+        resolved   Bool DEFAULT false
+    ) ENGINE = MergeTree()
+    ORDER BY timestamp
+    """,
+
+    # ── Capability `facturacion`: métodos de pago, transacciones e invoices ─────
+    # Sin fricción con RT-05 (a diferencia de `seguridad`): estas tres tablas son
+    # append-only por naturaleza — un método de pago no se edita una vez creado,
+    # y una transacción/invoice ya ocurrieron y no se modifican retroactivamente
+    # (design.md de la capability `facturacion`). No hay pasarela de pago real;
+    # el resultado de cada transacción se simula dentro de la propia API.
+    f"""
+    CREATE TABLE IF NOT EXISTS {DB}.DIM_METODO_PAGO (
+        metodo_pago_id     UUID DEFAULT generateUUIDv4(),
+        usuario_id         String,
+        tipo               String,
+        ultimos_4_digitos  String,
+        pais               String,
+        creado_en          DateTime DEFAULT now()
+    ) ENGINE = MergeTree()
+    ORDER BY (usuario_id, metodo_pago_id)
+    """,
+
+    f"""
+    CREATE TABLE IF NOT EXISTS {DB}.FACT_TRANSACCION_PAGO (
+        transaccion_id  UUID DEFAULT generateUUIDv4(),
+        usuario_id      String,
+        metodo_pago_id  UUID,
+        suscripcion_id  String,
+        monto           Float32,
+        moneda          String,
+        estado          Enum8('pendiente'=1, 'exitosa'=2, 'fallida'=3),
+        fecha           DateTime DEFAULT now()
+    ) ENGINE = MergeTree()
+    ORDER BY (usuario_id, fecha)
+    """,
+
+    f"""
+    CREATE TABLE IF NOT EXISTS {DB}.FACT_INVOICE (
+        invoice_id     UUID DEFAULT generateUUIDv4(),
+        usuario_id     String,
+        transaccion_id UUID,
+        monto          Float32,
+        iva            Float32,
+        fecha_emision  DateTime DEFAULT now(),
+        estado         String
+    ) ENGINE = MergeTree()
+    ORDER BY (usuario_id, fecha_emision)
+    """,
+
+    # ── Capability `creadores`: cuentas de artista y subida/aprobación de tracks ─
+    # DIM_CUENTA_ARTISTA y FACT_SUBIDA_TRACK usan ReplacingMergeTree (mismo
+    # patrón que DIM_USUARIO/FACT_SESION en `seguridad`): ambas nacen en un
+    # estado y se resuelven una sola vez (pendiente -> aprobada/rechazada).
+    # STG_ARTIST_UPLOADS es append-only y permanente (a diferencia de
+    # STG_RAW_TRACKS, nunca se trunca — ver design.md de la capability).
+    f"""
+    CREATE TABLE IF NOT EXISTS {DB}.DIM_CUENTA_ARTISTA (
+        cuenta_artista_id String,
+        usuario_id        String,
+        nombre_artistico  String,
+        estado_cuenta     Enum8('pendiente'=1, 'aprobada'=2, 'rechazada'=3),
+        fecha_solicitud   DateTime,
+        fecha_resolucion  Nullable(DateTime),
+        admin_resolutor_id Nullable(String),
+        actualizado_en    DateTime DEFAULT now()
+    ) ENGINE = ReplacingMergeTree(actualizado_en)
+    ORDER BY cuenta_artista_id
+    """,
+
+    f"""
+    CREATE TABLE IF NOT EXISTS {DB}.DIM_ESTADO_REVISION (
+        estado_revision_id UInt8,
+        nombre             String
+    ) ENGINE = MergeTree()
+    ORDER BY estado_revision_id
+    """,
+
+    f"""
+    CREATE TABLE IF NOT EXISTS {DB}.STG_ARTIST_UPLOADS (
+        staging_id        String,
+        cuenta_artista_id String,
+        track_name        String,
+        album_name        String,
+        genre_id          UInt16,
+        duration_ms       UInt32,
+        explicit          UInt8,
+        danceability      Float32,
+        energy            Float32,
+        key                UInt8,
+        loudness          Float32,
+        mode              UInt8,
+        speechiness       Float32,
+        acousticness      Float32,
+        instrumentalness  Float32,
+        liveness          Float32,
+        valence           Float32,
+        tempo             Float32,
+        time_signature    UInt8,
+        subido_en         DateTime DEFAULT now()
+    ) ENGINE = MergeTree()
+    ORDER BY staging_id
+    """,
+
+    f"""
+    CREATE TABLE IF NOT EXISTS {DB}.FACT_SUBIDA_TRACK (
+        subida_id          String,
+        cuenta_artista_id  String,
+        staging_id         String,
+        estado_revision_id UInt8,
+        fecha_subida       DateTime,
+        fecha_resolucion   Nullable(DateTime),
+        admin_resolutor_id Nullable(String),
+        fact_id_promovido  Nullable(UInt64),
+        version            UInt8 DEFAULT 0
+    ) ENGINE = ReplacingMergeTree(version)
+    ORDER BY subida_id
+    """,
+
+    # ── Capability `social`: seguimiento de artistas, comentarios y comparticiones ─
+    # Igual que `seguridad`/`creadores`: excepción deliberada a RT-05, dominio
+    # operativo/transaccional modelado en ClickHouse (design.md de la capability).
+    # BRIDGE_SEGUIMIENTO_ARTISTA nunca borra filas (dejar de seguir = activo=0,
+    # vía ALTER UPDATE). FACT_COMENTARIO/FACT_COMPARTICION generan su fact_id
+    # como UInt64 aleatorio en Python (sin lock, ver design.md "Riesgo aceptado:
+    # fact_id generado sin lock") — no reutilizan el patrón secuencial de
+    # FACT_TRACKS/FACT_SUBIDA_TRACK.
+    f"""
+    CREATE TABLE IF NOT EXISTS {DB}.BRIDGE_SEGUIMIENTO_ARTISTA (
+        usuario_id   String,
+        artista_id   UInt32,
+        fecha_inicio DateTime,
+        activo       UInt8 DEFAULT 1
+    ) ENGINE = MergeTree()
+    ORDER BY (usuario_id, artista_id)
+    """,
+
+    f"""
+    CREATE TABLE IF NOT EXISTS {DB}.DIM_TIPO_INTERACCION_SOCIAL (
+        tipo_interaccion_id UInt16,
+        nombre               String,
+        descripcion          String
+    ) ENGINE = MergeTree()
+    ORDER BY tipo_interaccion_id
+    """,
+
+    f"""
+    CREATE TABLE IF NOT EXISTS {DB}.FACT_COMENTARIO (
+        fact_id              UInt64,
+        usuario_id           String,
+        fact_id_track        UInt64,
+        tipo_interaccion_id  UInt16,
+        comentario_padre_id  Nullable(UInt64),
+        contenido            String,
+        fecha_creacion       DateTime,
+        estado_moderacion    Enum8('visible'=1, 'oculto'=2, 'eliminado'=3) DEFAULT 'visible',
+        moderado_por         Nullable(String),
+        fecha_moderacion     Nullable(DateTime)
+    ) ENGINE = MergeTree()
+    ORDER BY (fact_id_track, fecha_creacion)
+    """,
+
+    f"""
+    CREATE TABLE IF NOT EXISTS {DB}.FACT_COMPARTICION (
+        fact_id              UInt64,
+        usuario_id           String,
+        fact_id_track        Nullable(UInt64),
+        artista_id           Nullable(UInt32),
+        playlist_id          Nullable(String),
+        tipo_interaccion_id  UInt16,
+        canal                Enum8('x'=1, 'whatsapp'=2, 'copiar_enlace'=3),
+        fecha                DateTime
+    ) ENGINE = MergeTree()
+    ORDER BY (usuario_id, fecha)
+    """,
+
+    # ── capability `distribucion`: mercado, sellos, licencias, restricciones ───
+    f"""
+    CREATE TABLE IF NOT EXISTS {DB}.DIM_PAIS (
+        pais_id    UInt16,
+        nombre     String,
+        codigo_iso String
+    ) ENGINE = MergeTree()
+    ORDER BY pais_id
+    """,
+
+    f"""
+    CREATE TABLE IF NOT EXISTS {DB}.DIM_SELLO_DISCOGRAFICO (
+        sello_id UInt32,
+        nombre   String
+    ) ENGINE = MergeTree()
+    ORDER BY sello_id
+    """,
+
+    f"""
+    CREATE TABLE IF NOT EXISTS {DB}.DIM_LICENCIA (
+        licencia_id  UInt32,
+        sello_id     UInt32,
+        pais_id      UInt16,
+        fecha_inicio Date,
+        fecha_fin    Nullable(Date),
+        estado       Enum8('activa'=1, 'vencida'=2, 'suspendida'=3) DEFAULT 'activa'
+    ) ENGINE = MergeTree()
+    ORDER BY (sello_id, pais_id)
+    """,
+
+    f"""
+    CREATE TABLE IF NOT EXISTS {DB}.DIM_TIPO_RESTRICCION (
+        tipo_restriccion_id UInt16,
+        nombre              String,
+        descripcion         String
+    ) ENGINE = MergeTree()
+    ORDER BY tipo_restriccion_id
+    """,
+
+    f"""
+    CREATE TABLE IF NOT EXISTS {DB}.DIM_CANAL_DISTRIBUCION (
+        canal_id UInt16,
+        nombre   String
+    ) ENGINE = MergeTree()
+    ORDER BY canal_id
+    """,
+
+    # Soft-delete vía `activo`, mismo patrón que BRIDGE_SEGUIMIENTO_ARTISTA.
+    f"""
+    CREATE TABLE IF NOT EXISTS {DB}.BRIDGE_RESTRICCION_TRACK (
+        fact_id_track       UInt64,
+        pais_id              UInt16,
+        canal_id             UInt16,
+        tipo_restriccion_id  UInt16,
+        fecha_inicio         DateTime,
+        activo               UInt8 DEFAULT 1
+    ) ENGINE = MergeTree()
+    ORDER BY (fact_id_track, pais_id, canal_id)
+    """,
+
+    # `fact_id` UInt64 aleatorio (random.getrandbits(50) en Python, sin lock),
+    # mismo patrón corregido en `social` — no usar 63 bits.
+    f"""
+    CREATE TABLE IF NOT EXISTS {DB}.FACT_RESTRICCION_REPRODUCCION (
+        fact_id              UInt64,
+        usuario_id           String,
+        fact_id_track        UInt64,
+        pais_id              UInt16,
+        tipo_restriccion_id  UInt16,
+        fecha                DateTime
+    ) ENGINE = MergeTree()
+    ORDER BY (fact_id_track, fecha)
+    """,
+
+    # ── capability `experiencia`: telemetría enriquecida, soporte, A/B, ────────
+    # reflejo de playlists y plan familiar. Las 4 tablas FACT usan `fact_id`
+    # UInt64 aleatorio (random.getrandbits(50) en Python, sin lock), mismo
+    # patrón ya corregido en `social`/`distribucion` — no se reintroduce un
+    # generador de IDs distinto (design.md, "Generación de identificadores").
+    f"""
+    CREATE TABLE IF NOT EXISTS {DB}.FACT_REPRODUCCION_EVENTO (
+        fact_id                UInt64,
+        usuario_id              String,
+        fact_id_track           UInt64,
+        dispositivo_id          String,
+        sesion_id               String,
+        porcentaje_completado   Float32,
+        fecha                   DateTime
+    ) ENGINE = MergeTree()
+    ORDER BY (fact_id_track, fecha)
+    """,
+
+    f"""
+    CREATE TABLE IF NOT EXISTS {DB}.FACT_IMPRESION_RECOMENDACION (
+        fact_id          UInt64,
+        usuario_id       String,
+        fact_id_track    UInt64,
+        algoritmo        String,
+        fue_reproducido  UInt8 DEFAULT 0,
+        fecha            DateTime
+    ) ENGINE = MergeTree()
+    ORDER BY (usuario_id, fecha)
+    """,
+
+    # FACT_TICKET_SOPORTE: dato de forma transaccional forzado en ClickHouse a
+    # propósito, mismo precedente pedagógico ya documentado para
+    # `seguridad`/`facturacion` (design.md, tabla "Ubicación de cada entidad").
+    f"""
+    CREATE TABLE IF NOT EXISTS {DB}.FACT_TICKET_SOPORTE (
+        fact_id           UInt64,
+        usuario_id        String,
+        asunto            String,
+        descripcion       String,
+        estado            Enum8('abierto'=1, 'en_proceso'=2, 'resuelto'=3, 'cerrado'=4) DEFAULT 'abierto',
+        fecha_creacion    DateTime,
+        fecha_resolucion  Nullable(DateTime)
+    ) ENGINE = MergeTree()
+    ORDER BY (usuario_id, fecha_creacion)
+    """,
+
+    f"""
+    CREATE TABLE IF NOT EXISTS {DB}.FACT_AB_TEST_EXPOSICION (
+        fact_id      UInt64,
+        usuario_id   String,
+        experimento  String,
+        variante     String,
+        fecha        DateTime
+    ) ENGINE = MergeTree()
+    ORDER BY (experimento, usuario_id)
+    """,
+
+    # Reflejo de solo lectura de playlists/playlist_tracks (PocketBase sigue
+    # siendo la fuente de verdad); poblado por un job batch, nunca escrito
+    # directamente por el usuario (design.md, tabla "Ubicación de cada entidad").
+    f"""
+    CREATE TABLE IF NOT EXISTS {DB}.BRIDGE_TRACK_PLAYLIST_USUARIO (
+        fact_id_track    UInt64,
+        usuario_id       String,
+        playlist_id      String,
+        fecha_agregado   DateTime
+    ) ENGINE = MergeTree()
+    ORDER BY (fact_id_track, usuario_id)
+    """,
+
+    # BRIDGE_SUSCRIPTOR_FAMILIA: relación transaccional forzada en ClickHouse a
+    # propósito, mismo precedente que FACT_TICKET_SOPORTE. Elegibilidad de plan
+    # (solo `premium` B2C) se valida en Python contra `planes.py`/PocketBase —
+    # no hay columna de tipo de plan aquí (design.md, "elegibilidad de plan").
+    f"""
+    CREATE TABLE IF NOT EXISTS {DB}.BRIDGE_SUSCRIPTOR_FAMILIA (
+        suscripcion_id  String,
+        usuario_id      String,
+        es_titular      UInt8 DEFAULT 0,
+        fecha_union     DateTime
+    ) ENGINE = MergeTree()
+    ORDER BY suscripcion_id
+    """,
+
+    # Portada real (RF-EXP-009): columnas aditivas, sin ALTER ... DROP — a
+    # diferencia de sello_id (`scripts/migrar_sellos.py`), no requiere backfill
+    # ni script de migración aparte porque no reemplaza ninguna columna
+    # existente. `ADD COLUMN IF NOT EXISTS` es idempotente igual que el resto
+    # de este script.
+    f"ALTER TABLE {DB}.DIM_ARTISTS ADD COLUMN IF NOT EXISTS imagen_url Nullable(String)",
+    f"ALTER TABLE {DB}.DIM_ALBUMS ADD COLUMN IF NOT EXISTS imagen_url Nullable(String)",
+
+    # ── completar-modelo-base: cierre de gap del modelo de negocio original ────
+    # (DIM_CANAL_MARKETING, DIM_REGION, DIM_COMPONENTE_INFRAESTRUCTURA,
+    # FACT_ADQUISICION, FACT_DISPONIBILIDAD). DIM_REGION es agrupación de
+    # negocio (ej. "Latinoamérica"), sin FK hacia DIM_PAIS (`distribucion`,
+    # país de licencia) — conceptos y dueños distintos, ver design.md.
+    f"""
+    CREATE TABLE IF NOT EXISTS {DB}.DIM_CANAL_MARKETING (
+        canal_id UInt16,
+        nombre   String
+    ) ENGINE = MergeTree()
+    ORDER BY canal_id
+    """,
+
+    f"""
+    CREATE TABLE IF NOT EXISTS {DB}.DIM_REGION (
+        region_id UInt16,
+        nombre    String
+    ) ENGINE = MergeTree()
+    ORDER BY region_id
+    """,
+
+    f"""
+    CREATE TABLE IF NOT EXISTS {DB}.DIM_COMPONENTE_INFRAESTRUCTURA (
+        componente_id UInt16,
+        nombre        String
+    ) ENGINE = MergeTree()
+    ORDER BY componente_id
+    """,
+
+    # `fact_id` UInt64 aleatorio (random.getrandbits(50) en Python, sin lock),
+    # mismo patrón ya establecido en `social`/`distribucion`/`experiencia`.
+    f"""
+    CREATE TABLE IF NOT EXISTS {DB}.FACT_ADQUISICION (
+        fact_id     UInt64,
+        usuario_id  String,
+        canal_id    UInt16,
+        region_id   UInt16,
+        fecha       DateTime
+    ) ENGINE = MergeTree()
+    ORDER BY (canal_id, fecha)
+    """,
+
+    f"""
+    CREATE TABLE IF NOT EXISTS {DB}.FACT_DISPONIBILIDAD (
+        fact_id          UInt64,
+        componente_id    UInt16,
+        hubo_incidente   UInt8 DEFAULT 0,
+        fecha            DateTime
+    ) ENGINE = MergeTree()
+    ORDER BY (componente_id, fecha)
+    """,
 ]
 
 # ── Runner ────────────────────────────────────────────────────────────────────
@@ -325,6 +813,164 @@ def main() -> None:
         failed = total - success
         print(f"✗ {failed}/{total} sentencias fallaron. Revisa los errores anteriores.")
         sys.exit(1)
+
+    # DIM_ESTADO_REVISION (capability `creadores`): sembrada aquí (no en
+    # etl/gold/loader.py) porque no debe depender de que ya haya corrido una
+    # ingesta por Airflow — la solicitud/aprobación de cuentas y tracks de
+    # artista es independiente del pipeline batch.
+    try:
+        count = client.query(f"SELECT count() FROM {DB}.DIM_ESTADO_REVISION").result_rows[0][0]
+        if count == 0:
+            client.insert(
+                f"{DB}.DIM_ESTADO_REVISION",
+                [(1, "pendiente"), (2, "aprobado"), (3, "rechazado")],
+                column_names=["estado_revision_id", "nombre"],
+            )
+            print("✓ DIM_ESTADO_REVISION sembrada (3 filas).")
+    except Exception as exc:
+        print(f"ERROR sembrando DIM_ESTADO_REVISION: {exc}")
+
+    # DIM_TIPO_INTERACCION_SOCIAL (capability `social`): dimensión compartida
+    # entre FACT_COMENTARIO y FACT_COMPARTICION, sembrada aquí mismo patrón que
+    # DIM_ESTADO_REVISION — no depende de que haya corrido una ingesta.
+    try:
+        count = client.query(f"SELECT count() FROM {DB}.DIM_TIPO_INTERACCION_SOCIAL").result_rows[0][0]
+        if count == 0:
+            client.insert(
+                f"{DB}.DIM_TIPO_INTERACCION_SOCIAL",
+                [
+                    (1, "comentario_raiz", "Comentario publicado directamente sobre un track"),
+                    (2, "comentario_respuesta", "Comentario publicado en respuesta a otro comentario"),
+                    (3, "compartir_track", "Intención de compartir un track"),
+                    (4, "compartir_playlist", "Intención de compartir una playlist"),
+                    (5, "compartir_perfil_artista", "Intención de compartir el perfil de un artista"),
+                ],
+                column_names=["tipo_interaccion_id", "nombre", "descripcion"],
+            )
+            print("✓ DIM_TIPO_INTERACCION_SOCIAL sembrada (5 filas).")
+    except Exception as exc:
+        print(f"ERROR sembrando DIM_TIPO_INTERACCION_SOCIAL: {exc}")
+
+    # DIM_PAIS (capability `distribucion`): catálogo fijo de mercados, mismo patrón
+    # de seed condicional que las dimensiones anteriores. Incluye Ecuador (nombre y
+    # código ISO) porque ya es el valor real que aparece en DIM_USUARIO.pais de las
+    # cuentas de prueba existentes.
+    try:
+        count = client.query(f"SELECT count() FROM {DB}.DIM_PAIS").result_rows[0][0]
+        if count == 0:
+            client.insert(
+                f"{DB}.DIM_PAIS",
+                [
+                    (1,  "Ecuador",         "EC"),
+                    (2,  "Estados Unidos",  "US"),
+                    (3,  "México",          "MX"),
+                    (4,  "Colombia",        "CO"),
+                    (5,  "España",          "ES"),
+                    (6,  "Argentina",       "AR"),
+                    (7,  "Chile",           "CL"),
+                    (8,  "Perú",            "PE"),
+                    (9,  "Brasil",          "BR"),
+                    (10, "Reino Unido",     "GB"),
+                    (11, "Canadá",          "CA"),
+                    (12, "Francia",         "FR"),
+                    (13, "Alemania",        "DE"),
+                    (14, "Japón",           "JP"),
+                    (15, "Corea del Sur",   "KR"),
+                ],
+                column_names=["pais_id", "nombre", "codigo_iso"],
+            )
+            print("✓ DIM_PAIS sembrada (15 filas).")
+    except Exception as exc:
+        print(f"ERROR sembrando DIM_PAIS: {exc}")
+
+    # DIM_TIPO_RESTRICCION (capability `distribucion`)
+    try:
+        count = client.query(f"SELECT count() FROM {DB}.DIM_TIPO_RESTRICCION").result_rows[0][0]
+        if count == 0:
+            client.insert(
+                f"{DB}.DIM_TIPO_RESTRICCION",
+                [
+                    (1, "no_disponible", "El track no puede reproducirse en este país/canal"),
+                    (2, "solo_preview",  "El track solo puede reproducirse como fragmento de vista previa"),
+                    (3, "geo_bloqueado", "El track está bloqueado por restricción geográfica de derechos"),
+                ],
+                column_names=["tipo_restriccion_id", "nombre", "descripcion"],
+            )
+            print("✓ DIM_TIPO_RESTRICCION sembrada (3 filas).")
+    except Exception as exc:
+        print(f"ERROR sembrando DIM_TIPO_RESTRICCION: {exc}")
+
+    # DIM_CANAL_DISTRIBUCION (capability `distribucion`)
+    try:
+        count = client.query(f"SELECT count() FROM {DB}.DIM_CANAL_DISTRIBUCION").result_rows[0][0]
+        if count == 0:
+            client.insert(
+                f"{DB}.DIM_CANAL_DISTRIBUCION",
+                [
+                    (1, "streaming"),
+                    (2, "descarga"),
+                    (3, "sync_licensing"),
+                ],
+                column_names=["canal_id", "nombre"],
+            )
+            print("✓ DIM_CANAL_DISTRIBUCION sembrada (3 filas).")
+    except Exception as exc:
+        print(f"ERROR sembrando DIM_CANAL_DISTRIBUCION: {exc}")
+
+    # DIM_CANAL_MARKETING (completar-modelo-base)
+    try:
+        count = client.query(f"SELECT count() FROM {DB}.DIM_CANAL_MARKETING").result_rows[0][0]
+        if count == 0:
+            client.insert(
+                f"{DB}.DIM_CANAL_MARKETING",
+                [
+                    (1, "organico"),
+                    (2, "redes_sociales"),
+                    (3, "ads_paid"),
+                    (4, "referido"),
+                ],
+                column_names=["canal_id", "nombre"],
+            )
+            print("✓ DIM_CANAL_MARKETING sembrada (4 filas).")
+    except Exception as exc:
+        print(f"ERROR sembrando DIM_CANAL_MARKETING: {exc}")
+
+    # DIM_REGION (completar-modelo-base) — agrupación de negocio, no confundir
+    # con DIM_PAIS (país de licencia, `distribucion`).
+    try:
+        count = client.query(f"SELECT count() FROM {DB}.DIM_REGION").result_rows[0][0]
+        if count == 0:
+            client.insert(
+                f"{DB}.DIM_REGION",
+                [
+                    (1, "Latinoamérica"),
+                    (2, "Norteamérica"),
+                    (3, "Europa"),
+                    (4, "Asia"),
+                ],
+                column_names=["region_id", "nombre"],
+            )
+            print("✓ DIM_REGION sembrada (4 filas).")
+    except Exception as exc:
+        print(f"ERROR sembrando DIM_REGION: {exc}")
+
+    # DIM_COMPONENTE_INFRAESTRUCTURA (completar-modelo-base)
+    try:
+        count = client.query(f"SELECT count() FROM {DB}.DIM_COMPONENTE_INFRAESTRUCTURA").result_rows[0][0]
+        if count == 0:
+            client.insert(
+                f"{DB}.DIM_COMPONENTE_INFRAESTRUCTURA",
+                [
+                    (1, "api"),
+                    (2, "clickhouse"),
+                    (3, "pocketbase"),
+                    (4, "airflow"),
+                ],
+                column_names=["componente_id", "nombre"],
+            )
+            print("✓ DIM_COMPONENTE_INFRAESTRUCTURA sembrada (4 filas).")
+    except Exception as exc:
+        print(f"ERROR sembrando DIM_COMPONENTE_INFRAESTRUCTURA: {exc}")
 
 
 if __name__ == "__main__":

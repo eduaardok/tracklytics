@@ -1,0 +1,208 @@
+.page { /* fills the AppShell content container */ }
+
+/* ── Page header ── */
+.heading {
+  font-family: var(--font-sans);
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--color-ink);
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+  text-wrap: balance;
+  margin-bottom: var(--space-xs);
+}
+
+.subtitle {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  color: var(--color-muted);
+  min-height: 1em;
+  margin-bottom: var(--space-xl);
+}
+
+/* ── Section label (plain sentence-case, never uppercase/tracked) ── */
+.sectionLabel {
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--color-muted);
+  margin-bottom: var(--space-sm);
+}
+
+/* ── Top grid: catalog scale + audio averages ── */
+.topGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-md);
+  margin-bottom: var(--space-md);
+}
+
+/* ── Middle grid: top genres + top artists ── */
+.midGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-md);
+  margin-bottom: var(--space-md);
+}
+
+/* ── Bordered data panel ── */
+.panel {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-md);
+}
+
+/* ── Key-value data table (CSS grid, 2-col) ── */
+.kv {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  row-gap: 6px;
+  column-gap: var(--space-md);
+}
+
+.kvLabel {
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+  font-weight: 400;
+  color: var(--color-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.kvValue {
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  font-weight: 400;
+  color: var(--color-ink);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* ── Ranked list (top genres / top artists) ── */
+.rankedList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.rankedRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 0;
+  border-bottom: 1px solid var(--color-border);
+  transition: background-color var(--duration-fast) var(--ease-standard);
+}
+
+.rankedRow:last-child { border-bottom: none; }
+
+.rank {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--color-muted);
+  width: 18px;
+  text-align: right;
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.rankedName {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+  font-weight: 400;
+  color: var(--color-ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rankedValue {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--color-muted);
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.rankedValueAccent {
+  color: var(--color-accent);
+}
+
+/* ── ETL health panel (single column below the grids) ── */
+.etlPanel {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-md);
+  display: flex;
+  align-items: center;
+  gap: var(--space-lg);
+  flex-wrap: wrap;
+}
+
+.etlBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--font-sans);
+  font-size: 0.75rem;
+  font-weight: 500;
+  padding: 3px 8px;
+  border-radius: var(--radius-pill);
+}
+
+.etlBadgeOk {
+  background: oklch(0.70 0.14 195 / 0.15);
+  color: var(--color-accent);
+}
+
+.etlBadgeError {
+  background: oklch(0.65 0.22 25 / 0.12);
+  color: var(--color-error);
+}
+
+.etlDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  flex-shrink: 0;
+}
+
+.etlMeta {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--color-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Skeleton ── */
+.skel {
+  display: block;
+  background: var(--color-surface-raised);
+  border-radius: 3px;
+  animation: skelPulse 1.6s ease-in-out infinite;
+}
+
+@keyframes skelPulse {
+  0%, 100% { opacity: 0.35; }
+  50%       { opacity: 0.65; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skel { animation: none; opacity: 0.5; }
+}
+
+/* ── Responsive ── */
+@media (max-width: 600px) {
+  .topGrid { grid-template-columns: 1fr; }
+  .midGrid { grid-template-columns: 1fr; }
+}

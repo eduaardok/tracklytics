@@ -1,0 +1,297 @@
+.page {
+  /* fills the AppShell content container */
+}
+
+/* ── Page header ── */
+.pageHead {
+  margin-bottom: var(--space-lg);
+}
+
+.heading {
+  font-family: var(--font-sans);
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--color-ink);
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+  text-wrap: balance;
+  margin-bottom: var(--space-xs);
+}
+
+.subtitle {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  color: var(--color-muted);
+  line-height: 1;
+  min-height: 1em;
+}
+
+/* ── Search ──
+   `flex-wrap`: sin esto, el `<select>` de género + el botón "limpiar" no
+   pueden encogerse más allá de su contenido y comprimían el input de
+   búsqueda a un ancho inutilizable en <375px. */
+.searchRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-xl);
+}
+
+.searchWrap {
+  position: relative;
+  flex: 1 1 200px;
+}
+
+.searchIcon {
+  position: absolute;
+  left: 13px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--color-muted);
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+}
+
+.searchInput {
+  width: 100%;
+  background: var(--color-surface);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  font-size: 0.9375rem;
+  font-weight: 400;
+  padding: 10px 14px 10px 38px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  outline: none;
+  transition:
+    border-color var(--duration-standard) var(--ease-standard),
+    background-color var(--duration-standard) var(--ease-standard);
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.searchInput::-webkit-search-cancel-button,
+.searchInput::-webkit-search-decoration {
+  -webkit-appearance: none;
+}
+
+.searchInput::placeholder {
+  color: var(--color-muted);
+}
+
+.searchInput:hover {
+  background: var(--color-surface-raised);
+}
+
+.searchInput:focus {
+  border-color: var(--color-primary);
+  background: var(--color-surface);
+}
+
+.genreSelect {
+  flex-shrink: 0;
+  background: var(--color-surface);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  padding: 9px var(--space-md);
+  height: 40px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  outline: none;
+  cursor: pointer;
+  transition:
+    border-color var(--duration-standard) var(--ease-standard),
+    background-color var(--duration-standard) var(--ease-standard);
+}
+
+.genreSelect:hover  { background: var(--color-surface-raised); }
+.genreSelect:focus  { border-color: var(--color-primary); }
+
+.clearBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  flex-shrink: 0;
+  background: transparent;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  color: var(--color-muted);
+  cursor: pointer;
+  transition:
+    color var(--duration-standard) var(--ease-standard),
+    background-color var(--duration-standard) var(--ease-standard),
+    border-color var(--duration-standard) var(--ease-standard);
+}
+
+.clearBtn:hover {
+  color: var(--color-ink);
+  border-color: oklch(0.35 0.012 285);
+  background: var(--color-surface);
+}
+
+.clearBtn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px oklch(0.48 0.15 290 / 0.45);
+}
+
+/* ── Track list ── */
+.list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+}
+
+/* ── Empty state ── */
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: var(--space-2xl) 0 var(--space-xl);
+  text-align: center;
+  gap: var(--space-sm);
+}
+
+.emptyIcon {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 0.9375rem;
+  color: var(--color-muted);
+  letter-spacing: 0.06em;
+  margin-bottom: var(--space-xs);
+  opacity: 0.7;
+}
+
+.emptyTitle {
+  font-family: var(--font-sans);
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--color-ink);
+  margin: 0;
+}
+
+.emptyBody {
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  color: var(--color-muted);
+  margin: 0;
+}
+
+/* ── Explorar por género ── */
+.genreChipsSection {
+  margin-bottom: var(--space-lg);
+}
+
+.genreChipsLabel {
+  display: block;
+  font-family: var(--font-sans);
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: var(--space-sm);
+}
+
+.genreChips {
+  display: flex;
+  gap: var(--space-sm);
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding-bottom: 2px;
+}
+
+.genreChips::-webkit-scrollbar { display: none; }
+
+.genreChip {
+  flex-shrink: 0;
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--color-muted);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-pill);
+  padding: 6px 14px;
+  cursor: pointer;
+  transition:
+    color var(--duration-fast) var(--ease-standard),
+    background-color var(--duration-fast) var(--ease-standard),
+    border-color var(--duration-fast) var(--ease-standard);
+}
+
+.genreChip:hover {
+  color: var(--color-ink);
+  background: var(--color-surface-raised);
+}
+
+.genreChip:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px oklch(0.48 0.15 290 / 0.5);
+}
+
+.genreChipActive {
+  color: var(--color-ink);
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+}
+
+.genreChipActive:hover {
+  background: oklch(0.54 0.16 290);
+}
+
+/* ── Skeleton rows ── */
+.skeletonRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+}
+
+.skel {
+  display: block;
+  background: var(--color-surface-raised);
+  border-radius: 3px;
+  flex-shrink: 0;
+  animation: skelPulse 1.6s ease-in-out infinite;
+}
+
+.skeletonRow:nth-child(2n) .skel { animation-delay: 0.15s; }
+.skeletonRow:nth-child(3n) .skel { animation-delay: 0.30s; }
+.skeletonRow:nth-child(5n) .skel { animation-delay: 0.45s; }
+
+.skelNum   { width: 20px; height: 13px; }
+.skelArt   { width: 40px; height: 40px; border-radius: var(--radius-sm); }
+.skelData  { width: 62px; height: 13px; }
+.skelTitle { height: 14px; }
+.skelMeta  { height: 11px; }
+
+.skelInfo {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+@keyframes skelPulse {
+  0%, 100% { opacity: 0.35; }
+  50%       { opacity: 0.65; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skel,
+  .skelTitle,
+  .skelMeta {
+    animation: none;
+    opacity: 0.5;
+  }
+}

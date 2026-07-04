@@ -1,0 +1,179 @@
+.page { /* fills content area */ }
+
+.heading {
+  font-family: var(--font-sans);
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--color-ink);
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+  text-wrap: balance;
+  margin-bottom: var(--space-xs);
+}
+
+.subtitle {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  color: var(--color-muted);
+  min-height: 1em;
+  margin-bottom: var(--space-lg);
+}
+
+/* ── Filters — one row, above the charts ── */
+.filterRow {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-xl);
+  flex-wrap: wrap;
+}
+
+.filterField {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.filterLabel {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--color-muted);
+}
+
+.filterInput {
+  width: 110px;
+  background: var(--color-surface);
+  color: var(--color-ink);
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  padding: 0 var(--space-sm);
+  height: 36px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  outline: none;
+  transition: border-color var(--duration-standard) var(--ease-standard);
+}
+
+.filterInput::placeholder { color: var(--color-muted); }
+.filterInput:focus { border-color: var(--color-primary); }
+
+.btnPrimary {
+  height: 36px;
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--color-ink);
+  background: var(--color-primary);
+  border: none;
+  border-radius: var(--radius-md);
+  padding: 0 var(--space-md);
+  cursor: pointer;
+  transition: background-color var(--duration-standard) var(--ease-standard);
+}
+
+.btnPrimary:hover { background: oklch(0.54 0.16 290); }
+
+.btnGhost {
+  height: 36px;
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--color-muted);
+  background: transparent;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 0 var(--space-md);
+  cursor: pointer;
+  transition: color var(--duration-fast) var(--ease-standard);
+}
+
+.btnGhost:hover { color: var(--color-ink); }
+
+/* ── Small multiples grid ── */
+.grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--space-md);
+}
+
+.panel {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-md);
+}
+
+.panelTitle {
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--color-muted);
+  margin-bottom: var(--space-sm);
+}
+
+.chartBox {
+  height: 200px;
+}
+
+.panelError {
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  color: var(--color-error);
+}
+
+/* ── Prompt ── */
+.prompt {
+  padding: var(--space-2xl) 0 var(--space-xl);
+  text-align: center;
+}
+
+.promptText {
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  color: var(--color-muted);
+}
+
+/* ── Tooltip ── */
+.tooltip {
+  background: var(--color-surface-raised);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-sm) var(--space-md);
+  box-shadow: 0 8px 24px oklch(0.03 0 0 / 0.5);
+}
+
+.tooltipLabel {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--color-muted);
+  margin-bottom: 4px;
+}
+
+.tooltipRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.tooltipKey {
+  width: 8px;
+  height: 2px;
+  border-radius: 1px;
+  background: oklch(0.70 0.14 195);
+  flex-shrink: 0;
+}
+
+.tooltipName {
+  font-family: var(--font-sans);
+  font-size: 0.75rem;
+  color: var(--color-muted);
+  flex: 1;
+}
+
+.tooltipValue {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--color-ink);
+  font-variant-numeric: tabular-nums;
+}

@@ -1,0 +1,153 @@
+/* B2B analytics shell — sidebar layout, page-level scroll so dropdowns aren't clipped */
+.shell {
+  min-height: 100vh;
+  background: var(--color-bg);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+}
+
+/* ── Brand bar ── */
+.brandBar {
+  position: sticky;
+  top: 0;
+  z-index: var(--z-sticky);
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 var(--space-lg);
+  background: var(--color-bg);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.wordmark {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-sm);
+  text-decoration: none;
+}
+
+.brand {
+  font-family: var(--font-sans);
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--color-ink);
+  letter-spacing: -0.02em;
+  line-height: 1;
+}
+
+/* mono register signal: this is a data panel, not a consumer app */
+.panelBadge {
+  font-family: var(--font-mono);
+  font-size: 0.625rem;
+  font-weight: 400;
+  color: var(--color-muted);
+  letter-spacing: 0.04em;
+}
+
+/* ── Body (sidebar + main) ── */
+.body {
+  display: flex;
+  align-items: flex-start;
+}
+
+/* ── Sidebar ── */
+.sidebar {
+  width: 220px;
+  flex-shrink: 0;
+  position: sticky;
+  top: 56px;
+  height: calc(100vh - 56px);
+  overflow-y: auto;
+  background: var(--color-surface);
+  border-right: 1px solid var(--color-border);
+  padding: var(--space-sm) 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.navItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 7px var(--space-md);
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--color-muted);
+  text-decoration: none;
+  transition:
+    color var(--duration-fast) var(--ease-standard),
+    background-color var(--duration-fast) var(--ease-standard);
+}
+
+.navItem:hover {
+  color: var(--color-ink);
+  background-color: var(--color-surface-raised);
+}
+
+.navItem:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 2px oklch(0.48 0.15 290 / 0.4);
+}
+
+/* applied in addition to .navItem via template literal */
+.navActive {
+  color: var(--color-primary-light);
+  background-color: oklch(0.48 0.15 290 / 0.10);
+}
+
+.navActive:hover {
+  color: var(--color-primary-light);
+  background-color: oklch(0.48 0.15 290 / 0.14);
+}
+
+.navDimmed {
+  color: oklch(0.38 0.008 285);
+}
+
+.navDimmed:hover {
+  color: oklch(0.50 0.008 285);
+  background-color: var(--color-surface-raised);
+}
+
+.comingSoonTag {
+  font-family: var(--font-mono);
+  font-size: 0.5625rem;
+  color: oklch(0.38 0.008 285);
+  letter-spacing: 0.04em;
+  flex-shrink: 0;
+}
+
+.divider {
+  height: 1px;
+  background: var(--color-border);
+  margin: var(--space-sm) var(--space-md);
+  flex-shrink: 0;
+}
+
+/* ── Main content ── */
+.main {
+  flex: 1;
+  min-width: 0;
+  padding: var(--space-xl);
+}
+
+.content {
+  max-width: 860px;
+  margin: 0 auto;
+}
+
+/* ── Responsive: collapse sidebar below md ── */
+@media (max-width: 768px) {
+  .sidebar { display: none; }
+  .main    { padding: var(--space-md); }
+}
+
+/* ── Print (ReporteDiarioPage "Descargar PDF") — solo el contenido imprime,
+   el chrome del shell no aporta nada a un reporte impreso. ── */
+@media print {
+  .brandBar,
+  .sidebar { display: none; }
+  .main    { padding: 0; }
+}

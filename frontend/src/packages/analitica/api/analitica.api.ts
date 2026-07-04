@@ -1,0 +1,99 @@
+import { apiClient, type ApiResponse } from '@shared/lib/api-client'
+import { getAuthHeaders } from '@shared/lib/session'
+import type { Genre } from '@packages/catalogo'
+import type {
+  ArtistSearchResult, TrackSearchResult,
+  EngagementByArtist, EngagementByFact, DesempenoRelativo,
+  DashboardData,
+  GenreAudioProfile, ArtistasComparacion, ArtistaBenchmark,
+  TendenciaSemana, ReporteDiario,
+  AdquisicionCanal, DisponibilidadComponente,
+} from '../types'
+
+// /dashboard/executive lives on the legacy router with no /app/v1 prefix.
+// Derive the API root by stripping /app/v1 from the configured base URL.
+const _base = import.meta.env.VITE_API_URL ?? '/app/v1'
+const _root = _base.replace(/\/app\/v1\/?$/, '')
+
+async function rawGet<T>(absolutePath: string): Promise<T> {
+  const res = await fetch(absolutePath, { headers: { 'Content-Type': 'application/json', ...getAuthHeaders() } })
+  if (!res.ok) throw new Error(`API ${res.status}: ${res.statusText}`)
+  return res.json() as Promise<T>
+}
+
+export const analiticaApi = {
+  // ── Dashboard ────────────────────────────────────────────────────────────────
+  dashboard: () =>
+    rawGet<DashboardData>(`${_root}/dashboard/executive`),
+
+  // Sonda de acceso para RequireSuscripcionActiva: golpea el mismo endpoint
+  // gateado por `require_b2b_panel_access` en el backend (admin bypassa,
+  // analyst requiere suscripción activa, cualquier otro rol 403) y devuelve
+  // solo el status HTTP — el guard reacciona al código real, no reimplementa
+  // la regla de negocio en el cliente (spec.md, "Acceso a paneles analíticos
+  // condicionado a suscripción activa").
+  checkAccesoAnalitica: async (): Promise<number> => {
+    const res = await fetch(`${_base}/analitica/dashboard`, { headers: { 'Content-Type': 'application/json', ...getAuthHeaders() } })
+    return res.status
+  },
+
+  // ── Artist search (analitica v1 router) ─────────────────────────────────────
+  artistsSearch: (nombre: string, limit = 8) =>
+    apiClient.get<{ data: ArtistSearchResult[]; total: number; limit: number }>(
+      `/analitica/artistas/search?nombre=${encodeURIComponent(nombre)}&limit=${limit}`,
+    ),
+
+  // ── Track search (catalog router, same /app/v1 base) ─────────────────────────
+  tracksSearch: (q: string, limit = 8) =>
+    apiClient.get<{ data: TrackSearchResult[]; total: number }>(
+      `/tracks/search?q=${encodeURIComponent(q)}&limit=${limit}`,
+    ),
+
+  // ── Engagement ───────────────────────────────────────────────────────────────
+  engagementByArtist: (artistId: number) =>
+    apiClient.get<EngagementByArtist>(`/analitica/engagement?artist_id=${artistId}`),
+
+  engagementByFact: (factId: number) =>
+    apiClient.get<EngagementByFact>(`/analitica/engagement?fact_id=${factId}`),
+
+  desempenoRelativo: (factId: number) =>
+    apiClient.get<DesempenoRelativo>(`/analitica/desempeno-relativo?fact_id=${factId}`),
+
+  // ── Perfil de audio por género ───────────────────────────────────────────────
+  // No existe un endpoint de listado de géneros en `analitica` — se reusa el
+  // mismo `/genres` del router `catalogo` que ya alimenta el filtro de
+  // CatalogPage, en vez de duplicar esa data o inventar un endpoint nuevo.
+  generos: () =>
+    apiClient.get<ApiResponse<Genre>>('/genres'),
+
+  generoPerfil: (generoId: number) =>
+    apiClient.get<GenreAudioProfile>(`/analitica/generos/${generoId}/perfil`),
+
+  // ── Comparación y benchmark de artistas ─────────────────────────────────────
+  artistasComparar: (artistaA: number, artistaB: number) =>
+    apiClient.get<ArtistasComparacion>(`/analitica/artistas/comparar?artista_a=${artistaA}&artista_b=${artistaB}`),
+
+  artistaBenchmark: (artistId: number) =>
+    apiClient.get<ArtistaBenchmark>(`/analitica/artistas/${artistId}/benchmark`),
+
+  // ── Tendencias semanales ─────────────────────────────────────────────────────
+  tendencias: (semanaDesde?: number, semanaHasta?: number) => {
+    const params = new URLSearchParams()
+    if (semanaDesde != null) params.set('semana_desde', String(semanaDesde))
+    if (semanaHasta != null) params.set('semana_hasta', String(semanaHasta))
+    const qs = params.toString()
+    return apiClient.get<{ data: TendenciaSemana[] }>(`/analitica/tendencias${qs ? `?${qs}` : ''}`)
+  },
+
+  // ── Reporte diario operativo (solo staff/admin — `require_staff` en backend) ──
+  reporteDiario: (fecha?: string) =>
+    apiClient.get<ReporteDiario>(`/analitica/reporte-diario${fecha ? `?fecha=${fecha}` : ''}`),
+
+  // ── Adquisición de usuarios por canal (CU-O54) ──────────────────────────────
+  adquisicion: () =>
+    apiClient.get<{ data: AdquisicionCanal[] }>('/analitica/adquisicion'),
+
+  // ── Disponibilidad de infraestructura por componente (CU-O55) ──────────────
+  disponibilidad: () =>
+    apiClient.get<{ data: DisponibilidadComponente[] }>('/analitica/disponibilidad'),
+}

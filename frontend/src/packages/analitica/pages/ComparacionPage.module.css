@@ -1,0 +1,105 @@
+.page { /* fills content area */ }
+
+.heading {
+  font-family: var(--font-sans);
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--color-ink);
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+  text-wrap: balance;
+  margin-bottom: var(--space-xs);
+}
+
+.subtitle {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  color: var(--color-muted);
+  min-height: 1em;
+  margin-bottom: var(--space-lg);
+}
+
+/* ── Two artist pickers side by side ── */
+.pickerRow {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-md);
+  margin-bottom: var(--space-xl);
+}
+
+.panel {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-md);
+}
+
+.panelError {
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  color: var(--color-error);
+}
+
+/* ── Prompt (no selection) ── */
+.prompt {
+  padding: var(--space-2xl) 0 var(--space-xl);
+  text-align: center;
+}
+
+.promptText {
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  color: var(--color-muted);
+}
+
+/* ── Diff table ── */
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+}
+
+.th {
+  display: table-cell;
+  text-align: right;
+  font-weight: 600;
+  color: var(--color-ink);
+  padding: var(--space-sm);
+  border-bottom: 1px solid var(--color-border);
+  white-space: nowrap;
+}
+
+.thKey {
+  display: inline-block;
+  width: 8px;
+  height: 2px;
+  border-radius: 1px;
+  margin-right: 6px;
+  vertical-align: middle;
+}
+
+.rowLabel {
+  padding: 7px var(--space-sm);
+  color: var(--color-muted);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.rowValue {
+  padding: 7px var(--space-sm);
+  text-align: right;
+  font-family: var(--font-mono);
+  color: var(--color-ink);
+  font-variant-numeric: tabular-nums;
+  border-bottom: 1px solid var(--color-border);
+}
+
+tbody tr:last-child .rowLabel,
+tbody tr:last-child .rowValue {
+  border-bottom: none;
+}
+
+@media (max-width: 640px) {
+  .pickerRow { grid-template-columns: 1fr; }
+}

@@ -12,22 +12,23 @@ SELECT
     (SELECT count() FROM {_DB}.DIM_ARTISTS)                    AS total_artists,
     (SELECT count() FROM {_DB}.DIM_GENRES)                     AS total_genres,
     (SELECT round(avg(popularity), 2)   FROM {_DB}.FACT_TRACKS) AS avg_popularity,
-    (SELECT round(avg(energy), 4)       FROM {_DB}.FACT_TRACKS) AS avg_energy,
-    (SELECT round(avg(danceability), 4) FROM {_DB}.FACT_TRACKS) AS avg_danceability
+    (SELECT round(avgIf(energy, source_type != 'user_uploaded'), 4)       FROM {_DB}.FACT_TRACKS) AS avg_energy,
+    (SELECT round(avgIf(danceability, source_type != 'user_uploaded'), 4) FROM {_DB}.FACT_TRACKS) AS avg_danceability
 """
 
 GENRE_AUDIO_PROFILE_V1 = f"""
 SELECT
-    g.genre_id                         AS genre_id,
-    g.name                             AS name,
-    round(avg(ft.danceability),     4) AS danceability,
-    round(avg(ft.energy),           4) AS energy,
-    round(avg(ft.speechiness),      4) AS speechiness,
-    round(avg(ft.acousticness),     4) AS acousticness,
-    round(avg(ft.instrumentalness), 4) AS instrumentalness,
-    round(avg(ft.liveness),         4) AS liveness,
-    round(avg(ft.valence),          4) AS valence,
-    count()                            AS track_count
+    g.genre_id                                                             AS genre_id,
+    g.name                                                                 AS name,
+    round(avgIf(ft.danceability,     ft.source_type != 'user_uploaded'), 4) AS danceability,
+    round(avgIf(ft.energy,           ft.source_type != 'user_uploaded'), 4) AS energy,
+    round(avgIf(ft.speechiness,      ft.source_type != 'user_uploaded'), 4) AS speechiness,
+    round(avgIf(ft.acousticness,     ft.source_type != 'user_uploaded'), 4) AS acousticness,
+    round(avgIf(ft.instrumentalness, ft.source_type != 'user_uploaded'), 4) AS instrumentalness,
+    round(avgIf(ft.liveness,         ft.source_type != 'user_uploaded'), 4) AS liveness,
+    round(avgIf(ft.valence,          ft.source_type != 'user_uploaded'), 4) AS valence,
+    round(avgIf(ft.tempo,            ft.source_type != 'user_uploaded'), 2) AS avg_tempo,
+    count()                                                                AS track_count
 FROM {_DB}.FACT_TRACKS ft
 JOIN {_DB}.DIM_GENRES g ON ft.genre_id = g.genre_id
 WHERE g.genre_id = {{genre_id:Int32}}
@@ -36,21 +37,30 @@ GROUP BY g.genre_id, g.name
 
 ARTIST_AUDIO_STATS_V1 = f"""
 SELECT
-    a.artist_id                          AS artist_id,
-    a.name                                AS name,
-    count()                              AS track_count,
-    round(avg(ft.popularity),       2)   AS avg_popularity,
-    round(avg(ft.danceability),     4)   AS avg_danceability,
-    round(avg(ft.energy),           4)   AS avg_energy,
-    round(avg(ft.speechiness),      4)   AS avg_speechiness,
-    round(avg(ft.acousticness),     4)   AS avg_acousticness,
-    round(avg(ft.instrumentalness), 4)   AS avg_instrumentalness,
-    round(avg(ft.liveness),         4)   AS avg_liveness,
-    round(avg(ft.valence),          4)   AS avg_valence
+    a.artist_id                                                             AS artist_id,
+    a.name                                                                  AS name,
+    count()                                                                 AS track_count,
+    round(avg(ft.popularity),       2)                                      AS avg_popularity,
+    round(avgIf(ft.danceability,     ft.source_type != 'user_uploaded'), 4) AS avg_danceability,
+    round(avgIf(ft.energy,           ft.source_type != 'user_uploaded'), 4) AS avg_energy,
+    round(avgIf(ft.speechiness,      ft.source_type != 'user_uploaded'), 4) AS avg_speechiness,
+    round(avgIf(ft.acousticness,     ft.source_type != 'user_uploaded'), 4) AS avg_acousticness,
+    round(avgIf(ft.instrumentalness, ft.source_type != 'user_uploaded'), 4) AS avg_instrumentalness,
+    round(avgIf(ft.liveness,         ft.source_type != 'user_uploaded'), 4) AS avg_liveness,
+    round(avgIf(ft.valence,          ft.source_type != 'user_uploaded'), 4) AS avg_valence,
+    countIf(ft.explicit_id = 1)                                             AS explicit_count
 FROM {_DB}.FACT_TRACKS ft
 JOIN {_DB}.DIM_ARTISTS a ON ft.artist_id = a.artist_id
 WHERE a.artist_id = {{artist_id:Int32}}
 GROUP BY a.artist_id, a.name
+"""
+
+ARTISTAS_SEARCH_V1 = f"""
+SELECT artist_id, name
+FROM {_DB}.DIM_ARTISTS
+WHERE lower(name) LIKE lower({{pattern:String}})
+ORDER BY name
+LIMIT {{limit:UInt32}}
 """
 
 ARTIST_PREDOMINANT_GENRE = f"""
@@ -64,10 +74,10 @@ LIMIT 1
 
 TENDENCIAS_LOAD_WEEK = f"""
 SELECT
-    load_week                       AS load_week,
-    count()                         AS track_count,
-    round(avg(popularity), 2)       AS avg_popularity,
-    round(avg(energy), 4)           AS avg_energy
+    load_week                                              AS load_week,
+    count()                                                AS track_count,
+    round(avg(popularity), 2)                              AS avg_popularity,
+    round(avgIf(energy, source_type != 'user_uploaded'), 4) AS avg_energy
 FROM {_DB}.FACT_TRACKS
 {{where}}
 GROUP BY load_week
@@ -270,11 +280,11 @@ DASHBOARD_TOTAL_GENRES  = "SELECT count() AS n FROM DIM_GENRES"
 
 DASHBOARD_AUDIO_AVG = """
 SELECT
-    round(avg(popularity),   2) AS avg_popularity,
-    round(avg(energy),       4) AS avg_energy,
-    round(avg(danceability), 4) AS avg_danceability,
-    round(avg(valence),      4) AS avg_valence,
-    round(avg(tempo),        2) AS avg_tempo
+    round(avg(popularity),   2)                                     AS avg_popularity,
+    round(avgIf(energy,       source_type != 'user_uploaded'), 4)   AS avg_energy,
+    round(avgIf(danceability, source_type != 'user_uploaded'), 4)   AS avg_danceability,
+    round(avgIf(valence,      source_type != 'user_uploaded'), 4)   AS avg_valence,
+    round(avgIf(tempo,        source_type != 'user_uploaded'), 2)   AS avg_tempo
 FROM FACT_TRACKS
 """
 
@@ -310,4 +320,30 @@ SELECT e.label AS explicit_label, count() AS track_count
 FROM FACT_TRACKS ft
 JOIN DIM_EXPLICIT_TYPE e ON ft.explicit_id = e.explicit_id
 GROUP BY e.label
+"""
+
+# ── completar-modelo-base: adquisición de usuarios y disponibilidad de ────────
+# infraestructura (CU-O54/CU-O55). `semana` es el lunes de la semana de
+# `fecha` (toMonday), no `load_week` de FACT_TRACKS — estas tablas son un
+# dominio de negocio independiente del catálogo (ver design.md).
+ADQUISICION_POR_CANAL = f"""
+SELECT
+    toMonday(fa.fecha)  AS semana,
+    dcm.nombre          AS canal,
+    count()             AS usuarios_nuevos
+FROM {_DB}.FACT_ADQUISICION fa
+JOIN {_DB}.DIM_CANAL_MARKETING dcm ON fa.canal_id = dcm.canal_id
+GROUP BY semana, canal
+ORDER BY semana, canal
+"""
+
+DISPONIBILIDAD_POR_COMPONENTE = f"""
+SELECT
+    toMonday(fd.fecha)                                  AS semana,
+    dci.nombre                                           AS componente,
+    round((1 - avg(fd.hubo_incidente)) * 100, 2)         AS disponibilidad_pct
+FROM {_DB}.FACT_DISPONIBILIDAD fd
+JOIN {_DB}.DIM_COMPONENTE_INFRAESTRUCTURA dci ON fd.componente_id = dci.componente_id
+GROUP BY semana, componente
+ORDER BY semana, componente
 """

@@ -160,6 +160,8 @@ services:
       POCKETBASE_URL:      ${POCKETBASE_URL}
       POCKETBASE_EMAIL:    ${POCKETBASE_EMAIL}
       POCKETBASE_PASSWORD: ${POCKETBASE_PASSWORD}
+    volumes:
+      - ./api:/app
     networks:
       - tracklytics-net
 
@@ -228,7 +230,10 @@ services:
       - tracklytics-net
 
   # ─────────────────────────────────────────
-  # 6. App  — App musical tipo Spotify (puerto 8081)
+  # 6. App  — App musical tipo Spotify legado, vanilla HTML/CSS/JS (puerto 8081)
+  #    Coexiste con `frontend-react` (abajo) por ahora — no es el camino de
+  #    usuario real desde la migración a React, ver docs/decisiones-
+  #    refactorizacion.md §16-19, pero no se retira en este cambio.
   # ─────────────────────────────────────────
   app:
     build: ./app
@@ -239,6 +244,24 @@ services:
       - pocketbase
     ports:
       - "8081:80"
+    networks:
+      - tracklytics-net
+
+  # ─────────────────────────────────────────
+  # 7. Frontend React — el vigente (RT-03: todo corre en Docker). Build
+  #    multi-stage (Vite compila, Nginx sirve estático + proxea al backend)
+  #    en `frontend/Dockerfile`; reglas de proxy en `frontend/nginx.conf`
+  #    replican exactamente las de `frontend/vite.config.ts` (dev server).
+  # ─────────────────────────────────────────
+  frontend-react:
+    build:
+      context: ./frontend
+    container_name: tracklytics_frontend_react
+    restart: unless-stopped
+    depends_on:
+      - api
+    ports:
+      - "8082:80"
     networks:
       - tracklytics-net
 

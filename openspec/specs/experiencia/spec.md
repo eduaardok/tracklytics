@@ -1,0 +1,206 @@
+# Capability: experiencia
+
+## Objetivo
+
+Capturar telemetría de consumo real (reproducción enriquecida, recomendaciones), dar a
+Usuario B2C un canal de soporte, reflejar las playlists del usuario en el motor analítico para
+consulta táctica, permitir agrupar suscriptores bajo un plan familiar, y completar las dos
+piezas de experiencia diferidas en capabilities anteriores: portada real de álbum/artista/track
+y reproducción de audio real.
+
+## Contexto
+
+Tracklytics ya resuelve exploración de catálogo, biblioteca personal, suscripciones, analítica
+táctica, partners e ingesta de datos. Lo que falta es la capa de telemetría fina de consumo que
+sostiene el modelo data-flywheel (saber no solo qué se reprodujo, sino desde qué dispositivo,
+en qué sesión y qué tanto se escuchó), un canal de soporte para Usuario B2C, un reflejo
+analítico de las playlists (que hoy viven exclusivamente en el almacén operativo) para consulta
+táctica, la posibilidad de compartir una suscripción entre varios usuarios, y dos piezas de
+experiencia visual/auditiva que quedaron explícitamente fuera de alcance en `catalogo` (portada
+real, reproducción real) a la espera de esta capability.
+
+## Actores
+
+- **Usuario B2C** (`role=user`): genera el evento de reproducción enriquecido al escuchar un
+  track, ve recomendaciones (y su reproducción se registra como resultado de la recomendación),
+  crea y consulta sus propios tickets de soporte, y es quien puede pertenecer a un plan
+  familiar como titular o miembro.
+- **Cliente B2B** (`role=analyst`): consulta el reflejo analítico de playlists (tracks más
+  agregados) como parte de su trabajo táctico habitual sobre el catálogo.
+- **Lead Data Engineer / CTO** (`role=admin`): consulta y actualiza el estado de los tickets de
+  soporte, fuerza una resincronización del reflejo de playlists fuera de la corrida semanal, y
+  administra la relación titular/miembros de un plan familiar.
+
+## Tabla de trazabilidad
+
+| Nivel empresarial | Departamento | Paquete | Caso de uso | Historia de usuario |
+|---|---|---|---|---|
+| Operativo | Usuario B2C | Experiencia | CU-O45 Crear ticket de soporte | Como Usuario B2C, quiero crear un ticket de soporte describiendo mi problema, para recibir ayuda del equipo de Tracklytics |
+| Operativo | Usuario B2C | Experiencia | CU-O46 Consultar mis tickets de soporte | Como Usuario B2C, quiero ver mis propios tickets de soporte y su estado, para saber si ya fueron atendidos |
+| Operativo | Lead Data Engineer / CTO | Experiencia | CU-O47 Consultar todos los tickets de soporte | Como Lead Data Engineer/CTO, quiero ver todos los tickets de soporte de la plataforma, para priorizar mi trabajo de atención |
+| Operativo | Lead Data Engineer / CTO | Experiencia | CU-O48 Actualizar estado de un ticket de soporte | Como Lead Data Engineer/CTO, quiero actualizar el estado de un ticket, para reflejar el progreso de su atención |
+| Operativo | Lead Data Engineer / CTO | Experiencia | CU-O49 Forzar sincronización de playlists | Como Lead Data Engineer/CTO, quiero forzar una resincronización del reflejo de playlists antes de la próxima corrida semanal, para verificar o depurar el dato actualizado |
+| Operativo | Cliente B2B | Experiencia | CU-O50 Consultar tracks más agregados a playlists | Como Cliente B2B, quiero ver qué tracks son más agregados a playlists de usuarios, para entender qué contenido genera mayor afinidad |
+| Operativo | Lead Data Engineer / CTO | Experiencia | CU-O51 Crear titular de plan familiar | Como Lead Data Engineer/CTO, quiero designar a un usuario con suscripción activa como titular de un plan familiar, para habilitar que agregue miembros |
+| Operativo | Lead Data Engineer / CTO | Experiencia | CU-O52 Agregar miembro a plan familiar | Como Lead Data Engineer/CTO, quiero agregar un usuario como miembro de un plan familiar existente, para que comparta el beneficio de la suscripción del titular |
+| Operativo | Lead Data Engineer / CTO | Experiencia | CU-O53 Quitar miembro de plan familiar | Como Lead Data Engineer/CTO, quiero quitar a un miembro de un plan familiar, para reflejar cuando esa persona deja de compartir la suscripción |
+
+## Requirements
+
+### Requirement: Registro de evento de reproducción enriquecido
+El sistema SHALL registrar, de forma síncrona en el momento de la reproducción, un evento enriquecido con el dispositivo, la sesión y el porcentaje completado de la reproducción, adicional al registro de historial que ya existe. Este evento SHALL ser independiente del cálculo de engagement ya existente — ninguno de los dos sustituye al otro.
+
+#### Scenario: Registro de evento enriquecido al reproducir
+- **WHEN** ocurre una reproducción de un track por parte de un Usuario B2C autenticado, con dispositivo y sesión identificados
+- **THEN** el sistema registra el evento con el dispositivo, la sesión, el porcentaje completado y la fecha, sin alterar el registro de historial ni el cálculo de engagement ya existentes
+
+### Requirement: Registro de impresión de recomendación
+El sistema SHALL registrar cada vez que se muestra una recomendación de track a un usuario, identificando el algoritmo que la generó. El sistema SHALL permitir actualizar ese registro para indicar si la recomendación derivó en una reproducción.
+
+#### Scenario: Registro de una impresión mostrada
+- **WHEN** el sistema muestra una recomendación de track a un Usuario B2C autenticado
+- **THEN** el sistema registra la impresión con el usuario, el track recomendado, el algoritmo utilizado y la fecha, con el indicador de reproducción en falso
+
+#### Scenario: Actualización cuando la recomendación se reproduce
+- **WHEN** un Usuario B2C reproduce un track que le fue mostrado como recomendación
+- **THEN** el sistema actualiza el indicador de esa impresión a reproducida
+
+### Requirement: Crear ticket de soporte
+El sistema SHALL permitir a un Usuario B2C autenticado crear un ticket de soporte con un asunto y una descripción, quedando registrado en estado abierto.
+
+#### Scenario: Creación exitosa de un ticket
+- **WHEN** un Usuario B2C autenticado crea un ticket con asunto y descripción no vacíos
+- **THEN** el sistema registra el ticket en estado abierto, asociado a ese usuario, con la fecha de creación
+
+#### Scenario: Intento de crear un ticket sin asunto o descripción
+- **WHEN** un Usuario B2C autenticado intenta crear un ticket con el asunto o la descripción vacíos
+- **THEN** el sistema rechaza la operación indicando los campos requeridos
+
+### Requirement: Consultar tickets de soporte
+El sistema SHALL permitir a un Usuario B2C autenticado consultar únicamente sus propios tickets de soporte. El sistema SHALL permitir a un usuario con rol admin consultar todos los tickets de soporte de la plataforma, filtrables por estado.
+
+#### Scenario: Usuario B2C consulta sus propios tickets
+- **WHEN** un Usuario B2C autenticado solicita su listado de tickets de soporte
+- **THEN** el sistema retorna únicamente los tickets creados por ese usuario
+
+#### Scenario: Admin consulta todos los tickets
+- **WHEN** un usuario con rol admin solicita el listado de tickets de soporte, opcionalmente filtrado por estado
+- **THEN** el sistema retorna los tickets solicitados de todos los usuarios
+
+#### Scenario: Usuario sin rol admin intenta consultar tickets de otro usuario
+- **WHEN** un Usuario B2C autenticado intenta consultar el listado administrativo de tickets
+- **THEN** el sistema rechaza la operación indicando que es exclusiva de admin
+
+### Requirement: Actualizar estado de un ticket de soporte
+El sistema SHALL permitir a un usuario con rol admin actualizar el estado de un ticket existente entre abierto, en proceso, resuelto y cerrado, registrando la fecha de resolución cuando el estado pase a resuelto. Esta operación SHALL estar restringida exclusivamente a usuarios con rol admin.
+
+#### Scenario: Admin actualiza el estado de un ticket
+- **WHEN** un usuario con rol admin actualiza el estado de un ticket existente
+- **THEN** el sistema registra el nuevo estado, y si el nuevo estado es resuelto, registra también la fecha de resolución
+
+#### Scenario: Usuario sin rol admin intenta actualizar un ticket
+- **WHEN** un usuario con rol distinto de admin intenta actualizar el estado de un ticket
+- **THEN** el sistema rechaza la operación indicando que es exclusiva de admin
+
+#### Scenario: Intento de actualizar un ticket inexistente
+- **WHEN** un usuario con rol admin intenta actualizar un ticket que no existe
+- **THEN** el sistema rechaza la operación con un error de ticket no encontrado
+
+### Requirement: Reflejo analítico de playlists de usuario
+El sistema SHALL sincronizar periódicamente, mediante un proceso batch, el contenido de las playlists de usuario desde el almacén operativo hacia el motor analítico, sin que este reflejo se convierta en la fuente de verdad de las playlists — la creación, edición y eliminación de playlists SHALL seguir ocurriendo exclusivamente en el almacén operativo. El sistema SHALL permitir a un usuario con rol admin forzar una resincronización fuera del ciclo periódico.
+
+#### Scenario: Sincronización periódica del reflejo de playlists
+- **WHEN** ocurre la corrida periódica de sincronización
+- **THEN** el sistema actualiza el reflejo analítico con el contenido vigente de playlists y sus tracks del almacén operativo
+
+#### Scenario: Admin fuerza una resincronización
+- **WHEN** un usuario con rol admin solicita una resincronización fuera del ciclo periódico
+- **THEN** el sistema ejecuta la sincronización de inmediato y actualiza el reflejo analítico
+
+#### Scenario: Usuario sin rol admin intenta forzar una resincronización
+- **WHEN** un usuario con rol distinto de admin intenta forzar una resincronización
+- **THEN** el sistema rechaza la operación indicando que es exclusiva de admin
+
+### Requirement: Consultar tracks más agregados a playlists
+El sistema SHALL permitir a un usuario con rol analyst o admin consultar, a partir del reflejo analítico de playlists, los tracks más agregados a playlists de usuarios.
+
+#### Scenario: Cliente B2B consulta tracks más agregados
+- **WHEN** un usuario con rol analyst solicita el listado de tracks más agregados a playlists
+- **THEN** el sistema retorna los tracks ordenados de mayor a menor cantidad de playlists en las que aparecen, según el reflejo analítico vigente
+
+#### Scenario: Usuario B2C intenta consultar tracks más agregados
+- **WHEN** un usuario con rol user intenta consultar el listado de tracks más agregados a playlists
+- **THEN** el sistema rechaza la operación indicando que es exclusiva de Cliente B2B o admin
+
+### Requirement: Gestión de plan familiar
+El sistema SHALL permitir a un usuario con rol admin designar como titular de un plan familiar a un usuario con una suscripción activa en el plan premium (B2C), y agregar o quitar miembros de ese plan familiar. El sistema SHALL rechazar designar como titular a un usuario cuya suscripción activa no sea del plan premium. El sistema SHALL rechazar agregar un miembro si el plan familiar ya alcanzó el límite de 5 personas, incluido el titular. Un usuario SHALL poder ser titular o miembro de, como máximo, un plan familiar activo a la vez.
+
+#### Scenario: Crear un titular de plan familiar
+- **WHEN** un usuario con rol admin designa como titular a un usuario con suscripción activa en el plan premium que no es titular ni miembro de otro plan familiar activo
+- **THEN** el sistema registra a ese usuario como titular de un nuevo plan familiar asociado a su suscripción activa
+
+#### Scenario: Intento de designar titular con un plan no premium
+- **WHEN** un usuario con rol admin intenta designar como titular a un usuario cuya suscripción activa es un plan distinto de premium (incluidos los planes B2B)
+- **THEN** el sistema rechaza la operación indicando que el plan familiar solo aplica a suscriptores del plan premium
+
+#### Scenario: Agregar un miembro dentro del límite
+- **WHEN** un usuario con rol admin agrega un usuario como miembro de un plan familiar que tiene menos de 5 personas registradas
+- **THEN** el sistema registra al usuario como miembro de ese plan familiar, con la fecha de unión
+
+#### Scenario: Intento de agregar un miembro al alcanzar el límite
+- **WHEN** un usuario con rol admin intenta agregar un miembro a un plan familiar que ya tiene 5 personas registradas
+- **THEN** el sistema rechaza la operación indicando que se alcanzó el límite de miembros
+
+#### Scenario: Intento de agregar un usuario que ya pertenece a otro plan familiar
+- **WHEN** un usuario con rol admin intenta agregar como miembro a un usuario que ya es titular o miembro de otro plan familiar activo
+- **THEN** el sistema rechaza la operación indicando que el usuario ya pertenece a un plan familiar
+
+#### Scenario: Quitar un miembro de un plan familiar
+- **WHEN** un usuario con rol admin quita a un miembro existente de un plan familiar
+- **THEN** el sistema elimina la asociación de ese usuario con el plan familiar
+
+#### Scenario: Usuario sin rol admin intenta administrar un plan familiar
+- **WHEN** un usuario con rol distinto de admin intenta crear un titular, agregar o quitar un miembro de un plan familiar
+- **THEN** el sistema rechaza la operación indicando que es exclusiva de admin
+
+### Requirement: Portada real de álbum, artista y track
+El sistema SHALL resolver una portada real para artistas y álbumes del catálogo licenciado base mediante búsqueda en directorios musicales externos públicos (intento primario y, si no hay resultado, un segundo directorio como intento alternativo — ambos sin necesidad de credencial), almacenando la imagen resuelta. El sistema SHALL usar un reemplazo visual generado localmente, sin ninguna llamada externa, cuando ninguno de los directorios devuelva una portada o el contenido no pertenezca al catálogo licenciado base.
+
+> **Nota de implementación (2026-07-04):** el intento primario es iTunes Search API; el
+> alternativo es Deezer Search API, agregado tras confirmar en producción que iTunes por sí solo
+> dejaba sin resolver una fracción significativa de artistas/álbumes (además de un bug de
+> implementación ya corregido — la búsqueda de artistas usaba un tipo de entidad de iTunes que
+> nunca trae artwork). Deezer no requiere API key ni cuenta, mismo criterio que iTunes. Evaluado
+> también MusicBrainz/Cover Art Archive; descartado por requerir una llamada adicional (buscar el
+> MBID antes de poder pedir la portada) frente a la resolución en una sola llamada de Deezer.
+
+#### Scenario: Portada resuelta exitosamente
+- **WHEN** el proceso de resolución de portadas encuentra una imagen para un artista o álbum del catálogo licenciado base, en el directorio primario o en el alternativo
+- **THEN** el sistema almacena la URL de esa imagen asociada a ese artista o álbum, y el catálogo la muestra al consultarlo
+
+#### Scenario: Sin portada disponible
+- **WHEN** el proceso de resolución de portadas no encuentra una imagen para un artista o álbum en ninguno de los directorios externos, o el contenido no pertenece al catálogo licenciado base
+- **THEN** el catálogo muestra un reemplazo visual generado localmente, sin realizar ninguna llamada externa
+
+### Requirement: Reproducción de audio real
+El sistema SHALL permitir reproducir audio real de un track mediante búsqueda por texto en un directorio de video externo, ejecutada desde el propio cliente. Cuando no haya conexión, no se encuentre un resultado, o falle la carga/inicialización del directorio externo, el sistema SHALL simular la reproducción de ese track (progreso avanzando en tiempo real durante la duración real del track, con control de reproducción/pausa funcional), sin exponer al usuario que el audio no es real.
+
+> **Revisión posterior (2026-07-04), decidida por el usuario — no es el comportamiento del
+> propuesto original de esta capability:** la versión original de este requirement (archivada en
+> `openspec/changes/archive/2026-07-03-experiencia/`) especificaba deshabilitar el control de
+> reproducción o mostrar un estado de "no disponible" cuando fallaba el directorio externo. Esa
+> versión quedó reemplazada por la de arriba: ahora se simula la reproducción completa en vez de
+> exponer la falta de audio real. La reproducción simulada usa Web Audio API nativa del navegador
+> (sin dependencia nueva) — un tono simple y de volumen muy bajo, no pensado para ser notado,
+> durante la duración exacta del track (`duration_ms`). El bloqueo por restricción geográfica
+> (RF-DIS-007, capability `distribucion`) es independiente de este requirement y no se ve
+> afectado — ese sí es un caso legítimo de "reproducción no disponible", una regla de negocio
+> real, no una limitación técnica del directorio externo.
+
+#### Scenario: Reproducción real disponible
+- **WHEN** un Usuario B2C reproduce un track y la búsqueda en el directorio externo encuentra un resultado
+- **THEN** el sistema reproduce el audio real de ese resultado en el reproductor persistente existente
+
+#### Scenario: Reproducción real no disponible — simulada
+- **WHEN** un Usuario B2C intenta reproducir un track y no hay conexión, no se encuentra un resultado, o falla la carga/inicialización del directorio externo
+- **THEN** el sistema simula la reproducción de ese track en el reproductor persistente (progreso avanzando en tiempo real durante `duration_ms`, control de pausa/reanudación funcional), sin mostrarlo como un estado de error o no disponible

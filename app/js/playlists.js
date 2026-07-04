@@ -71,6 +71,21 @@ export function getPlaylists() {
 
 // ── createPlaylist — async: aguarda el ID real de PocketBase antes de retornar ─
 export async function createPlaylist(name) {
+  // Gate: plan Free → máx 3 playlists
+  try {
+    const res  = await _apiFetch('/app/v1/suscripciones/activa');
+    const plan = res?.data?.tipo_plan ?? 'free';
+    if (plan === 'free') {
+      const real = _cache.filter(p => !p.id.startsWith('temp_'));
+      if (real.length >= 3) {
+        throw new Error('Plan Free: límite de 3 playlists alcanzado. Actualiza a Premium para crear más.');
+      }
+    }
+  } catch (e) {
+    if (e.message.startsWith('Plan Free')) throw e;
+    // Si falla la consulta de plan, permitir continuar
+  }
+
   const tempId = `temp_${Date.now()}`;
   const newPl  = { id: tempId, name: name.trim(), tracks: [] };
   _cache.push(newPl);

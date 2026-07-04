@@ -1,0 +1,38 @@
+## 1. Modelo de datos (ClickHouse)
+
+- [x] 1.1 Agregar `DIM_CANAL_MARKETING` a `init_clickhouse.py` (canal_id UInt32 PK, nombre String; MergeTree() ORDER BY canal_id). Poblar con un catálogo fijo de referencia (ej. `organico`, `redes_sociales`, `ads_paid`, `referido`). Ajuste no listado originalmente: `canal_id`/`region_id`/`componente_id` son `UInt16`, no `UInt32` — mismo tipo ya usado por `DIM_CANAL_DISTRIBUCION.canal_id` (`distribucion`) para dimensiones de referencia pequeñas.
+- [x] 1.2 Agregar `DIM_REGION` (region_id UInt16, nombre String; MergeTree() ORDER BY region_id). Poblada con 4 filas (Latinoamérica/Norteamérica/Europa/Asia). Sin FK hacia `DIM_PAIS` (`distribucion`) — ver design.md, "`DIM_REGION` vs. `DIM_PAIS`".
+- [x] 1.3 Agregar `DIM_COMPONENTE_INFRAESTRUCTURA` (componente_id UInt16, nombre String; MergeTree() ORDER BY componente_id). Poblada con 4 filas (api/clickhouse/pocketbase/airflow).
+- [x] 1.4 Agregar `FACT_ADQUISICION` (fact_id UInt64 PK, usuario_id String, canal_id UInt16, region_id UInt16, fecha DateTime; MergeTree() ORDER BY (canal_id, fecha)).
+- [x] 1.5 Agregar `FACT_DISPONIBILIDAD` (fact_id UInt64 PK, componente_id UInt16, hubo_incidente UInt8, fecha DateTime; MergeTree() ORDER BY (componente_id, fecha)).
+- [x] 1.6 Aplicado contra ClickHouse real vía `docker compose run --rm --build init-db` (no se reinició `clickhouse`/`api`, ambos idempotentes vía `CREATE TABLE IF NOT EXISTS`). Verificado con `clickhouse-client` real: las 5 tablas existen y las 3 DIM tienen su catálogo sembrado (4 filas cada una).
+
+## 2. Backend — extensión de `api/paquetes/analitica/`
+
+- [x] 2.1 `queries.py`: `ADQUISICION_POR_CANAL` (conteo de `usuario_id` por `canal_id`/semana vía `toMonday(fecha)`, join con `DIM_CANAL_MARKETING`) y `DISPONIBILIDAD_POR_COMPONENTE` (`% sin incidente` por `componente_id`/semana, join con `DIM_COMPONENTE_INFRAESTRUCTURA`), mismo patrón que el resto del paquete.
+- [x] 2.2 `GET /app/v1/analitica/adquisicion` (CU-O54) — sin dependencia propia: hereda `require_b2b_panel_access` ya declarado a nivel de `v1_router`, mismo guard que el resto de endpoints tácticos.
+- [x] 2.3 `GET /app/v1/analitica/disponibilidad` (CU-O55) — mismo guard heredado.
+- [x] 2.4 Verificado con `curl` real contra Docker (uvicorn `--reload` recargó solo, sin reiniciar el contenedor): usuario `analyst` recién registrado sin suscripción → `403` en ambos; tras `POST /suscripciones` (plan `basico`) → `200` con `{"data":[]}` en ambos (vacío porque la carga de datos, sección 3, todavía no corre) — confirma guard y JOIN sin errores SQL.
+
+## 3. Generación de datos (ETL, Python) — DAG independiente `modelo_negocio_sync`
+
+- [x] 3.1 Implementado `etl/gold/modelo_negocio_sync.py::run_modelo_negocio_sync()`: 150 filas/semana en `FACT_ADQUISICION` (usuario sintético por evento, canal/región aleatorios) y 28 filas/semana en `FACT_DISPONIBILIDAD` (1 por componente x día, 3% probabilidad de incidente), `seed = week_number * 42` vía `np.random.default_rng` (mismo criterio que `FACT_TRACKS`/`FACT_ENGAGEMENT_USUARIO` sintéticos). `fact_id` con `random.getrandbits(50)` (stdlib, sin seed — mismo patrón que `social`/`experiencia`).
+- [x] 3.2 Idempotencia vía `ETL_BATCH_CONTROL`: se consulta `WHERE week_number = ? AND checksum = 'modelo_negocio_sync'` antes de generar — el `checksum` literal (no hash) actúa como discriminador de proceso, ya que la tabla no tiene columna de origen; no colisiona con los checksums MD5-hex del catálogo.
+- [x] 3.3 Creado `etl/dags/modelo_negocio_sync_dag.py` (`dag_id="modelo_negocio_sync"`, `schedule_interval=None`, `Param week_number` 1-16, mismo patrón que `engagement_referencia`) — confirmado en `airflow dags list` sin errores de import, independiente de `tracklytics_etl`.
+- [x] 3.4 Backfill de 4 semanas (1-4) ejecutado por invocación directa de la función Python dentro del contenedor `airflow` (mismo patrón ya usado para `resolver_portadas()` — evita `airflow tasks test`, que en este proyecto puede cascadear tareas no deseadas en otros DAGs, ver decisiones-refactorizacion.md §20). Re-ejecutar semana 1 confirma el guard de idempotencia (se salta, no duplica).
+- [x] 3.5 Verificado en ClickHouse: 600 filas en `FACT_ADQUISICION`, 112 en `FACT_DISPONIBILIDAD`, 4 filas en `ETL_BATCH_CONTROL` con `checksum='modelo_negocio_sync'` (semanas 1-4, 178 registros cada una), sin duplicados tras el re-run de prueba.
+
+## 4. Frontend — `frontend/src/packages/analitica/`
+
+- [x] 4.1 `types.ts` (`AdquisicionCanal`, `DisponibilidadComponente`) + `api/analitica.api.ts` (`adquisicion()`, `disponibilidad()`), mismo patrón que el resto del paquete.
+- [x] 4.2 `AdquisicionPage.tsx` — **tabla** pivotada (semana × canal + total), no gráfico de barras apiladas: evita introducir una paleta categórica nueva de 4 colores sin pasar por la validación de contraste del skill `dataviz` ya aplicada al resto del proyecto (deviación justificada, "tabla" era una opción explícita en design.md).
+- [x] 4.3 `DisponibilidadInfraPage.tsx` (nombre elegido para no colisionar con `DisponibilidadPage` de `distribucion`) — small multiples (1 panel por componente, 4 total), mismo componente/color ya validado (`TREND_COLOR`) que `TendenciasPage`, sin paleta nueva.
+- [x] 4.4 Reemplazadas las 2 entradas `ComingSoonPage` (`adquisicion`, `disponibilidad`) en `router.tsx` por las páginas nuevas, mismas rutas y mismo shell/guard (`AnalyticaShell`, `RequireSuscripcionActiva`) — code-split vía `lazyNamed`, mismo patrón que el resto de `/analitica`. Gap real no listado originalmente, encontrado en verificación: `AnalyticaShell.tsx` tenía `Adquisición`/`Disponibilidad` en su array `COMING_SOON`, que además de mostrar el badge "pronto" alimentaba `sinGating` (bypass de `RequireSuscripcionActiva` para esas rutas). Corregido: ambas salieron de `COMING_SOON` y pasaron a la nav real (junto a Tendencias/Playlists), con el gating normal — sin este fix, las páginas nuevas habrían quedado accesibles sin el guard de suscripción B2B a nivel de frontend (el backend sí seguía protegido).
+- [x] 4.5 `index.ts`: agregadas las 2 exportaciones nuevas (`AdquisicionPage`, `DisponibilidadInfraPage`), mismo patrón que el resto.
+
+## 5. Verificación
+
+- [x] 5.1 Backend: verificado con `curl` real contra Docker — usuario `analyst` de prueba sin suscripción → `403` en ambos endpoints; con plan `basico` activo → `200`. Ver 2.4.
+- [x] 5.2 ETL: `modelo_negocio_sync` corrido (backfill semanas 1-4) contra Docker real; 600 filas en `FACT_ADQUISICION`, 112 en `FACT_DISPONIBILIDAD`, catálogos de las 3 DIM sembrados (4 filas cada una). Ver 3.4/3.5.
+- [x] 5.3 `tsc --noEmit` y `npm run build` limpios (mismos 3 errores preexistentes de `EngagementPage.tsx`, no relacionados). Verificado en navegador real (Playwright, contenedor `frontend-react` reconstruido con `docker compose up -d --build --no-deps frontend-react` — sin tocar `api`/`clickhouse`): ambas rutas ya no muestran "Coming Soon", renderizan datos reales (tabla de adquisición con 5 semanas, small multiples de disponibilidad con 4 componentes) para un usuario `analyst` con sesión y suscripción activa reales, 0 errores de consola.
+- [x] 5.4 Confirmado: `DisponibilidadInfraPage` (este cambio, `/analitica/disponibilidad`, "Disponibilidad de infraestructura") y `DisponibilidadPage` (`distribucion`, `/distribucion/disponibilidad`, restricción geográfica de reproducción) son componentes/archivos distintos con encabezados de página distintos — no comparten nombre de componente ni de archivo. Nav de `AnalyticaShell` dice "Disponibilidad" (contexto ya lo distingue por estar bajo el panel de Analítica); título `<h1>` de la página dice explícitamente "Disponibilidad de infraestructura".

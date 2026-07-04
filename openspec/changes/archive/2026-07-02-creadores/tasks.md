@@ -1,0 +1,74 @@
+## 1. ClickHouse: tablas nuevas y migración `source_type`
+
+- [x] 1.1 Agregar a `init_clickhouse.py` (idempotente, `CREATE TABLE IF NOT EXISTS`) `DIM_CUENTA_ARTISTA` (`ENGINE = ReplacingMergeTree(actualizado_en)`, `ORDER BY cuenta_artista_id`; campos: cuenta_artista_id, usuario_id, nombre_artistico, estado_cuenta Enum8('pendiente'=1,'aprobada'=2,'rechazada'=3), fecha_solicitud, fecha_resolucion Nullable(DateTime), admin_resolutor_id Nullable(String), actualizado_en DateTime DEFAULT now()) (design.md, "`DIM_CUENTA_ARTISTA` vive en ClickHouse, igual que `DIM_USUARIO`").
+- [x] 1.2 Agregar `DIM_ESTADO_REVISION` (3 filas fijas: pendiente/aprobado/rechazado, sembradas una vez con `if _count(...) == 0`, mismo patrón que `DIM_MUSICAL_KEY`/`DIM_EXPLICIT_TYPE` en `etl/gold/loader.py`).
+- [x] 1.3 Agregar `STG_ARTIST_UPLOADS` (`ENGINE = MergeTree() ORDER BY staging_id`, append-only, nunca se trunca; campos: staging_id, cuenta_artista_id, track_name, album_name, genre_id, duration_ms, explicit UInt8, y los 13 atributos de audio con sus valores neutros por defecto — ver design.md sección Decisions/promoción — más `subido_en DateTime DEFAULT now()`).
+- [x] 1.4 Agregar `FACT_SUBIDA_TRACK` (`ENGINE = ReplacingMergeTree(version)`, `ORDER BY subida_id`; campos: subida_id, cuenta_artista_id, staging_id, estado_revision_id, fecha_subida, fecha_resolucion Nullable(DateTime), admin_resolutor_id Nullable(String), fact_id_promovido Nullable(UInt64), version UInt8 DEFAULT 0) (design.md, "`FACT_SUBIDA_TRACK` también usa `ReplacingMergeTree`, mismo patrón que `FACT_SESION`").
+- [x] 1.5 Editar la `CREATE TABLE IF NOT EXISTS FACT_TRACKS` existente en `init_clickhouse.py`: reemplazar la columna `is_synthetic Bool` por `source_type Enum8('real'=1, 'synthetic'=2, 'user_uploaded'=3)` (design.md, "`FACT_TRACKS.is_synthetic` se reemplaza por `source_type`"). Esto solo rige para instalaciones nuevas.
+- [x] 1.6 Contra el ClickHouse de desarrollo ya desplegado (que ya tiene datos con `is_synthetic`), ejecutar una única vez y en orden: `ALTER TABLE FACT_TRACKS ADD COLUMN source_type Enum8('real'=1,'synthetic'=2,'user_uploaded'=3) DEFAULT 'real'` → `ALTER TABLE FACT_TRACKS UPDATE source_type = 'synthetic' WHERE is_synthetic = 1` → esperar a que la mutación termine (`SELECT * FROM system.mutations WHERE table='FACT_TRACKS' AND NOT is_done`) → `ALTER TABLE FACT_TRACKS DROP COLUMN is_synthetic` (design.md, Migration Plan; no se agrega a `DDL_STATEMENTS` por no ser idempotente una vez dropeada la columna).
+- [x] 1.7 Ejecutar `init_clickhouse.py` y verificar que las 4 tablas nuevas existen y que `FACT_TRACKS` expone `source_type` (no `is_synthetic`) sin afectar el resto de tablas.
+
+## 2. Backend: renombrar `is_synthetic`→`source_type` en paquetes existentes
+
+- [x] 2.1 `api/paquetes/catalogo/queries.py` (`TRACKS_TOP`, `TRACKS_BY_ARTIST`): reemplazar `is_synthetic = 0` por `source_type != 'synthetic'` (design.md, incluye a propósito `user_uploaded` en el catálogo navegable).
+- [x] 2.2 `api/paquetes/biblioteca/queries.py` (`FAVORITOS_ACTUALES`, `HISTORIAL_RECIENTE`): mismo reemplazo `is_synthetic = 0` → `source_type != 'synthetic'`. **No tocar** el `is_synthetic` de `api/paquetes/biblioteca/router.py:29` (columna de `FACT_ENGAGEMENT_USUARIO`, tabla y significado distintos).
+- [x] 2.3 `api/paquetes/gestion_datos/queries.py`: `facts_list_sql` expone `source_type` en vez de `is_synthetic`; `DATA_QUALITY_COUNTS` pasa a `countIf(source_type = 'real') AS real_records`, `countIf(source_type = 'synthetic') AS synthetic_records`, y agrega `countIf(source_type = 'user_uploaded') AS user_uploaded_records`.
+- [x] 2.4 `api/paquetes/gestion_datos/router.py` (`data_quality()`): agregar `user_uploaded_records`/`user_uploaded_pct` a la respuesta junto a los campos existentes, sin quitar ninguno.
+- [x] 2.5 `etl/gold/loader.py`: el DataFrame de carga real escribe `source_type: "real"` en vez de `is_synthetic: False`.
+- [x] 2.6 `etl/gold/synthetic.py`: la fila `WHERE is_synthetic = 0` (selección de tracks reales base) pasa a `WHERE source_type = 'real'`; el dict de filas sintéticas escribe `source_type: "synthetic"` en vez de `is_synthetic: True`.
+
+## 3. Backend: paquete `creadores` — utilidades y consultas
+
+- [x] 3.1 Crear `api/paquetes/creadores/__init__.py`.
+- [x] 3.2 Crear `api/paquetes/creadores/queries.py`: consultas de cuenta de artista propia/por usuario (resolviendo estado vigente vía `argMax(estado_cuenta, actualizado_en)` sobre `DIM_CUENTA_ARTISTA`), de subidas propias/por cuenta, y de colas administrativas filtrables por estado pendiente sobre `FACT_SUBIDA_TRACK` join `STG_ARTIST_UPLOADS`.
+- [x] 3.3 Crear `api/paquetes/creadores/deps.py`: `require_cuenta_artista_aprobada` (resuelve `DIM_CUENTA_ARTISTA` del usuario autenticado y exige `estado_cuenta='aprobada'`, 403 en caso contrario) (design.md, "Solo una cuenta de artista aprobada por usuario habilita la subida"). Reutilizar `paquetes.seguridad.deps.require_admin` para el gating administrativo — no se duplica.
+- [x] 3.4 Crear `api/paquetes/creadores/promocion.py`: constante `FACT_ID_FLOOR_USER_UPLOADED = 10_000_000` (design.md, "Preservación de tracks `user_uploaded` frente a una recarga completa"); función `promover_a_fact_tracks(staging_row) -> int` que resuelve/crea `artist_id` (busca por `name=nombre_artistico`, crea con `artist_type='Independiente'` si no existe), resuelve/crea `album_id` (usa `track_name` como álbum `Single` si no hay `album_name`), usa el `genre_id` ya provisto, usa `date_id = load_week = max(load_week)` vigente en `FACT_TRACKS` (design.md, "Promoción también fija `load_week`, no solo `date_id`"), calcula `key_id`/`mode_id`/`time_signature_id`/`explicit_id`/`popularity_range_id`/`tempo_range_id`/`energy_level_id` con las mismas fórmulas de `etl/gold/loader.py` (`_TS_MAP`, cortes de popularidad/tempo/energy), asigna `fact_id = max(GREATEST(fact_id, FACT_ID_FLOOR_USER_UPLOADED - 1)) + 1` bajo un `asyncio.Lock` propio del módulo (nunca colisiona con el rango 1..~1.6M del pipeline batch, sin importar el orden de ejecución), e inserta en `FACT_TRACKS` con `source_type='user_uploaded'` (design.md, sección de Decisions sobre promoción). Reutilizar `paquetes.seguridad.audit.record` desde el router, no desde aquí (mantiene esta función enfocada solo en la promoción).
+- [x] 3.5 En `api/paquetes/gestion_datos/router.py`, editar `_truncate_fact_tables()`: para `FACT_TRACKS` específicamente, reemplazar `TRUNCATE TABLE FACT_TRACKS` por `ALTER TABLE FACT_TRACKS DELETE WHERE source_type != 'user_uploaded'` (mutación, mismo mecanismo ya usado por `dim_delete` en el propio archivo); `ETL_BATCH_CONTROL` sigue truncándose sin cambios (design.md, misma sección). Esta es la salvaguarda mínima acordada para que una recarga completa de `ingesta` no borre tracks ya aprobados por `creadores`.
+
+## 4. Backend: `analitica` — excluir `user_uploaded` de promedios de audio
+
+- [x] 4.1 `api/paquetes/analitica/queries.py`, `DASHBOARD_KPIS`: cambiar las subconsultas de `avg_energy`/`avg_danceability` a `avgIf(energy, source_type != 'user_uploaded')`/`avgIf(danceability, source_type != 'user_uploaded')`; `avg_popularity` no cambia (design.md, "`analitica` excluye `source_type='user_uploaded'` de sus promedios de atributos de audio").
+- [x] 4.2 `GENRE_AUDIO_PROFILE_V1`: cambiar los 8 `avg(...)` de atributos de audio (danceability, energy, speechiness, acousticness, instrumentalness, liveness, valence, tempo) a `avgIf(..., source_type != 'user_uploaded')`; `track_count` (`count()`) no cambia.
+- [x] 4.3 `ARTIST_AUDIO_STATS_V1`: mismo cambio para danceability/energy/speechiness/acousticness/instrumentalness/liveness/valence; `track_count`, `avg_popularity` y `explicit_count` no cambian.
+- [x] 4.4 `TENDENCIAS_LOAD_WEEK`: cambiar `avg_energy` a `avgIf(energy, source_type != 'user_uploaded')`; `track_count` y `avg_popularity` no cambian.
+- [x] 4.5 `DASHBOARD_AUDIO_AVG` (legacy, todavía montada en el dashboard): cambiar `avg_energy`/`avg_danceability`/`avg_valence`/`avg_tempo` a `avgIf(..., source_type != 'user_uploaded')`; `avg_popularity` no cambia. No tocar `GENRES_TRENDS`/`GENRE_AUDIO_PROFILE`/`TRENDS_WEEKLY`/`ARTIST_STATS`/`ARTIST_GENRE_BENCHMARKS` (código muerto, no importado en ningún router).
+
+## 5. Backend: endpoints de cuenta de artista (CU-O24/CU-O25)
+
+- [x] 5.1 Implementar `POST /app/v1/creadores/cuenta`: crea la cuenta de artista del usuario autenticado (`usuario_id` derivado de `core.deps.get_current_user`, nunca del body) en estado `pendiente`; rechaza si ya existe una cuenta para ese usuario (RF: Solicitud de cuenta de artista, CU-O24).
+- [x] 5.2 Implementar `GET /app/v1/creadores/cuenta` (propia) y `GET /app/v1/creadores/admin/cuentas` (admin-only, filtrable por `estado`) (RF: Consulta del propio estado / Acceso administrativo, CU-O28).
+- [x] 5.3 Implementar `POST /app/v1/creadores/admin/cuentas/{cuenta_artista_id}/resolver` (`Depends(require_admin)`): aprueba o rechaza una cuenta `pendiente`, escribe `admin_resolutor_id`/`fecha_resolucion` (RF: Aprobación o rechazo de una cuenta de artista, CU-O25). Registrar en `FACT_AUDIT_LOG` vía `audit.record(usuario_id=admin_id, accion="resolucion_cuenta_artista", tabla_afectada="DIM_CUENTA_ARTISTA", antes={...}, despues={...})`.
+
+## 6. Backend: endpoints de subida y aprobación de track (CU-O26/CU-O27)
+
+- [x] 6.1 Implementar `POST /app/v1/creadores/tracks` (`Depends(require_cuenta_artista_aprobada)`): valida nombre, género existente, duración y marca de explícito; inserta en `STG_ARTIST_UPLOADS` (con los valores neutros de audio por defecto) y en `FACT_SUBIDA_TRACK` con `estado_revision_id='pendiente'` (RF: Subida de un track por un artista con cuenta aprobada, CU-O26).
+- [x] 6.2 Implementar `GET /app/v1/creadores/tracks` (propias) y `GET /app/v1/creadores/admin/tracks` (admin-only, filtrable por `estado`) (CU-O28).
+- [x] 6.3 Implementar `POST /app/v1/creadores/admin/tracks/{subida_id}/resolver` (`Depends(require_admin)`): si aprueba, llama a `promocion.promover_a_fact_tracks(...)`, guarda el `fact_id` resultante en `fact_id_promovido` y marca `estado_revision_id='aprobado'`; si rechaza, marca `estado_revision_id='rechazado'` sin tocar `FACT_TRACKS` (RF: Aprobación o rechazo de un track individual, CU-O27). Registrar en `FACT_AUDIT_LOG` vía `audit.record(...)` en ambos casos.
+- [x] 6.4 Verificar que resolver un track no modifica el estado de la cuenta de artista ni el de otros tracks de la misma cuenta (consulta directa antes/después).
+- [x] 6.5 Montar el router de `creadores` en `api/main.py` junto al resto de routers.
+
+## 7. Frontend: completar el paquete `creadores` en `frontend/src/packages/creadores/`
+
+- [x] 7.1 Definir `types.ts` (CuentaArtista, SubidaTrack, y los payloads de request de solicitud de cuenta, subida de track y resolución admin) reflejando los campos de `DIM_CUENTA_ARTISTA`/`FACT_SUBIDA_TRACK`, mismo patrón que `packages/facturacion/types.ts`.
+- [x] 7.2 Implementar `api/creadores.api.ts` con llamadas tipadas a `/app/v1/creadores/*` (mismo patrón que `packages/facturacion/api/facturacion.api.ts`).
+- [x] 7.3 Implementar `pages/CuentaArtistaPage.tsx`: formulario de solicitud de cuenta (si no existe una), estado de la solicitud (pendiente/aprobada/rechazada), y — si está aprobada — formulario de subida de track (nombre, álbum opcional, selector de género existente, duración, checkbox explícito) más listado de subidas propias con su estado.
+- [x] 7.4 Implementar `pages/RevisionCreadoresPage.tsx`: vista admin-only con dos colas (cuentas pendientes, tracks pendientes) y acciones aprobar/rechazar, mismo patrón que `packages/seguridad/pages/PermisosPage.tsx`.
+- [x] 7.5 Exponer únicamente lo necesario desde `index.ts` (páginas + `creadoresApi` + tipos), siguiendo la regla de aislamiento ya documentada en el README del stub.
+- [x] 7.6 Wiring de rutas: agregar `/creadores` (`CuentaArtistaPage`) bajo `AppShell` con su entrada de navegación; agregar "Creadores" como ítem de la barra lateral de `SeguridadShell` (o shell admin equivalente ya usado por permisos/auditoría/facturación) apuntando a `RevisionCreadoresPage`.
+- [x] 7.7 Actualizar el README del paquete quitando la marca de "stub" y documentando la misma brecha conocida de sesión autenticada en React ya anotada en `facturacion`/`seguridad` (si sigue vigente al momento de esta ronda).
+
+## 8. Verificación end-to-end
+
+- [x] 8.1 Verificar (curl, token de usuario de prueba) la solicitud de cuenta de artista y que una segunda solicitud del mismo usuario es rechazada.
+- [x] 8.2 Verificar que un usuario sin cuenta aprobada recibe 403 al intentar subir un track.
+- [x] 8.3 Verificar (curl, token admin) la aprobación de la cuenta de artista y que el usuario queda habilitado para subir tracks.
+- [x] 8.4 Verificar la subida de un track (fila en `STG_ARTIST_UPLOADS` y en `FACT_SUBIDA_TRACK` con estado pendiente).
+- [x] 8.5 Verificar (curl, token admin) la aprobación de ese track: confirmar la fila nueva en `FACT_TRACKS` con `source_type='user_uploaded'` y que aparece en `GET /app/v1/catalogo/...` (catálogo navegable).
+- [x] 8.6 Verificar el rechazo de otro track: confirmar que no se crea fila en `FACT_TRACKS` y que `STG_ARTIST_UPLOADS`/`FACT_SUBIDA_TRACK` reflejan el rechazo.
+- [x] 8.7 Verificar que un artista solo ve su propia cuenta/subidas, y que `admin` ve las de cualquier usuario y las colas de pendientes.
+- [x] 8.8 Verificar en `FACT_AUDIT_LOG` (vía `GET /app/v1/seguridad/auditoria` como admin) que la resolución de la cuenta y la del track quedaron registradas con el estado antes/después correcto.
+- [x] 8.9 Verificar que `catalogo`/`biblioteca` (búsqueda de tracks, favoritos, historial) siguen funcionando igual que antes de la migración `is_synthetic`→`source_type` (mismo conteo de resultados que antes del cambio, ajustado por el nuevo track promovido).
+- [x] 8.10 Verificar `GET /gestion_datos/data-quality` (o el path montado real) tras la migración: `real_records`/`synthetic_records`/`user_uploaded_records` suman el total de `FACT_TRACKS`.
+- [x] 8.11 Verificar con `npx tsc --noEmit` que el paquete `creadores` y los archivos de routing/shell modificados no introducen errores de tipos.
+- [x] 8.12 Con al menos un track ya promovido (`fact_id >= 10_000_000`), disparar `POST /etl/clear` (o un `POST /app/v1/ingesta/ejecuciones` de prueba) y confirmar que, tras la recarga, el track `user_uploaded` sigue existiendo en `FACT_TRACKS` con el mismo `fact_id`, mientras el resto de filas (`source_type IN ('real','synthetic')`) se recargó normalmente.
+- [x] 8.13 Verificar `GET /app/v1/analitica/perfil-genero/{genero_id}` y `GET /app/v1/analitica/artista/{artist_id}` para un género/artista que incluya el track `user_uploaded` promovido: confirmar que `track_count`/`avg_popularity` lo incluyen y que los promedios de audio (energy, danceability, etc.) no se movieron hacia los valores neutros fijos respecto a antes de aprobar ese track.

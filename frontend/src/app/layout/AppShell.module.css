@@ -1,0 +1,193 @@
+.shell {
+  min-height: 100vh;
+  background: var(--color-bg);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+}
+
+/* ── Brand bar — mismo patrón (sticky, 56px) que AnalyticaShell/SeguridadShell.
+   Conserva el blur que ya tenía este shell (es la superficie de cara al
+   consumidor, no un panel admin) — el resto de la estructura sí se unifica. */
+.brandBar {
+  position: sticky;
+  top: 0;
+  z-index: var(--z-sticky);
+  height: 56px;
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: 0 var(--space-lg);
+  background: oklch(0.09 0.010 285 / 0.92);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.wordmark {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-sm);
+  text-decoration: none;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.logo {
+  align-self: center;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.brand {
+  font-family: var(--font-sans);
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--color-ink);
+  letter-spacing: -0.02em;
+  line-height: 1;
+}
+
+.badge {
+  font-family: var(--font-sans);
+  font-size: 0.6875rem;
+  font-weight: 500;
+  color: var(--color-muted);
+  letter-spacing: 0.02em;
+}
+
+/* Trigger del drawer mobile — oculto en desktop, el sidebar ya cubre esa
+   navegación. Icono de 3 barras en vez de un ícono importado: el resto del
+   nav de este shell (y NavMoreMenu antes de este cambio) ya usa texto/glifos
+   puros, sin librería de iconos establecida. */
+.hamburger {
+  display: none;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  width: 32px;
+  height: 32px;
+  padding: 7px;
+  flex-shrink: 0;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+}
+
+.hamburger span {
+  display: block;
+  width: 100%;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--color-ink);
+}
+
+.hamburger:hover { background-color: var(--color-surface); }
+
+.hamburger:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px oklch(0.48 0.15 290 / 0.5);
+}
+
+/* ── Body (sidebar + main) — mismo layout que AnalyticaShell/SeguridadShell ── */
+.body {
+  display: flex;
+  align-items: flex-start;
+}
+
+/* ── Sidebar ── */
+.sidebar {
+  width: 220px;
+  flex-shrink: 0;
+  position: sticky;
+  top: 56px;
+  height: calc(100vh - 56px);
+  overflow-y: auto;
+  background: var(--color-surface);
+  border-right: 1px solid var(--color-border);
+  padding: var(--space-sm) 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Reserva el hueco del PlayerBar (fixed) para que no tape los últimos ítems
+   del sidebar cuando hay una pista cargada — mismo tratamiento que
+   `.mainWithPlayer`. */
+.sidebarWithPlayer {
+  padding-bottom: calc(var(--player-bar-height) + var(--space-sm));
+}
+
+.navItem {
+  display: flex;
+  align-items: center;
+  padding: 7px var(--space-md);
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--color-muted);
+  text-decoration: none;
+  transition:
+    color var(--duration-fast) var(--ease-standard),
+    background-color var(--duration-fast) var(--ease-standard);
+}
+
+.navItem:hover {
+  color: var(--color-ink);
+  background-color: var(--color-surface-raised);
+}
+
+.navItem:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 2px oklch(0.48 0.15 290 / 0.4);
+}
+
+.navActive {
+  color: var(--color-primary-light);
+  background-color: oklch(0.48 0.15 290 / 0.10);
+}
+
+.navActive:hover {
+  color: var(--color-primary-light);
+  background-color: oklch(0.48 0.15 290 / 0.14);
+}
+
+.divider {
+  height: 1px;
+  background: var(--color-border);
+  margin: var(--space-sm) var(--space-md);
+  flex-shrink: 0;
+}
+
+/* ── Main content ── */
+.main {
+  flex: 1;
+  min-width: 0;
+  padding: var(--space-xl) var(--space-lg) var(--space-2xl);
+}
+
+/* Reserva el espacio que ocupa PlayerBar (fixed, fuera del flujo) para que no
+   tape el final del contenido — solo se aplica cuando hay una pista cargada. */
+.mainWithPlayer {
+  padding-bottom: calc(var(--player-bar-height) + var(--space-2xl));
+}
+
+.content {
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+/* ── Responsive: breakpoint unificado con AnalyticaShell/SeguridadShell
+   (768px) — antes este shell usaba 900/640px sin relación con los otros dos.
+   Bajo 768px el sidebar se reemplaza por el drawer (MobileNavDrawer), a
+   diferencia de Analitica/Seguridad, que hoy solo ocultan el sidebar sin
+   alternativa (paneles admin, gap conocido fuera de alcance de este cambio). ── */
+@media (max-width: 768px) {
+  .sidebar    { display: none; }
+  .hamburger  { display: flex; }
+  .main       { padding: var(--space-lg) var(--space-md) var(--space-xl); }
+}
+
+@media (max-width: 480px) {
+  .brandBar { padding: 0 var(--space-md); }
+  .badge    { display: none; }
+}

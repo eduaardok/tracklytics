@@ -104,3 +104,215 @@ Con `docker stats` se detectó que ClickHouse estaba al **83.89 % CPU** y Airflo
 | Reproducción de audio real | Feature incompleto | Opción viable: YouTube IFrame API con YouTube Data v3 key (~media sesión) |
 | Airflow consumiendo 28 % RAM idle | Performance global | `docker compose stop airflow` cuando no hay ETL en curso |
 | `FACT_SUSCRIPCION` / `FACT_ADQUISICION` pendientes | Reporte diario incompleto | Capa táctica — ETL PocketBase → ClickHouse |
+
+---
+
+## Continuación de la semana — refactorización hacia sistema completo (30 jun – 4 jul 2026)
+
+**Cierre:** después del QA/optimización de arriba, el docente revisó las presentaciones de
+mitad de semestre y señaló que el alcance operativo general del curso era demasiado mínimo
+(referencia: un equipo similar estimó ~80-100 tablas para un e-commerce completo, ~50 razonable
+para el contexto académico). Se abre una refactorización mayor: 6 capabilities OpenSpec nuevas,
+migración completa del frontend a React, y un bloque de pulido final. El razonamiento detallado
+de cada decisión (por qué, alternativas descartadas, hallazgos durante la implementación) vive en
+`docs/decisiones-refactorizacion.md` — esta entrada resume resultados, no lo repite.
+
+### Capabilities OpenSpec nuevas (6, todas cerradas)
+
+| Capability | Tablas | Notas |
+|---|---|---|
+| `seguridad` | 6 | Usuarios, sesiones, permisos, auditoría, errores — en ClickHouse por decisión pedagógica deliberada del docente (ver más abajo) |
+| `facturacion` | 3 | Métodos de pago, transacciones, invoices — simulado, sin pasarela real |
+| `creadores` | 4 | Cuentas de artista + flujo de subida de tracks con staging y revisión admin |
+| `social` | 4 | Seguir artistas, comentarios, compartir |
+| `distribucion` | 7 | Sellos, licencias, restricción geográfica de reproducción — incluyó migración breaking de `record_label`/`label` (texto libre) a FK real |
+| `experiencia` | 6 | Telemetría de reproducción, recomendaciones, tickets de soporte, A/B testing, reflejo de playlists, plan familiar |
+
+**Total de tablas: 28 (existentes) + 30 (nuevas) = 58** — un ajuste de 1 por debajo del objetivo
+redondo de 59 planteado al inicio, porque `experiencia` terminó con 6 tablas en vez de las 9
+planificadas originalmente (3 bridges — `BRIDGE_ARTISTA_GENERO`, `BRIDGE_ARTISTA_ALBUM`,
+`BRIDGE_USUARIO_DISPOSITIVO` — no se implementaron por redundancia con relaciones ya resolubles
+desde `FACT_TRACKS`/`DIM_USUARIO` sin una tabla bridge dedicada). Sigue dentro del rango 40-60
+acordado con el docente. *(Nota de precisión, verificada contra `system.tables` al redactar el
+README de cierre: 58 es el inventario de diseño del modelo dimensional completo — ClickHouse +
+las entidades de negocio resueltas como colecciones de PocketBase, como `suscripciones`. Las
+tablas físicas creadas en ClickHouse en este refactor son 30 (47 en total en ClickHouse hoy,
+incluyendo las 17 preexistentes) — ambas cifras son correctas, cuentan cosas distintas. Ver
+`README.md`, sección "Modelo de datos", para el detalle.)*
+
+**Decisión pedagógica deliberada:** `seguridad` y `facturacion` se implementaron en ClickHouse
+(columnar) a pesar de ser dominios transaccionales por naturaleza — instrucción explícita del
+docente para que el equipo encuentre y documente las fricciones reales de usar una base columnar
+fuera de su caso de uso ideal, en vez de una elección de arquitectura del equipo.
+
+### Migración de frontend a React (stack completo)
+
+El frontend vanilla HTML/CSS/JS + Bootstrap 5 se reemplazó por React + Vite + TypeScript,
+completado en bloques sucesivos: login/sesión, catálogo completo (favoritos, playlists,
+historial, reproductor persistente), suscripciones (con orquestación post-login/registro),
+resto de analítica (perfil de audio por género, comparación de artistas, benchmark, tendencias,
+reporte diario), partners e ingesta. Sistema de diseño (`PRODUCT.md`, tokens oklch) definido una
+sola vez al inicio y aplicado de forma incremental por capability, sin reconstruir pantallas dos
+veces. El frontend legacy queda reemplazado en su totalidad para el camino de usuario real; no se
+mantiene en paralelo.
+
+### Bug crítico de integridad de datos: `fact_id` duplicado en `FACT_TRACKS`
+
+Durante la verificación de `experiencia` se descubrió que **113,550 `fact_id` (22.1% de la
+tabla)** apuntaban a dos tracks distintos cada uno — no una duplicación trivial, dos canciones
+completamente diferentes compartiendo el mismo identificador. Causas raíz identificadas y
+corregidas de forma permanente:
+1. Faltaba un guard de idempotencia en la carga de `FACT_TRACKS` para registros reales — cada
+   corrida del ETL insertaba de nuevo sin verificar si ya existían.
+2. La API de PocketBase no garantizaba un orden estable entre llamadas (`sort` ausente), así que
+   una recarga completa podía asignar el mismo `fact_id` secuencial a un track distinto que en
+   la carga anterior.
+
+Ambas causas se corrigieron en `etl/gold/loader.py` y `etl/utils/pocketbase_client.py`. Datos
+remediados: `FACT_TRACKS` pasó de 1,027,101 a 913,551 filas correctas, 0 duplicados verificados
+post-fix.
+
+### Pulido final P4
+
+Sidebar vertical + nav mobile real (drawer con hamburguesa) reemplazando el nav horizontal
+original, con breakpoint unificado (768px) entre los 3 shells de la app. Corrección de un bug de
+historial que excluía tracks 100% sintéticos de la vista del usuario aunque el evento sí se
+hubiera registrado. Code-splitting de `/analitica` y `/seguridad/ingesta` (ambos con Recharts) —
+el bundle principal bajó de **882 KB a 409 KB** (gzip: 253 KB → 120 KB), una reducción de ~54%
+que además elimina la carga de una librería de gráficos para usuarios que nunca visitan esas
+secciones. Patrón único de manejo de errores (`ErrorState`/`EmptyState` reutilizables) con
+`status`/`detail` reales del backend en vez de mensajes genéricos, y auditoría responsive de las
+~35 páginas de la migración con corrección de las tablas/layouts que rompían en móvil/tablet.
+
+### Funcionalidad de `experiencia` completada
+
+- **Reproducción de audio:** YouTube IFrame API (búsqueda por texto desde el cliente, sin API
+  key) con reproducción simulada como fallback (Web Audio API nativa, tono de volumen muy bajo)
+  cuando YouTube no responde o no hay resultado — decisión posterior del docente/usuario sobre el
+  comportamiento original ("no disponible"), documentada como revisión de spec en
+  `openspec/specs/experiencia/spec.md`.
+- **Portadas reales:** resolución en dos intentos, iTunes Search API primero y Deezer Search API
+  como alternativa (ambas sin API key) — Deezer se agregó tras confirmar que iTunes por sí solo
+  dejaba una fracción significativa de artistas/álbumes sin resolver, además de un bug de
+  implementación (búsqueda de artista con un tipo de entidad de iTunes que nunca trae imagen).
+  Fallback final: reemplazo visual generado localmente, sin llamada externa.
+- **Página de perfil de usuario:** vista de solo lectura (email, tipo de cuenta, fecha de
+  registro) — no existía ninguna en React. Cambio de contraseña queda fuera de alcance porque el
+  backend no expone ese endpoint (documentado, no inventado).
+- **Navegación por género:** sección "Explorar por género" con chips descubribles en el
+  catálogo, cerrando un gap donde el filtro ya existía (un `<select>`) pero no era visualmente
+  descubrible.
+
+### Artefactos entregados (continuación)
+
+| Artefacto | Estado |
+|---|---|
+| `docs/decisiones-refactorizacion.md` | Nuevo — log completo de decisiones, hallazgos y verificaciones de todo el refactor |
+| `openspec/specs/{seguridad,facturacion,creadores,social,distribucion,experiencia}/spec.md` | Nuevos — specs de las 6 capabilities cerradas |
+| `openspec/specs/experiencia/spec.md` | Revisado — reproducción simulada y portada en dos intentos |
+| `frontend/` | Nuevo — app React+Vite+TS completa, reemplaza el frontend legacy |
+| `PRODUCT.md` | Nuevo — sistema de diseño (audiencia, tono, colores, tipografía) |
+
+### Deuda técnica identificada (continuación)
+
+| Ítem | Impacto | Estimación |
+|---|---|---|
+| Consistencia visual de manejo de errores incompleta en `ingesta`/`seguridad`/`social` (~9 archivos) | Cosmético — funcionan igual, solo no comparten el componente `ErrorState` unificado | Migración mecánica, ~1-2 h |
+| Nav mobile real solo en el shell B2C (`AppShell`) | `AnalyticaShell`/`SeguridadShell` siguen sin alternativa bajo 768px | Extender el mismo patrón de drawer a los 2 shells admin |
+| Airflow consumiendo CPU alto en idle (heartbeat de scheduler/triggerer) | Compite por recursos con ClickHouse/API en el mismo host | `docker compose stop airflow` cuando no hay ETL en curso |
+| Consolidación final en Word + diagramas UML/Excalidraw actualizados | Pendiente, fuera de alcance de este bloque | Última fase antes del cierre del proyecto |
+| Cobertura de portadas reales sigue baja (~10.6% artistas, ~1.6% álbumes) | Estético — el fallback visual local cubre el resto sin romper nada | Rate limit real de iTunes/Deezer bajo uso sostenido; se resuelve incrementalmente en corridas futuras del DAG |
+| `app/` (frontend legado) sigue en `docker-compose.yml` | Ninguno funcional — ya no es el camino de usuario real | Retirarlo del compose una vez se confirme que nada externo lo referencia |
+
+---
+
+## Continuación de la semana — hardening de producción y cierre del modelo de negocio (4 jul 2026)
+
+Tercer bloque de trabajo de la semana, después del refactor de 6 capabilities (arriba). Detalle
+completo de cada hallazgo y decisión en `docs/decisiones-refactorizacion.md` (secciones 21-25 y
+el change `completar-modelo-base`); esta entrada resume resultados.
+
+### Fixes urgentes reportados por admin + diagnóstico real con Playwright
+
+Se instaló Playwright para diagnosticar interactivamente (no solo revisión de código) dos
+problemas reportados en producción: reproducción sin sonido y portadas sin cargar.
+
+- **Nav de administración incompleto:** ni el nav original ni el sidebar de Fase 8 tenían enlace
+  hacia `/analitica` o `/seguridad` desde el shell B2C — gap preexistente, no una regresión.
+  Corregido con gating por rol idéntico al que ya aplica el backend.
+- **Reproducción — hallazgo real:** YouTube (`listType: 'search'`) a veces deja el `<video>`
+  interno indefinidamente en `readyState: 0` sin disparar `onError` — un fallo silencioso, no un
+  bloqueo de autoplay como se sospechaba inicialmente. Fix: un `setTimeout` de 4.5s tras
+  `onReady` que dispara el fallback simulado si no se detectó reproducción real, complementario
+  a `onError` (no lo reemplaza). Verificado con 5 corridas reales de Playwright: 5/5 terminaron
+  sonando algo (real o simulado), ninguna quedó en silencio indefinido.
+- **Bug real de portadas corregido:** la búsqueda de portada de artista usaba
+  `entity=musicArtist` contra iTunes Search, un tipo de entidad que **nunca** devuelve artwork
+  por diseño de esa API — 0% de artistas resueltos no era falta de corridas, era un bug. Fix:
+  buscar por `entity=album` con el nombre del artista (mismo patrón que otros clientes de
+  Apple Music), verificado con una corrida real post-fix.
+- **Persistencia de portadas:** cache en disco (`etl/gold/portadas_cache.json`, bind mount, no
+  volumen Docker) que sobrevive a `docker compose down -v` o a una recarga que reduzca
+  `FACT_TRACKS` a los ~113k registros originales — antes de este cambio, cualquiera de esas dos
+  operaciones habría borrado todo el progreso de resolución acumulado.
+- **Orden de resolución invertido para álbumes** (Deezer primero, iTunes como respaldo — para
+  artistas se mantuvo iTunes primero, que ya funcionaba bien) tras observar que iTunes se
+  degrada con cada corrida sostenida dentro de la misma sesión. Un loop de 2 horas (43 corridas)
+  corrido para medir el efecto real dio un resultado honesto, no el esperado: el ritmo de álbumes
+  también se degradó con Deezer primero (17→0 por corrida), solo que partiendo de una base más
+  baja — la causa real es rate limiting de ambas APIs bajo uso sostenido más una cola de títulos
+  cada vez más difícil de resolver, no el orden de las fuentes. Cobertura final de esa sesión:
+  artistas 10.6% (3.169/29.859), álbumes 1.6% (732/46.591).
+
+### Containerización del frontend React
+
+`frontend/Dockerfile` y `frontend/nginx.conf` ya existían (multi-stage Vite+Nginx) pero sin
+servicio propio en `docker-compose.yml` — el frontend vigente solo corría con `npm run dev`,
+violando la regla del docente de que todo corra en Docker. Se agregó el servicio
+`frontend-react` (puerto 8082), sin recrear ningún contenedor existente
+(`--no-recreate`/`--no-deps` en cada paso de verificación).
+
+### Auditoría del inventario de 58 tablas
+
+Antes de esta semana, `system.tables` mostraba 47 tablas físicas contra un inventario de diseño
+de 58 (`openspec/config.yaml`: 15 técnicas + 13 de negocio + 30 de las 6 capabilities). Se
+reconcilió cada una de las 13 tablas de negocio originales una por una: 6 no tenían tabla física
+homónima porque su función ya la cumplía otra tabla con otro nombre o vivían en PocketBase
+(detalle en `README.md`, sección "Modelo de datos"), y **5 eran un gap genuino, nunca
+implementado**: `DIM_CANAL_MARKETING`, `DIM_REGION`, `DIM_COMPONENTE_INFRAESTRUCTURA`,
+`FACT_ADQUISICION`, `FACT_DISPONIBILIDAD`. Esta auditoría fue solo de diagnóstico — no se
+implementó nada en ese momento, dio origen al cambio siguiente.
+
+### `completar-modelo-base` — cierre del gap (change cerrado, no una capability nueva)
+
+Cambio OpenSpec propuesto, implementado y archivado (`openspec/changes/archive/
+2026-07-04-completar-modelo-base/`) para cerrar las 5 tablas encontradas en la auditoría de
+arriba. A diferencia de las 6 capabilities de la semana, este cambio **extiende `analitica`**
+(2 `### Requirement:` nuevos) en vez de crear una capability nueva.
+
+- **ClickHouse:** las 5 tablas, aditivas — 52 tablas físicas en total hoy.
+- **ETL:** DAG independiente `modelo_negocio_sync` (`Param week_number`, seed reproducible
+  `week*42`, idempotencia vía `ETL_BATCH_CONTROL` con un checksum propio) — no se integró a
+  `tracklytics_etl` porque es un dominio de negocio ajeno al catálogo, mismo criterio ya usado
+  para `playlists_sync`. Backfill de 4 semanas cargado en la verificación.
+- **Backend:** `GET /app/v1/analitica/adquisicion` y `/disponibilidad`, mismo guard
+  (`require_b2b_panel_access`) que el resto de la capability.
+- **Frontend:** `AdquisicionPage` (tabla) y `DisponibilidadInfraPage` (small multiples)
+  reemplazan los 2 últimos `ComingSoonPage` de `analitica`. Nombrada explícitamente distinta de
+  `DisponibilidadPage` (`distribucion`, restricción geográfica de reproducción) para no
+  confundir ambos conceptos de "disponibilidad". Verificación encontró y corrigió un gap real no
+  previsto en el plan original: el nav de `AnalyticaShell` tenía ambas rutas marcadas como
+  "pronto", lo que además hacía bypass del guard `RequireSuscripcionActiva` en el frontend para
+  esas dos páginas — corregido moviéndolas a la nav real con gating normal.
+
+### Artefactos entregados (tercer bloque)
+
+| Artefacto | Estado |
+|---|---|
+| `docker-compose.yml` | Actualizado — servicio `frontend-react` nuevo |
+| `etl/gold/portada.py` | Actualizado — persistencia en cache, orden Deezer-primero para álbumes, fix `entity=album` |
+| `etl/gold/portadas_cache.json` | Nuevo — cache en disco, bind mount |
+| `etl/gold/modelo_negocio_sync.py`, `etl/dags/modelo_negocio_sync_dag.py` | Nuevos |
+| `frontend/src/shared/context/PlayerContext.tsx` | Actualizado — watchdog de reproducción |
+| `openspec/changes/archive/2026-07-04-completar-modelo-base/` | Nuevo — change cerrado |
+| `openspec/specs/analitica/spec.md` | Actualizado — 2 requirements nuevos (adquisición, disponibilidad de infraestructura) |

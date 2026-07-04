@@ -1,0 +1,545 @@
+/* ── Shared page shell ── */
+.page {}
+
+.heading {
+  font-family: var(--font-sans);
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--color-ink);
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+  text-wrap: balance;
+  margin-bottom: var(--space-xs);
+}
+
+.subtitle {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  color: var(--color-muted);
+  min-height: 1em;
+  margin-bottom: var(--space-xl);
+}
+
+.sectionLabel {
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--color-muted);
+  margin-bottom: var(--space-sm);
+}
+
+/* ── Bordered panel (base container, matches DashboardPage/ComingSoonPage) ── */
+.panel {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-lg);
+}
+
+/* ── Icons ── */
+.icon {
+  display: block;
+  flex-shrink: 0;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   Self-service (CuentaArtistaPage) — consumer register: generous spacing,
+   Space Grotesk headings, one continuous flow.
+   ══════════════════════════════════════════════════════════════════════ */
+
+/* ── "Become an artist" — no cuenta yet ── */
+.applyPanel {
+  max-width: 480px;
+  padding: var(--space-xl);
+  text-align: left;
+}
+
+.applyIcon {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-md);
+  background: oklch(0.48 0.15 290 / 0.14);
+  color: var(--color-primary-light);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: var(--space-md);
+}
+
+.applyTitle {
+  font-family: var(--font-sans);
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: var(--color-ink);
+  line-height: 1.35;
+  margin-bottom: var(--space-xs);
+}
+
+.applyBody {
+  font-family: var(--font-sans);
+  font-size: 0.9375rem;
+  color: var(--color-muted);
+  line-height: 1.6;
+  text-wrap: pretty;
+  max-width: 60ch;
+  margin-bottom: var(--space-lg);
+}
+
+/* ── Status panel (cuenta ya solicitada) ── */
+.statusPanel {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  padding: var(--space-lg);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  margin-bottom: var(--space-xl);
+}
+
+.statusInfo {
+  flex: 1;
+  min-width: 0;
+}
+
+.statusName {
+  font-family: var(--font-sans);
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: var(--color-ink);
+  line-height: 1.35;
+  margin-bottom: 2px;
+}
+
+.statusMeta {
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  color: var(--color-muted);
+}
+
+.statusHint {
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  color: var(--color-muted);
+  line-height: 1.6;
+  margin-top: var(--space-sm);
+  max-width: 60ch;
+  text-wrap: pretty;
+}
+
+/* Pulsing dot next to "pendiente" — reuses the etlDot idea from DashboardPage */
+.pulseDot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+  flex-shrink: 0;
+  animation: pulseDot 1.8s ease-in-out infinite;
+}
+
+@keyframes pulseDot {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.35; }
+}
+
+/* ── Upload form ── */
+.uploadForm {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: var(--space-sm);
+  padding: var(--space-md);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  margin-bottom: var(--space-xl);
+  align-items: end;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  min-width: 0;
+}
+
+.field--wide {
+  grid-column: 1 / -1;
+}
+
+.checkboxField {
+  flex-direction: row;
+  align-items: center;
+  gap: var(--space-xs);
+  padding-bottom: 9px;
+}
+
+.checkboxField input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--color-primary);
+}
+
+.checkboxField input[type="checkbox"]:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px oklch(0.48 0.15 290 / 0.5);
+  border-radius: 3px;
+}
+
+.fieldLabel {
+  font-family: var(--font-sans);
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--color-muted);
+}
+
+.input,
+.select {
+  width: 100%;
+  background: var(--color-bg);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  padding: 8px 12px;
+  height: 36px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  outline: none;
+  min-width: 0;
+  transition: border-color var(--duration-standard) var(--ease-standard);
+}
+
+.select {
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16' fill='none'%3E%3Cpath d='M4 6l4 4 4-4' stroke='%2358586a' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  padding-right: 32px;
+}
+
+.input::placeholder { color: var(--color-muted); }
+.input:hover, .select:hover { border-color: oklch(0.30 0.012 285); }
+.input:focus, .select:focus { border-color: var(--color-primary); }
+
+/* ── Own track list ── */
+.trackList {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.trackRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  padding: 12px var(--space-md);
+  background: var(--color-surface);
+}
+
+.trackRow + .trackRow {
+  border-top: 1px solid var(--color-border);
+}
+
+.trackInfo {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.trackName {
+  font-family: var(--font-sans);
+  font-size: 0.9375rem;
+  font-weight: 500;
+  color: var(--color-ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.trackMeta {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--color-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Empty state (teaches, doesn't just say "nothing here") ── */
+.emptyState {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: var(--space-xs);
+  padding: var(--space-xl) var(--space-lg);
+  color: var(--color-muted);
+}
+
+.emptyState .icon {
+  color: var(--color-muted);
+  opacity: 0.6;
+  margin-bottom: var(--space-xs);
+}
+
+.emptyTitle {
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--color-ink);
+}
+
+.emptyBody {
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+  color: var(--color-muted);
+  max-width: 40ch;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   Admin (RevisionCreadoresPage) — B2B dense register: mono data, tight rows.
+   ══════════════════════════════════════════════════════════════════════ */
+
+.queueGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-md);
+  align-items: start;
+}
+
+.queuePanel {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.queueHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  padding: 10px var(--space-md);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.queueTitle {
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--color-muted);
+}
+
+.queueCount {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--color-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.queueList {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+}
+
+.queueRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: 10px var(--space-md);
+  transition: background-color var(--duration-fast) var(--ease-standard);
+}
+
+.queueRow + .queueRow {
+  border-top: 1px solid var(--color-border);
+}
+
+.queueRow:hover {
+  background: var(--color-surface-raised);
+}
+
+.queueRowInfo {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.queueRowName {
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--color-ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.queueRowMeta {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--color-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.queueRowActions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+/* ── Buttons ── */
+/* Font-size floor is deliberate: DESIGN.md notes Twilight Violet fill only
+   reaches WCAG's 3:1 large-text threshold with Pale Ink text, not the 4.5:1
+   normal-text minimum — so button text on this fill must stay at 0.875rem/
+   600 weight (bold ≥14px) to qualify as large text. Never shrink this below
+   0.875rem even in a "compact" row action. */
+.btnPrimary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-xs);
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--color-ink);
+  background: var(--color-primary);
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: 6px 12px;
+  height: 32px;
+  cursor: pointer;
+  white-space: nowrap;
+  letter-spacing: 0.01em;
+  transition: background-color var(--duration-standard) var(--ease-standard), opacity var(--duration-fast) var(--ease-standard);
+}
+
+.btnPrimary:hover:not(:disabled) { background: oklch(0.54 0.16 290); }
+.btnPrimary:focus-visible { outline: none; box-shadow: 0 0 0 2px oklch(0.48 0.15 290 / 0.5); }
+.btnPrimary:disabled { opacity: 0.38; cursor: not-allowed; }
+
+.btnPrimary--full {
+  height: 36px;
+  padding: 9px 20px;
+}
+
+.btnGhostDanger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--color-muted);
+  background: transparent;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 6px 12px;
+  height: 30px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition:
+    color var(--duration-fast) var(--ease-standard),
+    border-color var(--duration-fast) var(--ease-standard);
+}
+
+.btnGhostDanger:hover:not(:disabled) {
+  color: var(--color-error);
+  border-color: oklch(0.65 0.22 25 / 0.4);
+}
+
+.btnGhostDanger:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px oklch(0.65 0.22 25 / 0.4);
+}
+
+.btnGhostDanger:disabled { opacity: 0.38; cursor: not-allowed; }
+
+/* ── Badges (teal = approved/healthy, amber = pending, red = rejected — matches etlBadge) ── */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--font-sans);
+  font-size: 0.6875rem;
+  font-weight: 500;
+  padding: 3px 9px;
+  border-radius: var(--radius-pill);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.badgeOk {
+  background: oklch(0.70 0.14 195 / 0.15);
+  color: var(--color-accent);
+}
+
+.badgeError {
+  background: oklch(0.65 0.22 25 / 0.12);
+  color: var(--color-error);
+}
+
+.badgePending {
+  background: oklch(0.78 0.18 70 / 0.14);
+  color: var(--color-warning);
+}
+
+.badgeDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  flex-shrink: 0;
+}
+
+/* ── Skeleton ── */
+.skel {
+  display: block;
+  background: var(--color-surface-raised);
+  border-radius: 3px;
+  animation: skelPulse 1.6s ease-in-out infinite;
+}
+
+@keyframes skelPulse {
+  0%, 100% { opacity: 0.35; }
+  50%      { opacity: 0.65; }
+}
+
+.skelQueueRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: 10px var(--space-md);
+}
+
+.skelQueueRow + .skelQueueRow {
+  border-top: 1px solid var(--color-border);
+}
+
+/* ── Inline banners ── */
+.bannerError {
+  padding: 10px var(--space-md);
+  background: oklch(0.65 0.22 25 / 0.08);
+  border: 1px solid oklch(0.65 0.22 25 / 0.25);
+  border-radius: var(--radius-md);
+  color: var(--color-error);
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  margin-bottom: var(--space-md);
+}
+
+/* ── Responsive ── */
+@media (max-width: 640px) {
+  .queueGrid { grid-template-columns: 1fr; }
+  .statusPanel { flex-direction: column; align-items: flex-start; }
+  .uploadForm { grid-template-columns: 1fr; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skel, .pulseDot { animation: none; opacity: 0.5; }
+}

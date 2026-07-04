@@ -95,7 +95,7 @@ def _load_empirical(client) -> dict | None:
                speechiness, acousticness, instrumentalness, liveness,
                valence, duration_ms
         FROM FACT_TRACKS
-        WHERE is_synthetic = 0
+        WHERE source_type = 'real'
     """)
     if df.empty:
         return None
@@ -202,7 +202,7 @@ def _generate_synthetic(
         "valence":             valence,
         "tempo":               tempos,
         "load_week":           week,
-        "is_synthetic":        True,
+        "source_type":         "synthetic",
     })
 
 

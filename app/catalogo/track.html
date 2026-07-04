@@ -20,7 +20,7 @@
 <script type="module">
   import { requireAuth } from '/js/auth.js';
   import { renderSidebar, renderPlayer, playTrack, coverArt, skeletonRows, genreColor } from '/js/components.js';
-  import { Tracks } from '/js/api.js';
+  import { Tracks, getPlanTier } from '/js/api.js';
   import { initFavorites, isFavorite, toggleFavorite } from '/js/favorites.js';
 
   if (!requireAuth()) throw new Error('not auth');
@@ -37,12 +37,15 @@
     return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
   }
 
-  function featureBar(label, value) {
+  function featureBar(label, value, desc) {
     if (value == null) return '';
     const pct = Math.round(value * 100);
     return `
       <div class="feature-bar">
-        <div class="feature-label">${label}</div>
+        <div class="feature-label">
+          ${label}
+          ${desc ? `<span style="display:block;font-size:.72rem;font-weight:400;color:var(--text-muted);margin-top:.1rem">${desc}</span>` : ''}
+        </div>
         <div class="feature-track"><div class="feature-fill" style="width:${pct}%"></div></div>
         <div class="feature-value">${pct}%</div>
       </div>`;
@@ -52,7 +55,10 @@
     const el = document.getElementById('page-content');
     el.innerHTML = skeletonRows(3);
     try {
-      const res   = factId ? await Tracks.getByFact(factId) : await Tracks.get(trackId);
+      const [res, plan] = await Promise.all([
+        factId ? Tracks.getByFact(factId) : Tracks.get(trackId),
+        getPlanTier().catch(() => 'free'),
+      ]);
       const track = res.data ?? res;
 
       window.__trackCache = window.__trackCache || {};
@@ -109,15 +115,25 @@
         </div>
 
         <h2 class="section-title">Características de audio</h2>
-        <div class="feature-bars">
-          ${featureBar('Danceability',     track.danceability)}
-          ${featureBar('Energy',           track.energy)}
-          ${featureBar('Valence',          track.valence)}
-          ${featureBar('Acousticness',     track.acousticness)}
-          ${featureBar('Speechiness',      track.speechiness)}
-          ${featureBar('Instrumentalness', track.instrumentalness)}
-          ${featureBar('Liveness',         track.liveness)}
-        </div>
+        ${plan === 'free'
+          ? `<div class="card" style="max-width:480px; text-align:center; padding:1.5rem 1.25rem; opacity:.85">
+               <div style="font-size:1.6rem; margin-bottom:.5rem">🔒</div>
+               <div style="font-weight:600; margin-bottom:.35rem">Sección exclusiva Premium</div>
+               <div style="font-size:.875rem; color:var(--text-muted); margin-bottom:1rem">
+                 Las características de audio detalladas (danceability, energy, valence…) están disponibles en el plan Premium.
+               </div>
+               <a href="/autenticacion/planes.html" class="btn btn-primary btn-sm">Actualizar a Premium</a>
+             </div>`
+          : `<div class="feature-bars">
+               ${featureBar('Danceability',     track.danceability,     'Qué tan bailable es la canción')}
+               ${featureBar('Energy',           track.energy,           'Intensidad y actividad percibida')}
+               ${featureBar('Valence',          track.valence,          'Positividad emocional del sonido')}
+               ${featureBar('Acousticness',     track.acousticness,     'Probabilidad de ser acústica')}
+               ${featureBar('Speechiness',      track.speechiness,      'Presencia de palabras habladas')}
+               ${featureBar('Instrumentalness', track.instrumentalness, 'Ausencia de voz (más = instrumental)')}
+               ${featureBar('Liveness',         track.liveness,         'Probabilidad de ser en vivo')}
+             </div>`
+        }
 
         <div class="attr-grid">
           <div class="attr-card">

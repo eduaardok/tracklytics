@@ -1,0 +1,455 @@
+/* ── Shared page shell ── */
+.page {}
+
+.heading {
+  font-family: var(--font-sans);
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--color-ink);
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+  text-wrap: balance;
+  margin-bottom: var(--space-xs);
+}
+
+.subtitle {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  color: var(--color-muted);
+  min-height: 1em;
+  margin-bottom: var(--space-xl);
+}
+
+/* ── Section headers ── */
+.sectionLabel {
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--color-muted);
+  margin-bottom: var(--space-sm);
+}
+
+/* ── Method list (radio-row per card) ── */
+.methodList {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  margin-bottom: var(--space-md);
+}
+
+.methodRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  padding: 12px var(--space-md);
+  background: var(--color-surface);
+  cursor: pointer;
+  transition: background-color var(--duration-fast) var(--ease-standard);
+  border: none;
+  width: 100%;
+  text-align: left;
+}
+
+.methodRow + .methodRow {
+  border-top: 1px solid var(--color-border);
+}
+
+.methodRow:hover {
+  background: var(--color-surface-raised);
+}
+
+.methodRow:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 2px oklch(0.48 0.15 290 / 0.4);
+}
+
+.methodRowSelected {
+  background: oklch(0.48 0.15 290 / 0.08);
+}
+
+.methodRowSelected:hover {
+  background: oklch(0.48 0.15 290 / 0.12);
+}
+
+.radioIndicator {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 1.5px solid var(--color-border);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: border-color var(--duration-fast) var(--ease-standard);
+}
+
+.methodRowSelected .radioIndicator {
+  border-color: var(--color-primary-light);
+}
+
+.radioDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-primary-light);
+  transform: scale(0);
+  transition: transform var(--duration-fast) var(--ease-standard);
+}
+
+.methodRowSelected .radioDot {
+  transform: scale(1);
+}
+
+.methodType {
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--color-ink);
+  text-transform: capitalize;
+  min-width: 56px;
+}
+
+.methodNumber {
+  font-family: var(--font-mono);
+  font-size: 0.875rem;
+  color: var(--color-muted);
+  letter-spacing: 0.04em;
+  flex: 1;
+}
+
+.methodCountry {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--color-muted);
+}
+
+/* ── Empty / prompt states ── */
+.emptyMethods {
+  padding: var(--space-lg) var(--space-md);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  color: var(--color-muted);
+  text-align: center;
+  margin-bottom: var(--space-md);
+}
+
+/* ── Skeleton ── */
+.skel {
+  display: block;
+  background: var(--color-surface-raised);
+  border-radius: 3px;
+  animation: skelPulse 1.6s ease-in-out infinite;
+}
+
+@keyframes skelPulse {
+  0%, 100% { opacity: 0.35; }
+  50%       { opacity: 0.65; }
+}
+
+.skelMethodRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  padding: 12px var(--space-md);
+  background: var(--color-surface);
+}
+
+.skelMethodRow + .skelMethodRow {
+  border-top: 1px solid var(--color-border);
+}
+
+.skelRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+}
+
+/* ── Pay action ── */
+.paySection {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-xl);
+}
+
+.payRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  flex-wrap: wrap;
+}
+
+/* ── Add method toggle ── */
+.addToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--color-muted);
+  background: transparent;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 6px var(--space-md);
+  cursor: pointer;
+  margin-bottom: var(--space-md);
+  transition:
+    color var(--duration-fast) var(--ease-standard),
+    border-color var(--duration-fast) var(--ease-standard);
+}
+
+.addToggle:hover {
+  color: var(--color-ink);
+  border-color: oklch(0.38 0.012 285);
+}
+
+.addToggleOpen {
+  color: var(--color-primary-light);
+  border-color: var(--color-primary);
+}
+
+/* ── Inline add form ── */
+.addForm {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: var(--space-sm);
+  padding: var(--space-md);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  margin-bottom: var(--space-xl);
+  align-items: end;
+}
+
+/* ── Admin search form ── */
+.searchForm {
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-xl);
+}
+
+/* ── Field ── */
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.fieldLabel {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--color-muted);
+}
+
+.input {
+  background: var(--color-surface);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  padding: 8px 12px;
+  height: 36px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  outline: none;
+  min-width: 160px;
+  transition: border-color var(--duration-standard) var(--ease-standard);
+}
+
+.input::placeholder { color: var(--color-muted); }
+.input:hover { background: var(--color-surface-raised); }
+.input:focus { border-color: var(--color-primary); }
+
+/* ── Buttons ── */
+.btnPrimary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-xs);
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--color-ink);
+  background: var(--color-primary);
+  border: none;
+  border-radius: var(--radius-md);
+  padding: 9px var(--space-md);
+  height: 36px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background-color var(--duration-standard) var(--ease-standard);
+}
+
+.btnPrimary:hover:not(:disabled) { background: oklch(0.54 0.16 290); }
+.btnPrimary:focus-visible { outline: none; box-shadow: 0 0 0 2px oklch(0.48 0.15 290 / 0.5); }
+.btnPrimary:disabled { opacity: 0.38; cursor: not-allowed; }
+
+.btnGhost {
+  display: inline-flex;
+  align-items: center;
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--color-muted);
+  background: transparent;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 9px var(--space-md);
+  height: 36px;
+  cursor: pointer;
+  transition:
+    color var(--duration-fast) var(--ease-standard),
+    border-color var(--duration-fast) var(--ease-standard);
+}
+
+.btnGhost:hover { color: var(--color-ink); border-color: oklch(0.38 0.012 285); }
+.btnGhost:disabled { opacity: 0.38; cursor: not-allowed; }
+
+/* ── Inline result banners ── */
+.bannerOk {
+  padding: 10px var(--space-md);
+  background: oklch(0.72 0.16 150 / 0.08);
+  border: 1px solid oklch(0.72 0.16 150 / 0.25);
+  border-radius: var(--radius-md);
+  color: var(--color-success);
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+}
+
+.bannerError {
+  padding: 10px var(--space-md);
+  background: oklch(0.65 0.22 25 / 0.08);
+  border: 1px solid oklch(0.65 0.22 25 / 0.25);
+  border-radius: var(--radius-md);
+  color: var(--color-error);
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+}
+
+/* ── History section ── */
+.historyGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+  gap: var(--space-lg);
+  margin-top: var(--space-lg);
+}
+
+.historyBlock {}
+
+/* ── Tables ── */
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+}
+
+.table th {
+  text-align: left;
+  color: var(--color-muted);
+  font-weight: 500;
+  font-family: var(--font-sans);
+  padding: var(--space-sm);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.table td {
+  padding: var(--space-sm);
+  border-bottom: 1px solid var(--color-border);
+  color: var(--color-ink);
+}
+
+.table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.table tbody tr:hover td {
+  background: oklch(0.14 0.012 285 / 0.5);
+}
+
+/* Skeleton table rows */
+.table td.skelCell {
+  padding: 10px var(--space-sm);
+}
+
+/* ── Status badges ── */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  font-family: var(--font-sans);
+  font-size: 0.6875rem;
+  font-weight: 500;
+  padding: 2px 8px;
+  border-radius: var(--radius-pill);
+  white-space: nowrap;
+}
+
+.badgeOk {
+  background: oklch(0.72 0.16 150 / 0.12);
+  color: var(--color-success);
+  border: 1px solid oklch(0.72 0.16 150 / 0.25);
+}
+
+.badgeDenied {
+  background: oklch(0.65 0.22 25 / 0.10);
+  color: var(--color-error);
+  border: 1px solid oklch(0.65 0.22 25 / 0.25);
+}
+
+.badgePending {
+  background: oklch(0.78 0.18 70 / 0.10);
+  color: var(--color-warning);
+  border: 1px solid oklch(0.78 0.18 70 / 0.25);
+}
+
+/* ── Empty table state ── */
+.tableEmpty {
+  text-align: center;
+  padding: var(--space-lg) var(--space-md) !important;
+  color: var(--color-muted) !important;
+  font-family: var(--font-sans) !important;
+  font-size: 0.875rem !important;
+}
+
+/* ── No-search prompt (admin) ── */
+.prompt {
+  padding: var(--space-xl) 0;
+  text-align: center;
+}
+
+.promptText {
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  color: var(--color-muted);
+}
+
+/* ── Admin results: two-column grid ── */
+.auditGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+  gap: var(--space-lg);
+}
+
+.auditBlock {}
+
+/* ── Responsive ── */
+@media (max-width: 480px) {
+  .historyGrid  { grid-template-columns: 1fr; }
+  .auditGrid    { grid-template-columns: 1fr; }
+  .addForm      { grid-template-columns: 1fr; }
+  .methodCountry { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skel,
+  .radioDot,
+  .radioIndicator { animation: none; transition: none; }
+}

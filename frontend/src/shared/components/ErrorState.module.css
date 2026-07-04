@@ -1,0 +1,32 @@
+/* Mismos tokens que ya usaban `.errorBox`/`.bannerError`/`.blocked` en los
+   distintos paquetes (oklch(0.65 0.22 25) = --color-error) — se consolida el
+   valor, no se introduce un color nuevo. */
+.box {
+  padding: var(--space-lg);
+  background: oklch(0.65 0.22 25 / 0.08);
+  border: 1px solid oklch(0.65 0.22 25 / 0.25);
+  border-radius: var(--radius-md);
+}
+
+.title {
+  font-family: var(--font-sans);
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--color-error);
+  margin: 0 0 var(--space-xs);
+}
+
+.body {
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  color: var(--color-ink);
+  margin: 0;
+}
+
+.compact {
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+  color: var(--color-error);
+  margin: 0;
+  padding: 0 12px var(--space-xs);
+}

@@ -63,11 +63,21 @@ def etl_status():
 
 
 def _truncate_fact_tables() -> None:
-    for table in ("FACT_TRACKS", "ETL_BATCH_CONTROL"):
-        try:
-            execute(f"TRUNCATE TABLE {table}")
-        except Exception as exc:
-            raise HTTPException(status_code=500, detail=f"Error truncando {table}: {exc}")
+    # FACT_TRACKS: no se trunca sin condición — preservaría los tracks
+    # promovidos por `creadores` (source_type='user_uploaded'), que no tienen
+    # otra fuente de la que regenerarse tras un borrado (a diferencia de
+    # favoritos/historial, que solo referencian un fact_id). Se borra
+    # únicamente lo que la recarga batch va a regenerar (design.md de
+    # `creadores`, "Preservación de tracks `user_uploaded`...").
+    try:
+        execute("ALTER TABLE FACT_TRACKS DELETE WHERE source_type != 'user_uploaded'")
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Error borrando FACT_TRACKS: {exc}")
+
+    try:
+        execute("TRUNCATE TABLE ETL_BATCH_CONTROL")
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Error truncando ETL_BATCH_CONTROL: {exc}")
 
 
 @router.post("/etl/clear", tags=["ETL"])
@@ -115,21 +125,25 @@ def data_quality():
         rejection = query_one(DATA_QUALITY_REJECTION)
         last_load = query_one(DATA_QUALITY_LAST_LOAD)
 
-        total     = counts["total_records"]     if counts else 0
-        real      = counts["real_records"]      if counts else 0
-        synthetic = counts["synthetic_records"] if counts else 0
+        total         = counts["total_records"]           if counts else 0
+        real          = counts["real_records"]             if counts else 0
+        synthetic     = counts["synthetic_records"]        if counts else 0
+        user_uploaded = counts["user_uploaded_records"]     if counts else 0
 
-        real_pct      = round(real / total * 100, 1)      if total else 0.0
-        synthetic_pct = round(synthetic / total * 100, 1) if total else 0.0
+        real_pct          = round(real / total * 100, 1)          if total else 0.0
+        synthetic_pct     = round(synthetic / total * 100, 1)     if total else 0.0
+        user_uploaded_pct = round(user_uploaded / total * 100, 1) if total else 0.0
 
         return {
-            "total_records":    total,
-            "real_records":     real,
-            "synthetic_records": synthetic,
-            "real_pct":         real_pct,
-            "synthetic_pct":    synthetic_pct,
-            "last_load":        last_load,
-            "rejection_rate":   rejection["rejection_rate"] if rejection else None,
+            "total_records":        total,
+            "real_records":         real,
+            "synthetic_records":    synthetic,
+            "user_uploaded_records": user_uploaded,
+            "real_pct":             real_pct,
+            "synthetic_pct":        synthetic_pct,
+            "user_uploaded_pct":    user_uploaded_pct,
+            "last_load":            last_load,
+            "rejection_rate":       rejection["rejection_rate"] if rejection else None,
         }
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Error fetching data quality: {exc}")

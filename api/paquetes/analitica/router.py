@@ -6,67 +6,20 @@ from core.cache import cached
 from core.database import query_one, query_rows
 from paquetes.analitica.deps import require_b2b_panel_access, require_staff
 from paquetes.analitica.queries import (
-    ARTIST_AUDIO_STATS_V1, ARTIST_GENRE_BENCHMARKS, ARTIST_PREDOMINANT_GENRE, ARTIST_STATS,
-    ARTISTS_SEARCH, ARTISTS_SEARCH_TOTAL,
+    ADQUISICION_POR_CANAL,
+    ARTIST_AUDIO_STATS_V1, ARTIST_PREDOMINANT_GENRE,
+    ARTISTAS_SEARCH_V1,
     DASHBOARD_AUDIO_AVG, DASHBOARD_EXPLICIT_DIST, DASHBOARD_KPIS, DASHBOARD_LAST_ETL,
     DASHBOARD_TOP_ARTISTS, DASHBOARD_TOP_GENRES,
     DASHBOARD_TOTAL_ARTISTS, DASHBOARD_TOTAL_GENRES, DASHBOARD_TOTAL_TRACKS,
+    DISPONIBILIDAD_POR_COMPONENTE,
     ENGAGEMENT_BY_ARTIST, ENGAGEMENT_BY_FACT,
-    GENRE_AUDIO_PROFILE, GENRE_AUDIO_PROFILE_V1, GENRES_TOTAL, GENRES_TRENDS,
+    GENRE_AUDIO_PROFILE_V1,
     REPORTE_DIARIO_ENGAGEMENT, REPORTE_DIARIO_INGESTAS,
-    TENDENCIAS_LOAD_WEEK, TRACK_POPULARITY, TRENDS_WEEKLY,
+    TENDENCIAS_LOAD_WEEK, TRACK_POPULARITY,
 )
 
 router = APIRouter(tags=["Analytics"], dependencies=[Depends(require_b2b_panel_access)])
-
-
-@router.get("/trends/weekly", tags=["Trends"])
-@cached(ttl=60)
-def trends_weekly():
-    rows = query_rows(TRENDS_WEEKLY)
-    return {"data": rows, "weeks": len(rows)}
-
-
-@router.get("/genres/trends", tags=["Genres"])
-@cached(ttl=60)
-def genres_trends(
-    page:  int = Query(1,  ge=1),
-    limit: int = Query(50, ge=1, le=500),
-):
-    offset = (page - 1) * limit
-    rows  = query_rows(GENRES_TRENDS, {"limit": limit, "offset": offset})
-    total = query_one(GENRES_TOTAL)["n"]
-    return {"data": rows, "page": page, "limit": limit, "total": total}
-
-
-@router.get("/genres/{genre_id}/audio-profile", tags=["Genres"])
-def genre_audio_profile(genre_id: int = Path(..., ge=1)):
-    row = query_one(GENRE_AUDIO_PROFILE, {"genre_id": genre_id})
-    if not row:
-        raise HTTPException(status_code=404, detail="Genre not found")
-    return row
-
-
-@router.get("/artists/search", tags=["Artists"])
-def artists_search(
-    name:  str = Query(..., min_length=1),
-    page:  int = Query(1,  ge=1),
-    limit: int = Query(20, ge=1, le=100),
-):
-    offset    = (page - 1) * limit
-    pattern   = f"%{name}%"
-    rows      = query_rows(ARTISTS_SEARCH, {"pattern": pattern, "limit": limit, "offset": offset})
-    total_row = query_one(ARTISTS_SEARCH_TOTAL, {"pattern": pattern})
-    return {"data": rows, "page": page, "limit": limit, "total": total_row["n"]}
-
-
-@router.get("/artists/{artist_id}/stats", tags=["Artists"])
-def artist_stats(artist_id: int = Path(..., ge=1)):
-    artist = query_one(ARTIST_STATS, {"artist_id": artist_id})
-    if not artist:
-        raise HTTPException(status_code=404, detail="Artist not found")
-    artist["genre_benchmarks"] = query_rows(ARTIST_GENRE_BENCHMARKS, {"artist_id": artist_id})
-    return artist
 
 
 @router.get("/dashboard/executive", tags=["Dashboard"])
@@ -120,6 +73,16 @@ def _artist_or_404(artist_id: int) -> dict:
     return row
 
 
+@v1_router.get("/artistas/search")
+def v1_artistas_search(
+    nombre: str = Query(..., min_length=1),
+    limit:  int = Query(8,  ge=1, le=100),
+):
+    """Búsqueda de artistas por nombre parcial, case-insensitive. Cero coincidencias → 200 + []."""
+    rows = query_rows(ARTISTAS_SEARCH_V1, {"pattern": f"%{nombre}%", "limit": limit})
+    return {"data": rows, "total": len(rows), "limit": limit}
+
+
 @v1_router.get("/artistas/comparar")
 def v1_artistas_comparar(
     artista_a: int = Query(..., ge=1),
@@ -163,6 +126,19 @@ def v1_tendencias(
 
     rows = query_rows(TENDENCIAS_LOAD_WEEK.format(where=where), params)
     return {"data": rows}
+
+
+@v1_router.get("/adquisicion")
+def v1_adquisicion():
+    """CU-O54: usuarios nuevos por canal de marketing y semana."""
+    return {"data": query_rows(ADQUISICION_POR_CANAL)}
+
+
+@v1_router.get("/disponibilidad")
+def v1_disponibilidad():
+    """CU-O55: % de disponibilidad por componente de infraestructura y semana.
+    No confundir con la restricción geográfica de reproducción de `distribucion`."""
+    return {"data": query_rows(DISPONIBILIDAD_POR_COMPONENTE)}
 
 
 @v1_router.get("/engagement")

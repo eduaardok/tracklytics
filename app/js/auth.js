@@ -1,4 +1,4 @@
-import { pbLogin, pbRegister, pbGetUser } from './api.js';
+import { pbLogin, pbLogout, pbRegister } from './api.js';
 
 export function getSession() {
   const raw = localStorage.getItem('pb_user');
@@ -47,6 +47,7 @@ export function hasAnalyticsAccess() {
 }
 
 export function logout() {
+  pbLogout(); // cierra la sesión en FACT_SESION (fire-and-forget, ver design.md)
   localStorage.removeItem('pb_token');
   localStorage.removeItem('pb_user');
   localStorage.removeItem('pb_user_id');
@@ -56,16 +57,13 @@ export function logout() {
 export async function login(email, password) {
   const data = await pbLogin(email, password);
   localStorage.setItem('pb_token', data.token);
-  // Second call guarantees the full record including custom fields like 'role',
-  // which auth-with-password may omit when they are empty.
-  const fullRecord = await pbGetUser(data.record.id, data.token);
-  localStorage.setItem('pb_user', JSON.stringify(fullRecord));
-  localStorage.setItem('pb_user_id', fullRecord.id);
-  return fullRecord;
+  localStorage.setItem('pb_user', JSON.stringify(data.record));
+  localStorage.setItem('pb_user_id', data.record.id);
+  return data.record;
 }
 
-export async function register(email, password, name, role) {
-  await pbRegister(email, password, name, role);
+export async function register(email, password, name, role, pais = '') {
+  await pbRegister(email, password, name, role, pais);
   return login(email, password);
 }
 

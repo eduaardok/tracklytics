@@ -1,7 +1,6 @@
 import { showToast } from './toast.js';
 
 const API_BASE = '/api';
-const PB_BASE  = 'http://localhost:8090';
 
 export async function apiFetch(path, opts = {}) {
   const token = localStorage.getItem('pb_token');
@@ -29,42 +28,56 @@ export async function apiFetch(path, opts = {}) {
   return res.json();
 }
 
-// ── PocketBase Auth ──────────────────────────────────────────────────────────
+// ── Autenticación (capability `seguridad`) ──────────────────────────────────
+// El frontend ya no llama a PocketBase directo: pasa por FastAPI
+// (/app/v1/seguridad/auth/*), que además deja rastro en ClickHouse
+// (DIM_USUARIO, DIM_DISPOSITIVO, FACT_SESION) sin cambiar el token que el
+// resto de la API sigue validando (ver design.md de la capability).
+
+// dispositivo_id persistente por navegador (design.md, "DIM_DISPOSITIVO
+// identificado por un id de dispositivo generado en cliente").
+export function getDeviceId() {
+  let id = localStorage.getItem('dispositivo_id');
+  if (!id) {
+    id = crypto.randomUUID();
+    localStorage.setItem('dispositivo_id', id);
+  }
+  return id;
+}
+
+async function authFetch(path, body) {
+  const res = await fetch(`${API_BASE}${path}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    const detail = err.detail;
+    const msg = typeof detail === 'string' ? detail : 'Error de autenticación';
+    throw new Error(msg);
+  }
+  return res.json();
+}
+
 export async function pbLogin(email, password) {
-  const res = await fetch(`${PB_BASE}/api/collections/users/auth-with-password`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ identity: email, password }),
+  return authFetch('/app/v1/seguridad/auth/login', {
+    email, password, dispositivo_id: getDeviceId(), tipo: 'web', app_version: 'web-1.0',
   });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.message || 'Credenciales inválidas');
-  }
-  return res.json();
 }
 
-export async function pbGetUser(userId, token) {
-  const res = await fetch(`${PB_BASE}/api/collections/users/records/${userId}`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.message || `HTTP ${res.status}`);
-  }
-  return res.json();
+export async function pbRegister(email, password, name, role = 'user', pais = '') {
+  return authFetch('/app/v1/seguridad/auth/registro', { email, password, nombre: name, pais, rol: role });
 }
 
-export async function pbRegister(email, password, name, role = 'user') {
-  const res = await fetch(`${PB_BASE}/api/collections/users/records`, {
+export async function pbLogout() {
+  const token = localStorage.getItem('pb_token');
+  if (!token) return;
+  await fetch(`${API_BASE}/app/v1/seguridad/auth/logout`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, password, passwordConfirm: password, name, role }),
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.message || 'Error al registrar usuario');
-  }
-  return res.json();
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ dispositivo_id: getDeviceId() }),
+  }).catch(() => {});
 }
 
 // ── App endpoints (FastAPI /app/v1) ─────────────────────────────────────────
@@ -104,3 +117,14 @@ export const Suscripciones = {
   }),
   cancelar:  (id)                     => apiFetch(`/app/v1/suscripciones/${id}/cancelar`, { method: 'POST' }),
 };
+
+// Cached plan tier for the current session — reset on page load
+let _planTierCache = null;
+export async function getPlanTier() {
+  if (_planTierCache) return _planTierCache;
+  try {
+    const res = await Suscripciones.activa();
+    _planTierCache = res?.data?.tipo_plan ?? 'free';
+  } catch { _planTierCache = 'free'; }
+  return _planTierCache;
+}

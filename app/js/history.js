@@ -1,4 +1,4 @@
-import { apiFetch } from './api.js';
+import { apiFetch, getDeviceId } from './api.js';
 
 // ── In-memory cache ───────────────────────────────────────────────────────────
 let _histCache = [];
@@ -14,9 +14,18 @@ export async function initHistory(limit = 50) {
 }
 
 // ── addToHistory — fire-and-forget (components.js does not await or use return value) ──
-export function addToHistory(track) {
+// `dispositivo_id` habilita el evento de reproducción enriquecido
+// (RF-EXP-001, capability `experiencia`) — sin él, ese insert se omite (ver
+// api/paquetes/biblioteca/router.py::add_historial), pero el registro de
+// historial de siempre sigue funcionando igual.
+export function addToHistory(track, impresionId = null) {
   if (!track?.fact_id) return;
-  apiFetch(`/app/v1/biblioteca/historial/${track.fact_id}`, { method: 'POST' }).catch(() => {});
+  const body = { dispositivo_id: getDeviceId() };
+  if (impresionId != null) body.impresion_id = impresionId;
+  apiFetch(`/app/v1/biblioteca/historial/${track.fact_id}`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  }).catch(() => {});
 }
 
 // ── getHistory — sync (library.html calls without await) ─────────────────────

@@ -1,0 +1,90 @@
+/* Fonts — self-hosted via @fontsource, no external requests */
+@import '@fontsource/space-grotesk/400.css';
+@import '@fontsource/space-grotesk/500.css';
+@import '@fontsource/space-grotesk/600.css';
+@import '@fontsource/space-grotesk/700.css';
+@import '@fontsource/jetbrains-mono/400.css';
+
+/* Design tokens */
+:root {
+  /* Colors */
+  --color-primary:        oklch(0.48 0.15 290);
+  --color-primary-light:  oklch(0.68 0.14 290);
+  --color-accent:         oklch(0.70 0.14 195);
+  --color-bg:             oklch(0.09 0.010 285);
+  --color-surface:        oklch(0.14 0.012 285);
+  --color-surface-raised: oklch(0.18 0.014 285);
+  --color-ink:            oklch(0.92 0.008 285);
+  --color-muted:          oklch(0.58 0.010 285);
+  --color-error:          oklch(0.65 0.22 25);
+  --color-warning:        oklch(0.78 0.18 70);
+  --color-success:        oklch(0.72 0.16 150);
+  --color-border:         oklch(0.22 0.012 285);
+
+  /* Typography */
+  --font-sans: 'Space Grotesk', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+
+  /* Border radius */
+  --radius-sm:   4px;
+  --radius-md:   8px;
+  --radius-lg:   12px;
+  --radius-pill: 999px;
+
+  /* Spacing */
+  --space-xs:  4px;
+  --space-sm:  8px;
+  --space-md:  16px;
+  --space-lg:  24px;
+  --space-xl:  40px;
+  --space-2xl: 64px;
+
+  /* Motion */
+  --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-exit:     cubic-bezier(0.0, 0, 0.2, 1);
+  --duration-fast:       100ms;
+  --duration-standard:   150ms;
+  --duration-deliberate: 250ms;
+
+  /* Z-index scale */
+  --z-dropdown: 100;
+  --z-sticky:   200;
+  --z-backdrop: 300;
+  --z-modal:    400;
+  --z-toast:    500;
+  --z-tooltip:  600;
+
+  /* Reproductor persistente (AppShell) */
+  --player-bar-height: 72px;
+}
+
+/* Global reset */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  background: var(--color-bg);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  font-size: 0.9375rem;
+  font-weight: 400;
+  line-height: 1.6;
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

@@ -62,11 +62,12 @@ LIMIT {{limit:UInt32}} OFFSET {{offset:UInt32}}
 """
 
 ARTIST_DETAIL = f"""
-SELECT a.artist_id AS artist_id, a.name AS name, a.country AS country, a.record_label AS record_label, count() AS track_count
+SELECT a.artist_id AS artist_id, a.name AS name, a.country AS country, s.nombre AS record_label, count() AS track_count
 FROM {_DB}.FACT_TRACKS ft
 JOIN {_DB}.DIM_ARTISTS a ON ft.artist_id = a.artist_id
+LEFT JOIN {_DB}.DIM_SELLO_DISCOGRAFICO s ON a.sello_id = s.sello_id
 WHERE a.artist_id = {{artist_id:Int32}}
-GROUP BY a.artist_id, a.name, a.country, a.record_label
+GROUP BY a.artist_id, a.name, a.country, s.nombre
 """
 
 ALBUMS_LIST = f"""

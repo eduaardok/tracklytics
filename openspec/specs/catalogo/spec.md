@@ -2,7 +2,7 @@
 
 ## Objetivo
 
-Permitir que un Usuario B2C o Cliente B2B se autentique en la plataforma, explore el catálogo musical global, consulte el detalle de cualquier entidad musical, y gestione su biblioteca personal (favoritos, playlists, historial de reproducción).
+Permitir que un Usuario B2C o Cliente B2B explore el catálogo musical global, consulte el detalle de cualquier entidad musical, y gestione su biblioteca personal (favoritos, playlists, historial de reproducción).
 
 ## Contexto
 
@@ -17,38 +17,12 @@ Tracklytics necesita una capa de exploración musical funcional para sostener el
 
 | Nivel empresarial | Departamento | Paquete | Caso de uso | Historia de usuario |
 |---|---|---|---|---|
-| Operativo | Usuario B2C / Cliente B2B | Catálogo y biblioteca personal | CU-O01 Registrarse, iniciar y cerrar sesión | Como Usuario B2C, quiero crear una cuenta e iniciar sesión, para acceder a mi biblioteca personal |
 | Operativo | Usuario B2C / Cliente B2B | Catálogo y biblioteca personal | CU-O02 Buscar y explorar catálogo musical | Como Usuario B2C, quiero buscar tracks por nombre, artista o género, para descubrir música de mi interés |
 | Operativo | Usuario B2C / Cliente B2B | Catálogo y biblioteca personal | CU-O03 Consultar detalle de track/artista/álbum/género | Como Usuario B2C, quiero ver el detalle completo de un track, para conocer sus características antes de guardarlo |
 | Operativo | Usuario B2C | Catálogo y biblioteca personal | CU-O04 Gestionar favoritos y playlists | Como Usuario B2C, quiero guardar tracks en favoritos y organizarlos en playlists, para acceder rápido a mi música preferida |
 | Operativo | Usuario B2C | Catálogo y biblioteca personal | CU-O05 Consultar historial de reproducción | Como Usuario B2C, quiero ver mi historial de reproducción, para recordar qué he escuchado |
 
 ## Requirements
-
-### Requirement: Registro de usuario
-El sistema SHALL permitir registrar un nuevo usuario con correo y contraseña vía PocketBase.
-
-#### Scenario: Registro exitoso
-- **WHEN** un visitante envía un correo electrónico y contraseña válidos para crear una cuenta
-- **THEN** el sistema crea el usuario en PocketBase y queda disponible para iniciar sesión
-
-### Requirement: Inicio de sesión
-El sistema SHALL permitir iniciar sesión validando credenciales contra PocketBase y SHALL devolver un token de sesión cuando las credenciales son correctas.
-
-#### Scenario: Login exitoso
-- **WHEN** el usuario está registrado en PocketBase con correo y contraseña válidos e ingresa sus credenciales correctas
-- **THEN** el sistema inicia sesión, devuelve un token de sesión válido y lo redirige a la pantalla principal del catálogo
-
-#### Scenario: Login fallido
-- **WHEN** el usuario ingresa un correo o contraseña incorrectos
-- **THEN** el sistema muestra un mensaje de error de autenticación genérico (el devuelto por PocketBase) sin indicar cuál campo falló, y no inicia sesión
-
-### Requirement: Cierre de sesión
-El sistema SHALL permitir cerrar sesión invalidando el token de sesión activo en el cliente.
-
-#### Scenario: Logout invalida el token activo
-- **WHEN** un usuario autenticado solicita cerrar sesión
-- **THEN** el sistema invalida el token activo en el cliente y el usuario deja de tener acceso a la biblioteca personal hasta volver a iniciar sesión
 
 ### Requirement: Búsqueda de catálogo musical
 El sistema SHALL permitir buscar tracks por nombre, artista o género contra FACT_TRACKS en ClickHouse, con resultados paginados, y SHALL responder en menos de 1 segundo bajo condiciones normales de carga (~700k registros en FACT_TRACKS).
@@ -156,16 +130,8 @@ Un Cliente B2B SHALL tener acceso de solo lectura al catálogo; no puede gestion
 - **WHEN** un Cliente B2B autenticado intenta agregar un favorito, crear una playlist o consultar un historial de reproducción
 - **THEN** el sistema rechaza la operación porque la biblioteca personal es exclusiva de Usuario B2C
 
-### Requirement: Seguridad de credenciales
-El sistema SHALL asegurar que las credenciales nunca se almacenen ni transmitan en texto plano; PocketBase gestiona el hashing.
-
-#### Scenario: Las credenciales no se almacenan en texto plano
-- **WHEN** un usuario se registra o inicia sesión
-- **THEN** el sistema delega el hashing de la contraseña a PocketBase y nunca persiste ni transmite la contraseña en texto plano
-
 ## Entradas
 
-- Correo electrónico y contraseña (registro/login).
 - Término de búsqueda y filtro de género (exploración de catálogo).
 - `fact_id` de track (consulta de detalle).
 - `fact_id` (agregar/quitar favorito, registrar reproducción).
@@ -174,7 +140,6 @@ El sistema SHALL asegurar que las credenciales nunca se almacenen ni transmitan 
 
 ## Salidas
 
-- Token de sesión válido o mensaje de error de autenticación.
 - Lista paginada de tracks que coinciden con la búsqueda.
 - Vista de detalle con atributos de audio, artista, álbum y género(s) agregados.
 - Confirmación de favorito/playlist actualizada, o mensaje de error.
@@ -182,12 +147,12 @@ El sistema SHALL asegurar que las credenciales nunca se almacenen ni transmitan 
 
 ## Dependencias
 
-- **PocketBase**: autenticación, playlists (con sus tracks).
+- **PocketBase**: playlists (con sus tracks).
 - **ClickHouse**: FACT_TRACKS, DIM_ARTISTS, DIM_ALBUMS, DIM_GENRES (catálogo técnico, solo lectura desde esta capability); FACT_ENGAGEMENT_USUARIO (registro de eventos de favoritos e historial, escritura síncrona y directa desde esta capability).
 - **FastAPI**: endpoints de búsqueda, detalle y biblioteca bajo `/app/v1/biblioteca` y `/app/v1/catalogo`.
 
 ## Fuera de alcance
 
 - Recuperación de contraseña.
-- Recomendaciones automáticas de tracks (cubierto en analítica como técnica de IA aplicable, no implementado en esta capability).
-- Reproducción de audio real (el sistema gestiona metadatos, no streaming de archivos de audio).
+- Recomendaciones automáticas de tracks (implementadas en `experiencia`, no en esta capability — algoritmo simple, no un motor de machine learning).
+- Streaming de archivos de audio propios (la reproducción de audio real, agregada por `experiencia`, depende de un directorio de video externo por búsqueda de texto, no de audio alojado por Tracklytics).

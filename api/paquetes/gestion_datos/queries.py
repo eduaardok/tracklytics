@@ -38,7 +38,7 @@ SELECT
     fact_id, track_id, track_name, artist_id, album_id, genre_id,
     popularity, duration_ms, danceability, energy, loudness,
     speechiness, acousticness, instrumentalness, liveness, valence,
-    tempo, load_week, is_synthetic, inserted_at
+    tempo, load_week, source_type, inserted_at
 FROM FACT_TRACKS
 {where}
 ORDER BY fact_id
@@ -65,9 +65,10 @@ def dim_str_cols_sql(ch_db: str, ch_table: str) -> str:
 
 DATA_QUALITY_COUNTS = """
 SELECT
-    count()                        AS total_records,
-    countIf(is_synthetic = false)  AS real_records,
-    countIf(is_synthetic = true)   AS synthetic_records
+    count()                                  AS total_records,
+    countIf(source_type = 'real')            AS real_records,
+    countIf(source_type = 'synthetic')       AS synthetic_records,
+    countIf(source_type = 'user_uploaded')   AS user_uploaded_records
 FROM FACT_TRACKS
 """
 

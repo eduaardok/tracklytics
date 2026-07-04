@@ -4,6 +4,7 @@ SELECT
     ft.track_id,
     ft.track_name,
     a.name                                            AS artist_name,
+    a.imagen_url                                      AS imagen_url,
     arrayStringConcat(groupUniqArray(g.name), ' / ') AS genre_name,
     max(ft.popularity)                                AS popularity,
     any(ft.duration_ms)                               AS duration_ms,
@@ -13,8 +14,8 @@ SELECT
 FROM FACT_TRACKS ft
 JOIN DIM_ARTISTS a ON ft.artist_id = a.artist_id
 JOIN DIM_GENRES  g ON ft.genre_id  = g.genre_id
-WHERE ft.is_synthetic = 0
-GROUP BY ft.track_id, ft.track_name, ft.artist_id, a.name
+WHERE ft.source_type != 'synthetic'
+GROUP BY ft.track_id, ft.track_name, ft.artist_id, a.name, a.imagen_url
 ORDER BY popularity DESC
 LIMIT {limit:UInt32}
 SETTINGS use_query_cache = 1, query_cache_ttl = 120, query_cache_share_between_users = 1
@@ -31,12 +32,13 @@ SELECT
     any(ft.energy)                                    AS energy,
     any(ft.valence)                                   AS valence,
     a.name                                            AS artist_name,
+    a.imagen_url                                      AS imagen_url,
     arrayStringConcat(groupUniqArray(g.name), ' / ') AS genre_name
 FROM FACT_TRACKS ft
 JOIN DIM_ARTISTS a ON ft.artist_id = a.artist_id
 JOIN DIM_GENRES  g ON ft.genre_id  = g.genre_id
 WHERE ft.artist_id = {artist_id:Int32}
-GROUP BY ft.track_id, ft.track_name, ft.artist_id, a.name
+GROUP BY ft.track_id, ft.track_name, ft.artist_id, a.name, a.imagen_url
 ORDER BY any(ft.popularity) DESC
 LIMIT {limit:UInt32}
 """
@@ -52,12 +54,13 @@ SELECT
     any(ft.energy)                               AS energy,
     any(ft.valence)                              AS valence,
     a.name                                       AS artist_name,
+    a.imagen_url                                 AS imagen_url,
     arrayStringConcat(groupUniqArray(g.name), ' / ') AS genre_name
 FROM FACT_TRACKS ft
 JOIN DIM_ARTISTS a ON ft.artist_id = a.artist_id
 JOIN DIM_GENRES  g ON ft.genre_id  = g.genre_id
 WHERE ft.album_id = {album_id:Int32}
-GROUP BY ft.track_id, ft.track_name, ft.artist_id, a.name
+GROUP BY ft.track_id, ft.track_name, ft.artist_id, a.name, a.imagen_url
 ORDER BY ft.track_name
 LIMIT {limit:UInt32}
 """
@@ -67,6 +70,7 @@ SELECT
     ft.fact_id, ft.track_id, ft.track_name, ft.popularity, ft.duration_ms,
     ft.danceability, ft.energy, ft.valence,
     a.name AS artist_name,
+    a.imagen_url AS imagen_url,
     g.name AS genre_name
 FROM FACT_TRACKS ft
 JOIN DIM_GENRES  g ON ft.genre_id  = g.genre_id
@@ -94,13 +98,14 @@ SELECT
     ft.artist_id                                      AS artist_id,
     al.name                                           AS album_name,
     ft.album_id                                       AS album_id,
+    coalesce(al.imagen_url, a.imagen_url)              AS imagen_url,
     arrayStringConcat(groupUniqArray(g.name), ' / ') AS genre_name
 FROM FACT_TRACKS ft
 JOIN DIM_ARTISTS a  ON ft.artist_id = a.artist_id
 JOIN DIM_ALBUMS  al ON ft.album_id  = al.album_id
 JOIN DIM_GENRES  g  ON ft.genre_id  = g.genre_id
 WHERE ft.track_id = {track_id:String}
-GROUP BY ft.track_id, ft.track_name, ft.artist_id, a.name, ft.album_id, al.name
+GROUP BY ft.track_id, ft.track_name, ft.artist_id, a.name, ft.album_id, al.name, a.imagen_url, al.imagen_url
 LIMIT 1
 """
 
@@ -135,7 +140,8 @@ SELECT
     a.artist_id  AS artist_id,
     a.name       AS name,
     a.country    AS country,
-    a.record_label AS record_label,
+    a.imagen_url AS imagen_url,
+    s.nombre     AS record_label,
     count()                          AS track_count,
     round(avg(ft.popularity),    2)  AS avg_popularity,
     round(avg(ft.energy),        4)  AS avg_energy,
@@ -143,8 +149,9 @@ SELECT
     round(avg(ft.valence),       4)  AS avg_valence
 FROM FACT_TRACKS ft
 JOIN DIM_ARTISTS a ON ft.artist_id = a.artist_id
+LEFT JOIN DIM_SELLO_DISCOGRAFICO s ON a.sello_id = s.sello_id
 WHERE a.artist_id = {artist_id:Int32}
-GROUP BY a.artist_id, a.name, a.country, a.record_label
+GROUP BY a.artist_id, a.name, a.country, a.imagen_url, s.nombre
 """
 
 ALBUMS_SEARCH = """
@@ -169,13 +176,21 @@ SELECT
     al.album_type         AS album_type,
     al.total_tracks_listed AS total_tracks_listed,
     al.language           AS language,
+    -- Sin portada propia de álbum resuelta: usar la de un artista del álbum
+    -- como default, antes de caer al placeholder SVG del frontend — mismo
+    -- patrón ya usado en TRACK_DETAIL_BY_FACT_ID/TRACK_DETAIL_BY_TRACK_ID
+    -- (coalesce(al.imagen_url, a.imagen_url)), aplicado aquí donde faltaba.
+    -- `any()` porque un álbum puede tener más de un artista (compilaciones);
+    -- no importa cuál se elija, es un default visual, no un dato canónico.
+    coalesce(al.imagen_url, any(a.imagen_url)) AS imagen_url,
     count(DISTINCT ft.track_id)  AS track_count,
     round(avg(ft.popularity), 2) AS avg_popularity
 FROM FACT_TRACKS ft
-JOIN DIM_ALBUMS al ON ft.album_id = al.album_id
+JOIN DIM_ALBUMS al  ON ft.album_id  = al.album_id
+JOIN DIM_ARTISTS a  ON ft.artist_id = a.artist_id
 WHERE al.album_id = {album_id:Int32}
 GROUP BY al.album_id, al.name, al.release_year, al.album_type,
-         al.total_tracks_listed, al.language
+         al.total_tracks_listed, al.language, al.imagen_url
 """
 
 GENRES_LIST = "SELECT genre_id AS genre_id, name AS name, mood AS mood FROM DIM_GENRES ORDER BY name"
@@ -215,6 +230,7 @@ SELECT
     ft.artist_id                                      AS artist_id,
     al.name                                           AS album_name,
     ft.album_id                                       AS album_id,
+    coalesce(al.imagen_url, a.imagen_url)              AS imagen_url,
     arrayStringConcat(groupUniqArray(g.name), ' / ') AS genre_name,
     any(g.genre_id)                                   AS genre_id
 FROM FACT_TRACKS ft
@@ -222,7 +238,7 @@ JOIN DIM_ARTISTS a  ON ft.artist_id = a.artist_id
 JOIN DIM_ALBUMS  al ON ft.album_id  = al.album_id
 JOIN DIM_GENRES  g  ON ft.genre_id  = g.genre_id
 WHERE ft.track_id = (SELECT track_id FROM FACT_TRACKS WHERE fact_id = {fact_id:Int64} LIMIT 1)
-GROUP BY ft.track_id, ft.track_name, ft.artist_id, a.name, ft.album_id, al.name
+GROUP BY ft.track_id, ft.track_name, ft.artist_id, a.name, ft.album_id, al.name, a.imagen_url, al.imagen_url
 """
 
 
@@ -233,6 +249,7 @@ SELECT
     ft.track_id,
     ft.track_name,
     a.name                                            AS artist_name,
+    a.imagen_url                                      AS imagen_url,
     arrayStringConcat(groupUniqArray(g.name), ' / ') AS genre_name,
     any(ft.popularity)                                AS popularity,
     any(ft.duration_ms)                               AS duration_ms,
@@ -243,7 +260,7 @@ FROM FACT_TRACKS ft
 JOIN DIM_ARTISTS a ON ft.artist_id = a.artist_id
 JOIN DIM_GENRES  g ON ft.genre_id  = g.genre_id
 {where}
-GROUP BY ft.track_id, ft.track_name, ft.artist_id, a.name
+GROUP BY ft.track_id, ft.track_name, ft.artist_id, a.name, a.imagen_url
 ORDER BY any(ft.popularity) DESC
 LIMIT {{limit:UInt32}} OFFSET {{offset:UInt32}}
 """

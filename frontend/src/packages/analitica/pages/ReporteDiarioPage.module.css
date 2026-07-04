@@ -1,0 +1,220 @@
+.page { /* fills content area */ }
+
+.headRow {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-md);
+  margin-bottom: var(--space-xl);
+}
+
+.heading {
+  font-family: var(--font-sans);
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--color-ink);
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+  text-wrap: balance;
+  margin-bottom: var(--space-xs);
+}
+
+.subtitle {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  color: var(--color-muted);
+  min-height: 1em;
+}
+
+.headActions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.dateInput {
+  background: var(--color-surface);
+  color: var(--color-ink);
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  padding: 0 var(--space-sm);
+  height: 36px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  outline: none;
+  transition: border-color var(--duration-standard) var(--ease-standard);
+}
+
+.dateInput:focus { border-color: var(--color-primary); }
+
+.btnPrimary {
+  height: 36px;
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--color-ink);
+  background: var(--color-primary);
+  border: none;
+  border-radius: var(--radius-md);
+  padding: 0 var(--space-md);
+  cursor: pointer;
+  transition: background-color var(--duration-standard) var(--ease-standard);
+}
+
+.btnPrimary:hover { background: oklch(0.54 0.16 290); }
+
+/* ── Sections ── */
+.sectionLabel {
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--color-muted);
+  margin-bottom: var(--space-sm);
+}
+
+.panel {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-md);
+}
+
+.panelError {
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  color: var(--color-error);
+}
+
+/* ── KPI grid ── */
+.kpiGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: var(--space-sm);
+}
+
+.kpiLabel {
+  font-family: var(--font-sans);
+  font-size: 0.75rem;
+  color: var(--color-muted);
+  margin-bottom: 4px;
+}
+
+.kpiValue {
+  font-family: var(--font-mono);
+  font-size: 1.375rem;
+  font-weight: 600;
+  color: var(--color-ink);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── ETL statuses ── */
+.statusRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: var(--space-sm);
+}
+
+.statusPill {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  padding: 3px 8px;
+  border-radius: var(--radius-pill);
+}
+
+.statusOk {
+  background: oklch(0.70 0.14 195 / 0.14);
+  color: var(--color-accent);
+}
+
+.statusError {
+  background: oklch(0.65 0.22 25 / 0.12);
+  color: var(--color-error);
+}
+
+/* ── Engagement table ── */
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+}
+
+.thLeft {
+  text-align: left;
+  font-weight: 600;
+  color: var(--color-ink);
+  padding: var(--space-sm);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.thRight {
+  text-align: right;
+  font-weight: 600;
+  color: var(--color-ink);
+  padding: var(--space-sm);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.rowLabel {
+  padding: 7px var(--space-sm);
+  color: var(--color-ink);
+  border-bottom: 1px solid var(--color-border);
+  text-transform: capitalize;
+}
+
+.rowValue {
+  padding: 7px var(--space-sm);
+  text-align: right;
+  font-family: var(--font-mono);
+  color: var(--color-ink);
+  font-variant-numeric: tabular-nums;
+  border-bottom: 1px solid var(--color-border);
+}
+
+tbody tr:last-child .rowLabel,
+tbody tr:last-child .rowValue {
+  border-bottom: none;
+}
+
+.emptyText {
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  color: var(--color-muted);
+}
+
+/* ── Nota ── */
+.notaBanner {
+  margin-top: var(--space-xl);
+  padding: var(--space-md);
+  background: oklch(0.70 0.14 195 / 0.06);
+  border: 1px solid oklch(0.70 0.14 195 / 0.2);
+  border-radius: var(--radius-md);
+}
+
+.notaText {
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  color: var(--color-muted);
+  line-height: 1.5;
+}
+
+/* ── Print (CU-O16 export) — fondo blanco, oculta acciones no imprimibles.
+   El sidebar/brandBar de AnalyticaShell se ocultan por separado en
+   AnalyticaShell.module.css; aquí solo se fuerza la paleta imprimible del
+   contenido propio de esta página. ── */
+@media print {
+  .page * {
+    color: black !important;
+    background: white !important;
+    border-color: #ccc !important;
+  }
+
+  .headActions,
+  .dateInput,
+  .btnPrimary {
+    display: none !important;
+  }
+}

@@ -2,6 +2,8 @@ import { getSession, logout } from './auth.js';
 import { initPlaylists, getPlaylists, createPlaylist, addTrackToPlaylist } from './playlists.js';
 import { isFavorite, toggleFavorite } from './favorites.js';
 import { addToHistory } from './history.js';
+import { showToast } from './toast.js';
+import { getPlanTier } from './api.js';
 
 // ── Lucide SVG icons (18×18, stroke currentColor, stroke-width 2) ─────────────
 const ICON = {
@@ -651,12 +653,25 @@ window.__favToggle = function(btn, factId) {
   btn.classList.toggle('active', added);
 };
 
-window.__queueAdd = function(factId, btn) {
+const FREE_QUEUE_LIMIT = 5;
+
+window.__queueAdd = async function(factId, btn) {
   const track = window.__trackCache[factId];
   if (!track) return;
+
+  // Gate: plan Free → máx 5 tracks en cola
+  const plan = await getPlanTier().catch(() => 'free');
+  if (plan === 'free') {
+    const state = _loadPlayerState();
+    const currentQueue = state.queue ?? [];
+    if (currentQueue.length >= FREE_QUEUE_LIMIT) {
+      showToast(`Plan Free: máximo ${FREE_QUEUE_LIMIT} canciones en cola. Actualiza a Premium.`, 'warning');
+      return;
+    }
+  }
+
   const state = _loadPlayerState();
   _savePlayerState({ queue: [...(state.queue ?? []), track] });
-  // brief visual feedback on the button
   if (btn) {
     const orig = btn.textContent;
     btn.textContent = '✓';

@@ -82,8 +82,12 @@ def create_collection(token: str) -> None:
     print(f"[pb-init] Colección '{COLLECTION}' creada ({len(COLLECTION_SCHEMA['fields'])} campos).")
 
 
-def ensure_users_role_field(token: str) -> None:
-    """Adds 'role' text field to the built-in users auth collection if not present."""
+def ensure_users_text_field(token: str, field_name: str) -> None:
+    """Adds a text field to the built-in users auth collection if not present.
+
+    Generalized from the original 'role'-only helper: la capability `seguridad`
+    también necesita 'pais' en la colección users para poblar DIM_USUARIO.
+    """
     resp = httpx.get(
         f"{PB_URL}/api/collections/users",
         headers={"Authorization": f"Bearer {token}"},
@@ -96,11 +100,11 @@ def ensure_users_role_field(token: str) -> None:
     collection = resp.json()
     fields = collection.get("fields", [])
 
-    if any(f.get("name") == "role" for f in fields):
-        print("[pb-init] Campo 'role' ya existe en users. Sin cambios.")
+    if any(f.get("name") == field_name for f in fields):
+        print(f"[pb-init] Campo '{field_name}' ya existe en users. Sin cambios.")
         return
 
-    updated_fields = fields + [{"name": "role", "type": "text", "required": False}]
+    updated_fields = fields + [{"name": field_name, "type": "text", "required": False}]
     patch = httpx.patch(
         f"{PB_URL}/api/collections/users",
         json={"fields": updated_fields},
@@ -108,9 +112,9 @@ def ensure_users_role_field(token: str) -> None:
         timeout=30,
     )
     if patch.status_code in (200, 204):
-        print("[pb-init] Campo 'role' agregado a la colección users.")
+        print(f"[pb-init] Campo '{field_name}' agregado a la colección users.")
     else:
-        print(f"[pb-init] WARNING: no se pudo agregar 'role': {patch.status_code} — {patch.text[:200]}")
+        print(f"[pb-init] WARNING: no se pudo agregar '{field_name}': {patch.status_code} — {patch.text[:200]}")
 
 
 def get_collection_id(token: str, name: str) -> str | None:
@@ -242,7 +246,8 @@ def main() -> None:
         sys.exit(1)
     print("[pb-init] Autenticado.")
 
-    ensure_users_role_field(token)
+    ensure_users_text_field(token, "role")
+    ensure_users_text_field(token, "pais")
 
     # ── Colecciones auxiliares (playlists / playlist_tracks) ──────────────────
     users_id = get_collection_id(token, "users")

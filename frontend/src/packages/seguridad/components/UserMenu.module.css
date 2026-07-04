@@ -1,0 +1,90 @@
+.wrap {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  flex-shrink: 0;
+}
+
+.guest {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.link {
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--color-muted);
+  text-decoration: none;
+  padding: 5px 10px;
+  border-radius: var(--radius-sm);
+  transition: color var(--duration-standard) var(--ease-standard);
+}
+
+.link:hover { color: var(--color-ink); }
+
+.linkPrimary {
+  color: var(--color-primary-light);
+}
+
+.identity {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--color-muted);
+  text-decoration: none;
+  border-radius: var(--radius-sm);
+  padding: 2px 4px;
+  margin: -2px -4px;
+  transition: background-color var(--duration-fast) var(--ease-standard);
+}
+
+.identity:hover { background-color: var(--color-surface); }
+
+.identity:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px oklch(0.48 0.15 290 / 0.5);
+}
+
+.email {
+  color: var(--color-ink);
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.roleTag {
+  font-size: 0.625rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-primary-light);
+  background: oklch(0.48 0.15 290 / 0.14);
+  padding: 2px 6px;
+  border-radius: var(--radius-pill);
+}
+
+.logoutBtn {
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--color-muted);
+  background: transparent;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 5px 10px;
+  cursor: pointer;
+  transition:
+    color var(--duration-fast) var(--ease-standard),
+    border-color var(--duration-fast) var(--ease-standard);
+}
+
+.logoutBtn:hover { color: var(--color-ink); border-color: oklch(0.38 0.012 285); }
+.logoutBtn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+@media (max-width: 640px) {
+  .email { max-width: 90px; }
+}

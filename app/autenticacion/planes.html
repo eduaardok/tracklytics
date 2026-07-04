@@ -14,6 +14,14 @@
   <main class="main-content">
     <h1 class="section-title">Mi plan</h1>
 
+    <div id="onboarding-banner" style="display:none; margin-bottom:1.25rem; padding:.85rem 1.1rem; border-radius:10px; background:rgba(99,102,241,.12); border:1px solid rgba(99,102,241,.35); align-items:flex-start; gap:.7rem">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#818cf8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-top:1px"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg>
+      <div>
+        <div style="font-weight:600; color:#a5b4fc; margin-bottom:.2rem">Activa tu cuenta empresarial</div>
+        <div style="font-size:.875rem; color:var(--text-muted)">Para acceder a Tracklytics como Cliente B2B debes seleccionar un plan. El plan Básico incluye todos los paneles analíticos.</div>
+      </div>
+    </div>
+
     <div id="current-plan" class="mb-3"></div>
 
     <h2 class="section-title mb-2">Planes disponibles</h2>
@@ -45,6 +53,9 @@
   if (!requireAuth()) throw new Error('not auth');
   renderSidebar('autenticacion/planes.html');
   renderPlayer();
+
+  const onboarding = new URLSearchParams(location.search).get('onboarding') === '1';
+  if (onboarding) document.getElementById('onboarding-banner').style.display = 'flex';
 
   let selectedPlan = null;
   let planesDisponibles = [];
@@ -121,6 +132,10 @@
 
     try {
       await Suscripciones.confirmar(selectedPlan.id, metodoPago || null);
+      if (onboarding) {
+        window.location.href = '/catalogo/home.html';
+        return;
+      }
       document.getElementById('confirm-form').style.display = 'none';
       selectedPlan = null;
       await loadAll();
@@ -135,6 +150,11 @@
       Suscripciones.activa(),
     ]);
     const activa = activaRes.data ?? null;
+    // En onboarding: si ya tiene plan, redirigir a home directamente
+    if (onboarding && activa) {
+      window.location.href = '/catalogo/home.html';
+      return;
+    }
     renderPlans(planesRes.data ?? planesRes, activa);
     renderCurrentPlan(activa);
   }

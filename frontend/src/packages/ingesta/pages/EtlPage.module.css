@@ -1,0 +1,239 @@
+.page { /* fills content area */ }
+
+.heading {
+  font-family: var(--font-sans);
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--color-ink);
+  letter-spacing: -0.02em;
+  margin-bottom: var(--space-xs);
+}
+
+.subtitle {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  color: var(--color-muted);
+  margin-bottom: var(--space-lg);
+}
+
+.sectionLabel {
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--color-muted);
+  margin-bottom: var(--space-sm);
+}
+
+/* ── Last run bar ── */
+.lastRunBar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  flex-wrap: wrap;
+  padding: var(--space-sm) var(--space-md);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  margin-bottom: var(--space-xl);
+}
+
+.lastRunLabel {
+  font-family: var(--font-sans);
+  font-size: 0.75rem;
+  color: var(--color-muted);
+}
+
+.lastRunMeta {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--color-muted);
+}
+
+.statusOk    { font-family: var(--font-mono); font-size: 0.75rem; font-weight: 600; color: var(--color-success); }
+.statusError { font-family: var(--font-mono); font-size: 0.75rem; font-weight: 600; color: var(--color-error); }
+
+/* ── Panel ── */
+.panel {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-md);
+}
+
+.formRow {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-md);
+  flex-wrap: wrap;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.label {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--color-muted);
+}
+
+.inputSm {
+  width: 90px;
+  background: var(--color-bg);
+  color: var(--color-ink);
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  padding: 0 var(--space-sm);
+  height: 36px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  outline: none;
+}
+
+.inputSm:focus { border-color: var(--color-primary); }
+
+.select {
+  background: var(--color-bg);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+  padding: 0 var(--space-sm);
+  height: 36px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  outline: none;
+  cursor: pointer;
+}
+
+.select:focus { border-color: var(--color-primary); }
+
+.checkboxField {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+  color: var(--color-ink);
+  height: 36px;
+  cursor: pointer;
+}
+
+.btnPrimary {
+  height: 36px;
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--color-ink);
+  background: var(--color-primary);
+  border: none;
+  border-radius: var(--radius-md);
+  padding: 0 var(--space-md);
+  cursor: pointer;
+  transition: background-color var(--duration-standard) var(--ease-standard);
+}
+
+.btnPrimary:hover:not(:disabled) { background: oklch(0.54 0.16 290); }
+.btnPrimary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.errorText {
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+  color: var(--color-error);
+  margin-top: var(--space-sm);
+}
+
+/* ── Stage progress ── */
+.stagesGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--space-sm);
+  margin-bottom: var(--space-md);
+}
+
+.stage {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.stageDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.stageLabel {
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+  color: var(--color-ink);
+  flex: 1;
+}
+
+.stageState {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  color: var(--color-muted);
+}
+
+.stagePending .stageDot { background: var(--color-border); }
+.stageRunning .stageDot { background: var(--color-warning); animation: pulse 1.2s ease-in-out infinite; }
+.stageOk .stageDot      { background: var(--color-success); }
+.stageError .stageDot   { background: var(--color-error); }
+
+@keyframes pulse {
+  0%, 100% { opacity: 0.4; }
+  50%      { opacity: 1; }
+}
+
+/* ── Rejection rate ── */
+.rejectOk  { font-family: var(--font-mono); font-size: 0.75rem; color: var(--color-muted); }
+.rejectBad { font-family: var(--font-mono); font-size: 0.75rem; color: var(--color-error); font-weight: 600; }
+.muted     { font-family: var(--font-mono); font-size: 0.75rem; color: var(--color-muted); }
+
+/* ── History table ── */
+.tableScroll {
+  overflow-x: auto;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+  white-space: nowrap;
+}
+
+.thLeft  { text-align: left;  font-weight: 600; color: var(--color-ink); padding: var(--space-sm); border-bottom: 1px solid var(--color-border); }
+.thRight { text-align: right; font-weight: 600; color: var(--color-ink); padding: var(--space-sm); border-bottom: 1px solid var(--color-border); }
+
+.rowLabel {
+  padding: 7px var(--space-sm);
+  color: var(--color-ink);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.rowValue {
+  padding: 7px var(--space-sm);
+  text-align: right;
+  font-family: var(--font-mono);
+  color: var(--color-ink);
+  font-variant-numeric: tabular-nums;
+  border-bottom: 1px solid var(--color-border);
+}
+
+tbody tr:last-child .rowLabel,
+tbody tr:last-child .rowValue {
+  border-bottom: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stageRunning .stageDot { animation: none; }
+}

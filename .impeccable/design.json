@@ -1,0 +1,340 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-07-01T00:00:00Z",
+  "title": "Design System: Tracklytics",
+  "extensions": {
+    "colorMeta": {
+      "primary": {
+        "role": "primary",
+        "displayName": "Twilight Violet",
+        "canonical": "oklch(0.48 0.15 290)",
+        "tonalRamp": [
+          "oklch(0.12 0.15 290)",
+          "oklch(0.22 0.15 290)",
+          "oklch(0.32 0.16 290)",
+          "oklch(0.48 0.15 290)",
+          "oklch(0.58 0.15 290)",
+          "oklch(0.68 0.14 290)",
+          "oklch(0.78 0.11 290)",
+          "oklch(0.90 0.07 290)"
+        ]
+      },
+      "primary-light": {
+        "role": "primary",
+        "displayName": "Violet Light",
+        "canonical": "oklch(0.68 0.14 290)",
+        "tonalRamp": [
+          "oklch(0.12 0.15 290)",
+          "oklch(0.22 0.15 290)",
+          "oklch(0.32 0.16 290)",
+          "oklch(0.48 0.15 290)",
+          "oklch(0.58 0.15 290)",
+          "oklch(0.68 0.14 290)",
+          "oklch(0.78 0.11 290)",
+          "oklch(0.90 0.07 290)"
+        ]
+      },
+      "accent": {
+        "role": "secondary",
+        "displayName": "Signal Teal",
+        "canonical": "oklch(0.70 0.14 195)",
+        "tonalRamp": [
+          "oklch(0.12 0.14 195)",
+          "oklch(0.22 0.14 195)",
+          "oklch(0.35 0.14 195)",
+          "oklch(0.48 0.14 195)",
+          "oklch(0.60 0.14 195)",
+          "oklch(0.70 0.14 195)",
+          "oklch(0.82 0.10 195)",
+          "oklch(0.93 0.06 195)"
+        ]
+      },
+      "bg": {
+        "role": "neutral",
+        "displayName": "Deep Space",
+        "canonical": "oklch(0.09 0.010 285)",
+        "tonalRamp": [
+          "oklch(0.09 0.010 285)",
+          "oklch(0.14 0.012 285)",
+          "oklch(0.18 0.014 285)",
+          "oklch(0.28 0.012 285)",
+          "oklch(0.40 0.010 285)",
+          "oklch(0.55 0.010 285)",
+          "oklch(0.72 0.008 285)",
+          "oklch(0.88 0.005 285)"
+        ]
+      },
+      "surface": {
+        "role": "neutral",
+        "displayName": "Raised Surface",
+        "canonical": "oklch(0.14 0.012 285)",
+        "tonalRamp": [
+          "oklch(0.09 0.010 285)",
+          "oklch(0.14 0.012 285)",
+          "oklch(0.18 0.014 285)",
+          "oklch(0.28 0.012 285)",
+          "oklch(0.40 0.010 285)",
+          "oklch(0.55 0.010 285)",
+          "oklch(0.72 0.008 285)",
+          "oklch(0.88 0.005 285)"
+        ]
+      },
+      "ink": {
+        "role": "neutral",
+        "displayName": "Pale Ink",
+        "canonical": "oklch(0.92 0.008 285)",
+        "tonalRamp": [
+          "oklch(0.14 0.012 285)",
+          "oklch(0.28 0.010 285)",
+          "oklch(0.42 0.010 285)",
+          "oklch(0.58 0.010 285)",
+          "oklch(0.70 0.009 285)",
+          "oklch(0.80 0.008 285)",
+          "oklch(0.88 0.008 285)",
+          "oklch(0.92 0.008 285)"
+        ]
+      },
+      "muted": {
+        "role": "neutral",
+        "displayName": "Muted Ink",
+        "canonical": "oklch(0.58 0.010 285)",
+        "tonalRamp": [
+          "oklch(0.14 0.012 285)",
+          "oklch(0.28 0.010 285)",
+          "oklch(0.42 0.010 285)",
+          "oklch(0.58 0.010 285)",
+          "oklch(0.70 0.009 285)",
+          "oklch(0.80 0.008 285)",
+          "oklch(0.88 0.008 285)",
+          "oklch(0.92 0.008 285)"
+        ]
+      },
+      "error": {
+        "role": "neutral",
+        "displayName": "Error Red",
+        "canonical": "oklch(0.65 0.22 25)",
+        "tonalRamp": [
+          "oklch(0.18 0.22 25)",
+          "oklch(0.28 0.22 25)",
+          "oklch(0.40 0.22 25)",
+          "oklch(0.52 0.22 25)",
+          "oklch(0.65 0.22 25)",
+          "oklch(0.76 0.18 25)",
+          "oklch(0.86 0.12 25)",
+          "oklch(0.94 0.06 25)"
+        ]
+      },
+      "success": {
+        "role": "neutral",
+        "displayName": "Success Emerald",
+        "canonical": "oklch(0.72 0.16 150)",
+        "tonalRamp": [
+          "oklch(0.15 0.16 150)",
+          "oklch(0.25 0.16 150)",
+          "oklch(0.38 0.16 150)",
+          "oklch(0.52 0.16 150)",
+          "oklch(0.62 0.16 150)",
+          "oklch(0.72 0.16 150)",
+          "oklch(0.83 0.12 150)",
+          "oklch(0.93 0.07 150)"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Display — Space Grotesk 700",
+        "purpose": "Hero headings and track titles at full scale. Maximum one per screen."
+      },
+      "headline": {
+        "displayName": "Headline — Space Grotesk 600",
+        "purpose": "Page titles on both B2C and B2B surfaces, primary section headers."
+      },
+      "title": {
+        "displayName": "Title — Space Grotesk 600",
+        "purpose": "Card headings, panel section labels, dialog titles."
+      },
+      "body": {
+        "displayName": "Body — Space Grotesk 400",
+        "purpose": "Prose and descriptions. Max 65–75ch line length."
+      },
+      "label": {
+        "displayName": "Label — Space Grotesk 500",
+        "purpose": "Navigation items, button text, input labels, metadata, chip text. Legible at 13px due to Space Grotesk's generous x-height."
+      },
+      "data": {
+        "displayName": "Data — JetBrains Mono",
+        "purpose": "All numeric API values: play counts, popularity scores, durations, timestamps. Register-locked to data contexts."
+      }
+    },
+    "shadows": [
+      {
+        "name": "focus-glow",
+        "value": "0 0 0 2px oklch(0.48 0.15 290 / 0.5)",
+        "purpose": "Focus ring for primary buttons and focused form inputs. Keyboard navigation only — never on mouse events."
+      },
+      {
+        "name": "modal-veil",
+        "value": "0 24px 64px oklch(0.03 0.000 0 / 0.85)",
+        "purpose": "Below modal dialogs only. Creates floating separation from the page."
+      },
+      {
+        "name": "playing-indicator",
+        "value": "inset 3px 0 0 oklch(0.48 0.15 290)",
+        "purpose": "Left-side state indicator for currently-playing track rows and selected B2B analytics rows. Use box-shadow inset — not border-left."
+      }
+    ],
+    "motion": [
+      {
+        "name": "ease-standard",
+        "value": "cubic-bezier(0.4, 0, 0.2, 1)",
+        "purpose": "Default easing for state transitions (150ms). Button hover, row hover, nav item color changes."
+      },
+      {
+        "name": "ease-exit",
+        "value": "cubic-bezier(0.0, 0, 0.2, 1)",
+        "purpose": "Exiting elements — dropdowns closing, toasts dismissing (100ms)."
+      },
+      {
+        "name": "duration-fast",
+        "value": "100ms",
+        "purpose": "Analytics row hover, B2B surface transitions. Analysts are scanning; don't slow them down."
+      },
+      {
+        "name": "duration-standard",
+        "value": "150ms",
+        "purpose": "Button hover, B2C row hover, nav state changes. The default."
+      },
+      {
+        "name": "duration-deliberate",
+        "value": "250ms",
+        "purpose": "Modal open/close, drawer slide-in, player progress-bar scrubbing. Reserved for deliberate UI moments."
+      }
+    ],
+    "breakpoints": [
+      { "name": "sm", "value": "640px", "purpose": "Mobile landscape / small tablet" },
+      { "name": "md", "value": "768px", "purpose": "Tablet portrait — sidebar collapses to bottom nav on B2C" },
+      { "name": "lg", "value": "1024px", "purpose": "Desktop — full sidebar + content layout" },
+      { "name": "xl", "value": "1280px", "purpose": "Wide desktop — B2B analytics can run multi-panel" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Main CTA. Violet fill with pale ink text. Text sized to WCAG large-text threshold (bold ≥14px) for contrast compliance on medium-L violet fill.",
+      "html": "<button class=\"ds-btn-primary\">Play All</button>",
+      "css": ".ds-btn-primary { display: inline-flex; align-items: center; justify-content: center; gap: 8px; background: oklch(0.48 0.15 290); color: oklch(0.92 0.008 285); font-family: 'Space Grotesk', system-ui, sans-serif; font-size: 0.875rem; font-weight: 600; letter-spacing: 0.01em; padding: 10px 20px; border-radius: 8px; border: none; cursor: pointer; transition: background 150ms cubic-bezier(0.4,0,0.2,1); } .ds-btn-primary:hover { background: oklch(0.54 0.16 290); } .ds-btn-primary:focus-visible { outline: none; box-shadow: 0 0 0 2px oklch(0.48 0.15 290 / 0.5); } .ds-btn-primary:disabled { opacity: 0.38; cursor: not-allowed; } @media (prefers-reduced-motion: reduce) { .ds-btn-primary { transition: none; } }"
+    },
+    {
+      "name": "Ghost Button",
+      "kind": "button",
+      "refersTo": "button-ghost",
+      "description": "Secondary action button. Transparent with a quiet border. Hover fills with Raised Surface.",
+      "html": "<button class=\"ds-btn-ghost\">Cancel</button>",
+      "css": ".ds-btn-ghost { display: inline-flex; align-items: center; justify-content: center; gap: 8px; background: transparent; color: oklch(0.92 0.008 285); font-family: 'Space Grotesk', system-ui, sans-serif; font-size: 0.875rem; font-weight: 600; letter-spacing: 0.01em; padding: 10px 20px; border-radius: 8px; border: 1px solid oklch(0.28 0.012 285); cursor: pointer; transition: background 150ms cubic-bezier(0.4,0,0.2,1), border-color 150ms cubic-bezier(0.4,0,0.2,1); } .ds-btn-ghost:hover { background: oklch(0.14 0.012 285); border-color: oklch(0.38 0.012 285); } .ds-btn-ghost:focus-visible { outline: none; box-shadow: 0 0 0 2px oklch(0.48 0.15 290 / 0.5); } .ds-btn-ghost:disabled { opacity: 0.38; cursor: not-allowed; } @media (prefers-reduced-motion: reduce) { .ds-btn-ghost { transition: none; } }"
+    },
+    {
+      "name": "Search Input",
+      "kind": "input",
+      "refersTo": "input-default",
+      "description": "Standard text input. Raised surface bg, quiet border, violet focus. Placeholder verified at ≥4.5:1.",
+      "html": "<input class=\"ds-input\" type=\"text\" placeholder=\"Track or artist…\">",
+      "css": ".ds-input { width: 100%; box-sizing: border-box; background: oklch(0.14 0.012 285); color: oklch(0.92 0.008 285); font-family: 'Space Grotesk', system-ui, sans-serif; font-size: 0.9375rem; font-weight: 400; padding: 10px 14px; border-radius: 8px; border: 1px solid oklch(0.25 0.010 285); outline: none; transition: border-color 150ms cubic-bezier(0.4,0,0.2,1); } .ds-input::placeholder { color: oklch(0.58 0.010 285); } .ds-input:focus { border-color: oklch(0.48 0.15 290); } .ds-input:disabled { background: oklch(0.09 0.010 285); opacity: 0.38; } @media (prefers-reduced-motion: reduce) { .ds-input { transition: none; } }"
+    },
+    {
+      "name": "Track Card",
+      "kind": "card",
+      "refersTo": "track-card",
+      "description": "B2C list item. Horizontal row with album art, track info, and mono data values. Playing state uses inset box-shadow, never border-left.",
+      "html": "<div class=\"ds-track-card\"><div class=\"ds-track-card__art\"></div><div class=\"ds-track-card__info\"><div class=\"ds-track-card__name\">Bohemian Rhapsody</div><div class=\"ds-track-card__meta\">Queen · Rock</div></div><div class=\"ds-track-card__data\"><span class=\"ds-track-card__score\">★ 98</span><span class=\"ds-track-card__duration\">5:55</span></div></div>",
+      "css": ".ds-track-card { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-radius: 8px; background: oklch(0.14 0.012 285); cursor: pointer; transition: background 150ms cubic-bezier(0.4,0,0.2,1); } .ds-track-card:hover { background: oklch(0.18 0.014 285); } .ds-track-card.is-playing { box-shadow: inset 3px 0 0 oklch(0.48 0.15 290); } .ds-track-card:focus-visible { outline: none; box-shadow: 0 0 0 2px oklch(0.48 0.15 290 / 0.4); } .ds-track-card__art { width: 40px; height: 40px; flex-shrink: 0; border-radius: 4px; background: oklch(0.22 0.015 285); } .ds-track-card__info { flex: 1; min-width: 0; } .ds-track-card__name { font-family: 'Space Grotesk', system-ui, sans-serif; font-size: 0.9375rem; font-weight: 600; color: oklch(0.92 0.008 285); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .ds-track-card__meta { font-family: 'Space Grotesk', system-ui, sans-serif; font-size: 0.8125rem; font-weight: 400; color: oklch(0.58 0.010 285); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .ds-track-card__data { display: flex; gap: 16px; flex-shrink: 0; font-family: 'JetBrains Mono', 'Fira Code', monospace; font-size: 0.8125rem; font-weight: 400; color: oklch(0.58 0.010 285); } @media (prefers-reduced-motion: reduce) { .ds-track-card { transition: none; } }"
+    },
+    {
+      "name": "Active Badge",
+      "kind": "chip",
+      "refersTo": "badge-active",
+      "description": "Status pill for active/live/healthy states. Signal Teal fill with Deep Space text. Used in B2B analytics for system health and positive trend states only.",
+      "html": "<span class=\"ds-badge ds-badge--active\">Live</span>",
+      "css": ".ds-badge { display: inline-flex; align-items: center; font-family: 'Space Grotesk', system-ui, sans-serif; font-size: 0.75rem; font-weight: 600; letter-spacing: 0.02em; padding: 2px 8px; border-radius: 999px; } .ds-badge--active { background: oklch(0.70 0.14 195); color: oklch(0.09 0.010 285); } .ds-badge--inactive { background: transparent; color: oklch(0.58 0.010 285); border: 1px solid oklch(0.28 0.012 285); } .ds-badge--error { background: oklch(0.65 0.22 25); color: oklch(0.92 0.008 285); } .ds-badge--warning { background: oklch(0.78 0.18 70); color: oklch(0.09 0.010 285); }"
+    },
+    {
+      "name": "Nav Item",
+      "kind": "nav",
+      "refersTo": null,
+      "description": "Navigation item for both B2C top bar and B2B sidebar. Active state uses Violet Light for text — lighter than fill primary to ensure 4.5:1 contrast on dark bg.",
+      "html": "<nav class=\"ds-nav\"><a class=\"ds-nav-item ds-nav-item--active\" href=\"#\">Catalog</a><a class=\"ds-nav-item\" href=\"#\">Playlists</a><a class=\"ds-nav-item\" href=\"#\">Analytics</a></nav>",
+      "css": ".ds-nav { display: flex; gap: 2px; } .ds-nav-item { display: flex; align-items: center; padding: 6px 12px; border-radius: 6px; font-family: 'Space Grotesk', system-ui, sans-serif; font-size: 0.8125rem; font-weight: 500; letter-spacing: 0.01em; color: oklch(0.58 0.010 285); text-decoration: none; transition: color 150ms cubic-bezier(0.4,0,0.2,1), background 150ms cubic-bezier(0.4,0,0.2,1); } .ds-nav-item:hover { color: oklch(0.92 0.008 285); background: oklch(0.14 0.012 285); } .ds-nav-item--active { color: oklch(0.68 0.14 290); background: oklch(0.14 0.012 285); } @media (prefers-reduced-motion: reduce) { .ds-nav-item { transition: none; } }"
+    },
+    {
+      "name": "Player Controls",
+      "kind": "custom",
+      "refersTo": null,
+      "description": "Persistent B2C bottom player. Circular play button (only circle in the system). Progress bar in Twilight Violet. Sits on a fourth tonal tier slightly above app bg.",
+      "html": "<div class=\"ds-player\"><div class=\"ds-player__track\"><div class=\"ds-player__title\">Bohemian Rhapsody</div><div class=\"ds-player__artist\">Queen</div></div><div class=\"ds-player__controls\"><button class=\"ds-player__btn\"><svg width=\"20\" height=\"20\" viewBox=\"0 0 24 24\" fill=\"none\"><path d=\"M6 4l12 8-12 8V4z\" fill=\"currentColor\"/></svg></button></div><div class=\"ds-player__progress\"><div class=\"ds-player__bar\"><div class=\"ds-player__fill\" style=\"width:38%\"></div></div></div></div>",
+      "css": ".ds-player { display: flex; align-items: center; gap: 16px; padding: 12px 24px; background: oklch(0.11 0.011 285); } .ds-player__track { flex: 1; min-width: 0; } .ds-player__title { font-family: 'Space Grotesk', system-ui, sans-serif; font-size: 0.9375rem; font-weight: 600; color: oklch(0.92 0.008 285); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .ds-player__artist { font-family: 'Space Grotesk', system-ui, sans-serif; font-size: 0.8125rem; font-weight: 400; color: oklch(0.58 0.010 285); } .ds-player__controls { flex-shrink: 0; } .ds-player__btn { display: flex; align-items: center; justify-content: center; width: 40px; height: 40px; border-radius: 50%; background: oklch(0.48 0.15 290); color: oklch(0.92 0.008 285); border: none; cursor: pointer; transition: background 150ms cubic-bezier(0.4,0,0.2,1); } .ds-player__btn:hover { background: oklch(0.54 0.16 290); } .ds-player__progress { flex: 2; } .ds-player__bar { height: 3px; border-radius: 2px; background: oklch(0.25 0.012 285); position: relative; } .ds-player__fill { height: 100%; border-radius: 2px; background: oklch(0.48 0.15 290); } @media (prefers-reduced-motion: reduce) { .ds-player__btn { transition: none; } }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Signal Room",
+    "overview": "A mixing engineer's control room at midnight: every surface earns its presence, the dark field makes the signal glow, and nothing decorates what isn't functional. Tracklytics is not a music app with a dashboard bolted on — it is a platform where listener behavior becomes industry intelligence, and the interface is the conduit between those two registers. The reference points are Figma (deep dark, violet-tinted, precision tool) and Apple Music (immersive dark, editorial, album art as content). Neither is imitated; both inform.\n\nThe dark surface is not a stylistic choice — it is the physical environment that makes the signal legible. Album art on near-black, a violet playhead advancing through a waveform, a data trend glowing teal against deep space: these are signal, not decoration.\n\nTwo registers, one system. The design vocabulary is shared (spacing, radius, typography, motion), but its expression diverges. B2C: generous padding, cover art as content, violet as immersion. B2B: dense tables, mono data values, teal for positive signal. Neither register apologizes for its register.",
+    "keyCharacteristics": [
+      "Dark-native: surfaces at L 0.09–0.18 in OKLCH, never light-mode defaults with dark paint applied",
+      "Dual-register: B2C and B2B surfaces share one token system but express it categorically differently",
+      "Signal-forward: color, hierarchy, and space guide the eye to what matters; nothing else gets color",
+      "Typography as register: Space Grotesk signals B2C personality, JetBrains Mono signals B2B data authority",
+      "Tonal elevation: depth expressed through lightness steps, not shadows",
+      "Earned violet: the primary accent appears on ≤15% of any screen; its rarity is the point"
+    ],
+    "rules": [
+      {
+        "name": "The One Voice Rule",
+        "body": "Twilight Violet appears on ≤15% of any given screen. Its rarity is the point. When violet is everywhere, the signal disappears.",
+        "section": "colors"
+      },
+      {
+        "name": "The Signal Rule",
+        "body": "Signal Teal carries data meaning. It appears on charts, trend badges, and live-state indicators — never on navigation, headings, or UI chrome.",
+        "section": "colors"
+      },
+      {
+        "name": "The Mono Gate Rule",
+        "body": "If a number comes from the API, it is a data value and renders in JetBrains Mono. The question: 'could this number change?' Yes → mono.",
+        "section": "typography"
+      },
+      {
+        "name": "The Tonal Ladder Rule",
+        "body": "Never introduce a fourth surface color between the three tonal steps. Ground → Raised → Lifted. Add tonal contrast before adding shadows.",
+        "section": "elevation"
+      },
+      {
+        "name": "The Shadow Prohibition",
+        "body": "Drop shadows are banned in the dark theme as ambient or decorative elements. Shadows appear only as focus rings and modal veils.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "Do use JetBrains Mono for every numeric API value — play counts, popularity scores, durations, engagement metrics",
+      "Do use tonal elevation (three lightness steps) to convey surface depth: Ground → Raised → Lifted",
+      "Do verify Muted Ink (oklch(0.58 0.010 285)) at ≥4.5:1 against every surface it appears on",
+      "Do use Violet Light (oklch(0.68 0.14 290)) for violet text on dark backgrounds — not the primary fill violet",
+      "Do keep Twilight Violet on ≤15% of any screen surface",
+      "Do add @media (prefers-reduced-motion: reduce) to every transition and animation",
+      "Do maintain 44×44px minimum touch targets for player controls and nav items",
+      "Do use box-shadow: inset 3px 0 0 <color> for playing/selected row indicators — never border-left"
+    ],
+    "donts": [
+      "Don't use cheap startup template patterns: identical card grids, eyebrow labels on every section, stock gradient hero fills",
+      "Don't build generic dark SaaS — dark theme as a badge, not a design decision",
+      "Don't reference Spotify's 2024 aesthetic: oversaturated album-art color splashes, heavy green as primary accent",
+      "Don't build bloated enterprise analytics: cluttered sidebars, tiny font, gray-on-gray data tables",
+      "Don't use Signal Teal on navigation, decorative highlights, hover backgrounds, or button fills",
+      "Don't allow Muted Ink to drop below 4.5:1 contrast on its surface",
+      "Don't add drop shadows in the dark theme as ambient depth — use tonal elevation",
+      "Don't use border-left or border-right greater than 1px as a colored accent stripe",
+      "Don't use Space Grotesk on B2B analytics surfaces",
+      "Don't use modal dialogs as first choice for B2B data actions",
+      "Don't add gradient text (background-clip: text with gradient fill)"
+    ]
+  }
+}

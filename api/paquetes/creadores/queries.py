@@ -1,0 +1,136 @@
+# DIM_CUENTA_ARTISTA y FACT_SUBIDA_TRACK son ReplacingMergeTree (mismo motivo
+# ya documentado para FACT_SESION en `seguridad`): ClickHouse no fusiona las
+# partes de inmediato, así que una fila ya resuelta (aprobada/rechazada)
+# podría seguir viéndose como `pendiente` si se lee la tabla cruda. El estado
+# vigente siempre se resuelve con argMax(columna, version) agrupando por la
+# clave de la entidad, nunca filtrando la tabla directamente.
+#
+# Todo filtro (WHERE) sobre un campo que también se proyecta como alias de
+# una función de agregación se aplica en una capa EXTERNA a esa agregación,
+# nunca en la misma SELECT: ClickHouse reescribe el alias hacia adelante
+# dentro del mismo SELECT y un WHERE que referencia el nombre de un alias
+# agregado se interpreta como filtro post-agregación, lo que dispara
+# "Code 184: ILLEGAL_AGGREGATION" (mismo problema ya documentado en
+# `paquetes/seguridad/queries.py` para PERMISOS_VIGENTES/SESION_ABIERTA_POR_DISPOSITIVO).
+
+_CUENTA_RESUELTA = """
+    SELECT
+        cuenta_artista_id,
+        anyLast(usuario_id)                         AS usuario_id,
+        argMax(nombre_artistico, actualizado_en)     AS nombre_artistico,
+        argMax(estado_cuenta, actualizado_en)        AS estado_cuenta,
+        anyLast(fecha_solicitud)                     AS fecha_solicitud,
+        argMax(fecha_resolucion, actualizado_en)     AS fecha_resolucion,
+        argMax(admin_resolutor_id, actualizado_en)   AS admin_resolutor_id
+    FROM DIM_CUENTA_ARTISTA
+    GROUP BY cuenta_artista_id
+"""
+
+CUENTA_ACTUAL_POR_USUARIO = f"""
+SELECT * FROM ({_CUENTA_RESUELTA}) WHERE usuario_id = {{usuario_id:String}} LIMIT 1
+"""
+
+CUENTA_ACTUAL_POR_ID = f"""
+SELECT * FROM ({_CUENTA_RESUELTA}) WHERE cuenta_artista_id = {{cuenta_artista_id:String}} LIMIT 1
+"""
+
+CUENTA_EXISTE_POR_USUARIO = """
+SELECT count() AS n FROM DIM_CUENTA_ARTISTA WHERE usuario_id = {usuario_id:String}
+"""
+
+
+def cuentas_admin_sql(where: str) -> str:
+    return f"""
+    SELECT * FROM ({_CUENTA_RESUELTA})
+    {where}
+    ORDER BY fecha_solicitud DESC
+    """
+
+
+# ── Subidas de tracks (FACT_SUBIDA_TRACK + STG_ARTIST_UPLOADS + DIM_ESTADO_REVISION) ─
+
+_SUBIDA_RESUELTA = """
+    SELECT
+        subida_id,
+        anyLast(cuenta_artista_id)                   AS cuenta_artista_id,
+        anyLast(staging_id)                           AS staging_id,
+        argMax(estado_revision_id, version)           AS estado_revision_id,
+        anyLast(fecha_subida)                         AS fecha_subida,
+        argMax(fecha_resolucion, version)             AS fecha_resolucion,
+        argMax(admin_resolutor_id, version)           AS admin_resolutor_id,
+        argMax(fact_id_promovido, version)            AS fact_id_promovido
+    FROM FACT_SUBIDA_TRACK
+    GROUP BY subida_id
+"""
+
+_SUBIDA_JOIN = f"""
+FROM ({_SUBIDA_RESUELTA}) f
+JOIN DIM_ESTADO_REVISION er ON f.estado_revision_id = er.estado_revision_id
+JOIN STG_ARTIST_UPLOADS s ON f.staging_id = s.staging_id
+"""
+
+# Todas las columnas calificadas (f./s./er.) llevan AS explícito: ClickHouse
+# antepone el alias de tabla al nombre de salida ("f.cuenta_artista_id" en vez
+# de "cuenta_artista_id") en cuanto detecta que el nombre bare colisiona con
+# una columna de otra tabla del JOIN (aquí, STG_ARTIST_UPLOADS.cuenta_artista_id/
+# staging_id y DIM_ESTADO_REVISION.estado_revision_id) — sin AS, el dict que
+# devuelve query_row(s) tendría esas claves "sucias" y rompería cualquier
+# acceso por nombre (`subida["cuenta_artista_id"]`).
+_SUBIDA_COLS = """
+    f.subida_id          AS subida_id,
+    f.cuenta_artista_id  AS cuenta_artista_id,
+    f.staging_id         AS staging_id,
+    f.estado_revision_id AS estado_revision_id,
+    er.nombre            AS estado_nombre,
+    f.fecha_subida        AS fecha_subida,
+    f.fecha_resolucion    AS fecha_resolucion,
+    f.admin_resolutor_id  AS admin_resolutor_id,
+    f.fact_id_promovido   AS fact_id_promovido,
+    s.track_name          AS track_name,
+    s.album_name          AS album_name,
+    s.genre_id            AS genre_id,
+    s.duration_ms         AS duration_ms,
+    s.explicit            AS explicit
+"""
+
+SUBIDA_ACTUAL_POR_ID = f"""
+SELECT
+    {_SUBIDA_COLS},
+    s.danceability AS danceability, s.energy AS energy, s.key AS key,
+    s.loudness AS loudness, s.mode AS mode, s.speechiness AS speechiness,
+    s.acousticness AS acousticness, s.instrumentalness AS instrumentalness,
+    s.liveness AS liveness, s.valence AS valence, s.tempo AS tempo,
+    s.time_signature AS time_signature
+{_SUBIDA_JOIN}
+WHERE f.subida_id = {{subida_id:String}}
+"""
+
+SUBIDAS_POR_CUENTA = f"""
+SELECT {_SUBIDA_COLS}
+{_SUBIDA_JOIN}
+WHERE f.cuenta_artista_id = {{cuenta_artista_id:String}}
+ORDER BY f.fecha_subida DESC
+"""
+
+
+def subidas_admin_sql(where: str) -> str:
+    return f"""
+    SELECT {_SUBIDA_COLS}
+    {_SUBIDA_JOIN}
+    {where}
+    ORDER BY f.fecha_subida DESC
+    """
+
+
+GENERO_EXISTE = "SELECT count() AS n FROM DIM_GENRES WHERE genre_id = {genre_id:UInt16}"
+
+# ── Resolución de dimensiones para la promoción a FACT_TRACKS (promocion.py) ──
+
+ARTIST_ID_POR_NOMBRE = "SELECT artist_id FROM DIM_ARTISTS WHERE name = {name:String} LIMIT 1"
+ARTIST_ID_MAX = "SELECT max(artist_id) AS n FROM DIM_ARTISTS"
+
+ALBUM_ID_POR_NOMBRE = "SELECT album_id FROM DIM_ALBUMS WHERE name = {name:String} LIMIT 1"
+ALBUM_ID_MAX = "SELECT max(album_id) AS n FROM DIM_ALBUMS"
+
+LOAD_WEEK_MAX = "SELECT max(load_week) AS n FROM FACT_TRACKS"
+FACT_ID_MAX = "SELECT max(fact_id) AS n FROM FACT_TRACKS"

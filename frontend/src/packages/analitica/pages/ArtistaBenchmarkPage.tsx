@@ -1,0 +1,103 @@
+import { useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { analiticaApi } from '../api/analitica.api'
+import { ArtistPicker } from '../components/ArtistPicker'
+import { AudioRadarChart, RADAR_COLOR_A, RADAR_COLOR_B } from '../components/AudioRadarChart'
+import { AUDIO_FEATURES, artistToAudioValues, genreToAudioValues } from '../lib/audioFeatures'
+import type { ArtistSearchResult } from '../types'
+import styles from './ArtistaBenchmarkPage.module.css'
+
+const fmt    = (n: number)     => n.toLocaleString('es-ES')
+const fmtDec = (n: number)     => n.toFixed(4)
+
+// Página independiente dentro de `analitica`, no embebida en ArtistDetailPage
+// (catalogo) — catalogo nunca importa de analitica (regla de aislamiento de
+// paquetes ya observada en el resto del frontend), y el legacy también la
+// resuelve como página propia (`benchmark.html`), no como sección embebida.
+export function ArtistaBenchmarkPage() {
+  const [artista, setArtista] = useState<ArtistSearchResult | null>(null)
+
+  const benchmark = useQuery({
+    queryKey: ['analitica', 'benchmark', artista?.artist_id],
+    queryFn:  () => analiticaApi.artistaBenchmark(artista!.artist_id),
+    enabled:  !!artista,
+  })
+
+  const data = benchmark.data
+
+  return (
+    <section className={styles.page}>
+      <h1 className={styles.heading}>Benchmark de artista</h1>
+      <span className={styles.subtitle}>
+        {data ? `// ${data.artista.name} vs. género "${data.genero_benchmark.name}"` : '// selecciona un artista'}
+      </span>
+
+      <div className={styles.pickerWrap}>
+        <ArtistPicker label="Artista" selected={artista} onSelect={setArtista} onClear={() => setArtista(null)} />
+      </div>
+
+      {!artista && (
+        <div className={styles.prompt}>
+          <p className={styles.promptText}>
+            Elige un artista para comparar su perfil de audio contra el promedio de su género predominante.
+          </p>
+        </div>
+      )}
+
+      {artista && benchmark.isLoading && <div className={styles.panel} style={{ minHeight: 320 }} />}
+
+      {artista && benchmark.isError && (
+        <div className={styles.panel}>
+          <p className={styles.panelError}>
+            No se pudo calcular el benchmark — puede que el artista no tenga tracks registrados.
+          </p>
+        </div>
+      )}
+
+      {data && (
+        <>
+          <div className={styles.panel}>
+            <AudioRadarChart
+              series={[
+                { label: data.artista.name, color: RADAR_COLOR_A, values: artistToAudioValues(data.artista) },
+                { label: `Género: ${data.genero_benchmark.name}`, color: RADAR_COLOR_B, values: genreToAudioValues(data.genero_benchmark) },
+              ]}
+            />
+          </div>
+
+          <div className={styles.panel} style={{ marginTop: 'var(--space-md)' }}>
+            <table className={styles.table}>
+              <thead>
+                <tr>
+                  <th></th>
+                  <th className={styles.th}>
+                    <span className={styles.thKey} style={{ background: RADAR_COLOR_A }} aria-hidden="true" />
+                    {data.artista.name}
+                  </th>
+                  <th className={styles.th}>
+                    <span className={styles.thKey} style={{ background: RADAR_COLOR_B }} aria-hidden="true" />
+                    Género
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td className={styles.rowLabel}>Tracks</td>
+                  <td className={styles.rowValue}>{fmt(data.artista.track_count)}</td>
+                  <td className={styles.rowValue}>{fmt(data.genero_benchmark.track_count)}</td>
+                </tr>
+                {AUDIO_FEATURES.map((f) => (
+                  <tr key={f.key}>
+                    <td className={styles.rowLabel}>{f.label}</td>
+                    <td className={styles.rowValue}>{fmtDec(artistToAudioValues(data.artista)[f.key])}</td>
+                    <td className={styles.rowValue}>{fmtDec(genreToAudioValues(data.genero_benchmark)[f.key])}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+    </section>
+  )
+}

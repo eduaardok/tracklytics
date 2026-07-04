@@ -1,5 +1,5 @@
 import httpx
-from fastapi import Depends, Header, HTTPException
+from fastapi import Depends, Header, HTTPException, Request
 
 from core.config import PB_URL
 from core.database import get_client
@@ -9,7 +9,7 @@ def get_db():
     return get_client()
 
 
-async def get_current_user(authorization: str = Header(None)) -> dict:
+async def get_current_user(request: Request, authorization: str = Header(None)) -> dict:
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Missing or invalid token")
     token = authorization.removeprefix("Bearer ").strip()
@@ -21,7 +21,12 @@ async def get_current_user(authorization: str = Header(None)) -> dict:
             )
         if not resp.is_success:
             raise HTTPException(status_code=401, detail="Invalid token")
-        return resp.json()
+        user = resp.json()
+        # Correlación best-effort para FACT_ERROR_SISTEMA (capability
+        # `seguridad`, CU-O19): si el exception handler global se dispara para
+        # esta request, ya puede asociar el error a un usuario resuelto.
+        request.state.usuario_id = user.get("record", {}).get("id")
+        return user
     except httpx.RequestError as exc:
         raise HTTPException(status_code=503, detail=f"Auth service unavailable: {exc}")
 
@@ -34,7 +39,9 @@ def verify_analytics_access(user: dict = Depends(get_current_user)) -> dict:
 
 
 def require_b2c_user(user: dict = Depends(get_current_user)) -> dict:
+    """Gating compartido por `biblioteca` (RN-CAT-004) y `social` (RN-SOC-001):
+    ambas restringen su escritura a Usuario B2C, bloqueando a Cliente B2B."""
     role = user.get("record", {}).get("role", "")
     if role == "analyst":
-        raise HTTPException(status_code=403, detail="La biblioteca personal es exclusiva de Usuario B2C")
+        raise HTTPException(status_code=403, detail="Esta acción es exclusiva de Usuario B2C")
     return user

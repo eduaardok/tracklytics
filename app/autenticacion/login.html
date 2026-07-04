@@ -77,7 +77,9 @@
 </div>
 
 <script type="module">
-  import { login, isLoggedIn } from '/js/auth.js';
+  import { login, isLoggedIn, getRole } from '/js/auth.js';
+  import { Suscripciones } from '/js/api.js';
+  import { showToast } from '/js/toast.js';
 
   if (isLoggedIn()) window.location.href = '/catalogo/home.html';
 
@@ -95,6 +97,33 @@
         document.getElementById('email').value,
         document.getElementById('password').value
       );
+
+      const role = getRole();
+
+      if (role === 'analyst') {
+        // B2B: verificar si tiene plan activo antes de dejar entrar
+        try {
+          const res = await Suscripciones.activa();
+          if (!res?.data) {
+            window.location.href = '/autenticacion/planes.html?onboarding=1';
+            return;
+          }
+        } catch (_) {
+          window.location.href = '/autenticacion/planes.html?onboarding=1';
+          return;
+        }
+      } else if (role === 'user') {
+        // B2C: si no tiene plan activo, asignar free automáticamente
+        try {
+          const res = await Suscripciones.activa();
+          if (!res?.data) {
+            await Suscripciones.confirmar('free', null);
+            showToast('Plan Free activado en tu cuenta. ¡Bienvenido!', 'success');
+            await new Promise(r => setTimeout(r, 1200));
+          }
+        } catch (_) {}
+      }
+
       window.location.href = '/catalogo/home.html';
     } catch (err) {
       alertBox.innerHTML = `<div class="alert alert-error">${err.message}</div>`;
