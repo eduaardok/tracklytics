@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { catalogoApi } from '@packages/catalogo'
 import { ApiError } from '@shared/lib/api-client'
 import { ErrorState } from '@shared/components/ErrorState'
+import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { creadoresApi } from '../api/creadores.api'
 import type { EstadoCuenta, EstadoRevision, SubidaTrack } from '../types'
 import styles from './CreadoresPages.module.css'
@@ -92,6 +93,7 @@ function SkelTrackRow() {
 }
 
 export function CuentaArtistaPage() {
+  useDocumentTitle('Creadores')
   const [nombreArtistico, setNombreArtistico] = useState('')
   const [trackName, setTrackName]             = useState('')
   const [albumName, setAlbumName]             = useState('')
@@ -148,7 +150,6 @@ export function CuentaArtistaPage() {
   return (
     <section className={styles.page}>
       <h1 className={styles.heading}>Creadores</h1>
-      <span className={styles.subtitle}>// cuenta de artista y subida de tracks</span>
 
       {cuenta.isLoading && (
         <div className={styles.panel} style={{ maxWidth: 480 }}>

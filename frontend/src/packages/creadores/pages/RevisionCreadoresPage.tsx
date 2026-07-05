@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ErrorState } from '@shared/components/ErrorState'
+import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { creadoresApi } from '../api/creadores.api'
 import type { CuentaArtista, SubidaTrack } from '../types'
 import styles from './CreadoresPages.module.css'
@@ -58,6 +59,7 @@ function EmptyQueue({ label }: { label: string }) {
 type Decision = 'aprobar' | 'rechazar'
 
 export function RevisionCreadoresPage() {
+  useDocumentTitle('Revisión de creadores')
   const queryClient = useQueryClient()
 
   const cuentas = useQuery({
@@ -97,7 +99,6 @@ export function RevisionCreadoresPage() {
   return (
     <section className={styles.page}>
       <h1 className={styles.heading}>Revisión de creadores</h1>
-      <span className={styles.subtitle}>// cuentas de artista y tracks pendientes de aprobación</span>
 
       <div className={styles.queueGrid}>
         <div className={styles.queuePanel}>

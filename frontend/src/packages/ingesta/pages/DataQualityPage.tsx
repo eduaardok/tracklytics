@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from 'recharts'
 import { EmptyState } from '@shared/components/EmptyState'
+import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { ingestaApi } from '../api/ingesta.api'
 import styles from './DataQualityPage.module.css'
 
@@ -41,6 +42,7 @@ function DonutTooltip({ active, payload }: { active?: boolean; payload?: Array<{
 // ese gap acá: las 3 categorías (incluye tracks subidos por artistas,
 // `creadores`) en vez de solo 2.
 export function DataQualityPage() {
+  useDocumentTitle('Calidad de datos')
   const quality = useQuery({
     queryKey: ['ingesta', 'data-quality'],
     queryFn:  () => ingestaApi.dataQuality(),
@@ -59,7 +61,6 @@ export function DataQualityPage() {
   return (
     <section className={styles.page}>
       <h1 className={styles.heading}>Calidad de datos</h1>
-      <span className={styles.subtitle}>// distribución por origen y salud de la última carga</span>
 
       {quality.isLoading && <div className={styles.panel} style={{ minHeight: 200 }} />}
       {quality.isError && (

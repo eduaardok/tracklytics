@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { analiticaApi } from '../api/analitica.api'
 import { ArtistPicker } from '../components/ArtistPicker'
 import { AudioRadarChart, RADAR_COLOR_A, RADAR_COLOR_B } from '../components/AudioRadarChart'
@@ -24,6 +25,7 @@ const DIFF_ROWS: Array<{ label: string; get: (a: ArtistAudioStats) => number; fm
 ]
 
 export function ComparacionPage() {
+  useDocumentTitle('Comparación de artistas')
   const [artistaA, setArtistaA] = useState<ArtistSearchResult | null>(null)
   const [artistaB, setArtistaB] = useState<ArtistSearchResult | null>(null)
 

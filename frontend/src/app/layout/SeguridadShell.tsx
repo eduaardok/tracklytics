@@ -2,6 +2,7 @@ import { Suspense } from 'react'
 import { Outlet, NavLink } from 'react-router-dom'
 import { UserMenu } from '@packages/seguridad'
 import { RouteLoadingFallback } from '@shared/components/RouteLoadingFallback'
+import { ZoneSwitcher } from '@shared/components/ZoneSwitcher'
 import styles from './SeguridadShell.module.css'
 
 const ACTIVE_CLS   = `${styles.navItem} ${styles.navActive}`
@@ -11,10 +12,12 @@ export function SeguridadShell() {
   return (
     <div className={styles.shell}>
       <header className={styles.brandBar}>
-        <a href="/" className={styles.wordmark} aria-label="Tracklytics — volver al catálogo">
+        <span className={styles.wordmark}>
+          <img src="/logo.png" alt="" className={styles.logo} width={24} height={24} />
           <span className={styles.brand}>Tracklytics</span>
           <span className={styles.panelBadge}>admin</span>
-        </a>
+        </span>
+        <ZoneSwitcher zone="administracion" />
         <UserMenu />
       </header>
 
@@ -47,8 +50,11 @@ export function SeguridadShell() {
           <NavLink to="/seguridad/familia" className={({ isActive }) => isActive ? ACTIVE_CLS : INACTIVE_CLS}>
             Plan familiar
           </NavLink>
-          <NavLink to="/seguridad/partners" className={({ isActive }) => isActive ? ACTIVE_CLS : INACTIVE_CLS}>
+          <NavLink to="/seguridad/partners" end className={({ isActive }) => isActive ? ACTIVE_CLS : INACTIVE_CLS}>
             Partners
+          </NavLink>
+          <NavLink to="/seguridad/partners/metricas" className={({ isActive }) => isActive ? ACTIVE_CLS : INACTIVE_CLS}>
+            Métricas de partners
           </NavLink>
           <NavLink to="/seguridad/ingesta" end className={({ isActive }) => isActive ? ACTIVE_CLS : INACTIVE_CLS}>
             Ingesta ETL

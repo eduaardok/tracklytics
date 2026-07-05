@@ -14,7 +14,7 @@ import { PlanesPage } from '@packages/suscripciones'
 import { CuentaArtistaPage, RevisionCreadoresPage } from '@packages/creadores'
 import { SeguidosSocialPage, ArtistaSocialPage, TrackSocialPage, ModeracionSocialPage } from '@packages/social'
 import { DistribucionAdminPage, DisponibilidadPage } from '@packages/distribucion'
-import { PartnersConsolePage } from '@packages/partners'
+import { PartnersConsolePage, PartnersMetricasPage } from '@packages/partners'
 import { SoportePage, TicketsAdminPage, FamiliaAdminPage } from '@packages/experiencia'
 
 // `/analitica` es la única sección con dependencias pesadas (Recharts, ver
@@ -145,6 +145,7 @@ export const router = createBrowserRouter([
       // ya cubre estas rutas — no hace falta un RequireAuth por ruta como en
       // reporte-diario (analitica), que sí vive en un shell no admin-only.
       { path: 'partners',              element: <PartnersConsolePage /> },
+      { path: 'partners/metricas',     element: <PartnersMetricasPage /> },
       { path: 'ingesta',                element: <EtlPage /> },
       { path: 'ingesta/dimensiones',    element: <CrudDimensionesPage /> },
       { path: 'ingesta/calidad',        element: <DataQualityPage /> },

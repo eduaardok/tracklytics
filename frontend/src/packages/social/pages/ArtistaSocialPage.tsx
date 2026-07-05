@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { catalogoApi } from '@packages/catalogo'
+import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { socialApi } from '../api/social.api'
 import type { Canal } from '../types'
 import styles from './SocialPages.module.css'
@@ -32,6 +33,7 @@ const CANALES: { canal: Canal; label: string }[] = [
 ]
 
 export function ArtistaSocialPage() {
+  useDocumentTitle('Artista')
   const { artistaId } = useParams<{ artistaId: string }>()
   const id = Number(artistaId)
   const queryClient = useQueryClient()
@@ -70,7 +72,6 @@ export function ArtistaSocialPage() {
   return (
     <section className={styles.page}>
       <h1 className={styles.heading}>Artista</h1>
-      <span className={styles.subtitle}>// vista mínima de social — el perfil de artista completo lo construye `experiencia`</span>
 
       {artista.isError && (
         <div className={styles.bannerError} role="alert">No se pudo cargar el artista (¿sesión activa?).</div>

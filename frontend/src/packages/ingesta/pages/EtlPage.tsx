@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { ingestaApi, IngestaApiError } from '../api/ingesta.api'
 import type { SyntheticMode, EjecucionEstado } from '../types'
 import styles from './EtlPage.module.css'
@@ -52,6 +53,7 @@ function StageBadge({ etapa, estado }: { etapa: string; estado: string | null })
 // expone websockets, así que esto replica exactamente el mecanismo real del
 // legacy, no una simulación.
 export function EtlPage() {
+  useDocumentTitle('Ingesta de catálogo')
   const queryClient = useQueryClient()
   const [weekNumber, setWeekNumber]   = useState('1')
   const [forzarRecarga, setForzar]    = useState(false)
@@ -116,7 +118,6 @@ export function EtlPage() {
   return (
     <section className={styles.page}>
       <h1 className={styles.heading}>Ingesta de catálogo</h1>
-      <span className={styles.subtitle}>// disparo, monitoreo y auditoría de cargas</span>
 
       {ultimaCarga && (
         <div className={styles.lastRunBar}>

@@ -86,3 +86,11 @@ LIMIT 1
 USUARIO_EXISTE_EN_DIM = """
 SELECT usuario_id FROM DIM_USUARIO WHERE usuario_id = {usuario_id:String} LIMIT 1
 """
+
+USUARIOS_BUSQUEDA = """
+SELECT usuario_id, nombre, email, rol
+FROM DIM_USUARIO
+WHERE lower(nombre) LIKE lower({pattern:String}) OR lower(email) LIKE lower({pattern:String})
+ORDER BY nombre
+LIMIT {limit:UInt32}
+"""

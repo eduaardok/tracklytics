@@ -3,4 +3,5 @@
 // Nunca importar directamente de components/, pages/, o api/ internos.
 
 export { PartnersConsolePage } from './pages/PartnersConsolePage'
-export type { PartnerTier, PartnerEndpoint, PartnerProbeResult } from './types'
+export { PartnersMetricasPage } from './pages/PartnersMetricasPage'
+export type { PartnerTier, PartnerEndpoint, PartnerProbeResult, PartnerMetrica, PartnerMetricaTier } from './types'

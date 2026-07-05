@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { getRole } from '@shared/lib/session'
+import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { bibliotecaApi } from '../api/biblioteca.api'
 import { FavoritosTab } from '../components/FavoritosTab'
 import { HistorialTab } from '../components/HistorialTab'
@@ -16,6 +17,7 @@ const TABS = [
 type TabId = typeof TABS[number]['id']
 
 export function BibliotecaPage() {
+  useDocumentTitle('Mi Biblioteca')
   const [tab, setTab] = useState<TabId>('favoritos')
 
   // RN-CAT-004 (mismo criterio que app/biblioteca/library.html): la biblioteca
@@ -54,7 +56,6 @@ export function BibliotecaPage() {
   return (
     <section className={styles.page}>
       <h1 className={styles.heading}>Mi Biblioteca</h1>
-      <span className={styles.subtitle}>// favoritos, playlists e historial de reproducción</span>
 
       <div className={styles.stats}>
         <div className={styles.statCard}>

@@ -1,12 +1,14 @@
 import { useState, type FormEvent } from 'react'
 import { Link, Navigate, useNavigate } from 'react-router-dom'
 import { isAuthenticated } from '@shared/lib/session'
+import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { resolverDestinoPostAuth } from '@packages/suscripciones'
 import { authApi, type RolAutoRegistrable } from '../api/auth.api'
 import { AuthHero } from './AuthHero'
 import styles from './AuthPages.module.css'
 
 export function RegisterPage() {
+  useDocumentTitle('Crear cuenta')
   const navigate = useNavigate()
   const [nombre, setNombre]     = useState('')
   const [email, setEmail]       = useState('')

@@ -2,8 +2,9 @@ import re
 import time
 from datetime import date, datetime
 
-from fastapi import HTTPException, Request
+from fastapi import Depends, HTTPException, Request
 
+from core.deps import get_current_user
 from paquetes.partners import pb_client
 
 # Formato esperado de una API key (alfanumérico + guiones/guiones bajos).
@@ -110,3 +111,18 @@ def require_partner(min_tier: str = "basico"):
         return partner
 
     return _dep
+
+
+def require_partner_admin(user: dict = Depends(get_current_user)) -> dict:
+    """Gating de las vistas internas sobre el programa de partners (métricas
+    agregadas de uso) — exclusivo de role=admin (Lead Data Engineer/CTO). No
+    confundir con `require_partner` de arriba: ese autentica al partner
+    externo por API key contra `/partners/v1/*`, este autentica al staff
+    interno por sesión contra `/app/v1/partners/*`."""
+    role = user.get("record", {}).get("role", "")
+    if role != "admin":
+        raise HTTPException(
+            status_code=403,
+            detail="Las métricas de partners son exclusivas de administradores",
+        )
+    return user

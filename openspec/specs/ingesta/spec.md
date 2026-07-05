@@ -1,5 +1,9 @@
 # Capability: ingesta
 
+## Purpose
+
+Permitir que el Lead Data Engineer ejecute y monitoree la ingesta de nuevos lotes de datos de catálogo musical, audite el historial y calidad de cargas anteriores, y administre las tablas de dimensión del catálogo.
+
 ## Objetivo
 
 Permitir que el Lead Data Engineer ejecute y monitoree la ingesta de nuevos lotes de datos de catálogo musical, audite el historial y calidad de cargas anteriores, y administre las tablas de dimensión del catálogo.

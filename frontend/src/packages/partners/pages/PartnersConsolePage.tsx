@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { ENDPOINTS, partnersApi } from '../api/partners.api'
 import type { PartnerEndpoint, PartnerProbeResult } from '../types'
 import styles from './PartnersConsolePage.module.css'
@@ -15,6 +16,7 @@ function StatusBadge({ status, ok }: { status: number; ok: boolean }) {
 }
 
 export function PartnersConsolePage() {
+  useDocumentTitle('Consola de partners')
   const [apiKey, setApiKey] = useState('')
   const [page, setPage]     = useState('1')
   const [limit, setLimit]   = useState('20')
@@ -33,9 +35,6 @@ export function PartnersConsolePage() {
   return (
     <section className={styles.page}>
       <h1 className={styles.heading}>Consola de partners</h1>
-      <span className={styles.subtitle}>
-        // prueba /partners/v1/* con una API key real — igual que un partner externo, sin sesión de staff
-      </span>
 
       <div className={styles.panel}>
         <div className={styles.field}>

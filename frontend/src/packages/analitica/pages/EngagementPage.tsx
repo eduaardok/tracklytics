@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { analiticaApi } from '../api/analitica.api'
 import type { ArtistSearchResult, TrackSearchResult, EngagementData, DesempenoRelativo } from '../types'
 import styles from './EngagementPage.module.css'
@@ -138,6 +139,7 @@ function DesempenoPanel({ data }: { data: DesempenoRelativo }) {
 
 // ── Page ─────────────────────────────────────────────────────────────────────
 export function EngagementPage() {
+  useDocumentTitle('Engagement')
   const [entityType, setEntityType]   = useState<EntityType>('artista')
   const [query, setQuery]             = useState('')
   const [debouncedQ, setDebouncedQ]   = useState('')

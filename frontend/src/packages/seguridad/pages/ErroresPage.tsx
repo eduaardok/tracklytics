@@ -1,8 +1,10 @@
 import { useQuery } from '@tanstack/react-query'
+import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { seguridadApi } from '../api/seguridad.api'
 import styles from './SeguridadPages.module.css'
 
 export function ErroresPage() {
+  useDocumentTitle('Errores de sistema')
   const { data, isLoading, isError } = useQuery({
     queryKey: ['seguridad', 'errores'],
     queryFn:  () => seguridadApi.errores(50),
@@ -13,7 +15,6 @@ export function ErroresPage() {
   return (
     <section className={styles.page}>
       <h1 className={styles.heading}>Errores de sistema</h1>
-      <span className={styles.subtitle}>// excepciones no controladas capturadas por la API (CU-O19)</span>
 
       {isError && <div className={styles.errorBox}>No se pudieron cargar los errores (¿sesión de admin?).</div>}
 

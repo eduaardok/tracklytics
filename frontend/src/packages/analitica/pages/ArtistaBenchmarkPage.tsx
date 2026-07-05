@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { analiticaApi } from '../api/analitica.api'
 import { ArtistPicker } from '../components/ArtistPicker'
 import { AudioRadarChart, RADAR_COLOR_A, RADAR_COLOR_B } from '../components/AudioRadarChart'
@@ -15,6 +16,7 @@ const fmtDec = (n: number)     => n.toFixed(4)
 // paquetes ya observada en el resto del frontend), y el legacy también la
 // resuelve como página propia (`benchmark.html`), no como sección embebida.
 export function ArtistaBenchmarkPage() {
+  useDocumentTitle('Benchmark de artista')
   const [artista, setArtista] = useState<ArtistSearchResult | null>(null)
 
   const benchmark = useQuery({

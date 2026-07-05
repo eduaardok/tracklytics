@@ -1,5 +1,9 @@
 # Capability: analitica
 
+## Purpose
+
+Proveer a Cliente B2B y Data Analyst/BI Lead un conjunto de paneles analíticos sobre el catálogo musical: dashboard ejecutivo de KPIs, perfiles de audio por género, comparación de artistas, tendencias temporales, índice de desempeño relativo (engagement propio vs. popularidad de mercado), y reporte diario operativo.
+
 ## Objetivo
 
 Proveer a Cliente B2B y Data Analyst/BI Lead un conjunto de paneles analíticos sobre el catálogo musical: dashboard ejecutivo de KPIs, perfiles de audio por género, comparación de artistas, tendencias temporales, índice de desempeño relativo (engagement propio vs. popularidad de mercado), y reporte diario operativo.

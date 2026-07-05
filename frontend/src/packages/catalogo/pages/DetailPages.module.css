@@ -9,25 +9,6 @@
   background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-accent) 100%);
 }
 
-.art {
-  width: 96px;
-  height: 96px;
-  border-radius: var(--radius-md);
-  background: oklch(1 0 0 / 0.12);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 2rem;
-  flex-shrink: 0;
-  overflow: hidden;
-}
-
-.artImg {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
 .heroMeta {
   min-width: 0;
   flex: 1;

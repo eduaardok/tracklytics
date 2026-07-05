@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import {
   LineChart, Line, CartesianGrid, XAxis, YAxis, Tooltip, ResponsiveContainer,
 } from 'recharts'
+import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { analiticaApi } from '../api/analitica.api'
 import type { TendenciaSemana } from '../types'
 import styles from './TendenciasPage.module.css'
@@ -80,6 +81,7 @@ function TrendPanel({ title, data, dataKey, domain, formatValue, seriesLabel }: 
 }
 
 export function TendenciasPage() {
+  useDocumentTitle('Tendencias semanales')
   const [desde, setDesde] = useState('')
   const [hasta, setHasta] = useState('')
   const [range, setRange] = useState<{ desde?: number; hasta?: number }>({})

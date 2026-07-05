@@ -17,6 +17,7 @@ from paquetes.gestion_datos.router import router as gestion_router
 from paquetes.gestion_datos.router import v1_router as gestion_v1_router
 from paquetes.partners.logging_mw import partner_call_logger
 from paquetes.partners.router import router as partners_router
+from paquetes.partners.router import v1_router as partners_v1_router
 from paquetes.seguridad.router import router as seguridad_router
 from paquetes.social.router import router as social_router
 from paquetes.suscripciones.router import router as suscripciones_router
@@ -76,6 +77,7 @@ app.include_router(gestion_v1_router)
 app.include_router(biblioteca_router)
 app.include_router(suscripciones_router)
 app.include_router(partners_router)
+app.include_router(partners_v1_router)
 app.include_router(seguridad_router)
 app.include_router(facturacion_router)
 app.include_router(creadores_router)

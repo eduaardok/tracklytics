@@ -1,5 +1,9 @@
 # Capability: seguridad
 
+## Purpose
+
+Gobernar la identidad, autenticación, permisos por rol, auditoría de operaciones sensibles y registro de errores de sistema de Tracklytics, dejando rastro operativo consultable en ClickHouse sin duplicar el almacén de credenciales de PocketBase.
+
 ## Objetivo
 
 Gobernar la identidad, autenticación, permisos por rol, auditoría de operaciones sensibles y registro de errores de sistema de Tracklytics, dejando rastro operativo consultable en ClickHouse sin duplicar el almacén de credenciales de PocketBase.
@@ -22,9 +26,7 @@ Hasta ahora el flujo de registro/login/logout vivía descrito dentro de la capab
 | Operativo | Lead Data Engineer / CTO | Seguridad e identidad | CU-O17 Gestionar permisos granulares por rol | Como Lead Data Engineer/CTO, quiero administrar qué recursos y acciones puede usar cada rol, para controlar el acceso al sistema con precisión |
 | Operativo | Lead Data Engineer / CTO | Seguridad e identidad | CU-O18 Auditar operaciones sensibles del sistema | Como Lead Data Engineer/CTO, quiero ver un registro de auditoría de cambios sensibles, para rastrear quién hizo qué y cuándo |
 | Operativo | Lead Data Engineer / CTO | Seguridad e identidad | CU-O19 Registrar y consultar errores de sistema | Como Lead Data Engineer/CTO, quiero ver los errores de sistema ocurridos en la API, para diagnosticar y resolver incidentes |
-
 ## Requirements
-
 ### Requirement: Registro de usuario
 El sistema SHALL permitir registrar un nuevo usuario con correo, contraseña, nombre, país y rol (user/analyst) vía PocketBase, expuesto a través de un endpoint propio de FastAPI (no acceso directo del frontend a PocketBase). El registro exitoso SHALL reflejar la identidad del usuario en `DIM_USUARIO` y sembrar su matriz de permisos por defecto en `FACT_PERMISO_USUARIO` según su rol.
 
@@ -62,7 +64,11 @@ El sistema SHALL asegurar que las credenciales nunca se almacenen ni transmitan 
 - **THEN** el sistema delega el hashing de la contraseña a PocketBase y nunca persiste ni transmite la contraseña en texto plano
 
 ### Requirement: Gestión de permisos granulares por rol
-El sistema SHALL permitir a un usuario con rol `admin` consultar y modificar los permisos granulares (recurso, acción) asignados a un usuario, además de la matriz por defecto de cada rol (user/analyst/admin). Cada cambio SHALL quedar registrado en `FACT_PERMISO_USUARIO` sin sobrescribir el historial previo.
+El sistema SHALL permitir a un usuario con rol `admin` consultar y modificar los permisos granulares (recurso, acción) asignados a un usuario, además de la matriz por defecto de cada rol (user/analyst/admin). El admin SHALL poder localizar al usuario objetivo mediante una búsqueda por nombre o correo, sin requerir que conozca ni escriba su `usuario_id`. Cada cambio SHALL quedar registrado en `FACT_PERMISO_USUARIO` sin sobrescribir el historial previo.
+
+#### Scenario: Buscar el usuario por nombre o correo antes de gestionar sus permisos
+- **WHEN** un usuario con rol `admin` escribe parte del nombre o correo de un usuario para consultar o modificar sus permisos
+- **THEN** el sistema muestra las coincidencias encontradas para que el admin seleccione el usuario exacto
 
 #### Scenario: Admin consulta los permisos de un usuario
 - **WHEN** un usuario con rol `admin` solicita los permisos vigentes de un usuario
@@ -109,6 +115,25 @@ El sistema SHALL capturar toda excepción no controlada ocurrida en la API en `F
 #### Scenario: Usuario sin rol admin intenta consultar errores de sistema
 - **WHEN** un usuario con rol `user` o `analyst` intenta consultar el registro de errores de sistema
 - **THEN** el sistema rechaza la operación indicando que la consulta de errores es exclusiva de `admin`
+
+### Requirement: Búsqueda de usuarios por nombre o correo
+El sistema SHALL permitir a un usuario con rol `admin` buscar usuarios por coincidencia parcial de nombre o de correo electrónico, devolviendo como máximo un número acotado de resultados por consulta. Esta búsqueda SHALL ser de solo lectura y SHALL estar restringida a `admin`.
+
+#### Scenario: Admin busca un usuario por nombre parcial
+- **WHEN** un usuario con rol `admin` busca usuarios escribiendo parte de un nombre
+- **THEN** el sistema retorna los usuarios cuyo nombre o correo coincida parcialmente, hasta el límite de resultados configurado
+
+#### Scenario: Admin busca un usuario por correo parcial
+- **WHEN** un usuario con rol `admin` busca usuarios escribiendo parte de un correo electrónico
+- **THEN** el sistema retorna los usuarios cuyo correo coincida parcialmente
+
+#### Scenario: Búsqueda sin coincidencias
+- **WHEN** un usuario con rol `admin` busca usuarios con un texto que no coincide con ningún nombre ni correo registrado
+- **THEN** el sistema retorna una lista vacía
+
+#### Scenario: Usuario sin rol admin intenta buscar usuarios
+- **WHEN** un usuario con rol distinto de `admin` intenta buscar usuarios por nombre o correo
+- **THEN** el sistema rechaza la operación indicando que la búsqueda de usuarios es exclusiva de `admin`
 
 ## Entradas
 

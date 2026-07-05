@@ -1,3 +1,4 @@
+import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import styles from './ComingSoonPage.module.css'
 
 type Props = {
@@ -6,10 +7,10 @@ type Props = {
 }
 
 export function ComingSoonPage({ section, description }: Props) {
+  useDocumentTitle(section)
   return (
     <section className={styles.page}>
       <h1 className={styles.heading}>{section}</h1>
-      <span className={styles.subtitle}>// sección pendiente</span>
       <div className={styles.panel}>
         <p className={styles.description}>{description}</p>
       </div>

@@ -1,17 +1,20 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
+import { UserPicker, type UserSearchResult } from '@shared/components/UserPicker'
 import { seguridadApi } from '../api/seguridad.api'
 import type { Permiso } from '../types'
 import styles from './SeguridadPages.module.css'
 
 export function PermisosPage() {
-  const [usuarioId, setUsuarioId]   = useState('')
-  const [buscado, setBuscado]       = useState('')
+  useDocumentTitle('Permisos')
+  const [selectedUser, setSelectedUser] = useState<UserSearchResult | null>(null)
   const [recurso, setRecurso]       = useState('')
   const [accion, setAccion]         = useState('')
   const [permitido, setPermitido]   = useState(true)
 
   const queryClient = useQueryClient()
+  const buscado = selectedUser?.usuario_id ?? ''
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ['seguridad', 'permisos', buscado],
@@ -33,21 +36,15 @@ export function PermisosPage() {
   return (
     <section className={styles.page}>
       <h1 className={styles.heading}>Permisos</h1>
-      <span className={styles.subtitle}>// gestión de permisos granulares por usuario (CU-O17)</span>
 
-      <form className={styles.form} onSubmit={(e) => { e.preventDefault(); setBuscado(usuarioId.trim()) }}>
-        <div className={styles.field}>
-          <label htmlFor="usuario_id">usuario_id</label>
-          <input
-            id="usuario_id"
-            type="text"
-            value={usuarioId}
-            onChange={(e) => setUsuarioId(e.target.value)}
-            placeholder="id de PocketBase"
-          />
-        </div>
-        <button className={styles.button} type="submit">Buscar</button>
-      </form>
+      <div className={styles.form}>
+        <UserPicker
+          label="Usuario"
+          selected={selectedUser}
+          onSelect={setSelectedUser}
+          onClear={() => setSelectedUser(null)}
+        />
+      </div>
 
       {isError && <div className={styles.errorBox}>No se pudieron cargar los permisos (¿sesión de admin?).</div>}
 

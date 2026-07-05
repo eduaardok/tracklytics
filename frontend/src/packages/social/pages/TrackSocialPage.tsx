@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { catalogoApi } from '@packages/catalogo'
+import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { socialApi } from '../api/social.api'
 import type { Canal, Comentario } from '../types'
 import styles from './SocialPages.module.css'
@@ -37,6 +38,7 @@ function fmtDate(iso: string) {
 }
 
 export function TrackSocialPage() {
+  useDocumentTitle('Track')
   const { factId } = useParams<{ factId: string }>()
   const id = Number(factId)
   const queryClient = useQueryClient()
@@ -77,7 +79,6 @@ export function TrackSocialPage() {
   return (
     <section className={styles.page}>
       <h1 className={styles.heading}>Track</h1>
-      <span className={styles.subtitle}>// vista mínima de social — el detalle de track completo lo construye `experiencia`</span>
 
       {track.isError && (
         <div className={styles.bannerError} role="alert">No se pudo cargar el track.</div>

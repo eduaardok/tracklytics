@@ -2,7 +2,9 @@ import { useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { catalogoApi } from '../api/catalogo.api'
 import { TrackCard } from '../components/TrackCard'
+import { AlbumArt } from '@shared/components/AlbumArt'
 import { ErrorState } from '@shared/components/ErrorState'
+import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { ApiError } from '@shared/lib/api-client'
 import type { Track } from '../types'
 import styles from './DetailPages.module.css'
@@ -26,17 +28,19 @@ export function AlbumDetailPage() {
     enabled:  Number.isFinite(id),
   })
 
+  useDocumentTitle(album?.name ?? 'Playlist')
+
   if (loadingAlbum) return <p className={styles.loading}>// cargando…</p>
 
   if (errorAlbum || !album) {
     const notFound = albumError instanceof ApiError && albumError.status === 404
     return (
       <ErrorState
-        title={notFound ? 'Álbum no encontrado' : undefined}
+        title={notFound ? 'Playlist no encontrada' : undefined}
         message={
           notFound
-            ? 'Este álbum no existe o fue eliminado.'
-            : 'No se pudo cargar este álbum. Puede que la API no esté disponible.'
+            ? 'Esta playlist no existe o fue eliminada.'
+            : 'No se pudo cargar esta playlist. Puede que la API no esté disponible.'
         }
       />
     )
@@ -47,11 +51,9 @@ export function AlbumDetailPage() {
   return (
     <section>
       <div className={styles.hero}>
-        <span className={styles.art} aria-hidden="true">
-          {album.imagen_url ? <img src={album.imagen_url} alt="" className={styles.artImg} /> : '💿'}
-        </span>
+        <AlbumArt src={album.imagen_url} alt="" size={96} />
         <div className={styles.heroMeta}>
-          <span className={styles.heroType}>Álbum</span>
+          <span className={styles.heroType}>Playlist</span>
           <h1 className={styles.heroName}>{album.name}</h1>
           <div className={styles.heroSub}>
             {album.release_year && <span>{album.release_year}</span>}
@@ -83,9 +85,9 @@ export function AlbumDetailPage() {
       {loadingTracks ? (
         <p className={styles.loading}>// cargando…</p>
       ) : tracks.length === 0 ? (
-        <p className={styles.empty}>Sin canciones registradas para este álbum.</p>
+        <p className={styles.empty}>Sin canciones registradas para esta playlist.</p>
       ) : (
-        <ul className={styles.trackList} aria-label="Canciones del álbum">
+        <ul className={styles.trackList} aria-label="Canciones de la playlist">
           {tracks.map((track: Track, i: number) => (
             <li key={`${track.fact_id}-${track.track_id}`}>
               <TrackCard track={track} position={i + 1} />

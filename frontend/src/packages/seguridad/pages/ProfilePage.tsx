@@ -1,4 +1,5 @@
 import { getUser } from '@shared/lib/session'
+import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import styles from './ProfilePage.module.css'
 
 function fmtDate(iso: string | undefined): string {
@@ -19,6 +20,7 @@ const ROLE_LABEL: Record<string, string> = {
 // expone ningún endpoint de cambio de contraseña hoy — no se inventa uno
 // nuevo, se documenta la ausencia en vez de un botón que no haría nada.
 export function ProfilePage() {
+  useDocumentTitle('Mi perfil')
   const user = getUser()
 
   if (!user) return null
@@ -26,7 +28,6 @@ export function ProfilePage() {
   return (
     <section className={styles.page}>
       <h1 className={styles.heading}>Mi perfil</h1>
-      <span className={styles.subtitle}>// datos de tu cuenta</span>
 
       <dl className={styles.kv}>
         <dt className={styles.kvLabel}>Email</dt>

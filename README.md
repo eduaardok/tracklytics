@@ -241,8 +241,12 @@ columnar fuera de su caso de uso ideal.
 ## Funcionalidades por módulo
 
 ### Catálogo y biblioteca (todos los roles, biblioteca requiere sesión)
-- Catálogo navegable con búsqueda, filtro por género (114 géneros) y sección "Explorar por
-  género" con chips descubribles
+- Catálogo organizado en 4 secciones permanentes — Canciones, Playlists, Artistas y Géneros —,
+  cada una con su propio buscador y su propia vista de destacados (con stats: popularidad,
+  cantidad de tracks, año); nunca mezcla resultados de búsqueda con widgets de descubrimiento de
+  otro tipo de entidad. "Playlists" son los álbumes del dataset (la relación N:M real del
+  catálogo: un track puede pertenecer a varias)
+- Filtro por género (114 géneros) con chips descubribles dentro de la sección Canciones
 - Detalle de track (7 atributos de audio, paywall Premium), artista y álbum con navegación
   cruzada
 - Favoritos, playlists (crear/renombrar/eliminar, agregar/quitar tracks) e historial de
@@ -277,6 +281,9 @@ columnar fuera de su caso de uso ideal.
 - Permisos granulares, auditoría, errores de sistema
 - Moderación de comentarios (social), revisión de cuentas/tracks de creadores, administración
   de facturación, distribución y plan familiar
+- Selección de track/usuario por búsqueda (nombre/artista o nombre/correo) en vez de IDs
+  internos crudos, en las vistas de disponibilidad (distribución), comentarios (social),
+  permisos, auditoría de facturación y plan familiar
 - ETL (disparo/monitoreo del DAG), CRUD de las 11 dimensiones editables, calidad de datos
 - Consola de pruebas de la API de partners
 
@@ -515,6 +522,13 @@ Resumen de la segunda entrega de S9 (el refactor):
   `DIM_COMPONENTE_INFRAESTRUCTURA`, `FACT_ADQUISICION`, `FACT_DISPONIBILIDAD`) — 52 tablas
   físicas en total hoy. Extiende `analitica` (2 requirements nuevos), no es una capability
   nueva. DAG independiente `modelo_negocio_sync` para su generación de datos.
+- **Cierre de la fase de diseño/UX del frontend (2026-07-04/05):** fix de header (logo +
+  indicador de zona) en los shells admin, catálogo rediseñado en 4 secciones permanentes
+  (Canciones/Playlists/Artistas/Géneros), título de pestaña dinámico por página, y el change
+  `reemplazar-ids-por-busqueda` cerrado: nuevo endpoint de búsqueda de usuarios por nombre/correo
+  (`seguridad`, admin-only) y dos componentes de selección con búsqueda (`TrackPicker`,
+  `UserPicker`) que reemplazan los 5 campos de ID interno crudo en distribución, social,
+  administración, facturación y plan familiar.
 
 ---
 

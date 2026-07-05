@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { ErrorState } from '@shared/components/ErrorState'
+import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
+import { UserPicker, type UserSearchResult } from '@shared/components/UserPicker'
 import { facturacionApi } from '../api/facturacion.api'
 import styles from './FacturacionPages.module.css'
 
@@ -47,8 +49,9 @@ function SkelRows({ cols, n = 4 }: { cols: number; n?: number }) {
 }
 
 export function AuditoriaFacturacionPage() {
-  const [usuarioId, setUsuarioId] = useState('')
-  const [buscado, setBuscado]     = useState('')
+  useDocumentTitle('Auditoría de facturación')
+  const [selectedUser, setSelectedUser] = useState<UserSearchResult | null>(null)
+  const buscado = selectedUser?.usuario_id ?? ''
 
   const transacciones = useQuery({
     queryKey: ['facturacion', 'auditoria', 'transacciones', buscado],
@@ -70,49 +73,20 @@ export function AuditoriaFacturacionPage() {
   return (
     <section className={styles.page}>
       <h1 className={styles.heading}>Auditoría de facturación</h1>
-      <span className={styles.subtitle}>// historial de transacciones e invoices por usuario</span>
 
-      <form
-        className={styles.searchForm}
-        onSubmit={(e) => {
-          e.preventDefault()
-          setBuscado(usuarioId.trim())
-        }}
-      >
-        <div className={styles.field}>
-          <label className={styles.fieldLabel} htmlFor="usuario_id">usuario_id</label>
-          <input
-            id="usuario_id"
-            className={styles.input}
-            type="text"
-            value={usuarioId}
-            onChange={(e) => setUsuarioId(e.target.value)}
-            placeholder="id de PocketBase"
-            autoComplete="off"
-          />
-        </div>
-        <button
-          className={styles.btnPrimary}
-          type="submit"
-          disabled={!usuarioId.trim()}
-        >
-          Buscar
-        </button>
-        {buscado && (
-          <button
-            className={styles.btnGhost}
-            type="button"
-            onClick={() => { setUsuarioId(''); setBuscado('') }}
-          >
-            Limpiar
-          </button>
-        )}
-      </form>
+      <div className={styles.searchForm}>
+        <UserPicker
+          label="Usuario"
+          selected={selectedUser}
+          onSelect={setSelectedUser}
+          onClear={() => setSelectedUser(null)}
+        />
+      </div>
 
       {!buscado && (
         <div className={styles.prompt}>
           <p className={styles.promptText}>
-            Introduce un usuario_id para ver su historial de facturación.
+            Busca un usuario para ver su historial de facturación.
           </p>
         </div>
       )}

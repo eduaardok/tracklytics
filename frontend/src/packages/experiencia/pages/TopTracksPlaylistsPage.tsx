@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { getRole } from '@shared/lib/session'
 import { ErrorState } from '@shared/components/ErrorState'
+import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { experienciaApi } from '../api/experiencia.api'
 import type { TopTrackPlaylist } from '../types'
 import styles from './ExperienciaPages.module.css'
@@ -11,6 +12,7 @@ import styles from './ExperienciaPages.module.css'
 // acciones viven en una sola página táctica, mismo patrón que el resto de
 // `/analitica` (design.md de `experiencia`, "frecuencia de sincronización").
 export function TopTracksPlaylistsPage() {
+  useDocumentTitle('Tracks más agregados a playlists')
   const queryClient = useQueryClient()
   const isAdmin = getRole() === 'admin'
 
@@ -31,7 +33,6 @@ export function TopTracksPlaylistsPage() {
       <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 'var(--space-md)' }}>
         <div>
           <h1 className={styles.heading}>Tracks más agregados a playlists</h1>
-          <span className={styles.subtitle}>// reflejo analítico de playlists de usuario — sincronizado semanalmente</span>
         </div>
         {isAdmin && (
           <button

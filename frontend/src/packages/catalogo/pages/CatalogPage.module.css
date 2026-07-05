@@ -25,6 +25,7 @@
   color: var(--color-muted);
   line-height: 1;
   min-height: 1em;
+  margin-bottom: var(--space-md);
 }
 
 /* ── Search ──
@@ -90,26 +91,6 @@
   border-color: var(--color-primary);
   background: var(--color-surface);
 }
-
-.genreSelect {
-  flex-shrink: 0;
-  background: var(--color-surface);
-  color: var(--color-ink);
-  font-family: var(--font-sans);
-  font-size: 0.875rem;
-  padding: 9px var(--space-md);
-  height: 40px;
-  border-radius: var(--radius-md);
-  border: 1px solid var(--color-border);
-  outline: none;
-  cursor: pointer;
-  transition:
-    border-color var(--duration-standard) var(--ease-standard),
-    background-color var(--duration-standard) var(--ease-standard);
-}
-
-.genreSelect:hover  { background: var(--color-surface-raised); }
-.genreSelect:focus  { border-color: var(--color-primary); }
 
 .clearBtn {
   display: flex;
@@ -185,7 +166,50 @@
   margin: 0;
 }
 
-/* ── Explorar por género ── */
+/* ── Tabs (Canciones / Playlists / Artistas / Géneros) ── */
+.tabBar {
+  display: flex;
+  gap: var(--space-xs);
+  margin-bottom: var(--space-md);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.tab {
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--color-muted);
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: var(--space-sm) var(--space-xs);
+  margin-bottom: -1px;
+  cursor: pointer;
+  transition: color var(--duration-fast) var(--ease-standard), border-color var(--duration-fast) var(--ease-standard);
+}
+
+.tab:hover {
+  color: var(--color-ink);
+}
+
+.tab:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px oklch(0.48 0.15 290 / 0.5);
+}
+
+.tabActive {
+  color: var(--color-ink);
+  border-bottom-color: var(--color-primary);
+}
+
+/* ── Grid de descubrimiento (destacados/resultados de playlists, artistas y géneros) ── */
+.exploreGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: var(--space-sm);
+}
+
+/* ── Explorar por género (chips, filtro funcional) ── */
 .genreChipsSection {
   margin-bottom: var(--space-lg);
 }

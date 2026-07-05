@@ -96,3 +96,35 @@ JOIN {_DB}.DIM_GENRES g ON ft.genre_id = g.genre_id
 WHERE g.genre_id = {{genre_id:Int32}}
 GROUP BY g.genre_id, g.name, g.mood
 """
+
+# ── Métricas internas de uso (CU-O56, staff admin — no expuesto a `/partners/v1/*`) ──
+# `partner_id = ''` corresponde a intentos rechazados antes de resolver un
+# partner real (llave de API ausente/malformada, ver `deps.py::require_partner`
+# → `_reject_auth`) — se excluyen porque no son atribuibles a ningún partner.
+METRICAS_POR_PARTNER = f"""
+SELECT
+    partner_id,
+    count()                                                      AS total_llamadas,
+    countIf(resultado = 'success')                               AS llamadas_exitosas,
+    countIf(resultado != 'success')                              AS llamadas_error,
+    round(countIf(resultado = 'success') / count() * 100, 2)     AS tasa_exito_pct,
+    round(avgIf(duracion_ms, resultado = 'success'), 2)          AS latencia_promedio_ms_exitosas
+FROM {_DB}.LOG_LLAMADAS_PARTNER
+WHERE partner_id != ''
+GROUP BY partner_id
+ORDER BY total_llamadas DESC
+"""
+
+# Desglose por tier: `tier_usado = ''` ocurre en llamadas rechazadas antes de
+# resolver el tier del partner (ej. tier insuficiente sí lo trae, auth
+# rechazada no) — se excluye del desglose por la misma razón que arriba.
+METRICAS_POR_PARTNER_TIER = f"""
+SELECT
+    partner_id,
+    tier_usado,
+    count() AS total_llamadas
+FROM {_DB}.LOG_LLAMADAS_PARTNER
+WHERE partner_id != '' AND tier_usado != ''
+GROUP BY partner_id, tier_usado
+ORDER BY partner_id, total_llamadas DESC
+"""

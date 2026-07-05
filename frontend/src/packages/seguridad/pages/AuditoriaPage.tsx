@@ -1,8 +1,10 @@
 import { useQuery } from '@tanstack/react-query'
+import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { seguridadApi } from '../api/seguridad.api'
 import styles from './SeguridadPages.module.css'
 
 export function AuditoriaPage() {
+  useDocumentTitle('Auditoría')
   const { data, isLoading, isError } = useQuery({
     queryKey: ['seguridad', 'auditoria'],
     queryFn:  () => seguridadApi.auditoria(50),
@@ -13,7 +15,6 @@ export function AuditoriaPage() {
   return (
     <section className={styles.page}>
       <h1 className={styles.heading}>Auditoría</h1>
-      <span className={styles.subtitle}>// operaciones sensibles registradas por el sistema (CU-O18)</span>
 
       {isError && <div className={styles.errorBox}>No se pudo cargar la auditoría (¿sesión de admin?).</div>}
 

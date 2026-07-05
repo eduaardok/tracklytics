@@ -9,13 +9,21 @@
    Fondo en un cuarto escalón tonal (oklch(0.11 0.011 285), entre --color-bg
    y --color-surface) — DESIGN.md, "Player Controls": el player está por
    encima del fondo pero no es una superficie más, es su propia capa. */
+/* Grid de 3 columnas (no flex): con flex simple, agregar volumen/cola al
+   grupo derecho lo hizo más pesado que `.trackInfo` y la barra de progreso
+   (dentro de `.controls`, columna central) dejó de verse centrada en el
+   ancho total — quedaba corrida hacia la derecha. Con columnas `1fr / auto /
+   1fr`, las dos columnas laterales siempre reparten el espacio sobrante en
+   partes iguales sin importar cuánto pese cada una, así que la columna
+   central queda centrada de verdad. */
 .bar {
   position: fixed;
   left: 0;
   right: 0;
   bottom: 0;
   z-index: var(--z-sticky);
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr minmax(0, 560px) 1fr;
   align-items: center;
   gap: var(--space-lg);
   height: var(--player-bar-height);
@@ -26,13 +34,12 @@
   border-top: 1px solid var(--color-border);
 }
 
-/* ── Track info (izquierda) ── */
+/* ── Track info (izquierda, columna 1 del grid) ── */
 .trackInfo {
   display: flex;
   align-items: center;
   gap: var(--space-sm);
   min-width: 0;
-  flex: 1 1 220px;
   cursor: pointer;
   border-radius: var(--radius-sm);
   padding: 6px 8px;
@@ -47,32 +54,43 @@
   box-shadow: 0 0 0 2px oklch(0.48 0.15 290 / 0.5);
 }
 
+/* Contenedor de la portada real (AlbumArt) + el badge del ecualizador
+   superpuesto — antes este `.art` ERA el cuadro con gradiente + ecualizador
+   (sin portada real); ahora solo posiciona el badge sobre `AlbumArt`. */
 .art {
   position: relative;
-  width: 44px;
-  height: 44px;
-  border-radius: var(--radius-sm);
-  background: linear-gradient(135deg, var(--color-primary), var(--color-accent));
-  display: flex;
-  align-items: center;
-  justify-content: center;
   flex-shrink: 0;
 }
 
 /* Mini ecualizador — reacciona al estado real de reproducción (isPlaying),
-   no es decoración: barras estáticas cuando está en pausa. */
+   no es decoración: barras estáticas cuando está en pausa. Superpuesto en la
+   esquina de la portada real en vez de ser el único contenido de `.art`. */
+.eqBadge {
+  position: absolute;
+  right: -4px;
+  bottom: -4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--color-primary);
+  box-shadow: 0 0 0 2px oklch(0.11 0.011 285);
+}
+
 .eq {
   display: flex;
   align-items: flex-end;
   gap: 2px;
-  height: 16px;
+  height: 10px;
 }
 
 .eqBar {
-  width: 3px;
+  width: 2px;
   height: 40%;
   border-radius: 1px;
-  background: oklch(1 0 0 / 0.85);
+  background: oklch(1 0 0 / 0.9);
 }
 
 .eqAnimated .eqBar { animation: eqPulse 900ms ease-in-out infinite; }
@@ -112,12 +130,12 @@
   text-overflow: ellipsis;
 }
 
-/* ── Transport + scrubber (centro) ── */
+/* ── Transport + scrubber (columna 2 del grid, centro real) ── */
 .controls {
   display: flex;
   align-items: center;
   gap: var(--space-md);
-  flex: 2 1 360px;
+  width: 100%;
   min-width: 0;
 }
 
@@ -201,6 +219,79 @@
   pointer-events: none;
 }
 
+/* ── Columna 3 del grid: volumen + cola + acciones, alineado a la derecha ── */
+.rightGroup {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-md);
+  min-width: 0;
+}
+
+.volume {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  flex-shrink: 0;
+}
+
+.volumeSlider {
+  width: 80px;
+  accent-color: var(--color-primary);
+  cursor: pointer;
+}
+
+.iconBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  width: 30px;
+  height: 30px;
+  flex-shrink: 0;
+  border-radius: var(--radius-sm);
+  border: none;
+  background: transparent;
+  color: var(--color-muted);
+  cursor: pointer;
+  transition:
+    color var(--duration-fast) var(--ease-standard),
+    background-color var(--duration-fast) var(--ease-standard);
+}
+
+.iconBtn:hover { color: var(--color-ink); background-color: oklch(1 0 0 / 0.06); }
+
+.iconBtn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px oklch(0.48 0.15 290 / 0.5);
+}
+
+.iconBtnActive { color: var(--color-primary-light); }
+
+.queueWrap {
+  position: relative;
+  display: flex;
+}
+
+.queueBadge {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  min-width: 14px;
+  height: 14px;
+  padding: 0 3px;
+  border-radius: var(--radius-pill);
+  background: var(--color-accent);
+  color: oklch(0.09 0.010 285);
+  font-family: var(--font-mono);
+  font-size: 0.5625rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
 /* ── Acciones reales (favorito / agregar a playlist) — inyectadas desde
    `packages/catalogo` vía prop `actions`, ver PlayerBar.tsx ── */
 .actions {
@@ -217,5 +308,6 @@
 @media (max-width: 640px) {
   .bar      { gap: var(--space-sm); padding: 0 var(--space-md); }
   .artist   { display: none; }
+  .volume   { display: none; }
   .actions  { display: none; }
 }

@@ -1,5 +1,9 @@
 # Capability: creadores
 
+## Purpose
+
+Permitir que un usuario autenticado solicite convertirse en artista, que `admin` apruebe o rechace esa cuenta, y que un artista con cuenta aprobada suba tracks que `admin` revisa y aprueba individualmente — promoviéndolos al catálogo real (`FACT_TRACKS`) al aprobarlos.
+
 ## Objetivo
 
 Permitir que un usuario autenticado solicite convertirse en artista, que `admin` apruebe o rechace esa cuenta, y que un artista con cuenta aprobada suba tracks que `admin` revisa y aprueba individualmente — promoviéndolos al catálogo real (`FACT_TRACKS`) al aprobarlos.

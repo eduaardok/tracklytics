@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ErrorState } from '@shared/components/ErrorState'
+import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
+import { UserPicker, type UserSearchResult } from '@shared/components/UserPicker'
 import { experienciaApi } from '../api/experiencia.api'
 import styles from './ExperienciaPages.module.css'
 
@@ -14,10 +16,11 @@ function fmtDate(iso: string) {
 // (design.md de `experiencia`, "elegibilidad de plan"); el backend rechaza
 // cualquier otro plan con 403.
 export function FamiliaAdminPage() {
+  useDocumentTitle('Plan familiar')
   const queryClient = useQueryClient()
-  const [titularUsuarioId, setTitularUsuarioId] = useState('')
+  const [titularUser, setTitularUser] = useState<UserSearchResult | null>(null)
   const [suscripcionId, setSuscripcionId] = useState('')
-  const [miembroUsuarioId, setMiembroUsuarioId] = useState('')
+  const [miembroUser, setMiembroUser] = useState<UserSearchResult | null>(null)
   const [msg, setMsg] = useState<{ tipo: 'ok' | 'error'; texto: string } | null>(null)
 
   const plan = useQuery({
@@ -27,19 +30,19 @@ export function FamiliaAdminPage() {
   })
 
   const crearTitular = useMutation({
-    mutationFn: () => experienciaApi.crearTitular(titularUsuarioId),
+    mutationFn: () => experienciaApi.crearTitular(titularUser!.usuario_id),
     onSuccess: (res) => {
       setMsg({ tipo: 'ok', texto: `Titular creado — suscripcion_id: ${res.suscripcion_id}` })
       setSuscripcionId(res.suscripcion_id)
-      setTitularUsuarioId('')
+      setTitularUser(null)
     },
     onError: () => setMsg({ tipo: 'error', texto: 'No se pudo crear el titular (¿suscripción premium activa?).' }),
   })
 
   const agregarMiembro = useMutation({
-    mutationFn: () => experienciaApi.agregarMiembro(suscripcionId, miembroUsuarioId),
+    mutationFn: () => experienciaApi.agregarMiembro(suscripcionId, miembroUser!.usuario_id),
     onSuccess: () => {
-      setMiembroUsuarioId('')
+      setMiembroUser(null)
       queryClient.invalidateQueries({ queryKey: ['experiencia', 'familia', suscripcionId] })
     },
     onError: () => setMsg({ tipo: 'error', texto: 'No se pudo agregar el miembro (¿límite alcanzado o ya en otro plan?).' }),
@@ -57,24 +60,19 @@ export function FamiliaAdminPage() {
   return (
     <section className={styles.page}>
       <h1 className={styles.heading}>Plan familiar</h1>
-      <span className={styles.subtitle}>// designar titular y gestionar miembros — solo suscripciones premium</span>
 
       <p className={styles.sectionLabel}>Designar titular</p>
       <form
         className={styles.form}
-        onSubmit={(e) => { e.preventDefault(); setMsg(null); if (titularUsuarioId.trim()) crearTitular.mutate() }}
+        onSubmit={(e) => { e.preventDefault(); setMsg(null); if (titularUser) crearTitular.mutate() }}
       >
-        <div className={styles.field}>
-          <label className={styles.fieldLabel} htmlFor="titular-usuario">usuario_id</label>
-          <input
-            id="titular-usuario"
-            className={styles.input}
-            value={titularUsuarioId}
-            onChange={(e) => setTitularUsuarioId(e.target.value)}
-            placeholder="id de PocketBase del usuario"
-          />
-        </div>
-        <button className={styles.btnPrimary} type="submit" disabled={crearTitular.isPending || !titularUsuarioId.trim()}>
+        <UserPicker
+          label="Usuario"
+          selected={titularUser}
+          onSelect={setTitularUser}
+          onClear={() => setTitularUser(null)}
+        />
+        <button className={styles.btnPrimary} type="submit" disabled={crearTitular.isPending || !titularUser}>
           {crearTitular.isPending ? 'Creando…' : 'Crear titular'}
         </button>
       </form>
@@ -139,19 +137,15 @@ export function FamiliaAdminPage() {
           {total > 0 && total < limite && (
             <form
               className={styles.form}
-              onSubmit={(e) => { e.preventDefault(); if (miembroUsuarioId.trim()) agregarMiembro.mutate() }}
+              onSubmit={(e) => { e.preventDefault(); if (miembroUser) agregarMiembro.mutate() }}
             >
-              <div className={styles.field}>
-                <label className={styles.fieldLabel} htmlFor="miembro-usuario">Agregar miembro — usuario_id</label>
-                <input
-                  id="miembro-usuario"
-                  className={styles.input}
-                  value={miembroUsuarioId}
-                  onChange={(e) => setMiembroUsuarioId(e.target.value)}
-                  placeholder="id de PocketBase del usuario"
-                />
-              </div>
-              <button className={styles.btnPrimary} type="submit" disabled={agregarMiembro.isPending || !miembroUsuarioId.trim()}>
+              <UserPicker
+                label="Agregar miembro — usuario"
+                selected={miembroUser}
+                onSelect={setMiembroUser}
+                onClear={() => setMiembroUser(null)}
+              />
+              <button className={styles.btnPrimary} type="submit" disabled={agregarMiembro.isPending || !miembroUser}>
                 {agregarMiembro.isPending ? 'Agregando…' : 'Agregar miembro'}
               </button>
             </form>

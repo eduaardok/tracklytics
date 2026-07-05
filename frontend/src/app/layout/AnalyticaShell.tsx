@@ -4,6 +4,7 @@ import { RequireSuscripcionActiva } from '@packages/analitica'
 import { UserMenu } from '@packages/seguridad'
 import { getRole } from '@shared/lib/session'
 import { RouteLoadingFallback } from '@shared/components/RouteLoadingFallback'
+import { ZoneSwitcher } from '@shared/components/ZoneSwitcher'
 import styles from './AnalyticaShell.module.css'
 
 const ACTIVE_CLS    = `${styles.navItem} ${styles.navActive}`
@@ -33,10 +34,12 @@ export function AnalyticaShell() {
   return (
     <div className={styles.shell}>
       <header className={styles.brandBar}>
-        <a href="/" className={styles.wordmark} aria-label="Tracklytics — volver al catálogo">
+        <span className={styles.wordmark}>
+          <img src="/logo.png" alt="" className={styles.logo} width={24} height={24} />
           <span className={styles.brand}>Tracklytics</span>
           <span className={styles.panelBadge}>panel</span>
-        </a>
+        </span>
+        <ZoneSwitcher zone="analitica" />
         <UserMenu />
       </header>
 

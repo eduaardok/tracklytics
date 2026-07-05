@@ -56,3 +56,24 @@ async def find_by_api_key(api_key: str) -> dict | None:
     resp.raise_for_status()
     items = resp.json().get("items", [])
     return items[0] if items else None
+
+
+async def list_por_ids(ids: list[str]) -> dict[str, dict]:
+    """Resuelve nombre/tier de un conjunto de partners por id de PocketBase,
+    para enriquecer una agregación de `LOG_LLAMADAS_PARTNER` (que solo guarda
+    `partner_id`, no el nombre). Pensado para conjuntos chicos (decenas de
+    partners, no miles) — una sola llamada con filtro `id?=` en vez de N
+    llamadas individuales."""
+    if not ids:
+        return {}
+
+    token = await _get_admin_token()
+    filtro = " || ".join(f'id="{pid}"' for pid in ids)
+    async with httpx.AsyncClient(timeout=10) as client:
+        resp = await client.get(
+            f"{PB_URL}/api/collections/{COLLECTION}/records",
+            params={"filter": filtro, "page": 1, "perPage": len(ids)},
+            headers={"Authorization": f"Bearer {token}"},
+        )
+    resp.raise_for_status()
+    return {item["id"]: item for item in resp.json().get("items", [])}

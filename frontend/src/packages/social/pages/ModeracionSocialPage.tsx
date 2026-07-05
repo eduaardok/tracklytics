@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { socialApi } from '../api/social.api'
 import type { Comentario, EstadoModeracion } from '../types'
 import styles from './SocialPages.module.css'
@@ -22,6 +23,7 @@ const FILTROS: { value: string; label: string }[] = [
 ]
 
 export function ModeracionSocialPage() {
+  useDocumentTitle('Moderación social')
   const queryClient = useQueryClient()
   const [estado, setEstado] = useState('')
 
@@ -44,7 +46,6 @@ export function ModeracionSocialPage() {
   return (
     <section className={styles.page}>
       <h1 className={styles.heading}>Moderación social</h1>
-      <span className={styles.subtitle}>// cola de comentarios — ocultar o eliminar contenido publicado</span>
 
       <div className={styles.queuePanel}>
         <div className={styles.queueHeader}>

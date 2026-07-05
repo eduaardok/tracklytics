@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
+import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
+import { TrackPicker, type TrackSearchResult } from '@shared/components/TrackPicker'
 import { socialApi } from '../api/social.api'
 import styles from './SocialPages.module.css'
 
@@ -10,8 +12,9 @@ function fmtDate(iso: string) {
 }
 
 export function SeguidosSocialPage() {
+  useDocumentTitle('Social')
   const navigate = useNavigate()
-  const [factIdInput, setFactIdInput] = useState('')
+  const [selectedTrack, setSelectedTrack] = useState<TrackSearchResult | null>(null)
 
   const seguidos = useQuery({
     queryKey: ['social', 'seguimiento'],
@@ -23,7 +26,6 @@ export function SeguidosSocialPage() {
   return (
     <section className={styles.page}>
       <h1 className={styles.heading}>Social</h1>
-      <span className={styles.subtitle}>// artistas que sigues y acceso a comentarios de un track</span>
 
       <p className={styles.sectionLabel}>Artistas seguidos</p>
 
@@ -54,24 +56,25 @@ export function SeguidosSocialPage() {
       <p className={styles.sectionLabel} style={{ marginTop: 'var(--space-xl)' }}>Comentar un track</p>
       <p className={styles.emptyBody} style={{ marginBottom: 0 }}>
         La navegación desde el catálogo hacia el detalle de un track la construye la capability
-        <code> experiencia</code>. Mientras tanto, ingresa el identificador del track:
+        <code> experiencia</code>. Mientras tanto, busca el track:
       </p>
       <form
         className={styles.jumpForm}
+        style={{ alignItems: 'flex-end' }}
         onSubmit={(e) => {
           e.preventDefault()
-          if (factIdInput.trim()) navigate(`/social/track/${factIdInput.trim()}`)
+          if (selectedTrack) navigate(`/social/track/${selectedTrack.fact_id}`)
         }}
       >
-        <input
-          className={styles.jumpInput}
-          type="number"
-          min={1}
-          value={factIdInput}
-          onChange={(e) => setFactIdInput(e.target.value)}
-          placeholder="fact_id del track"
-        />
-        <button className={styles.btnPrimary} type="submit">Ir</button>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <TrackPicker
+            label="Track"
+            selected={selectedTrack}
+            onSelect={setSelectedTrack}
+            onClear={() => setSelectedTrack(null)}
+          />
+        </div>
+        <button className={styles.btnPrimary} type="submit" disabled={!selectedTrack}>Ir</button>
       </form>
     </section>
   )

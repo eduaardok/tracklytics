@@ -1,5 +1,13 @@
 # Capability: experiencia
 
+## Purpose
+
+Capturar telemetría de consumo real (reproducción enriquecida, recomendaciones), dar a
+Usuario B2C un canal de soporte, reflejar las playlists del usuario en el motor analítico para
+consulta táctica, permitir agrupar suscriptores bajo un plan familiar, y completar las dos
+piezas de experiencia diferidas en capabilities anteriores: portada real de álbum/artista/track
+y reproducción de audio real.
+
 ## Objetivo
 
 Capturar telemetría de consumo real (reproducción enriquecida, recomendaciones), dar a
@@ -44,9 +52,7 @@ real, reproducción real) a la espera de esta capability.
 | Operativo | Lead Data Engineer / CTO | Experiencia | CU-O51 Crear titular de plan familiar | Como Lead Data Engineer/CTO, quiero designar a un usuario con suscripción activa como titular de un plan familiar, para habilitar que agregue miembros |
 | Operativo | Lead Data Engineer / CTO | Experiencia | CU-O52 Agregar miembro a plan familiar | Como Lead Data Engineer/CTO, quiero agregar un usuario como miembro de un plan familiar existente, para que comparta el beneficio de la suscripción del titular |
 | Operativo | Lead Data Engineer / CTO | Experiencia | CU-O53 Quitar miembro de plan familiar | Como Lead Data Engineer/CTO, quiero quitar a un miembro de un plan familiar, para reflejar cuando esa persona deja de compartir la suscripción |
-
 ## Requirements
-
 ### Requirement: Registro de evento de reproducción enriquecido
 El sistema SHALL registrar, de forma síncrona en el momento de la reproducción, un evento enriquecido con el dispositivo, la sesión y el porcentaje completado de la reproducción, adicional al registro de historial que ya existe. Este evento SHALL ser independiente del cálculo de engagement ya existente — ninguno de los dos sustituye al otro.
 
@@ -133,7 +139,11 @@ El sistema SHALL permitir a un usuario con rol analyst o admin consultar, a part
 - **THEN** el sistema rechaza la operación indicando que es exclusiva de Cliente B2B o admin
 
 ### Requirement: Gestión de plan familiar
-El sistema SHALL permitir a un usuario con rol admin designar como titular de un plan familiar a un usuario con una suscripción activa en el plan premium (B2C), y agregar o quitar miembros de ese plan familiar. El sistema SHALL rechazar designar como titular a un usuario cuya suscripción activa no sea del plan premium. El sistema SHALL rechazar agregar un miembro si el plan familiar ya alcanzó el límite de 5 personas, incluido el titular. Un usuario SHALL poder ser titular o miembro de, como máximo, un plan familiar activo a la vez.
+El sistema SHALL permitir a un usuario con rol admin designar como titular de un plan familiar a un usuario con una suscripción activa en el plan premium (B2C), y agregar o quitar miembros de ese plan familiar. El admin SHALL poder localizar al usuario objetivo (titular o miembro) mediante una búsqueda por nombre o correo, sin requerir que conozca ni escriba su `usuario_id`. El sistema SHALL rechazar designar como titular a un usuario cuya suscripción activa no sea del plan premium. El sistema SHALL rechazar agregar un miembro si el plan familiar ya alcanzó el límite de 5 personas, incluido el titular. Un usuario SHALL poder ser titular o miembro de, como máximo, un plan familiar activo a la vez.
+
+#### Scenario: Buscar el usuario por nombre o correo antes de designarlo titular o miembro
+- **WHEN** un usuario con rol admin escribe parte del nombre o correo de un usuario para designarlo titular o agregarlo como miembro de un plan familiar
+- **THEN** el sistema muestra las coincidencias encontradas para que el admin seleccione el usuario exacto
 
 #### Scenario: Crear un titular de plan familiar
 - **WHEN** un usuario con rol admin designa como titular a un usuario con suscripción activa en el plan premium que no es titular ni miembro de otro plan familiar activo
@@ -204,3 +214,4 @@ El sistema SHALL permitir reproducir audio real de un track mediante búsqueda p
 #### Scenario: Reproducción real no disponible — simulada
 - **WHEN** un Usuario B2C intenta reproducir un track y no hay conexión, no se encuentra un resultado, o falla la carga/inicialización del directorio externo
 - **THEN** el sistema simula la reproducción de ese track en el reproductor persistente (progreso avanzando en tiempo real durante `duration_ms`, control de pausa/reanudación funcional), sin mostrarlo como un estado de error o no disponible
+

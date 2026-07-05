@@ -1,7 +1,6 @@
 import { NavLink } from 'react-router-dom'
+import type { NavItem as Item } from './AppShell'
 import styles from './MobileNavDrawer.module.css'
-
-type Item = { to: string; label: string; end?: boolean }
 
 type Props = {
   open: boolean
@@ -46,6 +45,7 @@ export function MobileNavDrawer({ open, onClose, primary, secondary, reservePlay
             onClick={onClose}
             className={({ isActive }) => (isActive ? `${styles.navItem} ${styles.navActive}` : styles.navItem)}
           >
+            <item.icon className={styles.navIcon} size={18} aria-hidden="true" />
             {item.label}
           </NavLink>
         ))}
@@ -59,6 +59,7 @@ export function MobileNavDrawer({ open, onClose, primary, secondary, reservePlay
             onClick={onClose}
             className={({ isActive }) => (isActive ? `${styles.navItem} ${styles.navActive}` : styles.navItem)}
           >
+            <item.icon className={styles.navIcon} size={18} aria-hidden="true" />
             {item.label}
           </NavLink>
         ))}

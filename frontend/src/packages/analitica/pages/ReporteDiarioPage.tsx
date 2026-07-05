@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { analiticaApi } from '../api/analitica.api'
 import styles from './ReporteDiarioPage.module.css'
 
@@ -20,6 +21,7 @@ function StatusPill({ status }: { status: string }) {
 // real client-side (sin pasar por el diálogo de impresión del navegador)
 // queda fuera de alcance de este bloque — ver docs/decisiones-refactorizacion.md.
 export function ReporteDiarioPage() {
+  useDocumentTitle('Reporte diario operativo')
   const [fecha, setFecha] = useState(todayISO())
 
   const reporte = useQuery({

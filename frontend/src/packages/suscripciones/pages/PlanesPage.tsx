@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { getRole } from '@shared/lib/session'
+import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { suscripcionesApi } from '../api/suscripciones.api'
 import { PLAN_ACTIVO_QUERY_KEY } from '../hooks/usePlanActivo'
 import type { Plan } from '../types'
@@ -23,6 +24,7 @@ function fmtPrecio(precio: number, moneda: string): string {
 // distintas solo duplicaría el fetch de /suscripciones/activa sin aportar
 // nada que el legacy no resolviera ya en una página.
 export function PlanesPage() {
+  useDocumentTitle('Mi plan')
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const onboarding = searchParams.get('onboarding') === '1'

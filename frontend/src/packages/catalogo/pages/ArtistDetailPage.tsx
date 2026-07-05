@@ -2,7 +2,9 @@ import { useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { catalogoApi } from '../api/catalogo.api'
 import { TrackCard } from '../components/TrackCard'
+import { AlbumArt } from '@shared/components/AlbumArt'
 import { ErrorState } from '@shared/components/ErrorState'
+import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { ApiError } from '@shared/lib/api-client'
 import type { Track } from '../types'
 import styles from './DetailPages.module.css'
@@ -22,6 +24,8 @@ export function ArtistDetailPage() {
     queryFn:  () => catalogoApi.tracksByArtist(id, 20),
     enabled:  Number.isFinite(id),
   })
+
+  useDocumentTitle(artist?.name ?? 'Artista')
 
   if (loadingArtist) return <p className={styles.loading}>// cargando…</p>
 
@@ -44,9 +48,7 @@ export function ArtistDetailPage() {
   return (
     <section>
       <div className={styles.hero}>
-        <span className={styles.art} aria-hidden="true">
-          {artist.imagen_url ? <img src={artist.imagen_url} alt="" className={styles.artImg} /> : '🎤'}
-        </span>
+        <AlbumArt src={artist.imagen_url} alt="" size={96} />
         <div className={styles.heroMeta}>
           <span className={styles.heroType}>Artista</span>
           <h1 className={styles.heroName}>{artist.name}</h1>

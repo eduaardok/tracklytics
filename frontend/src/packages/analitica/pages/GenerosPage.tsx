@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { analiticaApi } from '../api/analitica.api'
 import { AudioRadarChart, RADAR_COLOR_A } from '../components/AudioRadarChart'
 import { genreToAudioValues } from '../lib/audioFeatures'
@@ -9,6 +10,7 @@ const fmt    = (n: number)     => n.toLocaleString('es-ES')
 const fmtDec = (n: number, d = 2) => n.toFixed(d)
 
 export function GenerosPage() {
+  useDocumentTitle('Perfil de audio por género')
   const [generoId, setGeneroId] = useState<number | null>(null)
 
   const generosQuery = useQuery({

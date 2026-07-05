@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ErrorState } from '@shared/components/ErrorState'
+import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { facturacionApi } from '../api/facturacion.api'
 import type { MetodoPago } from '../types'
 import styles from './FacturacionPages.module.css'
@@ -48,6 +49,7 @@ function SkelRows({ cols, n = 3 }: { cols: number; n?: number }) {
 }
 
 export function FacturacionPage() {
+  useDocumentTitle('Facturación')
   const [selectedMethodId, setSelectedMethodId] = useState('')
   const [showAddForm, setShowAddForm]           = useState(false)
   const [tipo, setTipo]                         = useState('')
@@ -103,7 +105,6 @@ export function FacturacionPage() {
   return (
     <section className={styles.page}>
       <h1 className={styles.heading}>Facturación</h1>
-      <span className={styles.subtitle}>// métodos de pago y pago de suscripción</span>
 
       {/* ── Métodos de pago ── */}
       <p className={styles.sectionLabel}>Método de pago</p>

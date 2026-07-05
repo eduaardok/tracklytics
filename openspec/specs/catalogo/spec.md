@@ -1,5 +1,9 @@
 # Capability: catalogo
 
+## Purpose
+
+Permitir que un Usuario B2C o Cliente B2B explore el catálogo musical global, consulte el detalle de cualquier entidad musical, y gestione su biblioteca personal (favoritos, playlists, historial de reproducción).
+
 ## Objetivo
 
 Permitir que un Usuario B2C o Cliente B2B explore el catálogo musical global, consulte el detalle de cualquier entidad musical, y gestione su biblioteca personal (favoritos, playlists, historial de reproducción).

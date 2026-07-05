@@ -2,6 +2,7 @@ import {
   LineChart, Line, CartesianGrid, XAxis, YAxis, Tooltip, ResponsiveContainer,
 } from 'recharts'
 import { useQuery } from '@tanstack/react-query'
+import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { analiticaApi } from '../api/analitica.api'
 import type { DisponibilidadComponente } from '../types'
 import styles from './DisponibilidadInfraPage.module.css'
@@ -70,6 +71,7 @@ function ComponentePanel({ componente, data }: { componente: string; data: Dispo
 }
 
 export function DisponibilidadInfraPage() {
+  useDocumentTitle('Disponibilidad de infraestructura')
   const disponibilidad = useQuery({
     queryKey: ['analitica', 'disponibilidad'],
     queryFn:  () => analiticaApi.disponibilidad(),

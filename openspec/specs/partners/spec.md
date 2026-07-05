@@ -1,5 +1,9 @@
 # Capability: partners
 
+## Purpose
+
+Permitir que un Partner/Integrador externo consuma datos del catálogo musical mediante una integración programática (API), autenticado y segmentado según su tier de acceso.
+
 ## Objetivo
 
 Permitir que un Partner/Integrador externo consuma datos del catálogo musical mediante una integración programática (API), autenticado y segmentado según su tier de acceso.
@@ -17,6 +21,7 @@ OE2 (Escalabilidad Comercial vía Plataformas de Ecosistema) busca que Tracklyti
 | Nivel empresarial | Departamento | Paquete | Caso de uso | Historia de usuario |
 |---|---|---|---|---|
 | Operativo | Partner / Integrador | Integraciones y socios | CU-O12 Consumir datos del catálogo mediante integración | Como Partner/Integrador, quiero consumir datos del catálogo vía API, para integrarlos en mi propio software de gestión |
+| Operativo | Lead Data Engineer / CTO | Integraciones y socios | CU-O56 Consultar métricas agregadas de uso por partner | Como Lead Data Engineer/CTO, quiero ver el total de llamadas, la tasa de éxito/error y la latencia promedio de cada partner, para monitorear la salud del programa de partners sin consultar la base de datos a mano |
 
 ## Requirements
 
@@ -65,6 +70,25 @@ Cada llamada de API SHALL responder en menos de 2 segundos bajo condiciones norm
 #### Scenario: Respuesta dentro del tiempo esperado
 - **WHEN** un partner con llave de API válida realiza una solicitud a un endpoint dentro de su tier en condiciones normales de carga
 - **THEN** el sistema responde con los datos correspondientes en menos de 2 segundos
+
+### Requirement: Consulta agregada de métricas de uso por partner
+El sistema SHALL exponer, exclusivamente para Lead Data Engineer / CTO (`role=admin`), una
+consulta agregada del registro de llamadas de API por partner: total de llamadas, tasa de
+éxito/error, latencia promedio de las llamadas exitosas, y desglose por tier usado. Esta consulta
+SHALL apoyarse en el mismo registro que ya produce el requisito "Registro de cada llamada de API"
+(esta capability), sin introducir un mecanismo de captura nuevo.
+
+#### Scenario: Consulta exitosa de métricas agregadas
+- **WHEN** un Lead Data Engineer / CTO autenticado solicita las métricas agregadas de uso de partners
+- **THEN** el sistema responde con, para cada partner con al menos una llamada registrada, el total de llamadas, la tasa de éxito/error, la latencia promedio de las llamadas exitosas y el desglose por tier usado
+
+#### Scenario: Acceso denegado a usuarios sin rol de administrador
+- **WHEN** un usuario autenticado sin `role=admin` (Usuario B2C, Cliente B2B o un Partner/Integrador externo autenticado por llave de API) solicita las métricas agregadas de uso de partners
+- **THEN** el sistema rechaza la solicitud sin exponer los datos agregados
+
+#### Scenario: Sin llamadas registradas todavía
+- **WHEN** un Lead Data Engineer / CTO autenticado solicita las métricas agregadas de uso de partners y el registro de llamadas no tiene datos aún
+- **THEN** el sistema responde con una lista vacía, sin error
 
 ## Entradas
 

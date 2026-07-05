@@ -113,24 +113,27 @@ ARTISTS_TOP = """
 SELECT
     a.artist_id                  AS artist_id,
     a.name                       AS name,
+    a.imagen_url                 AS imagen_url,
     count()                      AS track_count,
     round(avg(ft.popularity), 2) AS avg_popularity
 FROM FACT_TRACKS ft
 JOIN DIM_ARTISTS a ON ft.artist_id = a.artist_id
-GROUP BY a.artist_id, a.name
+GROUP BY a.artist_id, a.name, a.imagen_url
 ORDER BY track_count DESC
 LIMIT {limit:UInt32}
 """
 
 ARTISTS_SEARCH = """
 SELECT
-    a.artist_id AS artist_id,
-    a.name      AS name,
-    count()     AS track_count
+    a.artist_id                  AS artist_id,
+    a.name                       AS name,
+    a.imagen_url                 AS imagen_url,
+    count()                      AS track_count,
+    round(avg(ft.popularity), 2) AS avg_popularity
 FROM FACT_TRACKS ft
 JOIN DIM_ARTISTS a ON ft.artist_id = a.artist_id
 WHERE lower(a.name) LIKE lower({pattern:String})
-GROUP BY a.artist_id, a.name
+GROUP BY a.artist_id, a.name, a.imagen_url
 ORDER BY track_count DESC
 LIMIT {limit:UInt32}
 """
@@ -156,14 +159,16 @@ GROUP BY a.artist_id, a.name, a.country, a.imagen_url, s.nombre
 
 ALBUMS_SEARCH = """
 SELECT
-    al.album_id  AS album_id,
-    al.name      AS name,
-    al.release_year AS release_year,
-    count()      AS track_count
+    al.album_id                  AS album_id,
+    al.name                      AS name,
+    al.release_year              AS release_year,
+    al.imagen_url                AS imagen_url,
+    count()                      AS track_count,
+    round(avg(ft.popularity), 2) AS avg_popularity
 FROM FACT_TRACKS ft
 JOIN DIM_ALBUMS al ON ft.album_id = al.album_id
 WHERE lower(al.name) LIKE lower({pattern:String})
-GROUP BY al.album_id, al.name, al.release_year
+GROUP BY al.album_id, al.name, al.release_year, al.imagen_url
 ORDER BY track_count DESC
 LIMIT {limit:UInt32}
 """
@@ -193,7 +198,18 @@ GROUP BY al.album_id, al.name, al.release_year, al.album_type,
          al.total_tracks_listed, al.language, al.imagen_url
 """
 
-GENRES_LIST = "SELECT genre_id AS genre_id, name AS name, mood AS mood FROM DIM_GENRES ORDER BY name"
+GENRES_LIST = """
+SELECT
+    g.genre_id                   AS genre_id,
+    g.name                       AS name,
+    g.mood                       AS mood,
+    count()                      AS track_count,
+    round(avg(ft.popularity), 2) AS avg_popularity
+FROM FACT_TRACKS ft
+JOIN DIM_GENRES g ON ft.genre_id = g.genre_id
+GROUP BY g.genre_id, g.name, g.mood
+ORDER BY g.name
+"""
 
 GENRE_DETAIL = """
 SELECT

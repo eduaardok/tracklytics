@@ -26,3 +26,24 @@ export type PartnerProbeResult = {
   ms:        number
   body:      unknown
 }
+
+// Espejo de la respuesta de `GET /app/v1/partners/metricas` (CU-O56) — vista
+// interna de staff sobre `LOG_LLAMADAS_PARTNER`, no confundir con
+// `PartnerProbeResult` de arriba (una sola llamada de prueba desde la
+// consola). `nombre` cae al propio `partner_id` cuando el backend no pudo
+// resolverlo contra PocketBase (partner ya no existe en el directorio).
+export type PartnerMetricaTier = {
+  tier:            string
+  total_llamadas:  number
+}
+
+export type PartnerMetrica = {
+  partner_id:                    string
+  nombre:                        string
+  total_llamadas:                number
+  llamadas_exitosas:             number
+  llamadas_error:                number
+  tasa_exito_pct:                number
+  latencia_promedio_ms_exitosas: number
+  desglose_por_tier:             PartnerMetricaTier[]
+}

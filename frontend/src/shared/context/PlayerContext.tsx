@@ -5,6 +5,13 @@ export type PlayableTrack = {
   track_name:  string
   artist_name: string
   duration_ms: number
+  // RF-EXP-009: portada real (álbum si existe, si no la del artista) — igual
+  // que `Track.imagen_url` (packages/catalogo/types.ts). Antes este tipo no
+  // lo declaraba: aunque los call-sites de `play()` ya pasaban un `Track`
+  // completo (que sí trae el campo), `PlayerBar` no podía leerlo porque el
+  // tipo lo descartaba estructuralmente — causa raíz de que el reproductor
+  // nunca mostrara portada.
+  imagen_url?: string | null
 }
 
 type PlayerContextValue = {
@@ -26,6 +33,15 @@ type PlayerContextValue = {
   // error se descartaba en silencio y el track seguía "reproduciéndose" sin
   // que el usuario supiera que estaba bloqueado.
   reportPlaybackIssue: (reason: string) => void
+  // Cola de reproducción (iteración de diseño): en memoria únicamente, no
+  // persistida — se vacía al recargar, igual que el resto del estado del
+  // reproductor (ver comentario de `PlayerProvider` más abajo).
+  queue:            PlayableTrack[]
+  enqueue:          (track: PlayableTrack) => void
+  removeFromQueue:  (index: number) => void
+  moveInQueue:      (index: number, direction: -1 | 1) => void
+  volume:           number
+  setVolume:        (volume: number) => void
 }
 
 const PlayerContext = createContext<PlayerContextValue | null>(null)
@@ -62,6 +78,7 @@ type YTPlayerInstance = {
   seekTo: (seconds: number, allowSeekAhead: boolean) => void
   getCurrentTime: () => number
   getDuration: () => number
+  setVolume: (volume: number) => void
 }
 
 let ytApiPromise: Promise<void> | null = null
@@ -132,10 +149,21 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   const [progressMs, setProgressMs]                 = useState(0)
   const [playbackUnavailable, setPlaybackUnavailable] = useState(false)
   const [playbackReason, setPlaybackReason]           = useState<string | null>(null)
+  const [queue, setQueue]                             = useState<PlayableTrack[]>([])
+  const [volume, setVolumeState]                      = useState(0.8)
 
   const timerRef        = useRef<ReturnType<typeof setInterval> | null>(null)
   const ytPlayerRef      = useRef<YTPlayerInstance | null>(null)
   const simulatedRef     = useRef<SimulatedNodes | null>(null)
+  // Espejos en ref de `queue`/`volume`: los callbacks de larga vida (el timer
+  // de progreso simulado, los handlers del YT.Player) se crean una vez por
+  // `play()` y quedarían con el valor de cola/volumen de ESE momento si
+  // leyeran el state directamente (closure obsoleta) — el ref siempre lee el
+  // valor más reciente sin importar cuándo se creó el closure que lo usa.
+  const queueRef         = useRef<PlayableTrack[]>([])
+  const volumeRef        = useRef(volume)
+  useEffect(() => { queueRef.current = queue }, [queue])
+  useEffect(() => { volumeRef.current = volume }, [volume])
   // Progreso simulado por reloj de pared, independiente del audio (que es
   // silencioso/casi inaudible a propósito — ver `startSimulatedPlayback`):
   // `elapsedBase` es lo ya transcurrido antes de la pausa actual,
@@ -178,6 +206,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
         setIsPlaying(false)
         clearTimer()
         stopSimulated()
+        advanceQueue()
         return
       }
       setProgressMs(elapsed)
@@ -209,7 +238,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     osc.type = 'sine'
     osc.frequency.value = 220
     gain.gain.setValueAtTime(0, ctx.currentTime)
-    gain.gain.linearRampToValueAtTime(0.025, ctx.currentTime + 0.05)
+    gain.gain.linearRampToValueAtTime(volumeRef.current * 0.025, ctx.currentTime + 0.05)
     osc.connect(gain)
     gain.connect(ctx.destination)
     osc.start()
@@ -263,6 +292,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
           events: {
             onReady: () => {
               player.playVideo()
+              player.setVolume(volumeRef.current * 100)
               // Watchdog adicional a onError (no lo reemplaza): si en
               // YT_PLAYBACK_WATCHDOG_MS no se llegó a PLAYING ni una vez, se
               // asume el fallo silencioso descrito arriba y se cae al mismo
@@ -293,6 +323,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
               } else if (e.data === window.YT.PlayerState.ENDED) {
                 setIsPlaying(false)
                 clearTimer()
+                advanceQueue()
               }
             },
           },
@@ -339,7 +370,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       } else {
         simResumedAtRef.current = Date.now()
         const target = simulatedRef.current.osc.context.currentTime
-        simulatedRef.current.gain.gain.setTargetAtTime(0.025, target, 0.02)
+        simulatedRef.current.gain.gain.setTargetAtTime(volumeRef.current * 0.025, target, 0.02)
         setIsPlaying(true)
         startSimTicker(currentTrack.duration_ms || 180_000)
       }
@@ -356,6 +387,49 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     setProgressMs(ms)
   }, [])
 
+  const enqueue = useCallback((track: PlayableTrack) => {
+    setQueue((prev) => [...prev, track])
+  }, [])
+
+  const removeFromQueue = useCallback((index: number) => {
+    setQueue((prev) => prev.filter((_, i) => i !== index))
+  }, [])
+
+  const moveInQueue = useCallback((index: number, direction: -1 | 1) => {
+    setQueue((prev) => {
+      const target = index + direction
+      if (target < 0 || target >= prev.length) return prev
+      const next = [...prev]
+      ;[next[index], next[target]] = [next[target], next[index]]
+      return next
+    })
+  }, [])
+
+  const setVolume = useCallback((v: number) => {
+    const clamped = Math.max(0, Math.min(1, v))
+    setVolumeState(clamped)
+    ytPlayerRef.current?.setVolume(clamped * 100)
+    if (simulatedRef.current) {
+      const target = simulatedRef.current.osc.context.currentTime
+      simulatedRef.current.gain.gain.setTargetAtTime(clamped * 0.025, target, 0.02)
+    }
+  }, [])
+
+  // Declaración de función (no `useCallback`) a propósito: se referencia por
+  // nombre desde dentro de `startSimTicker` y del handler `onStateChange` de
+  // YouTube (ambos definidos arriba, antes que `play`) — al ser una
+  // declaración de función se "hoistea" y su cuerpo solo se ejecuta cuando
+  // efectivamente se invoca (evento asíncrono posterior al render), momento
+  // en el que `play` ya existe. Lee `queueRef` (no `queue`) por la misma
+  // razón que el resto de refs de este archivo: evita closures obsoletas en
+  // esos dos callbacks de larga vida.
+  function advanceQueue() {
+    const next = queueRef.current[0]
+    if (!next) return
+    setQueue((prev) => prev.slice(1))
+    play(next)
+  }
+
   useEffect(() => () => { clearTimer(); destroyYtPlayer(); stopSimulated() }, [clearTimer, destroyYtPlayer, stopSimulated])
 
   return (
@@ -364,6 +438,8 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
         currentTrack, isPlaying, progressMs,
         playbackUnavailable, playbackUnavailableReason: playbackReason,
         play, togglePlay, seek, reportPlaybackIssue,
+        queue, enqueue, removeFromQueue, moveInQueue,
+        volume, setVolume,
       }}
     >
       {children}

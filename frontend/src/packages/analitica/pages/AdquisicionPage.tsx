@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
+import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { analiticaApi } from '../api/analitica.api'
 import type { AdquisicionCanal } from '../types'
 import styles from './AdquisicionPage.module.css'
@@ -20,6 +21,7 @@ function pivotByCanal(rows: AdquisicionCanal[]) {
 }
 
 export function AdquisicionPage() {
+  useDocumentTitle('Adquisición de usuarios')
   const adquisicion = useQuery({
     queryKey: ['analitica', 'adquisicion'],
     queryFn:  () => analiticaApi.adquisicion(),

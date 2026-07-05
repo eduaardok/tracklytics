@@ -1,5 +1,9 @@
 # Capability: suscripciones
 
+## Purpose
+
+Permitir que un Usuario B2C se suscriba a un plan premium y que un Cliente B2B se suscriba a un plan B2B (básico/pro/enterprise), habilitando acceso a funciones extendidas según el tier contratado.
+
 ## Objetivo
 
 Permitir que un Usuario B2C se suscriba a un plan premium y que un Cliente B2B se suscriba a un plan B2B (básico/pro/enterprise), habilitando acceso a funciones extendidas según el tier contratado.

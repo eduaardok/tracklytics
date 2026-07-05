@@ -17,6 +17,7 @@ from paquetes.seguridad.queries import (
     PERMISOS_VIGENTES,
     SESION_ABIERTA_POR_DISPOSITIVO,
     USUARIO_EXISTE_EN_DIM,
+    USUARIOS_BUSQUEDA,
 )
 
 router = APIRouter(prefix="/app/v1/seguridad", tags=["Seguridad"])
@@ -183,6 +184,19 @@ class PermisoBody(BaseModel):
     recurso: str
     accion: str
     permitido: bool
+
+
+@router.get("/usuarios/buscar")
+def buscar_usuarios(
+    q: str = Query(""),
+    limit: int = Query(20, ge=1, le=50),
+    admin: dict = Depends(require_admin),
+):
+    if not q.strip():
+        return {"data": []}
+    pattern = f"%{q.strip()}%"
+    rows = query_rows(USUARIOS_BUSQUEDA, {"pattern": pattern, "limit": limit})
+    return {"data": rows}
 
 
 @router.get("/permisos/{usuario_id}")

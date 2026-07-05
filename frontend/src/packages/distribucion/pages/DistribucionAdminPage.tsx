@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { SellosTab } from '../components/SellosTab'
 import { LicenciasTab } from '../components/LicenciasTab'
 import { RestriccionesTab } from '../components/RestriccionesTab'
@@ -13,12 +14,12 @@ const TABS = [
 type TabId = typeof TABS[number]['id']
 
 export function DistribucionAdminPage() {
+  useDocumentTitle('Distribución')
   const [tab, setTab] = useState<TabId>('sellos')
 
   return (
     <section className={styles.page}>
       <h1 className={styles.heading}>Distribución</h1>
-      <span className={styles.subtitle}>// sellos discográficos, licencias por país y restricciones de reproducción</span>
 
       <div className={styles.tabBar} role="tablist">
         {TABS.map((t) => (

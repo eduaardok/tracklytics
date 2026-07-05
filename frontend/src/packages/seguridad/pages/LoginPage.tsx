@@ -1,12 +1,14 @@
 import { useState, type FormEvent } from 'react'
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { isAuthenticated } from '@shared/lib/session'
+import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { resolverDestinoPostAuth } from '@packages/suscripciones'
 import { authApi } from '../api/auth.api'
 import { AuthHero } from './AuthHero'
 import styles from './AuthPages.module.css'
 
 export function LoginPage() {
+  useDocumentTitle('Iniciar sesión')
   const navigate = useNavigate()
   const location = useLocation()
   const [email, setEmail]       = useState('')

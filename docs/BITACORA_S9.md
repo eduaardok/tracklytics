@@ -316,3 +316,87 @@ arriba. A diferencia de las 6 capabilities de la semana, este cambio **extiende 
 | `frontend/src/shared/context/PlayerContext.tsx` | Actualizado — watchdog de reproducción |
 | `openspec/changes/archive/2026-07-04-completar-modelo-base/` | Nuevo — change cerrado |
 | `openspec/specs/analitica/spec.md` | Actualizado — 2 requirements nuevos (adquisición, disponibilidad de infraestructura) |
+
+---
+
+## Continuación de la semana — cierre de la fase de diseño/UX del frontend (4-5 jul 2026)
+
+Cuarto bloque de trabajo de la semana: dos correcciones puntuales reportadas tras iteración de UI
+(fix de header, rediseño del catálogo) y un change OpenSpec para reemplazar los últimos campos de
+ID interno crudo del frontend por selectores con búsqueda. Detalle de decisiones en
+`openspec/changes/archive/2026-07-05-reemplazar-ids-por-busqueda/design.md`; esta entrada resume
+resultados.
+
+### Fix de header — logo y ZoneSwitcher solapados
+
+`AnalyticaShell` y `SeguridadShell` mostraban el indicador de zona (`ZoneSwitcher`, "Volver al
+catálogo") solapado con el nombre del sistema, y les faltaba el logo que sí aparece en el resto de
+la app (`AppShell`). Causa: `.brandBar` en esos dos shells no tenía `gap` ni `flex-shrink: 0` en el
+wordmark, a diferencia de `AppShell`, que ya reservaba espacio correctamente para sus 3 elementos.
+Se igualó el patrón (gap en `.brandBar`, `flex-shrink: 0` en `.wordmark`, logo agregado) sin tocar
+`ZoneSwitcher` en sí.
+
+### Catálogo rediseñado en 4 secciones permanentes
+
+Hallazgo de incoherencia de UX: al buscar en el catálogo, la página seguía mostrando "Explorar por
+género" y "Artistas destacados" por encima de los resultados de búsqueda — dos mecanismos de
+descubrimiento y de resultado mezclados en la misma vista. Se reemplazó por 4 pestañas permanentes
+— **Canciones, Playlists, Artistas, Géneros** —, cada una con su propio buscador y su propia vista
+de destacados (nunca ambos combinados). Aclaración de dominio surgida en el camino: "Playlists" en
+la UI son los álbumes del dataset — el modelo técnico los llama `DIM_ALBUMS`, pero la relación N:M
+real (un track en varias) corresponde al concepto de negocio de playlist, no de álbum musical
+tradicional. No se creó backend nuevo: se reutilizó `GET /albums/search` (ya existente) agregando
+`imagen_url` y `avg_popularity` a esa consulta y a `ARTISTS_TOP`/`ARTISTS_SEARCH`/`GENRES_LIST`
+para que las cards de destacados tuvieran portada y stats. Se renombró la copia visible de
+"Álbum" a "Playlist" en `AlbumDetailPage` para consistencia (la ruta/componente interno no
+cambió).
+
+### Título de pestaña dinámico por página
+
+El `<title>` del navegador era estático en toda la app. Se agregó el hook
+`useDocumentTitle` (`frontend/src/shared/hooks/`) y se aplicó en las 39 páginas de la app, cada una
+con su título (estático o derivado de los datos cargados, ej. nombre del track/artista/playlist).
+
+### `reemplazar-ids-por-busqueda` — último gap de selectores por búsqueda (change cerrado)
+
+Cinco campos pedían un identificador interno crudo (`fact_id` de track o `usuario_id`) escrito a
+mano: disponibilidad por país (distribución), comentar un track (social), permisos
+(administración), auditoría de facturación, y titular/miembro de plan familiar. La búsqueda de
+tracks ya existía (`GET /tracks/search`, capability `catalogo`); la de usuarios no.
+
+- **Backend:** nuevo endpoint de solo lectura `GET /app/v1/seguridad/usuarios/buscar?q=&limit=`
+  en la capability `seguridad` (dueña de `DIM_USUARIO` y de `require_admin`, guard canónico ya
+  reutilizado por creadores/distribucion/experiencia/facturacion/social), filtrando por nombre o
+  correo con `LIKE`.
+- **Frontend:** dos componentes de selección con búsqueda en `shared/components/` —
+  `TrackPicker` y `UserPicker` — generalizando el patrón ya probado de `ArtistPicker`
+  (`packages/analitica/components/`): debounce 300ms, selección por `onMouseDown`, mínimo 2
+  caracteres. Reemplazan los 5 campos de ID crudo; el campo `suscripcion_id` de plan familiar
+  quedó igual, al no ser un identificador de usuario.
+- **Alcance del change OpenSpec:** un solo change multi-capability (`distribucion`, `social`,
+  `seguridad`, `facturacion`, `experiencia`) en vez de 5 separados — es el mismo patrón de UX
+  repetido de forma idéntica, y el endpoint nuevo es infraestructura compartida por 3 de las 5.
+- **Verificación:** curl real contra el endpoint nuevo (401 sin token, 403 con token no-admin,
+  200 con coincidencias por nombre/correo, lista vacía sin coincidencias); Playwright con sesión
+  admin real recorriendo las 7 vistas tocadas (2 shells + 5 formularios), 0 errores de consola;
+  `tsc --noEmit` y `npm run build` limpios.
+
+### Artefactos entregados (cuarto bloque)
+
+| Artefacto | Estado |
+|---|---|
+| `frontend/src/app/layout/{AnalyticaShell,SeguridadShell}.tsx` + `.module.css` | Corregido — logo y espaciado del header |
+| `frontend/src/packages/catalogo/pages/CatalogPage.tsx` | Reescrito — 4 secciones permanentes con destacados + búsqueda propia |
+| `api/paquetes/catalogo/queries.py` | Actualizado — `imagen_url`/`avg_popularity` en `ARTISTS_TOP`, `ARTISTS_SEARCH`, `ALBUMS_SEARCH`, `GENRES_LIST` |
+| `frontend/src/shared/hooks/useDocumentTitle.ts` | Nuevo — título de pestaña dinámico, aplicado en 39 páginas |
+| `openspec/changes/archive/2026-07-05-reemplazar-ids-por-busqueda/` | Nuevo — change cerrado |
+| `api/paquetes/seguridad/{queries,router}.py` | Actualizado — endpoint `GET /usuarios/buscar` |
+| `frontend/src/shared/components/{TrackPicker,UserPicker}.tsx` + `.module.css` | Nuevos |
+| `openspec/specs/{distribucion,social,seguridad,facturacion,experiencia}/spec.md` | Actualizados — selección por búsqueda en vez de ID crudo |
+
+### Deuda técnica identificada (cuarto bloque)
+
+| Ítem | Impacto | Estimación |
+|---|---|---|
+| `TrackPicker`/`UserPicker` duplican el esqueleto de `ArtistPicker` en vez de una versión genérica parametrizada | Cosmético — 3 componentes casi idénticos en vez de 1 genérico | Evaluado y descartado por ahora (design.md): generalizar forzaría tocar los 3 usos existentes de `ArtistPicker` sin ahorro real de código con solo 3 variantes concretas |
+| "Playlists" en la UI vive sobre la tabla técnica `DIM_ALBUMS` | Ninguno funcional — es una decisión de naming de producto, no un gap de datos | Si se requiere un concepto de playlist curada/pública distinto del álbum del dataset, sería una capability nueva, no un rename |

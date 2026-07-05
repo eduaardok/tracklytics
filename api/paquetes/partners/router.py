@@ -1,15 +1,61 @@
 from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request
 
 from core.database import query_one, query_rows
-from paquetes.partners.deps import require_partner
+from paquetes.partners import pb_client
+from paquetes.partners.deps import require_partner, require_partner_admin
 from paquetes.partners.queries import (
     ALBUM_DETAIL, ALBUMS_LIST,
     ARTIST_DETAIL, ARTISTS_LIST,
     GENRE_DETAIL, GENRES_LIST,
+    METRICAS_POR_PARTNER, METRICAS_POR_PARTNER_TIER,
     TRACK_DETAIL, TRACKS_EXPORT, TRACKS_LIST,
 )
 
 router = APIRouter(prefix="/partners/v1", tags=["Partners"])
+
+# Router interno (sesión de staff, no llave de API de partner) — separado del
+# `router` de arriba a propósito, ver design.md de `partners-metricas-uso`:
+# mismo patrón ya usado por `analitica`/`gestion_datos` (router público +
+# router `/app/v1/...` interno dentro del mismo paquete).
+v1_router = APIRouter(prefix="/app/v1/partners", tags=["Partners v1"], dependencies=[Depends(require_partner_admin)])
+
+
+@v1_router.get("/metricas")
+async def metricas_por_partner():
+    """CU-O56: total de llamadas, tasa de éxito/error, latencia promedio de
+    llamadas exitosas y desglose por tier, agregado por partner desde
+    `LOG_LLAMADAS_PARTNER`. El nombre del partner no vive en ClickHouse
+    (`DIM_PARTNER` está cubierta por la colección de PocketBase `partners`,
+    ver completar-modelo-base/design.md) — se resuelve aparte."""
+    filas = query_rows(METRICAS_POR_PARTNER)
+    if not filas:
+        return {"data": []}
+
+    tiers = query_rows(METRICAS_POR_PARTNER_TIER)
+    desglose: dict[str, list[dict]] = {}
+    for fila in tiers:
+        desglose.setdefault(fila["partner_id"], []).append({
+            "tier": fila["tier_usado"],
+            "total_llamadas": fila["total_llamadas"],
+        })
+
+    nombres = await pb_client.list_por_ids([f["partner_id"] for f in filas])
+
+    return {
+        "data": [
+            {
+                "partner_id": f["partner_id"],
+                "nombre": nombres.get(f["partner_id"], {}).get("nombre", f["partner_id"]),
+                "total_llamadas": f["total_llamadas"],
+                "llamadas_exitosas": f["llamadas_exitosas"],
+                "llamadas_error": f["llamadas_error"],
+                "tasa_exito_pct": f["tasa_exito_pct"],
+                "latencia_promedio_ms_exitosas": f["latencia_promedio_ms_exitosas"],
+                "desglose_por_tier": desglose.get(f["partner_id"], []),
+            }
+            for f in filas
+        ]
+    }
 
 # RF-PAR-003: campos devueltos por tier en los endpoints de tracks. Cada tier
 # incluye los campos del anterior — básico ve solo lo esencial, enterprise ve

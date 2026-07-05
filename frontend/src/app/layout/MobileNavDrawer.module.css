@@ -80,9 +80,14 @@
   box-shadow: 0 0 0 2px oklch(0.48 0.15 290 / 0.5);
 }
 
+.navIcon {
+  flex-shrink: 0;
+}
+
 .navItem {
   display: flex;
   align-items: center;
+  gap: var(--space-sm);
   padding: 10px var(--space-sm);
   font-family: var(--font-sans);
   font-size: 0.875rem;

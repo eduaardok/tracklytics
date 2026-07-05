@@ -1,8 +1,11 @@
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
+import { ListPlus } from 'lucide-react'
 import { catalogoApi } from '../api/catalogo.api'
 import { usePlayer } from '@shared/context/PlayerContext'
+import { AlbumArt } from '@shared/components/AlbumArt'
 import { ErrorState } from '@shared/components/ErrorState'
+import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { ApiError, apiErrorMessage } from '@shared/lib/api-client'
 import { useFavoritos } from '../hooks/useFavoritos'
 import { AddToPlaylistMenu } from '../components/AddToPlaylistMenu'
@@ -35,7 +38,7 @@ function FeatureBar({ label, desc, value }: { label: string; desc: string; value
 export function TrackDetailPage() {
   const { factId } = useParams<{ factId: string }>()
   const navigate = useNavigate()
-  const { play, reportPlaybackIssue } = usePlayer()
+  const { play, reportPlaybackIssue, enqueue } = usePlayer()
   const { isAuthenticated, isFavorite, toggle, toggleError } = useFavoritos()
   const { esPremium, isLoading: planLoading } = usePlanActivo()
 
@@ -46,6 +49,8 @@ export function TrackDetailPage() {
     queryFn:  () => catalogoApi.trackDetailByFact(id),
     enabled:  Number.isFinite(id),
   })
+
+  useDocumentTitle(track?.track_name ?? 'Track')
 
   if (isLoading) return <p className={styles.loading}>// cargando…</p>
 
@@ -68,7 +73,7 @@ export function TrackDetailPage() {
   return (
     <section>
       <div className={styles.hero}>
-        <span className={styles.art} aria-hidden="true">♪</span>
+        <AlbumArt src={track.imagen_url} alt="" size={96} />
         <div className={styles.heroMeta}>
           <span className={styles.heroType}>Canción</span>
           <h1 className={styles.heroName}>{track.track_name}</h1>
@@ -106,6 +111,14 @@ export function TrackDetailPage() {
               }}
             >
               ▶ Reproducir
+            </button>
+            <button
+              type="button"
+              className={styles.btnGhost}
+              onClick={() => enqueue(track)}
+            >
+              <ListPlus size={16} aria-hidden="true" style={{ verticalAlign: '-3px', marginRight: 4 }} />
+              Agregar a la cola
             </button>
             {isAuthenticated && (
               <>

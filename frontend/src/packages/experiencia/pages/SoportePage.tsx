@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ErrorState } from '@shared/components/ErrorState'
+import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { experienciaApi } from '../api/experiencia.api'
 import type { EstadoTicket, Ticket } from '../types'
 import styles from './ExperienciaPages.module.css'
@@ -25,6 +26,7 @@ function EstadoBadge({ estado }: { estado: EstadoTicket }) {
 // el estado de los propios — el resto de la gestión (consulta global,
 // actualización de estado) es exclusiva de admin y vive en `TicketsAdminPage`.
 export function SoportePage() {
+  useDocumentTitle('Soporte')
   const queryClient = useQueryClient()
   const [asunto, setAsunto] = useState('')
   const [descripcion, setDescripcion] = useState('')
@@ -49,7 +51,6 @@ export function SoportePage() {
   return (
     <section className={styles.page}>
       <h1 className={styles.heading}>Soporte</h1>
-      <span className={styles.subtitle}>// crea un ticket y revisa el estado de tus solicitudes anteriores</span>
 
       <p className={styles.sectionLabel}>Nuevo ticket</p>
       <form

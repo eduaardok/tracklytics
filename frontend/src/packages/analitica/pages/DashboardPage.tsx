@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
+import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { analiticaApi } from '../api/analitica.api'
 import styles from './DashboardPage.module.css'
 
@@ -42,6 +43,7 @@ function DashboardSkeleton() {
 }
 
 export function DashboardPage() {
+  useDocumentTitle('Dashboard')
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['analytics', 'dashboard'],
     queryFn: analiticaApi.dashboard,
@@ -53,7 +55,6 @@ export function DashboardPage() {
     return (
       <section>
         <h1 className={styles.heading}>Dashboard</h1>
-        <span className={styles.subtitle}>// error al cargar</span>
         <button onClick={() => refetch()} style={{ marginTop: 16 }}>
           Reintentar
         </button>

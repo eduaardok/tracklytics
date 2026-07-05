@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { ingestaApi, IngestaApiError } from '../api/ingesta.api'
 import { DIM_TABLE_OPTIONS, type DimRow } from '../types'
 import styles from './CrudDimensionesPage.module.css'
@@ -106,6 +107,7 @@ function ConfirmModal({ title, body, onConfirm, onCancel }: { title: string; bod
 }
 
 export function CrudDimensionesPage() {
+  useDocumentTitle('Dimensiones del catálogo')
   const queryClient = useQueryClient()
   const [table, setTable]   = useState<string>(DIM_TABLE_OPTIONS[0].key)
   const [search, setSearch] = useState('')
@@ -205,9 +207,6 @@ export function CrudDimensionesPage() {
   return (
     <section className={styles.page}>
       <h1 className={styles.heading}>Dimensiones del catálogo</h1>
-      <span className={styles.subtitle}>
-        // CRUD de las 11 DIM · FACT_TRACKS es de solo lectura
-      </span>
 
       <div className={styles.controls}>
         <div className={styles.field}>

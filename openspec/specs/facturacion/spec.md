@@ -1,5 +1,9 @@
 # Capability: facturacion
 
+## Purpose
+
+Permitir que un usuario registre un método de pago, pague una suscripción existente y reciba el invoice correspondiente, y que pueda consultar su propio historial de facturación — con auditoría ampliada para `admin`.
+
 ## Objetivo
 
 Permitir que un usuario registre un método de pago, pague una suscripción existente y reciba el invoice correspondiente, y que pueda consultar su propio historial de facturación — con auditoría ampliada para `admin`.
@@ -22,9 +26,7 @@ Permitir que un usuario registre un método de pago, pague una suscripción exis
 | Operativo | Usuario B2C / Cliente B2B | Facturación y cobros | CU-O21 Pagar una suscripción existente y recibir el invoice | Como Usuario B2C, quiero pagar mi suscripción con un método de pago registrado, para mantener mi acceso y recibir un comprobante |
 | Operativo | Usuario B2C / Cliente B2B | Facturación y cobros | CU-O22 Consultar mi historial de transacciones e invoices | Como Usuario B2C, quiero ver mi historial de pagos e invoices, para llevar control de mis cobros |
 | Operativo | Lead Data Engineer / CTO | Facturación y cobros | CU-O23 Auditar el historial de facturación de cualquier usuario | Como Lead Data Engineer/CTO, quiero consultar el historial de facturación de cualquier usuario, para dar soporte y auditar cobros |
-
 ## Requirements
-
 ### Requirement: Registro de método de pago
 El sistema SHALL permitir a un usuario autenticado registrar un método de pago simulado (tipo, últimos 4 dígitos, país), asociado únicamente a su propia cuenta.
 
@@ -65,7 +67,11 @@ El sistema SHALL permitir a un usuario autenticado consultar su propio historial
 - **THEN** el sistema retorna únicamente los registros asociados a ese usuario
 
 ### Requirement: Acceso restringido al historial de facturación de terceros
-El sistema SHALL restringir la consulta del historial de facturación de otro usuario exclusivamente a `admin`; un usuario con rol distinto de `admin` SHALL recibir un rechazo al intentarlo.
+El sistema SHALL restringir la consulta del historial de facturación de otro usuario exclusivamente a `admin`; un usuario con rol distinto de `admin` SHALL recibir un rechazo al intentarlo. El admin SHALL poder localizar al usuario objetivo mediante una búsqueda por nombre o correo, sin requerir que conozca ni escriba su `usuario_id`.
+
+#### Scenario: Buscar el usuario por nombre o correo antes de auditar su facturación
+- **WHEN** un usuario con rol `admin` escribe parte del nombre o correo de un usuario para consultar su historial de facturación
+- **THEN** el sistema muestra las coincidencias encontradas para que el admin seleccione el usuario exacto
 
 #### Scenario: Admin consulta el historial de otro usuario
 - **WHEN** un usuario con rol `admin` solicita el historial de transacciones o invoices de otro usuario

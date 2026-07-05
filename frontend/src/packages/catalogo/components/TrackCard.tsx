@@ -1,5 +1,6 @@
 import type { KeyboardEvent, MouseEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { ListPlus } from 'lucide-react'
 import { usePlayer } from '@shared/context/PlayerContext'
 import { AlbumArt } from '@shared/components/AlbumArt'
 import { ErrorState } from '@shared/components/ErrorState'
@@ -23,7 +24,7 @@ function formatDuration(ms: number): string {
 
 export function TrackCard({ track, position }: Props) {
   const navigate = useNavigate()
-  const { play, reportPlaybackIssue } = usePlayer()
+  const { play, reportPlaybackIssue, enqueue } = usePlayer()
   const { isAuthenticated, isFavorite, toggle, toggleError } = useFavoritos()
   const favorite = isFavorite(track.fact_id)
 
@@ -49,6 +50,11 @@ export function TrackCard({ track, position }: Props) {
   function handleFavorite(e: MouseEvent) {
     e.stopPropagation()
     toggle(track.fact_id)
+  }
+
+  function handleEnqueue(e: MouseEvent) {
+    e.stopPropagation()
+    enqueue(track)
   }
 
   function handleKeyDown(e: KeyboardEvent) {
@@ -90,6 +96,15 @@ export function TrackCard({ track, position }: Props) {
             aria-label="Reproducir"
           >
             ▶
+          </button>
+          <button
+            type="button"
+            className={styles.actionBtn}
+            onClick={handleEnqueue}
+            title="Agregar a la cola"
+            aria-label="Agregar a la cola"
+          >
+            <ListPlus size={16} aria-hidden="true" />
           </button>
           {isAuthenticated && (
             <>

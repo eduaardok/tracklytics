@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ErrorState } from '@shared/components/ErrorState'
+import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { experienciaApi } from '../api/experiencia.api'
 import type { EstadoTicket, Ticket } from '../types'
 import styles from './ExperienciaPages.module.css'
@@ -21,6 +22,7 @@ const FILTROS: { value: string; label: string }[] = [
 // por estado) y actualiza su estado — restringido a `require_admin` en el
 // backend (`PUT /experiencia/tickets/{id}`).
 export function TicketsAdminPage() {
+  useDocumentTitle('Soporte — administración')
   const queryClient = useQueryClient()
   const [estado, setEstado] = useState('')
 
@@ -41,7 +43,6 @@ export function TicketsAdminPage() {
   return (
     <section className={styles.page}>
       <h1 className={styles.heading}>Soporte — administración</h1>
-      <span className={styles.subtitle}>// tickets de todos los usuarios, filtrables por estado</span>
 
       <div className={styles.queuePanel}>
         <div className={styles.queueHeader}>

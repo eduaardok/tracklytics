@@ -1,6 +1,10 @@
 import type { KeyboardEvent, MouseEvent, ReactNode } from 'react'
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { ListMusic, Volume2, VolumeX } from 'lucide-react'
 import { usePlayer } from '@shared/context/PlayerContext'
+import { AlbumArt } from './AlbumArt'
+import { QueuePanel } from './QueuePanel'
 import styles from './PlayerBar.module.css'
 
 function formatMs(ms: number): string {
@@ -27,8 +31,12 @@ type Props = {
 }
 
 export function PlayerBar({ actions }: Props) {
-  const { currentTrack, isPlaying, progressMs, playbackUnavailable, playbackUnavailableReason, togglePlay, seek } = usePlayer()
+  const {
+    currentTrack, isPlaying, progressMs, playbackUnavailable, playbackUnavailableReason, togglePlay, seek,
+    queue, removeFromQueue, moveInQueue, volume, setVolume,
+  } = usePlayer()
   const navigate = useNavigate()
+  const [queueOpen, setQueueOpen] = useState(false)
 
   if (!currentTrack) return null
 
@@ -57,8 +65,9 @@ export function PlayerBar({ actions }: Props) {
         tabIndex={0}
         aria-label={`Ir al detalle de ${currentTrack.track_name}`}
       >
-        <span className={styles.art} aria-hidden="true">
-          <Equalizer animated={isPlaying} />
+        <span className={styles.art}>
+          <AlbumArt src={currentTrack.imagen_url} alt="" size={44} />
+          <span className={styles.eqBadge}><Equalizer animated={isPlaying} /></span>
         </span>
         <div className={styles.meta}>
           <span className={styles.name}>{currentTrack.track_name}</span>
@@ -101,7 +110,59 @@ export function PlayerBar({ actions }: Props) {
         )}
       </div>
 
-      <div className={styles.actions}>{actions}</div>
+      {/* Grupo derecho en un solo contenedor (no columnas flex sueltas): con
+          `.bar` como grid de 3 columnas (ver .module.css), esta es la
+          columna derecha completa — necesaria para que la columna central
+          (controles + progreso) quede realmente centrada en el ancho total
+          de la barra, sin importar cuánto ocupe volumen+cola+acciones. */}
+      <div className={styles.rightGroup}>
+        <div className={styles.volume}>
+          <button
+            type="button"
+            className={styles.iconBtn}
+            onClick={() => setVolume(volume > 0 ? 0 : 0.8)}
+            aria-label={volume > 0 ? 'Silenciar' : 'Activar sonido'}
+            title={volume > 0 ? 'Silenciar' : 'Activar sonido'}
+          >
+            {volume > 0 ? <Volume2 size={16} aria-hidden="true" /> : <VolumeX size={16} aria-hidden="true" />}
+          </button>
+          <input
+            type="range"
+            className={styles.volumeSlider}
+            min={0}
+            max={100}
+            value={Math.round(volume * 100)}
+            onChange={(e) => setVolume(Number(e.target.value) / 100)}
+            aria-label="Volumen"
+          />
+        </div>
+
+        <div className={styles.actions}>
+          <div className={styles.queueWrap}>
+            <button
+              type="button"
+              className={`${styles.iconBtn} ${queue.length > 0 ? styles.iconBtnActive : ''}`}
+              onClick={() => setQueueOpen((v) => !v)}
+              aria-label="Cola de reproducción"
+              aria-expanded={queueOpen}
+              title="Cola de reproducción"
+            >
+              <ListMusic size={18} aria-hidden="true" />
+              {queue.length > 0 && <span className={styles.queueBadge}>{queue.length}</span>}
+            </button>
+            {queueOpen && (
+              <QueuePanel
+                currentTrack={currentTrack}
+                queue={queue}
+                onRemove={removeFromQueue}
+                onMove={moveInQueue}
+                onClose={() => setQueueOpen(false)}
+              />
+            )}
+          </div>
+          {actions}
+        </div>
+      </div>
     </div>
   )
 }

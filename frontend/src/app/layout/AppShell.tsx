@@ -1,30 +1,37 @@
 import { useEffect, useState } from 'react'
 import { Outlet, NavLink, useLocation } from 'react-router-dom'
+import {
+  LayoutGrid, Library, CreditCard, Receipt, Mic2, Users, Globe, LifeBuoy,
+  BarChart3, ShieldCheck, PanelLeftClose, PanelLeftOpen, type LucideIcon,
+} from 'lucide-react'
 import { UserMenu } from '@packages/seguridad'
 import { PlayerBarActions } from '@packages/catalogo'
 import { PlayerBar } from '@shared/components/PlayerBar'
 import { usePlayer } from '@shared/context/PlayerContext'
 import { getRole } from '@shared/lib/session'
+import { getSidebarCollapsed, setSidebarCollapsed } from '@shared/lib/ui-prefs'
 import { MobileNavDrawer } from './MobileNavDrawer'
 import styles from './AppShell.module.css'
+
+export type NavItem = { to: string; label: string; icon: LucideIcon; end?: boolean }
 
 // Arquitectura de información del sidebar: consumo primario arriba (lo que un
 // usuario B2C visita todo el tiempo), transaccional/admin-adyacente abajo del
 // divider (cosas que se visitan ocasionalmente). "Soporte" cae en el segundo
 // grupo — es una acción puntual, no de consumo diario, igual que Facturación/
 // Creadores/Social/Distribución.
-const NAV_PRIMARY = [
-  { to: '/',             label: 'Catálogo',      end: true },
-  { to: '/biblioteca',   label: 'Mi Biblioteca' },
-  { to: '/suscripciones', label: 'Mi Plan' },
+const NAV_PRIMARY: NavItem[] = [
+  { to: '/',              label: 'Catálogo',      icon: LayoutGrid, end: true },
+  { to: '/biblioteca',    label: 'Mi Biblioteca',  icon: Library },
+  { to: '/suscripciones', label: 'Mi Plan',        icon: CreditCard },
 ]
 
-const NAV_SECONDARY = [
-  { to: '/facturacion',                  label: 'Facturación' },
-  { to: '/creadores',                    label: 'Creadores' },
-  { to: '/social',                       label: 'Social' },
-  { to: '/distribucion/disponibilidad',  label: 'Distribución' },
-  { to: '/soporte',                      label: 'Soporte' },
+const NAV_SECONDARY: NavItem[] = [
+  { to: '/facturacion',                  label: 'Facturación', icon: Receipt },
+  { to: '/creadores',                    label: 'Creadores',   icon: Mic2 },
+  { to: '/social',                       label: 'Social',      icon: Users },
+  { to: '/distribucion/disponibilidad',  label: 'Distribución', icon: Globe },
+  { to: '/soporte',                      label: 'Soporte',     icon: LifeBuoy },
 ]
 
 // Hallazgo post-migración a sidebar (Fase 8): ni antes (nav horizontal +
@@ -36,11 +43,12 @@ const NAV_SECONDARY = [
 // api/paquetes/analitica/deps.py); `/seguridad` es admin-only
 // (`require_admin`, api/paquetes/seguridad/deps.py). Grupo propio con su
 // propio divider — conceptualmente son "salir a otro panel", no una acción
-// más dentro de la app de consumo.
-function navAdminFor(role: string | null): { to: string; label: string }[] {
-  const items: { to: string; label: string }[] = []
-  if (role === 'admin' || role === 'analyst') items.push({ to: '/analitica', label: 'Analítica' })
-  if (role === 'admin') items.push({ to: '/seguridad', label: 'Administración' })
+// más dentro de la app de consumo. (La salida de vuelta vive en `ZoneSwitcher`,
+// montado dentro de esos dos shells.)
+function navAdminFor(role: string | null): NavItem[] {
+  const items: NavItem[] = []
+  if (role === 'admin' || role === 'analyst') items.push({ to: '/analitica', label: 'Analítica', icon: BarChart3 })
+  if (role === 'admin') items.push({ to: '/seguridad', label: 'Administración', icon: ShieldCheck })
   return items
 }
 
@@ -50,6 +58,7 @@ export function AppShell() {
   // espacio muerto permanente cuando nadie ha reproducido nada todavía.
   const { currentTrack } = usePlayer()
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
+  const [collapsed, setCollapsed] = useState(getSidebarCollapsed)
   const location = useLocation()
   const navAdmin = navAdminFor(getRole())
 
@@ -77,6 +86,30 @@ export function AppShell() {
     return () => document.removeEventListener('keydown', onKeyDown)
   }, [mobileNavOpen])
 
+  function toggleCollapsed() {
+    setCollapsed((prev) => {
+      const next = !prev
+      setSidebarCollapsed(next)
+      return next
+    })
+  }
+
+  function renderNavItem(item: NavItem) {
+    const Icon = item.icon
+    return (
+      <NavLink
+        key={item.to}
+        to={item.to}
+        end={item.end}
+        title={collapsed ? item.label : undefined}
+        className={({ isActive }) => (isActive ? `${styles.navItem} ${styles.navActive}` : styles.navItem)}
+      >
+        <Icon className={styles.navIcon} size={18} aria-hidden="true" />
+        <span className={styles.navText}>{item.label}</span>
+      </NavLink>
+    )
+  }
+
   return (
     <div className={styles.shell}>
       <header className={styles.brandBar}>
@@ -99,46 +132,39 @@ export function AppShell() {
 
       <div className={styles.body}>
         <nav
-          className={`${styles.sidebar} ${currentTrack ? styles.sidebarWithPlayer : ''}`}
+          className={[
+            styles.sidebar,
+            currentTrack ? styles.sidebarWithPlayer : '',
+            collapsed ? styles.sidebarCollapsed : '',
+          ].join(' ').trim()}
           aria-label="Navegación principal"
         >
-          {NAV_PRIMARY.map((item) => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              end={item.end}
-              className={({ isActive }) => (isActive ? `${styles.navItem} ${styles.navActive}` : styles.navItem)}
-            >
-              {item.label}
-            </NavLink>
-          ))}
+          <div className={styles.navGroups}>
+            {NAV_PRIMARY.map(renderNavItem)}
 
-          <div className={styles.divider} role="separator" />
+            <div className={styles.divider} role="separator" />
 
-          {NAV_SECONDARY.map((item) => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              className={({ isActive }) => (isActive ? `${styles.navItem} ${styles.navActive}` : styles.navItem)}
-            >
-              {item.label}
-            </NavLink>
-          ))}
+            {NAV_SECONDARY.map(renderNavItem)}
 
-          {navAdmin.length > 0 && (
-            <>
-              <div className={styles.divider} role="separator" />
-              {navAdmin.map((item) => (
-                <NavLink
-                  key={item.to}
-                  to={item.to}
-                  className={({ isActive }) => (isActive ? `${styles.navItem} ${styles.navActive}` : styles.navItem)}
-                >
-                  {item.label}
-                </NavLink>
-              ))}
-            </>
-          )}
+            {navAdmin.length > 0 && (
+              <>
+                <div className={styles.divider} role="separator" />
+                {navAdmin.map(renderNavItem)}
+              </>
+            )}
+          </div>
+
+          <button
+            type="button"
+            className={styles.collapseBtn}
+            onClick={toggleCollapsed}
+            title={collapsed ? 'Expandir navegación' : 'Colapsar navegación'}
+            aria-label={collapsed ? 'Expandir navegación' : 'Colapsar navegación'}
+            aria-pressed={collapsed}
+          >
+            {collapsed ? <PanelLeftOpen size={18} aria-hidden="true" /> : <PanelLeftClose size={18} aria-hidden="true" />}
+            <span className={styles.navText}>Colapsar</span>
+          </button>
         </nav>
 
         <main className={`${styles.main} ${currentTrack ? styles.mainWithPlayer : ''}`}>
