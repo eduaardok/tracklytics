@@ -1,7 +1,43 @@
 # distribucion Specification
 
 ## Purpose
-TBD - created by archiving change distribucion. Update Purpose after archive.
+
+Administrar sellos discográficos, licencias de distribución por país y restricciones de
+reproducción por track/país/canal, y verificar automáticamente esas restricciones cuando un
+Usuario B2C intenta reproducir o consultar disponibilidad.
+
+## Objetivo
+
+Administrar sellos discográficos, licencias de distribución por país y restricciones de
+reproducción por track/país/canal, y verificar automáticamente esas restricciones cuando un
+Usuario B2C intenta reproducir o consultar disponibilidad.
+
+## Contexto
+
+Hasta esta capability, el catálogo se mostraba igual a cualquier oyente en cualquier país y el
+sello discográfico era una etiqueta de texto sin relación estructurada. `distribucion` introduce
+el mercado real detrás del catálogo: qué sello respalda a cada artista/álbum, en qué países tiene
+licencia ese sello, y qué tracks tienen una restricción de reproducción vigente.
+
+## Actores
+
+- **Usuario B2C**: consulta disponibilidad de un track por país y sufre el bloqueo de
+  reproducción cuando aplica una restricción.
+- **Cliente B2B**: beneficiario indirecto (sello discográfico); no opera esta capability
+  directamente.
+- **Lead Data Engineer / CTO** (`role=admin`): administra sellos, licencias y restricciones de
+  reproducción.
+
+## Tabla de trazabilidad
+
+| Nivel empresarial | Departamento | Paquete | Caso de uso | Historia de usuario |
+|---|---|---|---|---|
+| Operativo | Lead Data Engineer / CTO | Distribución | CU-O36 Administrar sellos discográficos | Como Lead Data Engineer/CTO, quiero crear y editar sellos discográficos, para mantener el catálogo de sellos que respaldan a los artistas |
+| Operativo | Lead Data Engineer / CTO | Distribución | CU-O37 Asignar sello a artista o álbum | Como Lead Data Engineer/CTO, quiero asignar un sello existente a un artista o álbum, para reflejar quién respalda ese contenido |
+| Operativo | Lead Data Engineer / CTO | Distribución | CU-O38 Administrar licencias de distribución por país | Como Lead Data Engineer/CTO, quiero registrar la licencia de un sello para distribuir en un país durante un período determinado, para reflejar los acuerdos comerciales reales |
+| Operativo | Lead Data Engineer / CTO | Distribución | CU-O39 Consultar licencias por sello o por país | Como Lead Data Engineer/CTO, quiero consultar las licencias vigentes o vencidas de un sello, o todas las licencias de un país, para dar seguimiento a los acuerdos |
+| Operativo | Lead Data Engineer / CTO | Distribución | CU-O40 Administrar restricciones de reproducción | Como Lead Data Engineer/CTO, quiero crear o desactivar una restricción de reproducción sobre un track en un país y canal, para reflejar limitaciones de derechos vigentes |
+| Operativo | Usuario B2C | Distribución | CU-O41 Consultar disponibilidad de un track por país | Como Usuario B2C, quiero saber si un track está disponible en mi país antes de reproducirlo, para entender por qué algunos tracks no se reproducen |
 ## Requirements
 ### Requirement: Administración de sellos discográficos
 El sistema SHALL permitir a un usuario con rol admin crear y editar sellos discográficos. Esta operación SHALL estar restringida exclusivamente a usuarios con rol admin y SHALL registrarse en `FACT_AUDIT_LOG`.

@@ -52,6 +52,8 @@ real, reproducción real) a la espera de esta capability.
 | Operativo | Lead Data Engineer / CTO | Experiencia | CU-O51 Crear titular de plan familiar | Como Lead Data Engineer/CTO, quiero designar a un usuario con suscripción activa como titular de un plan familiar, para habilitar que agregue miembros |
 | Operativo | Lead Data Engineer / CTO | Experiencia | CU-O52 Agregar miembro a plan familiar | Como Lead Data Engineer/CTO, quiero agregar un usuario como miembro de un plan familiar existente, para que comparta el beneficio de la suscripción del titular |
 | Operativo | Lead Data Engineer / CTO | Experiencia | CU-O53 Quitar miembro de plan familiar | Como Lead Data Engineer/CTO, quiero quitar a un miembro de un plan familiar, para reflejar cuando esa persona deja de compartir la suscripción |
+| Operativo | Usuario B2C | Experiencia | CU-O57 Resolver portada real de artista, álbum o track | Como Usuario B2C, quiero ver la portada real de un artista o álbum cuando exista, para reconocer visualmente lo que estoy explorando |
+| Operativo | Usuario B2C | Experiencia | CU-O58 Reproducir audio real de un track | Como Usuario B2C, quiero escuchar el audio real de un track en vez de una simulación, para tener una experiencia de escucha genuina |
 ## Requirements
 ### Requirement: Registro de evento de reproducción enriquecido
 El sistema SHALL registrar, de forma síncrona en el momento de la reproducción, un evento enriquecido con el dispositivo, la sesión y el porcentaje completado de la reproducción, adicional al registro de historial que ya existe. Este evento SHALL ser independiente del cálculo de engagement ya existente — ninguno de los dos sustituye al otro.

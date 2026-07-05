@@ -1,7 +1,43 @@
 # social Specification
 
 ## Purpose
-TBD - created by archiving change social. Update Purpose after archive.
+
+Permitir que un Usuario B2C siga artistas, comente y responda en tracks, y comparta contenido
+fuera de la plataforma, con moderación administrativa sobre los comentarios publicados y acceso
+de solo lectura para Cliente B2B.
+
+## Objetivo
+
+Permitir que un Usuario B2C siga artistas, comente y responda en tracks, y comparta contenido
+fuera de la plataforma, con moderación administrativa sobre los comentarios publicados y acceso
+de solo lectura para Cliente B2B.
+
+## Contexto
+
+Hasta esta capability, un oyente podía explorar el catálogo y armar su propia biblioteca, pero no
+tenía forma de interactuar con la comunidad de la plataforma. `social` introduce seguimiento de
+artistas, comentarios con moderación y comparticiones, generando señales de comportamiento
+adicionales para el motor analítico ofrecido a sellos discográficos y curadores de playlists.
+
+## Actores
+
+- **Usuario B2C** (`role=user`): sigue/deja de seguir artistas, comenta y responde en tracks,
+  comparte contenido.
+- **Cliente B2B** (`role=analyst`): consulta comentarios en modo exclusivamente de lectura.
+- **Lead Data Engineer / CTO** (`role=admin`): modera comentarios (ocultar/eliminar) y consulta
+  la cola administrativa de comentarios pendientes.
+
+## Tabla de trazabilidad
+
+| Nivel empresarial | Departamento | Paquete | Caso de uso | Historia de usuario |
+|---|---|---|---|---|
+| Operativo | Usuario B2C | Social | CU-O29 Seguir o dejar de seguir a un artista | Como Usuario B2C, quiero seguir o dejar de seguir a un artista, para expresar mi afinidad sin comprometerme a una acción permanente |
+| Operativo | Usuario B2C | Social | CU-O30 Consultar artistas seguidos | Como Usuario B2C, quiero ver la lista de artistas que sigo, para volver fácilmente a su catálogo |
+| Operativo | Usuario B2C | Social | CU-O31 Comentar y responder en un track | Como Usuario B2C, quiero comentar una canción y responder a otros comentarios, para participar de la conversación alrededor de la música |
+| Operativo | Usuario B2C / Cliente B2B | Social | CU-O32 Consultar comentarios de un track | Como Usuario B2C o Cliente B2B, quiero ver los comentarios de una canción, para conocer la reacción de la comunidad |
+| Operativo | Lead Data Engineer / CTO | Social | CU-O33 Moderar un comentario | Como Lead Data Engineer/CTO, quiero ocultar o eliminar un comentario que incumple las normas, para proteger la calidad de la conversación pública |
+| Operativo | Lead Data Engineer / CTO | Social | CU-O34 Consultar cola administrativa de comentarios | Como Lead Data Engineer/CTO, quiero ver la cola de comentarios pendientes de revisión, para priorizar mi trabajo de moderación |
+| Operativo | Usuario B2C | Social | CU-O35 Compartir contenido | Como Usuario B2C, quiero generar un enlace para compartir un track, playlist o perfil de artista, para promoverlo fuera de la plataforma |
 ## Requirements
 ### Requirement: Seguir a un artista
 El sistema SHALL permitir a un Usuario B2C autenticado seguir a un artista existente del catálogo, quedando la relación registrada como activa. Un usuario SHALL tener como máximo una relación de seguimiento activa por artista.
