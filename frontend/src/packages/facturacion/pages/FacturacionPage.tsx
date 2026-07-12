@@ -1,7 +1,10 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ErrorState } from '@shared/components/ErrorState'
 import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
+import { apiErrorMessage } from '@shared/lib/api-client'
+import { useToast } from '@shared/context/ToastContext'
 import { facturacionApi } from '../api/facturacion.api'
 import type { MetodoPago } from '../types'
 import styles from './FacturacionPages.module.css'
@@ -57,6 +60,7 @@ export function FacturacionPage() {
   const [pais, setPais]                         = useState('')
 
   const queryClient = useQueryClient()
+  const toast = useToast()
 
   const metodos = useQuery({
     queryKey: ['facturacion', 'metodos-pago'],
@@ -79,16 +83,21 @@ export function FacturacionPage() {
     onSuccess: () => {
       setTipo(''); setUltimos4(''); setPais(''); setShowAddForm(false)
       queryClient.invalidateQueries({ queryKey: ['facturacion', 'metodos-pago'] })
+      toast.success('Método de pago agregado')
     },
+    onError: (err) => toast.error(apiErrorMessage(err, 'No se pudo agregar el método de pago.')),
   })
 
   const pagar = useMutation({
     mutationFn: () =>
       facturacionApi.pagarSuscripcion({ metodo_pago_id: selectedMethodId }),
-    onSuccess: () => {
+    onSuccess: (res) => {
       queryClient.invalidateQueries({ queryKey: ['facturacion', 'transacciones'] })
       queryClient.invalidateQueries({ queryKey: ['facturacion', 'invoices'] })
+      if (res.estado === 'exitosa') toast.success('Pago procesado correctamente')
+      else toast.error('El pago fue rechazado')
     },
+    onError: (err) => toast.error(apiErrorMessage(err, 'No se pudo procesar el pago.')),
   })
 
   const metodosData: MetodoPago[] = metodos.data?.data ?? []
@@ -177,8 +186,13 @@ export function FacturacionPage() {
           className={styles.addForm}
           onSubmit={(e) => {
             e.preventDefault()
+            if (!tipo.trim() || ultimos4.trim().length !== 4) {
+              toast.error('Completa el tipo y los últimos 4 dígitos de la tarjeta.')
+              return
+            }
             registrarMetodo.mutate()
           }}
+          noValidate
         >
           <div className={styles.field}>
             <label className={styles.fieldLabel} htmlFor="tipo">tipo</label>
@@ -227,35 +241,49 @@ export function FacturacionPage() {
         </form>
       )}
 
-      {/* ── Pago ── */}
-      <div className={styles.paySection}>
-        <div className={styles.payRow}>
-          <button
-            className={styles.btnPrimary}
-            type="button"
-            disabled={!selectedMethodId || pagar.isPending}
-            onClick={() => pagar.mutate()}
-          >
-            {payLabel}
-          </button>
-          {!selectedMethodId && metodosData.length > 0 && (
-            <span className={styles.sectionLabel} style={{ marginBottom: 0 }}>
-              Selecciona un método para continuar
-            </span>
+      {/* ── Pago ──
+          Bugfix QA S10 ronda 2: el plan free también llega como `suscripcion`
+          no-nula (`{tipo_plan:"free", monto:0}` — GET /facturacion/metodos-pago,
+          backend), así que el botón de pago se mostraba activo-looking como
+          "Pagar — 0,00 US$/mes" para cualquier usuario free, sin nada real que
+          cobrar. Solo tiene sentido mostrar el flujo de pago cuando hay un
+          monto real pendiente (plan pagado) — un plan free se actualiza desde
+          Mi Plan, no "pagando" $0 acá. */}
+      {suscripcion && suscripcion.monto > 0 ? (
+        <div className={styles.paySection}>
+          <div className={styles.payRow}>
+            <button
+              className={styles.btnPrimary}
+              type="button"
+              disabled={!selectedMethodId || pagar.isPending}
+              onClick={() => pagar.mutate()}
+            >
+              {payLabel}
+            </button>
+            {!selectedMethodId && metodosData.length > 0 && (
+              <span className={styles.sectionLabel} style={{ marginBottom: 0 }}>
+                Selecciona un método para continuar
+              </span>
+            )}
+          </div>
+
+          {pagar.isSuccess && pagar.data && (
+            <div className={pagar.data.estado === 'exitosa' ? styles.bannerOk : styles.bannerError}>
+              {pagar.data.estado === 'exitosa'
+                ? `Pago exitoso${pagar.data.invoice_id ? ` — invoice ${pagar.data.invoice_id.slice(0, 8)}…` : ''}`
+                : 'El pago fue rechazado. Intenta de nuevo o usa otro método.'}
+            </div>
+          )}
+          {pagar.isError && (
+            <ErrorState message="No se pudo procesar el pago — verifica que tengas una suscripción activa." />
           )}
         </div>
-
-        {pagar.isSuccess && pagar.data && (
-          <div className={pagar.data.estado === 'exitosa' ? styles.bannerOk : styles.bannerError}>
-            {pagar.data.estado === 'exitosa'
-              ? `Pago exitoso${pagar.data.invoice_id ? ` — invoice ${pagar.data.invoice_id.slice(0, 8)}…` : ''}`
-              : 'El pago fue rechazado. Intenta de nuevo o usa otro método.'}
-          </div>
-        )}
-        {pagar.isError && (
-          <ErrorState message="No se pudo procesar el pago — verifica que tengas una suscripción activa." />
-        )}
-      </div>
+      ) : suscripcion ? (
+        <p className={styles.emptyMethods}>
+          Tu plan actual es gratuito — no hay ningún cargo pendiente. Para pasarte a Premium, ve a{' '}
+          <Link to="/suscripciones">Mi Plan</Link>.
+        </p>
+      ) : null}
 
       {/* ── Historial ── */}
       <div className={styles.historyGrid}>
@@ -300,14 +328,15 @@ export function FacturacionPage() {
                 <th>Monto</th>
                 <th>IVA</th>
                 <th>Estado</th>
+                <th></th>
               </tr>
             </thead>
             <tbody>
               {invoices.isLoading ? (
-                <SkelRows cols={4} />
+                <SkelRows cols={5} />
               ) : invoicesData.length === 0 ? (
                 <tr>
-                  <td colSpan={4} className={styles.tableEmpty}>
+                  <td colSpan={5} className={styles.tableEmpty}>
                     Sin invoices todavía.
                   </td>
                 </tr>
@@ -318,6 +347,7 @@ export function FacturacionPage() {
                     <td>{fmt(inv.monto, 'EUR')}</td>
                     <td>{fmt(inv.iva, 'EUR')}</td>
                     <td><StatusBadge estado={inv.estado} /></td>
+                    <td><Link to={`/facturacion/${inv.invoice_id}`}>Ver factura</Link></td>
                   </tr>
                 ))
               )}

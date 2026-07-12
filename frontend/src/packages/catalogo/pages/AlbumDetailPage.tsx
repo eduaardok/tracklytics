@@ -28,7 +28,7 @@ export function AlbumDetailPage() {
     enabled:  Number.isFinite(id),
   })
 
-  useDocumentTitle(album?.name ?? 'Playlist')
+  useDocumentTitle(album?.name ?? 'Álbum')
 
   if (loadingAlbum) return <p className={styles.loading}>// cargando…</p>
 
@@ -36,11 +36,11 @@ export function AlbumDetailPage() {
     const notFound = albumError instanceof ApiError && albumError.status === 404
     return (
       <ErrorState
-        title={notFound ? 'Playlist no encontrada' : undefined}
+        title={notFound ? 'Álbum no encontrado' : undefined}
         message={
           notFound
-            ? 'Esta playlist no existe o fue eliminada.'
-            : 'No se pudo cargar esta playlist. Puede que la API no esté disponible.'
+            ? 'Este álbum no existe o fue eliminado.'
+            : 'No se pudo cargar este álbum. Puede que la API no esté disponible.'
         }
       />
     )
@@ -53,10 +53,16 @@ export function AlbumDetailPage() {
       <div className={styles.hero}>
         <AlbumArt src={album.imagen_url} alt="" size={96} />
         <div className={styles.heroMeta}>
-          <span className={styles.heroType}>Playlist</span>
+          <span className={styles.heroType}>Álbum</span>
           <h1 className={styles.heroName}>{album.name}</h1>
           <div className={styles.heroSub}>
-            {album.release_year && <span>{album.release_year}</span>}
+            {/* `release_year && <span>` renderiza un "0" suelto sin etiqueta
+                cuando el álbum no tiene año real (0 es el placeholder de
+                `_resolver_album_id` para álbumes auto-creados sin metadata —
+                bug encontrado en QA, S10 ronda 2): `0 && <JSX>` se evalúa a
+                `0`, y React SÍ pinta un número falsy literal, a diferencia de
+                `false`/`null`/`undefined`. `!!` fuerza booleano. */}
+            {!!album.release_year && <span>{album.release_year}</span>}
             <span>· {album.track_count ?? tracks.length} canciones</span>
           </div>
         </div>
@@ -65,7 +71,7 @@ export function AlbumDetailPage() {
       <div className={styles.attrGrid}>
         <div className={styles.attrCard}>
           <div className={styles.attrLabel}>Año</div>
-          <div className={styles.attrValue}>{album.release_year ?? '—'}</div>
+          <div className={styles.attrValue}>{album.release_year || '—'}</div>
         </div>
         <div className={styles.attrCard}>
           <div className={styles.attrLabel}>Tipo</div>

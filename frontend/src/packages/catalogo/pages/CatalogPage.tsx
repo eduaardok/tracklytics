@@ -100,13 +100,22 @@ type CancionesProps = { genre: string; onToggleGenre: (name: string) => void }
 function CancionesSection({ genre, onToggleGenre }: CancionesProps) {
   const [search, setSearch]       = useState('')
   const [committed, setCommitted] = useState('')
-  const filtered = committed !== '' || genre !== ''
+  const [showFilters, setShowFilters] = useState(false)
+  const [popularityMin, setPopularityMin] = useState('')
+  const [tempoMin, setTempoMin]           = useState('')
+  const [energyMin, setEnergyMin]         = useState('')
+
+  const popMin    = popularityMin ? Number(popularityMin) : undefined
+  const tempMin   = tempoMin ? Number(tempoMin) : undefined
+  const enMin      = energyMin ? Number(energyMin) : undefined
+  const hasAdvancedFilters = popMin != null || tempMin != null || enMin != null
+  const filtered = committed !== '' || genre !== '' || hasAdvancedFilters
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: filtered ? ['tracks', 'search', committed, genre] : ['tracks', 'top'],
+    queryKey: filtered ? ['tracks', 'search', committed, genre, popMin, tempMin, enMin] : ['tracks', 'top'],
     queryFn:  () =>
       filtered
-        ? catalogoApi.tracksSearch({ q: committed, genre, limit: 50 })
+        ? catalogoApi.tracksSearch({ q: committed, genre, limit: 50, popularityMin: popMin, tempoMin: tempMin, energyMin: enMin })
         : catalogoApi.tracksTop(50),
   })
 
@@ -128,6 +137,12 @@ function CancionesSection({ genre, onToggleGenre }: CancionesProps) {
   function clear() {
     setSearch('')
     setCommitted('')
+  }
+
+  function clearAdvancedFilters() {
+    setPopularityMin('')
+    setTempoMin('')
+    setEnergyMin('')
   }
 
   function subtitle(): string {
@@ -168,6 +183,51 @@ function CancionesSection({ genre, onToggleGenre }: CancionesProps) {
         active={committed !== ''}
         placeholder="Track o artista… (Enter para buscar)"
       />
+
+      <div className={styles.advancedFiltersSection}>
+        <button
+          type="button"
+          className={hasAdvancedFilters ? `${styles.genreChip} ${styles.genreChipActive}` : styles.genreChip}
+          onClick={() => setShowFilters((v) => !v)}
+          aria-expanded={showFilters}
+        >
+          Filtros avanzados{hasAdvancedFilters ? ' •' : ''}
+        </button>
+
+        {showFilters && (
+          <div className={styles.advancedFiltersPanel}>
+            <label className={styles.advancedFilterField}>
+              Popularidad mínima
+              <input
+                type="number" min={0} max={100} placeholder="0–100"
+                value={popularityMin}
+                onChange={(e) => setPopularityMin(e.target.value)}
+              />
+            </label>
+            <label className={styles.advancedFilterField}>
+              Tempo mínimo (BPM)
+              <input
+                type="number" min={0} placeholder="ej. 120"
+                value={tempoMin}
+                onChange={(e) => setTempoMin(e.target.value)}
+              />
+            </label>
+            <label className={styles.advancedFilterField}>
+              Energy mínima
+              <input
+                type="number" min={0} max={1} step={0.1} placeholder="0–1"
+                value={energyMin}
+                onChange={(e) => setEnergyMin(e.target.value)}
+              />
+            </label>
+            {hasAdvancedFilters && (
+              <button type="button" className={styles.advancedFiltersClear} onClick={clearAdvancedFilters}>
+                Limpiar
+              </button>
+            )}
+          </div>
+        )}
+      </div>
 
       {isError && (
         <ErrorState
@@ -327,7 +387,12 @@ function ArtistasSection() {
               kind="artista"
               name={a.name}
               imagenUrl={a.imagen_url}
-              metric={`${a.track_count.toLocaleString('es')} tracks${a.avg_popularity != null ? ` · pop ${a.avg_popularity}` : ''}`}
+              // "pop {n}" (bugfix QA S10 ronda 2): abreviaba "popularidad", pero
+              // "pop" también es un género musical real — un usuario razonablemente
+              // lo lee como género (confirmado con artistas no-pop en la QA). El
+              // dashboard de Analítica ya resuelve la misma ambigüedad con ★, mismo
+              // criterio acá.
+              metric={`${a.track_count.toLocaleString('es')} tracks${a.avg_popularity != null ? ` · ★ ${a.avg_popularity}` : ''}`}
               onClick={() => navigate(`/catalogo/artista/${a.artist_id}`)}
             />
           ))}

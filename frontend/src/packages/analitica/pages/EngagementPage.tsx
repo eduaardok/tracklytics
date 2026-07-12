@@ -260,8 +260,20 @@ export function EngagementPage() {
                 setShowDropdown(false)
                 if (!selection) { setQuery(''); setDebouncedQ('') }
               }
+              // Enter selecciona el primer resultado (bugfix QA S10 ronda 2):
+              // esta búsqueda es un combobox autocomplete puro (selecciona de
+              // un dropdown en vivo, sin botón de búsqueda ni resultados en
+              // página), a diferencia del patrón "Enter para buscar" del
+              // resto de la app — un usuario que llega esperando ese mismo
+              // atajo se queda sin poder avanzar por teclado. Mismo criterio
+              // de accesibilidad que un combobox ARIA estándar.
+              if (e.key === 'Enter' && showDropdown) {
+                e.preventDefault()
+                if (entityType === 'artista' && artistItems[0]) selectArtist(artistItems[0])
+                else if (entityType === 'track' && trackItems[0]) selectTrack(trackItems[0])
+              }
             }}
-            placeholder={entityType === 'artista' ? 'Nombre del artista…' : 'Nombre del track…'}
+            placeholder={entityType === 'artista' ? 'Nombre del artista… (elige de la lista o Enter)' : 'Nombre del track… (elige de la lista o Enter)'}
             aria-label={entityType === 'artista' ? 'Buscar artista' : 'Buscar track'}
             aria-haspopup="listbox"
             aria-expanded={showDropdown}
