@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from core.deps import get_current_user
+from paquetes.facturacion.router import metodo_pago_existe, procesar_pago
 from paquetes.suscripciones import pb_client
 from paquetes.suscripciones.planes import PLANES, plan_valido_para_rol, planes_para_rol
 
@@ -10,7 +11,10 @@ router = APIRouter(prefix="/app/v1/suscripciones", tags=["Suscripciones"])
 
 class ConfirmarSuscripcion(BaseModel):
     plan_id: str
-    metodo_pago: str | None = None
+    # `metodo_pago_id` real de DIM_METODO_PAGO (ver POST /facturacion/metodos-pago)
+    # — activar un plan de pago cobra en la misma operación (cambio 2026-07-09,
+    # antes aceptaba cualquier string libre sin verificar un método real).
+    metodo_pago_id: str | None = None
 
 
 def _role(user: dict) -> str:
@@ -38,11 +42,16 @@ async def confirmar_suscripcion(
             detail="Plan no encontrado o no disponible para este tipo de cuenta",
         )
 
-    if plan["precio"] > 0 and not (body.metodo_pago and body.metodo_pago.strip()):
-        raise HTTPException(
-            status_code=422,
-            detail="Se requiere un método de pago válido para activar un plan de pago",
-        )
+    if plan["precio"] > 0:
+        if not body.metodo_pago_id:
+            raise HTTPException(
+                status_code=422,
+                detail="Se requiere un método de pago válido para activar un plan de pago",
+            )
+        # El método de pago debe ser real (DIM_METODO_PAGO), no un string libre
+        # sin validar — ver POST /facturacion/metodos-pago para registrarlo.
+        if not metodo_pago_existe(user_id, body.metodo_pago_id):
+            raise HTTPException(status_code=404, detail="Método de pago no encontrado para este usuario")
 
     # Invariante de un único plan activo (RN-SUS-001): cancela cualquier
     # suscripción previa activa antes de crear la nueva.
@@ -51,7 +60,14 @@ async def confirmar_suscripcion(
         await pb_client.cancelar(token, activa["id"])
 
     nueva = await pb_client.crear(token, user_id, body.plan_id, plan["precio"], plan["moneda"])
-    return {"data": nueva}
+
+    pago = None
+    if plan["precio"] > 0:
+        # Activar un plan de pago cobra en la misma operación — no son dos
+        # pasos separados desde la perspectiva del usuario (cambio 2026-07-09).
+        pago = procesar_pago(user_id, body.metodo_pago_id, nueva)
+
+    return {"data": nueva, "pago": pago}
 
 
 @router.get("/activa")

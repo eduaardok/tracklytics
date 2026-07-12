@@ -11,6 +11,7 @@ import { useFavoritos } from '../hooks/useFavoritos'
 import { AddToPlaylistMenu } from '../components/AddToPlaylistMenu'
 import { bibliotecaApi } from '../api/biblioteca.api'
 import { usePlanActivo } from '@packages/suscripciones'
+import { useAd } from '@packages/publicidad'
 import styles from './DetailPages.module.css'
 
 function formatDuration(ms: number): string {
@@ -39,6 +40,7 @@ export function TrackDetailPage() {
   const { factId } = useParams<{ factId: string }>()
   const navigate = useNavigate()
   const { play, reportPlaybackIssue, enqueue } = usePlayer()
+  const { pedirImpresion } = useAd()
   const { isAuthenticated, isFavorite, toggle, toggleError } = useFavoritos()
   const { esPremium, isLoading: planLoading } = usePlanActivo()
 
@@ -48,6 +50,16 @@ export function TrackDetailPage() {
     queryKey: ['catalogo', 'track-detail', id],
     queryFn:  () => catalogoApi.trackDetailByFact(id),
     enabled:  Number.isFinite(id),
+  })
+
+  // Backend-enforced (no solo visual): el endpoint responde 403 si el plan
+  // activo no es premium — antes las 7 características de audio viajaban
+  // siempre en `track-detail` y el paywall era únicamente del cliente.
+  const { data: audioFeatures } = useQuery({
+    queryKey: ['catalogo', 'audio-features', id],
+    queryFn:  () => catalogoApi.audioFeatures(id),
+    enabled:  Number.isFinite(id) && esPremium,
+    retry:    false,
   })
 
   useDocumentTitle(track?.track_name ?? 'Track')
@@ -96,7 +108,8 @@ export function TrackDetailPage() {
             <button
               type="button"
               className={styles.btnPrimary}
-              onClick={() => {
+              onClick={async () => {
+                if (isAuthenticated) await pedirImpresion()
                 play(track)
                 if (isAuthenticated) {
                   bibliotecaApi.registrarReproduccion(track.fact_id).catch((err) => {
@@ -158,15 +171,15 @@ export function TrackDetailPage() {
       </div>
 
       <h2 className={styles.sectionTitle}>Características de audio</h2>
-      {planLoading ? null : esPremium ? (
+      {planLoading ? null : esPremium && audioFeatures ? (
         <div className={styles.featureBars}>
-          <FeatureBar label="Danceability"     desc="Qué tan bailable es la canción"          value={track.danceability} />
-          <FeatureBar label="Energy"           desc="Intensidad y actividad percibida"        value={track.energy} />
-          <FeatureBar label="Valence"          desc="Positividad emocional del sonido"        value={track.valence} />
-          <FeatureBar label="Acousticness"     desc="Probabilidad de ser acústica"            value={track.acousticness} />
-          <FeatureBar label="Speechiness"      desc="Presencia de palabras habladas"          value={track.speechiness} />
-          <FeatureBar label="Instrumentalness" desc="Ausencia de voz (más = instrumental)"    value={track.instrumentalness} />
-          <FeatureBar label="Liveness"         desc="Probabilidad de ser en vivo"              value={track.liveness} />
+          <FeatureBar label="Danceability"     desc="Qué tan bailable es la canción"          value={audioFeatures.danceability} />
+          <FeatureBar label="Energy"           desc="Intensidad y actividad percibida"        value={audioFeatures.energy} />
+          <FeatureBar label="Valence"          desc="Positividad emocional del sonido"        value={audioFeatures.valence} />
+          <FeatureBar label="Acousticness"     desc="Probabilidad de ser acústica"            value={audioFeatures.acousticness} />
+          <FeatureBar label="Speechiness"      desc="Presencia de palabras habladas"          value={audioFeatures.speechiness} />
+          <FeatureBar label="Instrumentalness" desc="Ausencia de voz (más = instrumental)"    value={audioFeatures.instrumentalness} />
+          <FeatureBar label="Liveness"         desc="Probabilidad de ser en vivo"              value={audioFeatures.liveness} />
         </div>
       ) : (
         <div className={styles.paywall}>

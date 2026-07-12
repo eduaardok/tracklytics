@@ -4,9 +4,10 @@
 
 export { FacturacionPage }          from './pages/FacturacionPage'
 export { AuditoriaFacturacionPage } from './pages/AuditoriaFacturacionPage'
+export { InvoiceDetailPage }        from './pages/InvoiceDetailPage'
 export { facturacionApi }           from './api/facturacion.api'
 export type {
-  MetodoPago, Transaccion, Invoice,
+  MetodoPago, Transaccion, Invoice, InvoiceDetalle,
   SuscripcionActiva, MetodosPagoResponse,
   RegistrarMetodoPagoBody, PagarSuscripcionBody, PagoResultado,
 } from './types'

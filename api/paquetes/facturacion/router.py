@@ -11,15 +11,31 @@ from paquetes.facturacion.deps import require_admin, require_suscripcion_activa
 from paquetes.suscripciones import pb_client
 from paquetes.facturacion.queries import (
     IVA_RATE,
+    INGRESO_POR_DIA,
+    INGRESO_TOTAL_HISTORICO,
+    INVOICE_DETALLE,
     INVOICES_POR_USUARIO,
     METODO_PAGO_EXISTE,
     METODOS_PAGO_POR_USUARIO,
     TASA_EXITO_DEFAULT,
     TRANSACCIONES_POR_USUARIO,
+    TRANSACCIONES_ULTIMAS_24H,
 )
 from paquetes.seguridad import audit
+from paquetes.suscripciones.planes import PLANES
 
 router = APIRouter(prefix="/app/v1/facturacion", tags=["Facturacion"])
+
+
+def metodo_pago_existe(usuario_id: str, metodo_pago_id: str) -> bool:
+    """`metodo_pago_id` es UUID en ClickHouse — un string con formato
+    inválido rompe la query con un 500 en vez de un 404 limpio si no se
+    valida antes (ver auditoría 2026-07-09)."""
+    try:
+        uuid.UUID(metodo_pago_id)
+    except (ValueError, AttributeError, TypeError):
+        return False
+    return bool(query_one(METODO_PAGO_EXISTE, {"usuario_id": usuario_id, "metodo_pago_id": metodo_pago_id}))
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -75,19 +91,22 @@ class TransaccionBody(BaseModel):
     forzar_resultado: Literal["exitosa", "fallida"] | None = None
 
 
-@router.post("/transacciones", status_code=201)
-def pagar_suscripcion(
-    body: TransaccionBody,
-    user: dict = Depends(get_current_user),
-    suscripcion: dict = Depends(require_suscripcion_activa),
-):
-    usuario_id = user["record"]["id"]
-
-    if not query_one(METODO_PAGO_EXISTE, {"usuario_id": usuario_id, "metodo_pago_id": body.metodo_pago_id}):
+def procesar_pago(
+    usuario_id: str,
+    metodo_pago_id: str,
+    suscripcion: dict,
+    forzar_resultado: Literal["exitosa", "fallida"] | None = None,
+) -> dict:
+    """Núcleo de CU-O21 — crea la transacción y, si es exitosa, la invoice.
+    Reutilizado tanto por `POST /transacciones` (pago explícito de una
+    suscripción ya activa) como por `suscripciones.confirmar_suscripcion`
+    (activar un plan de pago cobra en la misma operación, sin un paso
+    separado — ver openspec suscripciones/facturacion, cambio 2026-07-09)."""
+    if not metodo_pago_existe(usuario_id, metodo_pago_id):
         raise HTTPException(status_code=404, detail="Método de pago no encontrado para este usuario")
 
-    if body.forzar_resultado is not None:
-        estado = body.forzar_resultado
+    if forzar_resultado is not None:
+        estado = forzar_resultado
     else:
         estado = "exitosa" if random.random() < TASA_EXITO_DEFAULT else "fallida"
 
@@ -98,7 +117,7 @@ def pagar_suscripcion(
 
     get_client().insert(
         "FACT_TRANSACCION_PAGO",
-        [(transaccion_id, usuario_id, body.metodo_pago_id, suscripcion_id, monto, moneda, estado)],
+        [(transaccion_id, usuario_id, metodo_pago_id, suscripcion_id, monto, moneda, estado)],
         column_names=["transaccion_id", "usuario_id", "metodo_pago_id", "suscripcion_id", "monto", "moneda", "estado"],
     )
 
@@ -119,7 +138,7 @@ def pagar_suscripcion(
         antes=None,
         despues={
             "suscripcion_id": suscripcion_id,
-            "metodo_pago_id": body.metodo_pago_id,
+            "metodo_pago_id": metodo_pago_id,
             "monto": monto,
             "moneda": moneda,
             "estado": estado,
@@ -133,6 +152,15 @@ def pagar_suscripcion(
         "estado": estado,
         "invoice_id": invoice_id,
     }
+
+
+@router.post("/transacciones", status_code=201)
+def pagar_suscripcion(
+    body: TransaccionBody,
+    user: dict = Depends(get_current_user),
+    suscripcion: dict = Depends(require_suscripcion_activa),
+):
+    return procesar_pago(user["record"]["id"], body.metodo_pago_id, suscripcion, body.forzar_resultado)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -161,3 +189,36 @@ def historial_transacciones(usuario_id: str | None = Query(None), user: dict = D
 def historial_invoices(usuario_id: str | None = Query(None), user: dict = Depends(get_current_user)):
     objetivo = _resolver_usuario_objetivo(usuario_id, user)
     return {"data": query_rows(INVOICES_POR_USUARIO, {"usuario_id": objetivo})}
+
+
+def _nombre_plan_por_monto(monto: float) -> str:
+    # `suscripcion_id` de FACT_TRANSACCION_PAGO es un id de PocketBase, no
+    # de ClickHouse — no hay un JOIN SQL posible al plan. Los precios son
+    # únicos por plan (planes.py), así que resolvemos por monto.
+    for plan in PLANES.values():
+        # ClickHouse guarda `monto` como Float32 — compara con tolerancia,
+        # no igualdad exacta, para no perder el match por redondeo.
+        if abs(plan["precio"] - monto) < 0.01:
+            return plan["nombre"]
+    return "Plan Tracklytics"
+
+
+@router.get("/invoices/{invoice_id}")
+def detalle_invoice(invoice_id: str, user: dict = Depends(get_current_user)):
+    row = query_one(INVOICE_DETALLE, {"invoice_id": invoice_id})
+    if not row:
+        raise HTTPException(status_code=404, detail="Invoice no encontrada")
+    objetivo_valido = row["usuario_id"] == user["record"]["id"]
+    if not objetivo_valido:
+        require_admin(user)
+    row["plan_nombre"] = _nombre_plan_por_monto(row["monto"])
+    return row
+
+
+@router.get("/admin/dashboard")
+def dashboard_facturacion(admin: dict = Depends(require_admin)):
+    return {
+        "ingreso_por_dia":         query_rows(INGRESO_POR_DIA),
+        "transacciones_24h":      (query_one(TRANSACCIONES_ULTIMAS_24H) or {}).get("n", 0),
+        "ingreso_total_historico": (query_one(INGRESO_TOTAL_HISTORICO) or {}).get("total") or 0,
+    }

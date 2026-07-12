@@ -7,16 +7,16 @@ from core.database import query_one, query_rows
 from paquetes.analitica.deps import require_b2b_panel_access, require_staff
 from paquetes.analitica.queries import (
     ADQUISICION_POR_CANAL,
-    ARTIST_AUDIO_STATS_V1, ARTIST_PREDOMINANT_GENRE,
-    ARTISTAS_SEARCH_V1,
+    ARTIST_AUDIO_STATS_V1, ARTIST_PREDOMINANT_GENRE, ARTIST_STATS,
+    ARTISTAS_SEARCH_V1, ARTISTS_SEARCH, ARTISTS_SEARCH_TOTAL,
     DASHBOARD_AUDIO_AVG, DASHBOARD_EXPLICIT_DIST, DASHBOARD_KPIS, DASHBOARD_LAST_ETL,
     DASHBOARD_TOP_ARTISTS, DASHBOARD_TOP_GENRES,
     DASHBOARD_TOTAL_ARTISTS, DASHBOARD_TOTAL_GENRES, DASHBOARD_TOTAL_TRACKS,
     DISPONIBILIDAD_POR_COMPONENTE,
     ENGAGEMENT_BY_ARTIST, ENGAGEMENT_BY_FACT,
-    GENRE_AUDIO_PROFILE_V1,
+    GENRE_AUDIO_PROFILE, GENRE_AUDIO_PROFILE_V1, GENRES_TOTAL, GENRES_TRENDS,
     REPORTE_DIARIO_ENGAGEMENT, REPORTE_DIARIO_INGESTAS,
-    TENDENCIAS_LOAD_WEEK, TRACK_POPULARITY,
+    TENDENCIAS_LOAD_WEEK, TRACK_POPULARITY, TRENDS_WEEKLY,
 )
 
 router = APIRouter(tags=["Analytics"], dependencies=[Depends(require_b2b_panel_access)])
@@ -37,6 +37,55 @@ def dashboard_executive():
         "last_etl":              query_one(DASHBOARD_LAST_ETL),
         "explicit_distribution": query_rows(DASHBOARD_EXPLICIT_DIST),
     }
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Endpoints legacy consumidos por app/analytics/*.html (genres.html,
+# trends.html, dashboard.html, compare-artists.html) — las queries ya
+# existían en queries.py pero nunca se habían montado en el router,
+# dejando esas pantallas rotas (CU-O07/08/09/10, auditoría 2026-07-09).
+# ─────────────────────────────────────────────────────────────────────────────
+
+@router.get("/genres/trends", tags=["Dashboard"])
+def genres_trends(limit: int = Query(20, ge=1, le=200), page: int = Query(1, ge=1)):
+    offset = (page - 1) * limit
+    rows   = query_rows(GENRES_TRENDS, {"limit": limit, "offset": offset})
+    total  = query_one(GENRES_TOTAL)["n"]
+    return {"data": rows, "total": total, "page": page, "limit": limit}
+
+
+@router.get("/genres/{genre_id}/audio-profile", tags=["Dashboard"])
+def genre_audio_profile_legacy(genre_id: int = Path(..., ge=1)):
+    row = query_one(GENRE_AUDIO_PROFILE, {"genre_id": genre_id})
+    if not row:
+        raise HTTPException(status_code=404, detail="Género no encontrado")
+    return row
+
+
+@router.get("/trends/weekly", tags=["Dashboard"])
+def trends_weekly():
+    return {"data": query_rows(TRENDS_WEEKLY)}
+
+
+@router.get("/artists/search", tags=["Dashboard"])
+def artists_search_legacy(
+    name:  str = Query(..., min_length=1),
+    limit: int = Query(8, ge=1, le=50),
+    page:  int = Query(1, ge=1),
+):
+    offset  = (page - 1) * limit
+    pattern = f"%{name.strip()}%"
+    rows    = query_rows(ARTISTS_SEARCH, {"pattern": pattern, "limit": limit, "offset": offset})
+    total   = query_one(ARTISTS_SEARCH_TOTAL, {"pattern": pattern})["n"]
+    return {"data": rows, "total": total, "page": page, "limit": limit}
+
+
+@router.get("/artists/{artist_id}/stats", tags=["Dashboard"])
+def artist_stats_legacy(artist_id: int = Path(..., ge=1)):
+    row = query_one(ARTIST_STATS, {"artist_id": artist_id})
+    if not row:
+        raise HTTPException(status_code=404, detail="Artista no encontrado")
+    return row
 
 
 # ─────────────────────────────────────────────────────────────────────────────

@@ -1,13 +1,22 @@
 import { useQuery } from '@tanstack/react-query'
 import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
+import { MiniLineChart } from '@shared/components/charts/MiniLineChart'
+import { CHART_COLORS } from '@shared/components/charts/colors'
 import { seguridadApi } from '../api/seguridad.api'
 import styles from './SeguridadPages.module.css'
 
+// Dashboard (RT-04, S10 Día 3): antes esta pantalla era una tabla cruda de
+// auditoría sin ningún gráfico — se agrega acciones administrativas/día
+// (14 días) más 2 KPI reales, sin tocar la tabla existente debajo.
 export function AuditoriaPage() {
   useDocumentTitle('Auditoría')
   const { data, isLoading, isError } = useQuery({
     queryKey: ['seguridad', 'auditoria'],
     queryFn:  () => seguridadApi.auditoria(50),
+  })
+  const dashboard = useQuery({
+    queryKey: ['seguridad', 'dashboard'],
+    queryFn:  () => seguridadApi.dashboard(),
   })
 
   const entradas = data?.data ?? []
@@ -15,6 +24,28 @@ export function AuditoriaPage() {
   return (
     <section className={styles.page}>
       <h1 className={styles.heading}>Auditoría</h1>
+
+      <div className={styles.dashboardGrid}>
+        <div className={styles.chartPanel}>
+          <p className={styles.panelTitle}>Acciones administrativas por día (14 días)</p>
+          <MiniLineChart
+            data={dashboard.data?.acciones_por_dia ?? []}
+            xKey="dia"
+            series={[{ key: 'total', label: 'Acciones', color: CHART_COLORS.violeta }]}
+          />
+        </div>
+        <div className={styles.kpiPanel}>
+          <p className={styles.panelTitle}>Últimas 24 horas</p>
+          <div className={styles.kpiRow}>
+            <span className={styles.kpiValue}>{dashboard.data?.errores_24h ?? '—'}</span>
+            <span className={styles.kpiLabel}>Errores de sistema</span>
+          </div>
+          <div className={styles.kpiRow}>
+            <span className={styles.kpiValue}>{dashboard.data?.sesiones_abiertas_total ?? '—'}</span>
+            <span className={styles.kpiLabel}>Sesiones abiertas ahora</span>
+          </div>
+        </div>
+      </div>
 
       {isError && <div className={styles.errorBox}>No se pudo cargar la auditoría (¿sesión de admin?).</div>}
 

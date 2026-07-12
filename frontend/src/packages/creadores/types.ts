@@ -72,3 +72,8 @@ export type ResolverTrackResultado = {
   estado:             EstadoRevision
   fact_id_promovido:  number | null
 }
+
+export type DashboardCreadores = {
+  subidas_por_estado:    { estado: string; total: number }[]
+  cuentas_artista_total: number
+}

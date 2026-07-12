@@ -5,6 +5,7 @@ import { usePlayer } from '@shared/context/PlayerContext'
 import { AlbumArt } from '@shared/components/AlbumArt'
 import { ErrorState } from '@shared/components/ErrorState'
 import { ApiError, apiErrorMessage } from '@shared/lib/api-client'
+import { useAd } from '@packages/publicidad'
 import { useFavoritos } from '../hooks/useFavoritos'
 import { AddToPlaylistMenu } from './AddToPlaylistMenu'
 import { bibliotecaApi } from '../api/biblioteca.api'
@@ -25,6 +26,7 @@ function formatDuration(ms: number): string {
 export function TrackCard({ track, position }: Props) {
   const navigate = useNavigate()
   const { play, reportPlaybackIssue, enqueue } = usePlayer()
+  const { pedirImpresion } = useAd()
   const { isAuthenticated, isFavorite, toggle, toggleError } = useFavoritos()
   const favorite = isFavorite(track.fact_id)
 
@@ -32,8 +34,13 @@ export function TrackCard({ track, position }: Props) {
     navigate(`/catalogo/track/${track.fact_id}`)
   }
 
-  function handlePlay(e: MouseEvent) {
+  async function handlePlay(e: MouseEvent) {
     e.stopPropagation()
+    // Usuarios free reciben un anuncio real entre canciones (CU-O67) — la
+    // reproducción real espera a que termine, igual que en cualquier
+    // streaming freemium real. `pedirImpresion` resuelve de inmediato si el
+    // usuario es premium o no hay campaña elegible.
+    if (isAuthenticated) await pedirImpresion()
     play(track)
     if (isAuthenticated) {
       bibliotecaApi.registrarReproduccion(track.fact_id).catch((err) => {

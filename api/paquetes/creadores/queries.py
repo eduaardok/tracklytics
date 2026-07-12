@@ -134,3 +134,15 @@ ALBUM_ID_MAX = "SELECT max(album_id) AS n FROM DIM_ALBUMS"
 
 LOAD_WEEK_MAX = "SELECT max(load_week) AS n FROM FACT_TRACKS"
 FACT_ID_MAX = "SELECT max(fact_id) AS n FROM FACT_TRACKS"
+
+# Dashboard (RT-04, S10 Día 3): distribución real de subidas por estado de
+# revisión — reusa `_SUBIDA_RESUELTA` (mismo patrón argMax de resolución de
+# ReplacingMergeTree que el resto de esta capability, nunca sobre la tabla cruda).
+SUBIDAS_POR_ESTADO = f"""
+SELECT er.nombre AS estado, count() AS total
+FROM ({_SUBIDA_RESUELTA}) f
+JOIN DIM_ESTADO_REVISION er ON f.estado_revision_id = er.estado_revision_id
+GROUP BY er.nombre
+"""
+
+CUENTAS_ARTISTA_TOTAL = "SELECT count() AS n FROM (SELECT cuenta_artista_id FROM DIM_CUENTA_ARTISTA GROUP BY cuenta_artista_id)"

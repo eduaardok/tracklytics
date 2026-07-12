@@ -23,6 +23,18 @@ export type SuscripcionActiva = {
 }
 
 export type ConfirmarSuscripcionBody = {
-  plan_id:     string
-  metodo_pago?: string | null
+  plan_id:         string
+  metodo_pago_id?: string | null
+}
+
+export type PagoResultado = {
+  status:         string
+  transaccion_id: string
+  estado:         'pendiente' | 'exitosa' | 'fallida'
+  invoice_id:     string | null
+}
+
+export type ConfirmarSuscripcionResponse = {
+  data: SuscripcionActiva
+  pago: PagoResultado | null
 }

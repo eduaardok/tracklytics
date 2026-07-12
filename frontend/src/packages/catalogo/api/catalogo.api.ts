@@ -1,15 +1,19 @@
 import { apiClient, type ApiResponse } from '@shared/lib/api-client'
-import type { Track, TrackDetail, Artist, Album, Genre, TracksSearchParams } from '../types'
+import type { Track, TrackDetail, AudioFeatures, Artist, Album, Genre, TracksSearchParams } from '../types'
 
 export const catalogoApi = {
   // ── Tracks ──────────────────────────────────────────────────────────────────
   tracksTop: (limit = 20) =>
     apiClient.get<ApiResponse<Track>>(`/tracks/top?limit=${limit}`),
 
-  tracksSearch: ({ q = '', genre = '', limit = 50, offset = 0 }: TracksSearchParams = {}) =>
-    apiClient.get<ApiResponse<Track>>(
-      `/tracks/search?q=${encodeURIComponent(q)}&genre=${encodeURIComponent(genre)}&limit=${limit}&offset=${offset}`,
-    ),
+  tracksSearch: ({ q = '', genre = '', limit = 50, offset = 0, popularityMin, tempoMin, tempoMax, energyMin }: TracksSearchParams = {}) => {
+    const qs = new URLSearchParams({ q, genre, limit: String(limit), offset: String(offset) })
+    if (popularityMin != null) qs.set('popularity_min', String(popularityMin))
+    if (tempoMin != null) qs.set('tempo_min', String(tempoMin))
+    if (tempoMax != null) qs.set('tempo_max', String(tempoMax))
+    if (energyMin != null) qs.set('energy_min', String(energyMin))
+    return apiClient.get<ApiResponse<Track>>(`/tracks/search?${qs.toString()}`)
+  },
 
   tracksByArtist: (artistId: number, limit = 20) =>
     apiClient.get<ApiResponse<Track>>(`/tracks/by-artist/${artistId}?limit=${limit}`),
@@ -25,6 +29,11 @@ export const catalogoApi = {
 
   trackDetailByFact: (factId: number) =>
     apiClient.get<TrackDetail>(`/tracks/fact/${factId}`),
+
+  // Premium-only (backend responde 403 si el plan activo no es premium) —
+  // ver RF de paywall real, `require_active_subscription("premium")`.
+  audioFeatures: (factId: number) =>
+    apiClient.get<AudioFeatures>(`/tracks/fact/${factId}/audio-features`),
 
   // ── Artists ─────────────────────────────────────────────────────────────────
   artistsTop: (limit = 20) =>

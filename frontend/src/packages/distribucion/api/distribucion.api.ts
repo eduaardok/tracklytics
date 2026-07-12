@@ -4,7 +4,7 @@ import type {
   Pais, CanalDistribucion, TipoRestriccion,
   Licencia, LicenciaBody,
   Restriccion, RestriccionBody,
-  Disponibilidad,
+  Disponibilidad, DashboardDistribucion,
 } from '../types'
 
 export const distribucionApi = {
@@ -27,6 +27,12 @@ export const distribucionApi = {
   // ── Catálogos fijos (soporte de dropdowns) ──────────────────────────────────
   paises: () =>
     apiClient.get<ApiResponse<Pais>>('/distribucion/paises'),
+
+  // Sin sesión — usado por registro/perfil para poblar el <select> de país
+  // (RF-DIS-007/CU-O41, auditoría 2026-07-09): antes era texto libre y
+  // `resolver_pais_id` fallaba en silencio contra `DIM_PAIS`.
+  paisesPublico: () =>
+    apiClient.get<ApiResponse<Pais>>('/distribucion/paises/publico'),
 
   canales: () =>
     apiClient.get<ApiResponse<CanalDistribucion>>('/distribucion/canales'),
@@ -59,4 +65,7 @@ export const distribucionApi = {
   // ── Disponibilidad (B2C, solo lectura) ──────────────────────────────────────
   disponibilidad: (factIdTrack: number) =>
     apiClient.get<Disponibilidad>(`/distribucion/disponibilidad/${factIdTrack}`),
+
+  dashboard: () =>
+    apiClient.get<DashboardDistribucion>('/distribucion/admin/dashboard'),
 }

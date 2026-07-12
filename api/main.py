@@ -18,6 +18,8 @@ from paquetes.gestion_datos.router import v1_router as gestion_v1_router
 from paquetes.partners.logging_mw import partner_call_logger
 from paquetes.partners.router import router as partners_router
 from paquetes.partners.router import v1_router as partners_v1_router
+from paquetes.publicidad.router import router as publicidad_router
+from paquetes.regalias.router import router as regalias_router
 from paquetes.seguridad.router import router as seguridad_router
 from paquetes.social.router import router as social_router
 from paquetes.suscripciones.router import router as suscripciones_router
@@ -84,3 +86,5 @@ app.include_router(creadores_router)
 app.include_router(social_router)
 app.include_router(distribucion_router)
 app.include_router(experiencia_router)
+app.include_router(regalias_router)
+app.include_router(publicidad_router)

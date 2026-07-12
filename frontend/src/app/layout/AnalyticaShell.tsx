@@ -1,7 +1,9 @@
 import { Suspense } from 'react'
 import { Outlet, NavLink, useLocation } from 'react-router-dom'
 import { RequireSuscripcionActiva } from '@packages/analitica'
-import { UserMenu } from '@packages/seguridad'
+// Import directo, no vía el barrel `@packages/seguridad` (arrastraría los
+// dashboards con Recharts de ese paquete al chunk de AnalyticaShell).
+import { UserMenu } from '@packages/seguridad/components/UserMenu'
 import { getRole } from '@shared/lib/session'
 import { RouteLoadingFallback } from '@shared/components/RouteLoadingFallback'
 import { ZoneSwitcher } from '@shared/components/ZoneSwitcher'

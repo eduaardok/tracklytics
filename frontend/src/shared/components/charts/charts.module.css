@@ -1,0 +1,47 @@
+.chartBox {
+  width: 100%;
+  height: 220px;
+}
+
+.tooltip {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 8px 10px;
+  box-shadow: 0 4px 16px oklch(0 0 0 / 0.3);
+}
+
+.tooltipTitle {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--color-muted);
+  margin: 0 0 4px;
+}
+
+.tooltipRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+}
+
+.tooltipKey {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.tooltipName { color: var(--color-muted); flex: 1; }
+.tooltipValue { color: var(--color-ink); font-weight: 600; font-variant-numeric: tabular-nums; }
+
+.emptyChart {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 220px;
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+  color: var(--color-muted);
+}

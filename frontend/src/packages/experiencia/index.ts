@@ -6,9 +6,11 @@ export { SoportePage }            from './pages/SoportePage'
 export { TicketsAdminPage }       from './pages/TicketsAdminPage'
 export { FamiliaAdminPage }       from './pages/FamiliaAdminPage'
 export { TopTracksPlaylistsPage } from './pages/TopTracksPlaylistsPage'
+export { RecomendacionesPage }    from './pages/RecomendacionesPage'
 export { experienciaApi } from './api/experiencia.api'
 export type {
   EstadoTicket, Ticket, TicketBody,
   TopTrackPlaylist, SincronizacionResultado,
   Recomendacion, MiembroFamilia, PlanFamiliar,
+  MiembroFamiliaDetalle, MiFamilia,
 } from './types'

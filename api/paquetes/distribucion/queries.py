@@ -86,3 +86,17 @@ JOIN DIM_TIPO_RESTRICCION t ON b.tipo_restriccion_id = t.tipo_restriccion_id
 WHERE b.fact_id_track = {fact_id_track:UInt64}
 ORDER BY b.fecha_inicio DESC
 """
+
+# Dashboard (RT-04, S10 Día 3): reproducciones bloqueadas reales por país
+# (top 10) — agrega FACT_RESTRICCION_REPRODUCCION, escrita solo cuando el
+# enforcement real de RF-DIS-007 bloquea un intento de reproducción.
+RESTRICCIONES_POR_PAIS = """
+SELECT p.nombre AS pais, count() AS total
+FROM FACT_RESTRICCION_REPRODUCCION r
+JOIN DIM_PAIS p ON r.pais_id = p.pais_id
+GROUP BY p.nombre
+ORDER BY total DESC
+LIMIT 10
+"""
+
+LICENCIAS_ACTIVAS_TOTAL = "SELECT count() AS n FROM DIM_LICENCIA WHERE estado = 'activa'"

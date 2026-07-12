@@ -26,6 +26,17 @@ async def crear_usuario(email: str, password: str, nombre: str, pais: str, rol: 
     return resp.json()
 
 
+async def actualizar_usuario(token: str, usuario_id: str, campos: dict) -> dict:
+    async with httpx.AsyncClient(timeout=5) as client:
+        resp = await client.patch(
+            f"{PB_URL}/api/collections/{COLLECTION}/records/{usuario_id}",
+            headers={"Authorization": f"Bearer {token}"},
+            json=campos,
+        )
+    resp.raise_for_status()
+    return resp.json()
+
+
 async def login(email: str, password: str) -> dict:
     async with httpx.AsyncClient(timeout=5) as client:
         resp = await client.post(

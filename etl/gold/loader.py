@@ -277,7 +277,14 @@ def run_gold(**context):
 
         print(f"[gold] {n_real} registros reales insertados (semana 1)")
 
-    context["ti"].xcom_push(key="next_id",    value=n_real + 1)
+    # `next_id` debe reflejar el punto más alto ya ocupado en FACT_TRACKS
+    # (reales + sintéticos de semanas previas), no solo `n_real` — de lo
+    # contrario `run_synthetic` reinicia su rango de fact_id en cada corrida
+    # (semana 2+, o cualquier `forzar_recarga`) y genera fact_id duplicados
+    # que apuntan a tracks distintos según el orden de merge de ClickHouse
+    # (ver docs/decisiones-refactorizacion.md §20 — causa raíz #2).
+    max_fact_id = scalar(client, "SELECT max(fact_id) FROM FACT_TRACKS") or n_real
+    context["ti"].xcom_push(key="next_id",    value=int(max_fact_id) + 1)
     context["ti"].xcom_push(key="real_count", value=n_real)
 
 

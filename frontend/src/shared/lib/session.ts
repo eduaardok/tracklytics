@@ -41,6 +41,15 @@ export function setSession(token: string, user: SessionUser): void {
   localStorage.setItem(USER_KEY, JSON.stringify(user))
 }
 
+// Fusiona campos editados (ej. PATCH /perfil) sobre el usuario guardado, sin
+// pedir un nuevo login — evita que nombre/país queden desactualizados en
+// pantalla hasta el siguiente refresh de sesión.
+export function updateSessionUser(patch: Partial<SessionUser>): void {
+  const current = getUser()
+  if (!current) return
+  localStorage.setItem(USER_KEY, JSON.stringify({ ...current, ...patch }))
+}
+
 export function clearSession(): void {
   localStorage.removeItem(TOKEN_KEY)
   localStorage.removeItem(USER_KEY)

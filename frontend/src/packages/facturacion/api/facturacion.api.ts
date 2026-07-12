@@ -1,7 +1,7 @@
 import { apiClient, type ApiResponse } from '@shared/lib/api-client'
 import type {
-  MetodoPago, Transaccion, Invoice,
-  MetodosPagoResponse,
+  MetodoPago, Transaccion, Invoice, InvoiceDetalle,
+  MetodosPagoResponse, DashboardFacturacion,
   RegistrarMetodoPagoBody, PagarSuscripcionBody, PagoResultado,
 } from '../types'
 
@@ -26,4 +26,12 @@ export const facturacionApi = {
     apiClient.get<ApiResponse<Invoice>>(
       `/facturacion/invoices${usuarioId ? `?usuario_id=${usuarioId}` : ''}`,
     ),
+
+  // Vista imprimible de una invoice individual — antes solo existía en
+  // app/facturacion/invoice.html (legacy).
+  invoiceDetalle: (invoiceId: string) =>
+    apiClient.get<InvoiceDetalle>(`/facturacion/invoices/${invoiceId}`),
+
+  dashboard: () =>
+    apiClient.get<DashboardFacturacion>('/facturacion/admin/dashboard'),
 }

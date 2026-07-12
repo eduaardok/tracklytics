@@ -1,6 +1,6 @@
 import { apiClient } from '@shared/lib/api-client'
 import type { ApiResponse } from '@shared/lib/api-client'
-import type { ConfirmarSuscripcionBody, Plan, SuscripcionActiva } from '../types'
+import type { ConfirmarSuscripcionBody, ConfirmarSuscripcionResponse, Plan, SuscripcionActiva } from '../types'
 
 export const suscripcionesApi = {
   planes: () =>
@@ -10,7 +10,7 @@ export const suscripcionesApi = {
     apiClient.get<{ data: SuscripcionActiva | null }>('/suscripciones/activa'),
 
   confirmar: (body: ConfirmarSuscripcionBody) =>
-    apiClient.post<{ data: SuscripcionActiva }>('/suscripciones', body),
+    apiClient.post<ConfirmarSuscripcionResponse>('/suscripciones', body),
 
   cancelar: (suscripcionId: string) =>
     apiClient.post<{ data: SuscripcionActiva }>(`/suscripciones/${suscripcionId}/cancelar`, undefined),
@@ -47,7 +47,7 @@ export async function resolverDestinoPostAuth(role: string): Promise<PostAuthDes
   if (role === 'user') {
     try {
       const { data: activa } = await suscripcionesApi.activa()
-      if (!activa) await suscripcionesApi.confirmar({ plan_id: 'free', metodo_pago: null })
+      if (!activa) await suscripcionesApi.confirmar({ plan_id: 'free', metodo_pago_id: null })
     } catch {
       // Fail-open para B2C, igual que el legacy: un fallo de red no debe
       // impedir el login, el auto-assign se reintenta en la próxima sesión.

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 
 from core.database import query_one, query_rows
 from paquetes.catalogo.queries import (
@@ -9,8 +9,18 @@ from paquetes.catalogo.queries import (
     TRACKS_BY_ALBUM, TRACKS_BY_ARTIST, TRACKS_BY_GENRE, TRACKS_TOP,
     tracks_search_count_sql, tracks_search_sql,
 )
+from paquetes.suscripciones.deps import require_active_subscription
 
 router = APIRouter(prefix="/app/v1", tags=["App"])
+
+# Características de audio "estilo Spotify Premium" (RF paywall ya existía
+# solo en la UI de TrackDetailPage — cualquiera podía leerlas igual desde la
+# pestaña Network sin backend real detrás; auditoría 2026-07-10). No incluye
+# loudness/tempo/duration/popularity, que siguen siendo públicos.
+AUDIO_FEATURE_FIELDS = [
+    "danceability", "energy", "valence",
+    "acousticness", "speechiness", "instrumentalness", "liveness",
+]
 
 
 # ── Tracks ────────────────────────────────────────────────────────────────────
@@ -27,6 +37,13 @@ def tracks_search(
     genre:  str = Query(""),
     limit:  int = Query(50, ge=1, le=100),
     offset: int = Query(0, ge=0),
+    # Filtros avanzados (S10 Día 3) — antes la búsqueda solo soportaba texto
+    # y género; danceability/energy/valence ya viajaban en la respuesta pero
+    # nada permitía filtrar por ellos.
+    popularity_min: int | None = Query(None, ge=0, le=100),
+    tempo_min:      float | None = Query(None, ge=0),
+    tempo_max:      float | None = Query(None, ge=0),
+    energy_min:     float | None = Query(None, ge=0, le=1),
 ):
     conditions: list[str] = []
     params: dict = {"limit": limit, "offset": offset}
@@ -41,6 +58,22 @@ def tracks_search(
     if genre.strip():
         params["genre"] = genre.strip()
         conditions.append("g.name = {genre:String}")
+
+    if popularity_min is not None:
+        params["popularity_min"] = popularity_min
+        conditions.append("ft.popularity >= {popularity_min:UInt8}")
+
+    if tempo_min is not None:
+        params["tempo_min"] = tempo_min
+        conditions.append("ft.tempo >= {tempo_min:Float32}")
+
+    if tempo_max is not None:
+        params["tempo_max"] = tempo_max
+        conditions.append("ft.tempo <= {tempo_max:Float32}")
+
+    if energy_min is not None:
+        params["energy_min"] = energy_min
+        conditions.append("ft.energy >= {energy_min:Float32}")
 
     where = f"WHERE {' AND '.join(conditions)}" if conditions else ""
     rows = query_rows(tracks_search_sql(where), params)
@@ -71,7 +104,20 @@ def track_detail_by_fact(fact_id: int):
     row = query_one(TRACK_DETAIL_BY_FACT_ID, {"fact_id": fact_id})
     if not row:
         raise HTTPException(status_code=404, detail="Track not found")
+    # Características de audio: solo por GET /tracks/fact/{fact_id}/audio-features
+    # (premium) — antes viajaban aquí igual para cualquiera, el paywall
+    # existía solo del lado del cliente (auditoría 2026-07-10).
+    for field in AUDIO_FEATURE_FIELDS:
+        row.pop(field, None)
     return row
+
+
+@router.get("/tracks/fact/{fact_id}/audio-features")
+def track_audio_features(fact_id: int, user: dict = Depends(require_active_subscription("premium"))):
+    row = query_one(TRACK_DETAIL_BY_FACT_ID, {"fact_id": fact_id})
+    if not row:
+        raise HTTPException(status_code=404, detail="Track not found")
+    return {field: row.get(field) for field in AUDIO_FEATURE_FIELDS}
 
 
 @router.get("/tracks/{track_id}")

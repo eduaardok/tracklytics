@@ -4,6 +4,7 @@ import { ListPlus } from 'lucide-react'
 import { usePlayer } from '@shared/context/PlayerContext'
 import { ErrorState } from '@shared/components/ErrorState'
 import { ApiError, apiErrorMessage } from '@shared/lib/api-client'
+import { useAd } from '@packages/publicidad'
 import { useFavoritos } from '../hooks/useFavoritos'
 import { bibliotecaApi } from '../api/biblioteca.api'
 import type { LibraryTrack } from '../types'
@@ -29,6 +30,7 @@ type Props = {
 export function LibraryTrackRow({ track, position, timeAgo, onRemove, removeTitle }: Props) {
   const navigate = useNavigate()
   const { play, reportPlaybackIssue, enqueue } = usePlayer()
+  const { pedirImpresion } = useAd()
   const { isFavorite, toggle, toggleError } = useFavoritos()
   const favorite = isFavorite(track.fact_id)
 
@@ -52,8 +54,9 @@ export function LibraryTrackRow({ track, position, timeAgo, onRemove, removeTitl
     }
   }
 
-  function handlePlay(e: MouseEvent) {
+  async function handlePlay(e: MouseEvent) {
     e.stopPropagation()
+    await pedirImpresion()
     play(toPlayable())
     bibliotecaApi.registrarReproduccion(track.fact_id).catch((err) => {
       if (err instanceof ApiError && err.status === 403) {

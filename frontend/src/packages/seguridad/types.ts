@@ -32,3 +32,9 @@ export type AsignarPermisoBody = {
   accion:     string
   permitido:  boolean
 }
+
+export type DashboardSeguridad = {
+  acciones_por_dia:         { dia: string; total: number }[]
+  errores_24h:              number
+  sesiones_abiertas_total:  number
+}

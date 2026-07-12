@@ -14,10 +14,12 @@ from paquetes.distribucion.queries import (
     CANAL_EXISTE,
     CANALES_LIST,
     LICENCIA_ID_MAX,
+    LICENCIAS_ACTIVAS_TOTAL,
     PAIS_EXISTE,
     PAIS_ID_POR_TEXTO,
     PAISES_LIST,
     RESTRICCIONES_DE_TRACK,
+    RESTRICCIONES_POR_PAIS,
     RESTRICCION_ACTIVA_EXISTE,
     SELLO_EXISTE,
     SELLO_ID_MAX,
@@ -125,6 +127,16 @@ def listar_sellos():
 # RF-DIS-*, son soporte de las pantallas de creación de licencias/restricciones.
 @router.get("/paises", dependencies=[Depends(require_admin)])
 def listar_paises():
+    return {"data": query_rows(PAISES_LIST)}
+
+
+# Versión pública (sin sesión) del mismo catálogo — el registro de cuenta
+# (CU-O01) necesita poblar un <select> de país antes de que exista un JWT
+# de usuario, para que el país declarado resuelva de forma confiable contra
+# DIM_PAIS (antes era texto libre y `resolver_pais_id` fallaba en silencio
+# — RF-DIS-007/CU-O41, auditoría 2026-07-09).
+@router.get("/paises/publico")
+def listar_paises_publico():
     return {"data": query_rows(PAISES_LIST)}
 
 
@@ -303,3 +315,11 @@ def consultar_disponibilidad(fact_id_track: int, user: dict = Depends(require_b2
     if restriccion:
         return {"disponible": False, "tipo_restriccion": restriccion["tipo_restriccion_nombre"]}
     return {"disponible": True, "tipo_restriccion": None}
+
+
+@router.get("/admin/dashboard", dependencies=[Depends(require_admin)])
+def dashboard_distribucion():
+    return {
+        "restricciones_por_pais": query_rows(RESTRICCIONES_POR_PAIS),
+        "licencias_activas_total": (query_one(LICENCIAS_ACTIVAS_TOTAL) or {}).get("n", 0),
+    }

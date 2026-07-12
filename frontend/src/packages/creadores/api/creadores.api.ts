@@ -1,6 +1,6 @@
 import { apiClient, type ApiResponse } from '@shared/lib/api-client'
 import type {
-  CuentaArtista, SubidaTrack,
+  CuentaArtista, SubidaTrack, DashboardCreadores,
   SolicitudCuentaBody, SolicitudCuentaResultado,
   ResolverCuentaBody, ResolverCuentaResultado,
   SubidaTrackBody, SubidaTrackResultado,
@@ -37,4 +37,7 @@ export const creadoresApi = {
 
   resolverTrack: (subidaId: string, body: ResolverTrackBody) =>
     apiClient.post<ResolverTrackResultado>(`/creadores/admin/tracks/${subidaId}/resolver`, body),
+
+  dashboard: () =>
+    apiClient.get<DashboardCreadores>('/creadores/admin/dashboard'),
 }

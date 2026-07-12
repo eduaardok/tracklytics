@@ -230,16 +230,28 @@ def dim_create(table: str, body: DimRecord):
     ch_table = _resolve_table(table)
     if not body.data:
         raise HTTPException(status_code=422, detail="data must not be empty")
-    cols = ", ".join(body.data.keys())
+
+    pk   = _get_pk_column(ch_table)
+    data = dict(body.data)
+    if pk not in data or not data[pk]:
+        # Sin esto, ClickHouse inserta el default de la columna (0 para
+        # enteros) para el PK omitido, y todo registro creado por esta vía
+        # queda con el mismo id — un UPDATE/DELETE posterior por ese id
+        # afecta a todos los registros con el mismo defecto (bug CU-O15,
+        # auditoría 2026-07-09).
+        next_id = query_one(f"SELECT max({pk}) AS n FROM {ch_table}")
+        data[pk] = (next_id["n"] if next_id and next_id["n"] else 0) + 1
+
+    cols = ", ".join(data.keys())
     vals = ", ".join(
         f"'{v}'" if isinstance(v, str) else str(v)
-        for v in body.data.values()
+        for v in data.values()
     )
     try:
         execute(f"INSERT INTO {ch_table} ({cols}) VALUES ({vals})")
     except Exception as exc:
         raise HTTPException(status_code=400, detail=str(exc))
-    return {"message": "Record created", "data": body.data}
+    return {"message": "Record created", "data": data}
 
 
 @router.put("/dim/{table}/{record_id}", tags=["Dimensions"])

@@ -3,6 +3,8 @@ import { useQuery } from '@tanstack/react-query'
 import { ErrorState } from '@shared/components/ErrorState'
 import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { UserPicker, type UserSearchResult } from '@shared/components/UserPicker'
+import { MiniLineChart } from '@shared/components/charts/MiniLineChart'
+import { CHART_COLORS } from '@shared/components/charts/colors'
 import { facturacionApi } from '../api/facturacion.api'
 import styles from './FacturacionPages.module.css'
 
@@ -53,6 +55,11 @@ export function AuditoriaFacturacionPage() {
   const [selectedUser, setSelectedUser] = useState<UserSearchResult | null>(null)
   const buscado = selectedUser?.usuario_id ?? ''
 
+  const dashboard = useQuery({
+    queryKey: ['facturacion', 'dashboard'],
+    queryFn:  () => facturacionApi.dashboard(),
+  })
+
   const transacciones = useQuery({
     queryKey: ['facturacion', 'auditoria', 'transacciones', buscado],
     queryFn:  () => facturacionApi.transacciones(buscado),
@@ -73,6 +80,28 @@ export function AuditoriaFacturacionPage() {
   return (
     <section className={styles.page}>
       <h1 className={styles.heading}>Auditoría de facturación</h1>
+
+      <div className={styles.dashboardGrid}>
+        <div className={styles.chartPanel}>
+          <p className={styles.panelTitle}>Ingreso real por día (14 días)</p>
+          <MiniLineChart
+            data={dashboard.data?.ingreso_por_dia ?? []}
+            xKey="dia"
+            series={[{ key: 'total', label: 'Ingreso (USD)', color: CHART_COLORS.teal }]}
+          />
+        </div>
+        <div className={styles.kpiPanel}>
+          <p className={styles.panelTitle}>Resumen</p>
+          <div className={styles.kpiRow}>
+            <span className={styles.kpiValue}>{fmt(dashboard.data?.ingreso_total_historico ?? 0, 'USD')}</span>
+            <span className={styles.kpiLabel}>Ingreso histórico total</span>
+          </div>
+          <div className={styles.kpiRow}>
+            <span className={styles.kpiValue}>{dashboard.data?.transacciones_24h ?? '—'}</span>
+            <span className={styles.kpiLabel}>Transacciones últimas 24h</span>
+          </div>
+        </div>
+      </div>
 
       <div className={styles.searchForm}>
         <UserPicker

@@ -1,6 +1,8 @@
 import { Suspense } from 'react'
 import { Outlet, NavLink } from 'react-router-dom'
-import { UserMenu } from '@packages/seguridad'
+// Import directo, no vía el barrel `@packages/seguridad` (arrastraría los
+// dashboards con Recharts de ese paquete al bundle principal — ver router.tsx).
+import { UserMenu } from '@packages/seguridad/components/UserMenu'
 import { RouteLoadingFallback } from '@shared/components/RouteLoadingFallback'
 import { ZoneSwitcher } from '@shared/components/ZoneSwitcher'
 import styles from './SeguridadShell.module.css'
@@ -49,6 +51,12 @@ export function SeguridadShell() {
           </NavLink>
           <NavLink to="/seguridad/familia" className={({ isActive }) => isActive ? ACTIVE_CLS : INACTIVE_CLS}>
             Plan familiar
+          </NavLink>
+          <NavLink to="/seguridad/regalias" className={({ isActive }) => isActive ? ACTIVE_CLS : INACTIVE_CLS}>
+            Regalías
+          </NavLink>
+          <NavLink to="/seguridad/publicidad" className={({ isActive }) => isActive ? ACTIVE_CLS : INACTIVE_CLS}>
+            Publicidad
           </NavLink>
           <NavLink to="/seguridad/partners" end className={({ isActive }) => isActive ? ACTIVE_CLS : INACTIVE_CLS}>
             Partners

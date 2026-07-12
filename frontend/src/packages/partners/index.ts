@@ -4,4 +4,5 @@
 
 export { PartnersConsolePage } from './pages/PartnersConsolePage'
 export { PartnersMetricasPage } from './pages/PartnersMetricasPage'
+export { PartnersLandingPage } from './pages/PartnersLandingPage'
 export type { PartnerTier, PartnerEndpoint, PartnerProbeResult, PartnerMetrica, PartnerMetricaTier } from './types'

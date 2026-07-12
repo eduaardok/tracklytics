@@ -71,3 +71,8 @@ export type Disponibilidad = {
   disponible:       boolean
   tipo_restriccion: string | null
 }
+
+export type DashboardDistribucion = {
+  restricciones_por_pais:  { pais: string; total: number }[]
+  licencias_activas_total: number
+}

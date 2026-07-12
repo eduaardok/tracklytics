@@ -1,5 +1,5 @@
 import { apiClient, type ApiResponse } from '@shared/lib/api-client'
-import type { Permiso, AuditLogEntry, ErrorSistemaEntry, AsignarPermisoBody } from '../types'
+import type { Permiso, AuditLogEntry, ErrorSistemaEntry, AsignarPermisoBody, DashboardSeguridad } from '../types'
 
 // Estos endpoints son admin-only (require_admin en el backend) — el header
 // Authorization lo inyecta `apiClient` (shared/lib/api-client.ts) a partir de
@@ -16,4 +16,7 @@ export const seguridadApi = {
 
   errores: (limit = 50) =>
     apiClient.get<ApiResponse<ErrorSistemaEntry>>(`/seguridad/errores?limit=${limit}`),
+
+  dashboard: () =>
+    apiClient.get<DashboardSeguridad>('/seguridad/admin/dashboard'),
 }

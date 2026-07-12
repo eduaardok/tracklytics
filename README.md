@@ -11,25 +11,28 @@
 [![PocketBase](https://img.shields.io/badge/PocketBase-Auth-B8DBE4?style=for-the-badge&logo=pocketbase&logoColor=black)](https://pocketbase.io)
 
 ![Records](https://img.shields.io/badge/Registros-900.000+-8B5CF6?style=for-the-badge)
-![Tables](https://img.shields.io/badge/Tablas_ClickHouse-52-8B5CF6?style=for-the-badge)
-![Capabilities](https://img.shields.io/badge/Capabilities_OpenSpec-11-8B5CF6?style=for-the-badge)
-![Progress](https://img.shields.io/badge/Avance-refactor%20completo%20%2B%20migración%20React-22c55e?style=for-the-badge)
+![Tables](https://img.shields.io/badge/Tablas_ClickHouse-61-8B5CF6?style=for-the-badge)
+![Capabilities](https://img.shields.io/badge/Capabilities_OpenSpec-13-8B5CF6?style=for-the-badge)
+![Progress](https://img.shields.io/badge/Avance-modelo%20de%20negocio%20completo-22c55e?style=for-the-badge)
 
 > Plataforma de analítica musical e inteligencia de negocio sobre datos de Spotify,
 > construida con ClickHouse, Airflow, FastAPI y un frontend React + TypeScript.
 > Incluye una app musical tipo Spotify completa (catálogo, biblioteca, reproducción real,
-> suscripciones, pagos, creadores, social, distribución) con sistema de roles y 11
-> capabilities especificadas con Spec Driven Development (OpenSpec).
+> suscripciones, pagos, creadores, social, distribución, regalías, publicidad) con sistema de
+> roles, dashboards administrativos por capability y 13 capabilities especificadas con Spec
+> Driven Development (OpenSpec).
 
 Tracklytics procesa un dataset base de 113.550 registros reales de Spotify más datos
 sintéticos semanales acumulados (913.551 registros confirmados hoy en `FACT_TRACKS`, tras
 corregir un incidente de duplicación — ver `docs/decisiones-refactorizacion.md` §20), los
-almacena en un modelo dimensional columnar en ClickHouse (52 tablas físicas), orquesta las
-cargas con Apache Airflow (3 DAGs independientes: catálogo, playlists y modelo de negocio) y los
-expone mediante una API REST (FastAPI), un frontend React containerizado con dashboards
-analíticos interactivos (Recharts), reproducción de audio real (YouTube) con fallback simulado y
-watchdog anti-silencio, portadas reales (iTunes + Deezer, con cache persistente) y una API de
-catálogo para partners externos.
+almacena en un modelo dimensional columnar en ClickHouse (61 tablas físicas), orquesta las
+cargas con Apache Airflow (4 DAGs independientes: catálogo, playlists, modelo de negocio y
+finanzas periódicas) y los expone mediante una API REST (FastAPI), un frontend React
+containerizado (único frontend del proyecto) con dashboards analíticos y administrativos
+interactivos (Recharts), reproducción de audio real (YouTube) con fallback simulado y watchdog
+anti-silencio, portadas reales (iTunes + Deezer, con cache persistente), liquidación real de
+regalías, publicidad con reconocimiento de ingreso en tiempo real, y una API de catálogo para
+partners externos.
 
 ---
 
@@ -39,32 +42,23 @@ catálogo para partners externos.
 |---|---|
 | Fuente de datos | PocketBase — dataset base `spotify_tracks` (113.550 registros) + 5 colecciones más: `users`, `playlists`, `playlist_tracks`, `suscripciones`, `partners` |
 | Staging | Parquet (vía PyArrow) |
-| Base de datos | ClickHouse 24.3 (MergeTree) — 52 tablas físicas en esquema estrella (verificado con `system.tables`), incluyendo capabilities transaccionales (`seguridad`, `facturacion`) implementadas en columnar por decisión pedagógica deliberada del docente |
-| Orquestación ETL | Apache Airflow 2.9 — DAG principal (`tracklytics_etl`) + 2 DAGs independientes (`playlists_sync`, `modelo_negocio_sync`) |
-| API REST | FastAPI + Uvicorn (Python 3.11) — 11 paquetes (uno por capability), incluye API de partners autenticada por API key |
-| Frontend | React 18 + TypeScript + Vite — reemplaza por completo al frontend vanilla para el camino de usuario real (`frontend/`), containerizado (servicio `frontend-react`, build multi-stage Vite+Nginx) |
-| Visualización | Recharts (dashboards de `analitica`, componentes nativos de React sobre los tokens de diseño) |
+| Base de datos | ClickHouse 24.3 (MergeTree) — 61 tablas físicas en esquema estrella (verificado con `system.tables`), incluyendo capabilities transaccionales (`seguridad`, `facturacion`) implementadas en columnar por decisión pedagógica deliberada del docente |
+| Orquestación ETL | Apache Airflow 2.9 — DAG principal (`tracklytics_etl`) + 3 DAGs independientes (`playlists_sync`, `modelo_negocio_sync`, `finanzas_periodicas`) |
+| API REST | FastAPI + Uvicorn (Python 3.11) — 13 paquetes (uno por capability), incluye API de partners autenticada por API key |
+| Frontend | React 18 + TypeScript + Vite — único frontend del proyecto (`frontend/`), containerizado (servicio `frontend-react`, build multi-stage Vite+Nginx); el frontend legado vanilla HTML/CSS/JS (`app/`) se retiró por completo del repo en S10 |
+| Visualización | Recharts (dashboards de `analitica` y dashboards administrativos por capability, componentes nativos de React sobre los tokens de diseño) |
 | Audio real | YouTube IFrame Player API (búsqueda por texto desde el cliente, sin API key) con reproducción simulada (Web Audio API nativa) como fallback cuando no hay resultado, conexión, o cuando YouTube se queda en silencio sin disparar error (watchdog de 4.5s tras `onReady`) |
 | Portadas reales | iTunes Search API + Deezer Search API (orden de intento distinto por entidad, sin API key en ninguna) — cache persistente en disco (`etl/gold/portadas_cache.json`) sobrevive a `docker compose down -v`; reemplazo visual local si ninguna fuente resuelve |
 | Sistema de diseño | Tokens propios en oklch (`frontend/src/index.css`), definidos una vez y aplicados incrementalmente por capability — ver `PRODUCT.md` |
-| Servidor web | Nginx (reverse proxy en ambos frontends: `frontend-react` vigente y `app/` legado) |
+| Servidor web | Nginx (reverse proxy del único frontend, `frontend-react`) |
 | Auth | PocketBase JWT (roles: `user` / `analyst` / `admin`) |
-| Contenedores | Docker + Docker Compose (7 servicios: PocketBase, ClickHouse, Airflow, API, frontend React, frontend legado, más los jobs de init) |
-
-> **Nota — frontend legado (`app/`) todavía en el repo:** el frontend vanilla HTML/CSS/JS que
-> sirve `docker-compose.yml` en el puerto 8081 es el que existía antes de esta refactorización.
-> Toda la funcionalidad de usuario real (catálogo, biblioteca, reproducción, suscripciones,
-> facturación, creadores, social, distribución, analítica, seguridad, ingesta, partners) ya está
-> migrada a `frontend/` (React), que es el frontend vigente y **ya tiene su propio servicio en
-> `docker-compose.yml`** (`frontend-react`, puerto 8082). `app/` sigue existiendo y sigue siendo
-> levantado por Docker Compose para no romper nada que dependa de él, aunque ya no es el camino
-> de usuario real; retirarlo definitivamente queda como pendiente de limpieza, no bloqueante.
+| Contenedores | Docker + Docker Compose (6 servicios de larga duración: PocketBase, ClickHouse, Airflow, API, frontend React, más los jobs de init) |
 
 ---
 
 ## Requisitos previos
 
-- **Docker Desktop** (incluye Docker Compose) — para todo el stack (API, ClickHouse, Airflow, PocketBase, frontend React, frontend legado); `docker compose up -d` es suficiente para levantarlo todo
+- **Docker Desktop** (incluye Docker Compose) — para todo el stack (API, ClickHouse, Airflow, PocketBase, frontend React); `docker compose up -d` es suficiente para levantarlo todo
 - **Node.js 18+** — opcional, solo si prefieres correr el frontend React en modo desarrollo (`npm run dev`, hot reload) en vez del servicio containerizado
 - Python 3.11+ — solo para scripts de inicialización/migración sueltos (`init_clickhouse.py`, `pb_init.py`, `scripts/`)
 
@@ -105,7 +99,7 @@ AIRFLOW_DAG_ID=tracklytics_etl
 WEEK_NUMBER=1
 ```
 
-### 3. Levantar todo el stack (API, ClickHouse, Airflow, PocketBase, frontend React, frontend legado)
+### 3. Levantar todo el stack (API, ClickHouse, Airflow, PocketBase, frontend React)
 
 ```bash
 docker compose up -d
@@ -116,9 +110,9 @@ Docker Compose levanta automáticamente todos los servicios en el orden correcto
 1. **PocketBase** y **ClickHouse** arrancan primero.
 2. **pb-init** crea las colecciones necesarias en PocketBase y carga los 113.550 registros
    desde el CSV (tarda ~5 min).
-3. **init-db** crea el schema dimensional en ClickHouse (52 tablas).
-4. **Airflow**, **API**, el **frontend React** (`frontend-react`, puerto 8082, el vigente) y el
-   **frontend legado** (`app/`, puerto 8081) quedan disponibles.
+3. **init-db** crea el schema dimensional en ClickHouse (61 tablas).
+4. **Airflow**, **API** y el **frontend React** (`frontend-react`, puerto 8082, único frontend)
+   quedan disponibles.
 
 > **Nota:** en la primera ejecución espera ~5–7 minutos a que `pb-init` termine antes de lanzar
 > el ETL. Puedes monitorear con: `docker logs tracklytics_pb_init -f`
@@ -141,7 +135,7 @@ build de producción local: `npm run build && npm run preview`.
 ### 5. Ejecutar el ETL
 
 Desde el frontend React: `/seguridad/ingesta` (requiere rol `admin`) — dispara el DAG y
-monitorea el estado en tiempo real, mismo flujo que el frontend legado.
+monitorea el estado en tiempo real.
 
 ### Reset completo
 
@@ -172,9 +166,10 @@ Los volúmenes se recrean solos. No es necesario ningún paso manual adicional.
 | `/social`, `/social/artista/:id`, `/social/track/:id` | Requiere sesión |
 | `/distribucion/disponibilidad` — Consulta de restricción geográfica (licencias/mercado) | Requiere sesión |
 | `/soporte` — Tickets de soporte | Requiere sesión |
+| `/regalias/ganancias` — Ganancias propias (artista o sello) por período | Requiere sesión (cuenta de artista o de sello) |
 | `/analitica/*` — Dashboard, engagement, géneros, comparación, benchmark, tendencias, playlists top, adquisición de usuarios, disponibilidad de infraestructura | `analyst`/`admin` con suscripción B2B activa |
 | `/analitica/reporte-diario` | `admin` únicamente |
-| `/seguridad/*` — Permisos, auditoría, errores, moderación (social/creadores/distribucion/facturacion), soporte, plan familiar, partners (consola), ingesta (ETL/CRUD/calidad de datos) | `admin` únicamente |
+| `/seguridad/*` — Permisos, auditoría, errores, dashboards administrativos (auditoria/facturacion/creadores/social/distribucion/soporte, cada uno `GET /admin/dashboard`), moderación, plan familiar, regalías (contratos/liquidación), publicidad (anunciantes/campañas), partners (consola), ingesta (ETL/CRUD/calidad de datos) | `admin` únicamente |
 | `/login`, `/register` | Pública |
 
 > `/analitica/disponibilidad` (uptime de infraestructura) y `/distribucion/disponibilidad`
@@ -186,8 +181,7 @@ Los volúmenes se recrean solos. No es necesario ningún paso manual adicional.
 | Servicio | URL | Acceso |
 |---|---|---|
 | API REST + Swagger | http://localhost:8000/docs | - |
-| Frontend React (vigente, containerizado) | http://localhost:8082 | Según ruta, ver arriba |
-| Frontend legado (histórico, no el vigente) | http://localhost:8081 | Todos los roles |
+| Frontend React (único, containerizado) | http://localhost:8082 | Según ruta, ver arriba |
 | Airflow UI | http://localhost:8080 | admin |
 | PocketBase Admin | http://localhost:8090/_/ | admin |
 
@@ -213,28 +207,32 @@ API key por header (`X-API-Key`), resuelta contra la colección `partners`, segm
 
 ---
 
-## Capabilities (11, todas especificadas con OpenSpec y archivadas)
+## Capabilities (13, todas especificadas con OpenSpec y archivadas)
 
 | Capability | Casos de uso | Tablas ClickHouse nuevas |
 |---|---|---|
-| `catalogo` | Navegación, búsqueda, detalle de track/artista/álbum, favoritos, playlists, historial | *(existente)* |
+| `catalogo` | Navegación, búsqueda (con filtros avanzados de popularidad/tempo/energy), detalle de track/artista/álbum, favoritos, playlists (colaborativas, con reorder) | *(existente)* |
 | `suscripciones` | Planes B2C/B2B, confirmar, consultar activa, cancelar | *(existente)* |
 | `analitica` | Dashboards ejecutivos, perfil de audio por género, comparación/benchmark de artistas, tendencias, reporte diario | *(existente)* |
 | `partners` | API de catálogo para integradores externos, autenticada por API key | *(existente)* |
 | `ingesta` (paquete `gestion_datos`) | Disparo/monitoreo de ETL, CRUD dimensional, calidad de datos | *(existente)* |
-| `seguridad` | Usuarios, sesiones, permisos granulares, auditoría, errores de sistema | 6 |
-| `facturacion` | Métodos de pago, transacciones (simuladas), invoices | 3 |
-| `creadores` | Cuenta de artista, subida de tracks con staging y revisión admin | 4 |
-| `social` | Seguir artistas, comentarios, compartir | 4 |
-| `distribucion` | Sellos discográficos, licencias, restricción geográfica de reproducción | 7 |
-| `experiencia` | Telemetría de reproducción, recomendaciones, tickets de soporte, A/B testing, reflejo de playlists, plan familiar, portadas y audio real | 6 |
+| `seguridad` | Usuarios, sesiones activas multi-dispositivo (consulta y cierre remoto), permisos granulares, auditoría, errores de sistema, dashboard administrativo | 6 |
+| `facturacion` | Métodos de pago, transacciones (simuladas), invoices, dashboard administrativo | 3 |
+| `creadores` | Cuenta de artista, subida de tracks con staging y revisión admin, dashboard administrativo | 4 |
+| `social` | Seguir artistas, comentarios, compartir, feed de actividad de artistas seguidos, dashboard administrativo | 4 |
+| `distribucion` | Sellos discográficos, licencias, restricción geográfica de reproducción, dashboard administrativo | 7 |
+| `experiencia` | Telemetría de reproducción, recomendaciones, tickets de soporte, A/B testing, reflejo de playlists, plan familiar, portadas y audio real, dashboard administrativo | 6 |
+| `regalias` | Productores, contratos de reparto por track, cuentas de sello, liquidación real por período, consulta de ganancias propias (artista/sello) | 5 |
+| `publicidad` | Anunciantes, campañas con CPM, impresión de anuncio a usuarios free, reconocimiento de ingreso publicitario en tiempo real | 4 |
 
-Las 5 primeras forman el "módulo operativo" original (S7-S8); las 6 últimas son la
+Las 5 primeras forman el "módulo operativo" original (S7-S8); las 6 siguientes son la
 refactorización hacia sistema completo (detalle de cada decisión en
-`docs/decisiones-refactorizacion.md`). `seguridad` y `facturacion` viven en ClickHouse a pesar
-de ser dominios transaccionales por naturaleza — decisión pedagógica deliberada del docente, no
-un error de arquitectura, para que el equipo documente las fricciones reales de una base
-columnar fuera de su caso de uso ideal.
+`docs/decisiones-refactorizacion.md`); `regalias` y `publicidad` cierran el modelo de negocio de
+streaming real (S10) — ver la sección [Regalías y publicidad](#regalías-y-publicidad-modelo-de-negocio-real)
+más abajo. `seguridad` y `facturacion` viven en ClickHouse a pesar de ser dominios
+transaccionales por naturaleza — decisión pedagógica deliberada del docente, no un error de
+arquitectura, para que el equipo documente las fricciones reales de una base columnar fuera de
+su caso de uso ideal.
 
 ---
 
@@ -249,8 +247,11 @@ columnar fuera de su caso de uso ideal.
 - Filtro por género (114 géneros) con chips descubribles dentro de la sección Canciones
 - Detalle de track (7 atributos de audio, paywall Premium), artista y álbum con navegación
   cruzada
-- Favoritos, playlists (crear/renombrar/eliminar, agregar/quitar tracks) e historial de
+- Favoritos, playlists (crear/renombrar/eliminar, agregar/quitar/reordenar tracks, colaboradores
+  invitados por correo con permiso de editar tracks pero no renombrar/eliminar) e historial de
   reproducción — persistidos en ClickHouse (`FACT_ENGAGEMENT_USUARIO`) y PocketBase (playlists)
+- Búsqueda avanzada de catálogo: filtros opcionales de popularidad mínima y rango de
+  tempo/energy, combinables con el término de búsqueda y el filtro de género
 - Reproductor persistente entre páginas (React Context): reproduce audio real vía YouTube
   IFrame API (búsqueda por texto desde el cliente); si YouTube falla o no hay resultado, simula
   la reproducción completa (progreso real, play/pause funcional) con Web Audio API nativa en vez
@@ -267,8 +268,11 @@ columnar fuera de su caso de uso ideal.
 ### Creadores, social y distribución (requiere sesión)
 - Solicitud de cuenta de artista y subida de tracks (staging + revisión admin antes de
   promoverse al catálogo)
-- Seguir artistas, comentar y compartir tracks
+- Seguir artistas, comentar y compartir tracks; feed de actividad reciente (comentarios y
+  comparticiones) de los artistas que el usuario sigue
 - Consulta de disponibilidad de un track por país (restricción geográfica real, RF-DIS-007)
+- Sesiones activas propias por dispositivo, con cierre remoto de cualquiera de ellas
+  (`seguridad`, sección "Mis sesiones" del perfil)
 
 ### Analítica (`analyst`/`admin`, requiere suscripción B2B activa)
 - Dashboard ejecutivo, engagement por artista/track, perfil de audio por género (radar),
@@ -281,6 +285,12 @@ columnar fuera de su caso de uso ideal.
 - Permisos granulares, auditoría, errores de sistema
 - Moderación de comentarios (social), revisión de cuentas/tracks de creadores, administración
   de facturación, distribución y plan familiar
+- Dashboards administrativos con gráficos reales (Recharts) para `seguridad`, `facturacion`,
+  `creadores`, `social`, `distribucion` y `experiencia` — ver
+  [Dashboards administrativos](#dashboards-administrativos-rt-04) más abajo
+- Administración de regalías (productores, contratos de reparto, cuentas de sello, liquidación
+  manual por período) y de publicidad (anunciantes, campañas) — ver
+  [Regalías y publicidad](#regalías-y-publicidad-modelo-de-negocio-real) más abajo
 - Selección de track/usuario por búsqueda (nombre/artista o nombre/correo) en vez de IDs
   internos crudos, en las vistas de disponibilidad (distribución), comentarios (social),
   permisos, auditoría de facturación y plan familiar
@@ -295,6 +305,57 @@ columnar fuera de su caso de uso ideal.
 
 ---
 
+## Regalías y publicidad (modelo de negocio real)
+
+Cierra el modelo de negocio real de streaming musical: cómo se le paga a quien tiene derechos
+sobre un track, y cómo se financia el tier free.
+
+- **Productores y contratos de reparto** (`regalias`): un track tiene un contrato vigente que
+  define qué porcentaje corresponde a sello, artista y productor. Dos tipos de derecho — master
+  (grabación) y publishing (composición) — sin una entidad `DIM_EDITORIAL` separada (decisión
+  explícita: sin editorial propia, el publishing se reparte entre sello/artista).
+- **Liquidación real por período** (`POST /regalias/admin/liquidar`, admin, y automática cada
+  semana vía el DAG `finanzas_periodicas`): `pool_rightsholders = (Σ transacciones exitosas del
+  período + Σ ingreso publicitario del período) × 70%`, repartido pro-rata entre tracks según su
+  participación real en streams (`FACT_ENGAGEMENT_USUARIO`, `event_type='reproduccion'`), y
+  dentro de cada track entre sello/artista/productor según su contrato vigente.
+- **Cuentas de sello** (`DIM_CUENTA_SELLO`, alta exclusiva de admin — un sello ya es una entidad
+  de catálogo administrada, no de autoservicio como una cuenta de artista) y consulta de
+  ganancias propias tanto para artista (`GET /regalias/artista/mis-ganancias`) como para sello
+  (`GET /regalias/sello/mis-ganancias`), con su vista en `/regalias/ganancias`.
+- **Publicidad** (`publicidad`): anunciantes y campañas con CPM real; una impresión de anuncio
+  se muestra entre canciones a un usuario del plan free (interrumpe el reproductor, requiere
+  completarse antes de continuar) y su ingreso se reconoce en el momento (`monto = cpm / 1000`),
+  sin agregación diferida — ese ingreso entra al mismo pool que reparte regalías.
+- **`finanzas_periodicas`** (Airflow, `schedule_interval="@weekly"`, cron real — no disparo
+  manual): primero renueva las suscripciones vencidas cobrando de verdad contra el método de
+  pago del usuario, y luego liquida las regalías del período con el ingreso ya actualizado.
+
+Fuera de alcance (decisión explícita, no pendiente): pasarela de anuncios de video/display fuera
+del reproductor de audio, segmentación de campañas por audiencia (toda campaña activa es
+elegible para cualquier usuario free), y gestión de composición/editorial separada del artista.
+
+---
+
+## Dashboards administrativos (RT-04)
+
+Las 6 capabilities de negocio que no tenían panel visual propio ahora exponen un endpoint
+`GET /admin/dashboard` (rol `admin`) con métricas agregadas sobre datos reales de ClickHouse —
+sin datos sintéticos inventados para el gráfico. Cada uno tiene su página en React
+(`/seguridad/<ruta>`, code-split, `lazyNamed()`) con KPIs y gráficos Recharts sobre la paleta de
+diseño validada del proyecto:
+
+| Capability | Endpoint | Página | Métricas |
+|---|---|---|---|
+| `seguridad` | `GET /seguridad/admin/dashboard` | `/seguridad/auditoria` | Acciones auditadas por día, errores de las últimas 24h, sesiones abiertas totales |
+| `facturacion` | `GET /facturacion/admin/dashboard` | `/seguridad/facturacion` | Ingreso diario, transacciones de las últimas 24h, ingreso histórico total |
+| `creadores` | `GET /creadores/admin/dashboard` | `/seguridad/creadores` | Subidas de track por estado de revisión, total de cuentas de artista |
+| `social` | `GET /social/admin/dashboard` | `/seguridad/social` | Actividad social diaria (comentarios/comparticiones), ranking de artistas más seguidos |
+| `distribucion` | `GET /distribucion/admin/dashboard` | `/seguridad/distribucion` | Restricciones de reproducción por país, licencias activas totales |
+| `experiencia` | `GET /experiencia/admin/dashboard` | `/seguridad/soporte` | Tickets de soporte por estado, tickets abiertos/en proceso totales |
+
+---
+
 ## Estructura del proyecto
 
 ```
@@ -302,28 +363,29 @@ tracklytics/
 ├── api/
 │   ├── main.py                  # App FastAPI — include routers
 │   ├── core/                    # config.py, database.py, cache.py, deps.py
-│   └── paquetes/                # Un paquete por capability (11):
-│       ├── catalogo/            # Tracks, artistas, álbumes, géneros
-│       ├── biblioteca/          # Favoritos, historial, playlists (proxy a PocketBase)
+│   └── paquetes/                # Un paquete por capability (13):
+│       ├── catalogo/            # Tracks, artistas, álbumes, géneros, búsqueda avanzada
+│       ├── biblioteca/          # Favoritos, historial, playlists (colaborativas, reorder — proxy a PocketBase)
 │       ├── suscripciones/       # Planes, confirmar, activa, cancelar
 │       ├── analitica/           # Dashboards + deps.py (gating B2B)
 │       ├── gestion_datos/       # ETL, CRUD dimensiones, calidad de datos (capability `ingesta`)
 │       ├── partners/            # API key auth, tiers, logging
-│       ├── seguridad/           # Auth, permisos, auditoría, errores
-│       ├── facturacion/         # Métodos de pago, transacciones, invoices
-│       ├── creadores/           # Cuenta de artista, subida de tracks
-│       ├── social/              # Seguimiento, comentarios, compartir
-│       ├── distribucion/        # Sellos, licencias, restricción geográfica
-│       └── experiencia/         # Telemetría, recomendaciones, tickets, portadas
-├── frontend/                    # React + Vite + TypeScript — frontend vigente, containerizado (servicio `frontend-react`, puerto 8082)
+│       ├── seguridad/           # Auth, sesiones, permisos, auditoría, errores, dashboard admin
+│       ├── facturacion/         # Métodos de pago, transacciones, invoices, dashboard admin
+│       ├── creadores/           # Cuenta de artista, subida de tracks, dashboard admin
+│       ├── social/              # Seguimiento, comentarios, compartir, feed, dashboard admin
+│       ├── distribucion/        # Sellos, licencias, restricción geográfica, dashboard admin
+│       ├── experiencia/         # Telemetría, recomendaciones, tickets, portadas, dashboard admin
+│       ├── regalias/            # Productores, contratos, cuentas de sello, liquidación, ganancias
+│       └── publicidad/          # Anunciantes, campañas, impresión de anuncio, ingreso publicitario
+├── frontend/                    # React + Vite + TypeScript — único frontend, containerizado (servicio `frontend-react`, puerto 8082)
 │   ├── src/
 │   │   ├── app/                 # router.tsx, layout/ (AppShell, AnalyticaShell, SeguridadShell)
-│   │   ├── packages/            # Un paquete por capability (11), misma organización que `api/paquetes/`
+│   │   ├── packages/            # Un paquete por capability (13), misma organización que `api/paquetes/`
 │   │   └── shared/              # design-system (tokens), components, context (PlayerContext), lib (api-client, session)
 │   ├── Dockerfile               # Build multi-stage: Vite compila, Nginx sirve estático + proxea al backend
 │   ├── vite.config.ts
 │   └── nginx.conf               # Config de producción, reglas de proxy en paridad con vite.config.ts
-├── app/                         # Frontend legado (vanilla HTML/CSS/JS) — todavía servido en Docker (puerto 8081), ya no es el camino de usuario real
 ├── dataset/
 │   └── spotify.csv              # Dataset fuente (113.550 registros)
 ├── docs/
@@ -338,10 +400,11 @@ tracklytics/
 │       ├── tracklytics_etl.py         # bronze → silver → gold → portada → synthetic → log (DAG principal)
 │       ├── engagement_dag.py          # Eventos de engagement de referencia (independiente)
 │       ├── playlists_sync_dag.py      # Reflejo analítico de playlists (PocketBase → ClickHouse, independiente)
-│       └── modelo_negocio_sync_dag.py # FACT_ADQUISICION/FACT_DISPONIBILIDAD (independiente, seed por semana)
+│       ├── modelo_negocio_sync_dag.py # FACT_ADQUISICION/FACT_DISPONIBILIDAD (independiente, seed por semana)
+│       └── finanzas_periodicas_dag.py # Renovación de suscripciones + liquidación de regalías (semanal, cron real)
 ├── openspec/                    # Spec Driven Development
 │   ├── config.yaml              # Constitución del proyecto (stack, reglas RT-01..RT-06)
-│   ├── specs/                   # Specs vigentes de las 11 capabilities
+│   ├── specs/                   # Specs archivadas (13 de 13 capabilities); el último change operativo de S10 vive en changes/ hasta su archivado
 │   └── changes/archive/         # Changes implementados y archivados (design.md/tasks.md por capability)
 ├── docker-compose.yml
 └── .env                         # Variables de entorno (no versionado)
@@ -351,10 +414,10 @@ tracklytics/
 
 ## Modelo de datos
 
-**52 tablas físicas en ClickHouse** (verificado contra `system.tables`: 17 preexistentes al
-inicio de la refactorización S9 + 30 de las 6 capabilities nuevas + 5 del cambio
-`completar-modelo-base`, que cerró el gap de tablas de negocio pendientes desde antes de S9).
-El inventario original de **58 "tablas" del modelo dimensional del proyecto**
+**61 tablas físicas en ClickHouse** (verificado contra `system.tables`: 52 al cierre de S9 — 17
+preexistentes al inicio de la refactorización + 30 de las 6 capabilities nuevas + 5 del cambio
+`completar-modelo-base` — más 9 de `regalias`/`publicidad`, cerradas en S10). El inventario
+original de **58 "tablas" del modelo dimensional del proyecto**
 (`openspec/config.yaml`, sección "Modelo de datos de negocio": 15 técnicas + 13 de negocio + 30
 de las 6 capabilities) se reconcilió tabla por tabla contra `system.tables`: de las 13 de negocio
 originalmente planeadas, 6 ya tienen tabla física exacta (5 de `completar-modelo-base` +
@@ -403,6 +466,13 @@ distinta de `DIM_PAIS`/`distribucion`, que es país de licencia), `DIM_COMPONENT
 `FACT_RESTRICCION_REPRODUCCION`/`distribucion`, que es restricción geográfica de contenido).
 Datos generados por el DAG independiente `modelo_negocio_sync` (ver sección de pipeline ETL).
 
+**`regalias`/`publicidad` (9 tablas, S10 — ver
+[Regalías y publicidad](#regalías-y-publicidad-modelo-de-negocio-real)):** `regalias`
+(`DIM_PRODUCTOR`, `BRIDGE_PRODUCTOR_TRACK`, `DIM_CONTRATO_REGALIA`, `FACT_LIQUIDACION_REGALIA`,
+`DIM_CUENTA_SELLO`); `publicidad` (`DIM_ANUNCIANTE`, `DIM_CAMPANA_PUBLICITARIA`,
+`FACT_IMPRESION_ANUNCIO`, `FACT_INGRESO_PUBLICITARIO`). Ninguna tabla existente se modificó al
+agregar estas dos capabilities.
+
 **PocketBase — colecciones:** dataset base (`spotify_tracks`), sesión/usuarios (`users`),
 playlists (`playlists`, `playlist_tracks`), suscripciones, partners, y las colecciones propias
 de cada capability nueva que no ameritaban forzarse a ClickHouse (ver `design.md` de cada
@@ -438,14 +508,16 @@ actual: ~10.6% de artistas y ~1.6% de álbumes con portada resuelta — limitada
 real de ambas APIs bajo uso sostenido, no por errores de implementación (ver
 `docs/decisiones-refactorizacion.md`, secciones 24-25).
 
-Tres DAGs adicionales, todos con `schedule_interval=None` (disparo manual/API), independientes de
-`tracklytics_etl` porque cada uno cubre un dominio de negocio ajeno al catálogo:
+Cuatro DAGs adicionales, independientes de `tracklytics_etl` porque cada uno cubre un dominio de
+negocio ajeno al catálogo; los tres primeros son de disparo manual/API
+(`schedule_interval=None`), el cuarto corre en cron real:
 
 | DAG | Genera | Nota |
 |---|---|---|
 | `engagement_referencia` | Eventos de engagement sintéticos correlacionados con popularidad | Un `Param week_number` por corrida |
 | `playlists_sync` | `BRIDGE_TRACK_PLAYLIST_USUARIO` (reflejo de playlists, PocketBase → ClickHouse) | Full refresh en cada corrida; también invocable on-demand desde `/experiencia/playlists/sincronizar` |
 | `modelo_negocio_sync` | `FACT_ADQUISICION`/`FACT_DISPONIBILIDAD` | Un `Param week_number` por corrida, idempotente vía `ETL_BATCH_CONTROL` |
+| `finanzas_periodicas` | Renovación de suscripciones vencidas (cobro real) + `FACT_LIQUIDACION_REGALIA` del período | `schedule_interval="@weekly"`, cron real — no disparo manual; primero renueva, luego liquida con el ingreso ya actualizado |
 
 ---
 
@@ -470,21 +542,26 @@ código.
    `openspec/changes/archive/YYYY-MM-DD-<capability>/`, con su spec sincronizada en
    `openspec/specs/<capability>/spec.md`.
 
-**Las 11 capabilities están implementadas, verificadas end-to-end y archivadas:**
+**Las 13 capabilities están implementadas, verificadas end-to-end y archivadas en
+`openspec/specs/`.** Un cambio operativo adicional de S10 (dashboards, sesiones, búsqueda
+avanzada, feed social, playlists colaborativas) sigue como propuesta activa en
+`openspec/changes/`, pendiente de `/opsx:archive`:
 
-| Capability | Cerrada |
-|---|---|
-| `catalogo` | S7 |
-| `suscripciones` | S7 |
-| `analitica` | S8 |
-| `ingesta` | S8 |
-| `partners` | S8 |
-| `seguridad` | S9 (refactor) |
-| `facturacion` | S9 (refactor) |
-| `creadores` | S9 (refactor) |
-| `social` | S9 (refactor) |
-| `distribucion` | S9 (refactor) |
-| `experiencia` | S9 (refactor) |
+| Capability | Cerrada | Archivada en `openspec/specs/` |
+|---|---|---|
+| `catalogo` | S7 | ✅ |
+| `suscripciones` | S7 | ✅ |
+| `analitica` | S8 | ✅ |
+| `ingesta` | S8 | ✅ |
+| `partners` | S8 | ✅ |
+| `seguridad` | S9 (refactor) | ✅ |
+| `facturacion` | S9 (refactor) | ✅ |
+| `creadores` | S9 (refactor) | ✅ |
+| `social` | S9 (refactor) | ✅ |
+| `distribucion` | S9 (refactor) | ✅ |
+| `experiencia` | S9 (refactor) | ✅ |
+| `regalias` | S10 | ✅ |
+| `publicidad` | S10 | ✅ |
 
 ---
 
@@ -501,6 +578,7 @@ código.
 | S7 | Spec Driven Development (OpenSpec) | Constitución, specs de `catalogo`/`suscripciones`/`analitica`/`partners`/`ingesta` — ver `docs/BITACORA_S7.md` |
 | S8 | Implementación de `analitica`/`ingesta`/`partners` + correcciones UX | Cierre del módulo operativo original — ver `docs/BITACORA_S8.md` |
 | S9 | QA/rendimiento del módulo operativo **+ refactorización completa hacia sistema completo** | Ver `docs/BITACORA_S9.md` (dos entregas dentro de la misma semana: seek/QA/optimización ClickHouse, y luego las 6 capabilities nuevas + migración a React + pulido final — detalle exhaustivo en `docs/decisiones-refactorizacion.md`) |
+| S10 | Retiro del frontend legado + modelo de negocio real (regalías/publicidad) + cierre de la capa operativa | Frontend único (React); capabilities `regalias`/`publicidad` (9 tablas, DAG `finanzas_periodicas`); 6 dashboards administrativos RT-04; sesiones activas multi-dispositivo; búsqueda avanzada; feed social; playlists colaborativas + reorder — ver resumen abajo |
 
 Resumen de la segunda entrega de S9 (el refactor):
 - **6 capabilities OpenSpec nuevas** cerradas: `seguridad`, `facturacion`, `creadores`,
@@ -529,6 +607,30 @@ Resumen de la segunda entrega de S9 (el refactor):
   (`seguridad`, admin-only) y dos componentes de selección con búsqueda (`TrackPicker`,
   `UserPicker`) que reemplazan los 5 campos de ID interno crudo en distribución, social,
   administración, facturación y plan familiar.
+
+Resumen de S10 (cierre de la capa operativa, 4 días):
+- **Retiro completo del frontend legado (`app/`):** React queda como único frontend del
+  proyecto; ya no se levanta ningún servicio adicional en Docker para él.
+- **`regalias` y `publicidad` (2 capabilities nuevas, 9 tablas):** liquidación real de regalías
+  por período (pool de transacciones + ingreso publicitario, repartido pro-rata por streams
+  reales) y publicidad con CPM real e ingreso reconocido en el momento — ver
+  [Regalías y publicidad](#regalías-y-publicidad-modelo-de-negocio-real). DAG `finanzas_periodicas`
+  (cron real semanal) conecta ambas: renueva suscripciones cobrando de verdad y luego liquida.
+- **6 dashboards administrativos (RT-04)** para las capabilities de negocio que no tenían panel
+  visual — ver [Dashboards administrativos](#dashboards-administrativos-rt-04).
+- **Sesiones activas multi-dispositivo**, **búsqueda avanzada de catálogo** (popularidad/tempo/
+  energy), **feed de actividad social** y **playlists colaborativas + reorder** (con
+  invitación/remoción de colaboradores por correo).
+- **Auditoría final de cierre:** se encontraron y corrigieron dos bugs de integridad preexistentes
+  en PocketBase (no introducidos en S10, expuestos por la propia auditoría) — `eliminar_playlist`
+  fallaba con 500 para cualquier playlist con tracks, y borrar un usuario con playlists propias
+  fallaba de la misma forma; ambos corregidos con `cascadeDelete` real en las relations
+  `playlists.user` y `playlist_tracks.playlist` (antes en `False`), más una cascada manual en
+  `pb_playlists.eliminar()` para el camino que pasa por la API. Se auditó también el patrón de
+  fondo (PocketBase devuelve 404, no 403, cuando una regla de update/delete rechaza la
+  operación) en el resto de paquetes que hablan directo con PocketBase — sin otro caso hoy
+  alcanzable por un usuario no-dueño, porque ninguna otra colección tiene todavía una feature
+  multi-usuario compartida como los colaboradores de playlist.
 
 ---
 
