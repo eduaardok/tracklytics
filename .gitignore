@@ -10,6 +10,7 @@ package-lock.json
 .DS_Store
 .venv/
 parquet_stage/
+frontend/dist/
 .env
 __pycache__/
 *.pyc
