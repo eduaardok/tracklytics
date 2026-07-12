@@ -47,6 +47,13 @@
   line-height: 1;
 }
 
+.headerActions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  flex-shrink: 0;
+}
+
 .badge {
   font-family: var(--font-sans);
   font-size: 0.6875rem;

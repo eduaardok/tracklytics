@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ErrorState } from '@shared/components/ErrorState'
+import { apiErrorMessage } from '@shared/lib/api-client'
+import { useToast } from '@shared/context/ToastContext'
 import { distribucionApi } from '../api/distribucion.api'
 import type { EstadoLicencia } from '../types'
 import styles from '../pages/DistribucionPages.module.css'
@@ -18,6 +20,7 @@ function EstadoBadge({ estado }: { estado: EstadoLicencia }) {
 
 export function LicenciasTab() {
   const queryClient = useQueryClient()
+  const toast = useToast()
   const [selloId, setSelloId] = useState('')
   const [paisId, setPaisId] = useState('')
   const [fechaInicio, setFechaInicio] = useState('')
@@ -46,7 +49,9 @@ export function LicenciasTab() {
     onSuccess: () => {
       setFechaInicio(''); setFechaFin('')
       queryClient.invalidateQueries({ queryKey: ['distribucion', 'licencias'] })
+      toast.success('Licencia creada')
     },
+    onError: (err) => toast.error(apiErrorMessage(err, 'No se pudo crear la licencia.')),
   })
 
   const sellosData = sellos.data?.data ?? []

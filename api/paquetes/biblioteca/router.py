@@ -1,5 +1,6 @@
 from collections import Counter
 
+import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
@@ -10,8 +11,10 @@ from paquetes.biblioteca.queries import (
     COUNT_FAVORITOS, FACT_ID_EXISTS, FAVORITOS_ACTUALES, HISTORIAL_RECIENTE, TRACKS_BY_FACT_IDS,
 )
 from paquetes.distribucion.router import registrar_restriccion_reproduccion, resolver_pais_id, restriccion_activa
+from paquetes.experiencia.queries import USUARIO_POR_EMAIL
 from paquetes.experiencia.router import marcar_impresion_reproducida, registrar_reproduccion_enriquecida
 from paquetes.seguridad.queries import SESION_ABIERTA_POR_DISPOSITIVO
+from paquetes.social import notificaciones
 from paquetes.suscripciones import pb_client
 
 router = APIRouter(prefix="/app/v1/biblioteca", tags=["Biblioteca"])
@@ -177,7 +180,10 @@ async def listar_playlists(user: dict = Depends(require_b2c_user)):
     counts    = Counter(it["playlist"] for it in await pb_playlists.listar_tracks_de_usuario(token, user_id))
     return {
         "data": [
-            {"playlist_id": p["id"], "name": p["name"], "track_count": counts.get(p["id"], 0)}
+            {
+                "playlist_id": p["id"], "name": p["name"], "track_count": counts.get(p["id"], 0),
+                "es_publica": bool(p.get("es_publica", False)),
+            }
             for p in playlists
         ],
     }
@@ -207,7 +213,82 @@ async def detalle_playlist(playlist_id: str, user: dict = Depends(require_b2c_us
 
     ordered = sorted(items, key=lambda it: it["position"])
     tracks  = [tracks_by_fact[it["fact_id"]] for it in ordered if it["fact_id"] in tracks_by_fact]
-    return {"playlist_id": pl["id"], "name": pl["name"], "data": tracks, "total": len(tracks)}
+
+    # `expand.colaboradores` viene de pb_playlists.obtener() (params expand=colaboradores)
+    colaboradores_raw = await pb_playlists.resolver_colaboradores(pl.get("colaboradores", []))
+    colaboradores = [
+        {"usuario_id": c["id"], "nombre": c.get("name", ""), "email": c.get("email", "")}
+        for c in colaboradores_raw
+    ]
+    return {
+        "playlist_id":  pl["id"],
+        "name":         pl["name"],
+        "data":         tracks,
+        "total":        len(tracks),
+        "is_owner":     pl["user"] == user["record"]["id"],
+        "colaboradores": colaboradores,
+        "es_publica":   bool(pl.get("es_publica", False)),
+    }
+
+
+class PlaylistReordenarBody(BaseModel):
+    fact_ids: list[int]
+
+
+@router.put("/playlists/{playlist_id}/reordenar")
+async def reordenar_playlist(playlist_id: str, body: PlaylistReordenarBody, user: dict = Depends(require_b2c_user)):
+    try:
+        await pb_playlists.reordenar(user["token"], playlist_id, body.fact_ids)
+    except httpx.HTTPStatusError as exc:
+        if exc.response.status_code == 404:
+            raise HTTPException(status_code=403, detail="No tienes acceso a esta playlist") from exc
+        raise
+    return {"status": "ok"}
+
+
+class PlaylistColaboradorBody(BaseModel):
+    email: str
+
+
+@router.post("/playlists/{playlist_id}/colaboradores", status_code=201)
+async def agregar_colaborador_playlist(
+    playlist_id: str, body: PlaylistColaboradorBody, user: dict = Depends(require_b2c_user),
+):
+    fila = query_one(USUARIO_POR_EMAIL, {"email": body.email.strip()})
+    if not fila:
+        raise HTTPException(status_code=404, detail=f"No existe un usuario con email {body.email}")
+    try:
+        pl = await pb_playlists.agregar_colaborador(user["token"], playlist_id, fila["usuario_id"])
+    except httpx.HTTPStatusError as exc:
+        if exc.response.status_code == 404:
+            raise _solo_propietario() from exc
+        raise
+    notificaciones.crear(
+        fila["usuario_id"], "nuevo_colaborador_playlist", "playlist", playlist_id,
+        f"Te agregaron como colaborador de la playlist \"{pl.get('name', '')}\"",
+    )
+    return {"status": "ok", "usuario_id": fila["usuario_id"], "nombre": fila["nombre"]}
+
+
+@router.delete("/playlists/{playlist_id}/colaboradores/{usuario_id}")
+async def quitar_colaborador_playlist(playlist_id: str, usuario_id: str, user: dict = Depends(require_b2c_user)):
+    try:
+        await pb_playlists.quitar_colaborador(user["token"], playlist_id, usuario_id)
+    except httpx.HTTPStatusError as exc:
+        if exc.response.status_code == 404:
+            raise _solo_propietario() from exc
+        raise
+    return {"status": "ok"}
+
+
+def _solo_propietario() -> HTTPException:
+    # PocketBase responde 404 (no 403) cuando `updateRule`/`deleteRule` rechaza
+    # la operación — oculta el registro en vez de admitir que existe (comportamiento
+    # de PocketBase, no un bug). Antes de playlists colaborativas esto nunca era
+    # alcanzable (solo el owner conocía el playlist_id); ahora un colaborador sí
+    # puede intentar renombrar/eliminar, así que se traduce a un 403 legible en
+    # vez de dejar que el httpx.HTTPStatusError sin capturar se vuelva un 500 opaco.
+    return HTTPException(status_code=403, detail="Solo el propietario puede hacer esto")
 
 
 @router.patch("/playlists/{playlist_id}")
@@ -215,13 +296,43 @@ async def renombrar_playlist(playlist_id: str, body: PlaylistBody, user: dict = 
     name = body.name.strip()
     if not name:
         raise HTTPException(status_code=422, detail="El nombre no puede estar vacío")
-    pl = await pb_playlists.renombrar(user["token"], playlist_id, name)
+    try:
+        pl = await pb_playlists.renombrar(user["token"], playlist_id, name)
+    except httpx.HTTPStatusError as exc:
+        if exc.response.status_code == 404:
+            raise _solo_propietario() from exc
+        raise
     return {"playlist_id": pl["id"], "name": pl["name"]}
+
+
+class PlaylistVisibilidadBody(BaseModel):
+    es_publica: bool
+
+
+@router.patch("/playlists/{playlist_id}/visibilidad")
+async def actualizar_visibilidad_playlist(
+    playlist_id: str, body: PlaylistVisibilidadBody, user: dict = Depends(require_b2c_user),
+):
+    """Perfiles públicos (S10 ronda 2): exclusivo del dueño — un colaborador
+    puede administrar tracks pero no decide qué se expone en el perfil
+    público de otra persona."""
+    try:
+        pl = await pb_playlists.actualizar_visibilidad(user["token"], playlist_id, body.es_publica)
+    except httpx.HTTPStatusError as exc:
+        if exc.response.status_code == 404:
+            raise _solo_propietario() from exc
+        raise
+    return {"playlist_id": pl["id"], "name": pl["name"], "es_publica": bool(pl.get("es_publica", False))}
 
 
 @router.delete("/playlists/{playlist_id}")
 async def eliminar_playlist(playlist_id: str, user: dict = Depends(require_b2c_user)):
-    await pb_playlists.eliminar(user["token"], playlist_id)
+    try:
+        await pb_playlists.eliminar(user["token"], playlist_id)
+    except httpx.HTTPStatusError as exc:
+        if exc.response.status_code == 404:
+            raise _solo_propietario() from exc
+        raise
     return {"status": "ok"}
 
 

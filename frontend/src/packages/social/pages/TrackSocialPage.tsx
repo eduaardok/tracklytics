@@ -1,8 +1,10 @@
 import { useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { useParams, Link } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { catalogoApi } from '@packages/catalogo'
 import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
+import { apiErrorMessage } from '@shared/lib/api-client'
+import { useToast } from '@shared/context/ToastContext'
 import { socialApi } from '../api/social.api'
 import type { Canal, Comentario } from '../types'
 import styles from './SocialPages.module.css'
@@ -42,6 +44,7 @@ export function TrackSocialPage() {
   const { factId } = useParams<{ factId: string }>()
   const id = Number(factId)
   const queryClient = useQueryClient()
+  const toast = useToast()
 
   const [contenido, setContenido] = useState('')
   const [replyingTo, setReplyingTo] = useState<number | null>(null)
@@ -65,13 +68,19 @@ export function TrackSocialPage() {
     onSuccess: () => {
       setContenido(''); setReplyingTo(null)
       queryClient.invalidateQueries({ queryKey: ['social', 'comentarios', id] })
+      toast.success('Comentario publicado')
     },
+    onError: (err) => toast.error(apiErrorMessage(err, 'No se pudo publicar el comentario.')),
   })
 
   const compartir = useMutation({
     mutationFn: (canal: Canal) =>
       socialApi.compartir({ tipo_interaccion_id: 'compartir_track', canal, fact_id_track: id }),
-    onSuccess: (res) => { setShareResult(res.contenido); setShareOpen(false) },
+    onSuccess: (res) => {
+      setShareResult(res.contenido); setShareOpen(false)
+      toast.success('Enlace generado para compartir')
+    },
+    onError: (err) => toast.error(apiErrorMessage(err, 'No se pudo generar el enlace para compartir.')),
   })
 
   const data: Comentario[] = comentarios.data?.data ?? []
@@ -117,7 +126,15 @@ export function TrackSocialPage() {
 
       <p className={styles.sectionLabel}>Comentarios</p>
 
-      <form className={styles.commentForm} onSubmit={(e) => { e.preventDefault(); comentar.mutate() }}>
+      <form
+        className={styles.commentForm}
+        onSubmit={(e) => {
+          e.preventDefault()
+          if (!contenido.trim()) return
+          comentar.mutate()
+        }}
+        noValidate
+      >
         {replyingTo != null && (
           <div className={styles.replyingTo}>
             Respondiendo a comentario #{replyingTo}{' '}
@@ -162,7 +179,9 @@ export function TrackSocialPage() {
                 className={c.comentario_padre_id != null ? `${styles.commentRow} ${styles['commentRow--reply']}` : styles.commentRow}
               >
                 <div className={styles.commentHeader}>
-                  <span className={styles.commentAuthor}>Usuario {c.usuario_id.slice(0, 6)}</span>
+                  <Link to={`/usuarios/${c.usuario_id}`} className={styles.commentAuthor}>
+                    Usuario {c.usuario_id.slice(0, 6)}
+                  </Link>
                   <span className={styles.commentDate}>{fmtDate(c.fecha_creacion)}</span>
                 </div>
                 <p className={oculto ? `${styles.commentBody} ${styles['commentBody--hidden']}` : styles.commentBody}>

@@ -3,6 +3,8 @@ import { useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { catalogoApi } from '@packages/catalogo'
 import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
+import { apiErrorMessage } from '@shared/lib/api-client'
+import { useToast } from '@shared/context/ToastContext'
 import { socialApi } from '../api/social.api'
 import type { Canal } from '../types'
 import styles from './SocialPages.module.css'
@@ -37,6 +39,7 @@ export function ArtistaSocialPage() {
   const { artistaId } = useParams<{ artistaId: string }>()
   const id = Number(artistaId)
   const queryClient = useQueryClient()
+  const toast = useToast()
   const [shareOpen, setShareOpen] = useState(false)
   const [shareResult, setShareResult] = useState<string | null>(null)
 
@@ -55,18 +58,30 @@ export function ArtistaSocialPage() {
 
   const seguir = useMutation({
     mutationFn: () => socialApi.seguirArtista(id),
-    onSuccess:  () => queryClient.invalidateQueries({ queryKey: ['social', 'seguimiento'] }),
+    onSuccess:  () => {
+      queryClient.invalidateQueries({ queryKey: ['social', 'seguimiento'] })
+      toast.success('Ahora sigues a este artista')
+    },
+    onError: (err) => toast.error(apiErrorMessage(err, 'No se pudo seguir al artista.')),
   })
 
   const dejarDeSeguir = useMutation({
     mutationFn: () => socialApi.dejarDeSeguir(id),
-    onSuccess:  () => queryClient.invalidateQueries({ queryKey: ['social', 'seguimiento'] }),
+    onSuccess:  () => {
+      queryClient.invalidateQueries({ queryKey: ['social', 'seguimiento'] })
+      toast.success('Dejaste de seguir al artista')
+    },
+    onError: (err) => toast.error(apiErrorMessage(err, 'No se pudo dejar de seguir al artista.')),
   })
 
   const compartir = useMutation({
     mutationFn: (canal: Canal) =>
       socialApi.compartir({ tipo_interaccion_id: 'compartir_perfil_artista', canal, artista_id: id }),
-    onSuccess: (res) => { setShareResult(res.contenido); setShareOpen(false) },
+    onSuccess: (res) => {
+      setShareResult(res.contenido); setShareOpen(false)
+      toast.success('Enlace generado para compartir')
+    },
+    onError: (err) => toast.error(apiErrorMessage(err, 'No se pudo generar el enlace para compartir.')),
   })
 
   return (

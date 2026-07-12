@@ -60,6 +60,8 @@
 
 .clearBtn:hover { color: var(--color-ink); }
 
+.browseBtnActive { color: var(--color-primary-light); }
+
 .dropdown {
   position: absolute;
   top: calc(100% + 4px);
@@ -71,15 +73,60 @@
   overflow: hidden;
   z-index: var(--z-dropdown);
   box-shadow: 0 8px 24px oklch(0.03 0 0 / 0.5);
-  max-height: 280px;
+}
+
+.dropdownList {
+  max-height: 240px;
   overflow-y: auto;
 }
+
+.browseFilters {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  padding: 6px var(--space-md);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.roleSelect {
+  background: var(--color-surface);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  font-size: 0.75rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 3px 6px;
+  outline: none;
+}
+
+.browsePager {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  padding: 6px var(--space-md);
+  border-top: 1px solid var(--color-border);
+}
+
+.pagerBtn {
+  background: transparent;
+  border: none;
+  color: var(--color-primary-light);
+  font-family: var(--font-sans);
+  font-size: 0.75rem;
+  cursor: pointer;
+  padding: 2px 4px;
+}
+.pagerBtn:disabled { color: var(--color-muted); cursor: not-allowed; }
+.pagerBtn:not(:disabled):hover { text-decoration: underline; }
 
 .dropdownItem {
   display: flex;
   flex-direction: column;
   gap: 1px;
   padding: 8px var(--space-md);
+  overflow-wrap: anywhere;
   cursor: pointer;
   border: none;
   background: transparent;

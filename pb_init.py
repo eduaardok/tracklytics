@@ -255,13 +255,31 @@ def main() -> None:
         print("[pb-init] ERROR: colección 'users' no encontrada — PocketBase no inicializado correctamente.")
         sys.exit(1)
 
+    # `colaboradores` (S10 Día 3, CU-O nuevo de playlists colaborativas): un
+    # colaborador puede ver la playlist y agregar/quitar tracks, pero nunca
+    # renombrarla ni eliminarla — eso sigue siendo exclusivo de `user`
+    # (updateRule/deleteRule sin ampliar). En una instalación ya existente,
+    # este campo/reglas se agregan con `scripts/migrar_playlists_colaborativas.py`
+    # (`ensure_collection()` no migra colecciones ya creadas).
     playlists_schema = {
         "name": "playlists",
         "type": "base",
         "fields": [
             {"name": "name", "type": "text",     "required": True},
+            # cascadeDelete=True (auditoría S10 día 4): si se borra el usuario dueño,
+            # sus playlists no deben quedar huérfanas ni bloquear el borrado del
+            # usuario — mismo hallazgo que el fix de eliminar_playlist del día 3,
+            # un nivel más arriba en la cadena (users → playlists → playlist_tracks).
             {"name": "user", "type": "relation", "required": True,
-             "collectionId": users_id, "cascadeDelete": False, "maxSelect": 1},
+             "collectionId": users_id, "cascadeDelete": True, "maxSelect": 1},
+            {"name": "colaboradores", "type": "relation", "required": False,
+             "collectionId": users_id, "cascadeDelete": False, "maxSelect": 50},
+            # `es_publica` (S10 ronda 2, perfiles públicos): privada por defecto
+            # (`bool` sin `required` en PocketBase ya nace en `false`) — el dueño
+            # decide explícitamente cuáles de sus playlists expone en su perfil
+            # público. En una instalación ya existente se agrega con
+            # `scripts/migrar_visibilidad_publica.py`.
+            {"name": "es_publica", "type": "bool", "required": False},
         ],
     }
     try:
@@ -272,8 +290,8 @@ def main() -> None:
 
     try:
         ensure_collection_rules(token, "playlists", {
-            "listRule":   "user = @request.auth.id",
-            "viewRule":   "user = @request.auth.id",
+            "listRule":   "user = @request.auth.id || colaboradores.id ?= @request.auth.id",
+            "viewRule":   "user = @request.auth.id || colaboradores.id ?= @request.auth.id",
             "createRule": '@request.auth.id != "" && user = @request.auth.id',
             "updateRule": "user = @request.auth.id",
             "deleteRule": "user = @request.auth.id",
@@ -291,8 +309,14 @@ def main() -> None:
         "name": "playlist_tracks",
         "type": "base",
         "fields": [
+            # cascadeDelete=True (auditoría S10 día 4): antes False, compensado
+            # únicamente con la cascada manual de pb_playlists.eliminar() (día 3)
+            # — que solo corre si el borrado pasa por ese endpoint. Con
+            # cascadeDelete=True, PocketBase también limpia estos tracks cuando la
+            # playlist se borra por cualquier otra vía (p. ej. cascada de `users.
+            # playlists.user` arriba, o borrado directo desde el admin de PocketBase).
             {"name": "playlist", "type": "relation", "required": True,
-             "collectionId": playlists_id, "cascadeDelete": False, "maxSelect": 1},
+             "collectionId": playlists_id, "cascadeDelete": True, "maxSelect": 1},
             {"name": "fact_id",  "type": "number",   "required": True},
             {"name": "position", "type": "number",   "required": True},
         ],
@@ -305,11 +329,13 @@ def main() -> None:
 
     try:
         ensure_collection_rules(token, "playlist_tracks", {
-            "listRule":   "playlist.user = @request.auth.id",
-            "viewRule":   "playlist.user = @request.auth.id",
-            "createRule": "playlist.user = @request.auth.id",
-            "updateRule": "playlist.user = @request.auth.id",
-            "deleteRule": "playlist.user = @request.auth.id",
+            "listRule":   "playlist.user = @request.auth.id || playlist.colaboradores.id ?= @request.auth.id",
+            "viewRule":   "playlist.user = @request.auth.id || playlist.colaboradores.id ?= @request.auth.id",
+            "createRule": "playlist.user = @request.auth.id || playlist.colaboradores.id ?= @request.auth.id",
+            # `updateRule` amplío a colaboradores: reordenar (PATCH position) es
+            # una extensión natural de agregar/quitar tracks, ya colaborativo.
+            "updateRule": "playlist.user = @request.auth.id || playlist.colaboradores.id ?= @request.auth.id",
+            "deleteRule": "playlist.user = @request.auth.id || playlist.colaboradores.id ?= @request.auth.id",
         })
     except RuntimeError as exc:
         print(f"[pb-init] ERROR: {exc}")

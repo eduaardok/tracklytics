@@ -1,3 +1,5 @@
+import type { LibraryTrack } from '@packages/catalogo'
+
 export type EstadoModeracion = 'visible' | 'oculto' | 'eliminado'
 export type DecisionModeracion = 'oculto' | 'eliminado'
 export type Canal = 'x' | 'whatsapp' | 'copiar_enlace'
@@ -61,4 +63,59 @@ export type ComparticionResultado = {
   status:    string
   fact_id:   number
   contenido: string
+}
+
+export type DashboardSocial = {
+  actividad_por_dia:     { dia: string; tipo: 'comentario' | 'comparticion'; total: number }[]
+  artistas_mas_seguidos: { artista_id: number; nombre: string; seguidores: number }[]
+}
+
+export type FeedItem = {
+  tipo:            'comentario' | 'comparticion'
+  id:              number
+  usuario_id:      string
+  usuario_nombre:  string | null
+  contenido:       string
+  fecha:           string
+  track_name:      string
+  artista_id:      number
+  artista_nombre:  string
+}
+
+export type TipoNotificacion =
+  | 'nuevo_track_artista_seguido'
+  | 'comentario_en_tu_contenido'
+  | 'nuevo_colaborador_playlist'
+
+export type ReferenciaNotificacion = 'track' | 'playlist' | 'comentario'
+
+export type Notificacion = {
+  fact_id:         number
+  tipo:            TipoNotificacion
+  referencia_tipo: ReferenciaNotificacion
+  referencia_id:   string
+  mensaje:         string
+  leido:           boolean
+  fecha_creacion:  string
+  fecha_lectura:   string | null
+}
+
+export type NotificacionesResultado = {
+  data:      Notificacion[]
+  no_leidas: number
+}
+
+export type PlaylistPublica = {
+  playlist_id: string
+  name:        string
+  data:        LibraryTrack[]
+  total:       number
+}
+
+export type PerfilPublico = {
+  usuario_id:      string
+  nombre:          string
+  perfil_publico:  boolean
+  es_propio:       boolean
+  playlists:       PlaylistPublica[]
 }

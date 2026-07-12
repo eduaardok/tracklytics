@@ -122,7 +122,14 @@ services:
       POCKETBASE_PASSWORD: ${POCKETBASE_PASSWORD}
       POCKETBASE_COLLECTION: ${POCKETBASE_COLLECTION}
       CLICKHOUSE_HOST:     clickhouse
-      CLICKHOUSE_PORT:     9000
+      # 8123 (HTTP), no 9000 (protocolo nativo) — bug preexistente encontrado
+      # al lanzar `gold/reload_portadas_5h.py` standalone: `utils.clickhouse_client`
+      # usa `clickhouse_connect.get_client` (cliente HTTP), que devuelve
+      # "Port 9000 is for clickhouse-client program" contra el puerto nativo.
+      # El servicio `api` ya usaba 8123 correctamente; `etl` nunca lo necesitó
+      # hasta ahora porque el DAG real corre dentro de `airflow`, no de este
+      # contenedor standalone.
+      CLICKHOUSE_PORT:     8123
       CLICKHOUSE_DB:       ${CLICKHOUSE_DB}
       CLICKHOUSE_USER:     ${CLICKHOUSE_USER}
       CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD}
@@ -230,25 +237,7 @@ services:
       - tracklytics-net
 
   # ─────────────────────────────────────────
-  # 6. App  — App musical tipo Spotify legado, vanilla HTML/CSS/JS (puerto 8081)
-  #    Coexiste con `frontend-react` (abajo) por ahora — no es el camino de
-  #    usuario real desde la migración a React, ver docs/decisiones-
-  #    refactorizacion.md §16-19, pero no se retira en este cambio.
-  # ─────────────────────────────────────────
-  app:
-    build: ./app
-    container_name: tracklytics_app
-    restart: unless-stopped
-    depends_on:
-      - api
-      - pocketbase
-    ports:
-      - "8081:80"
-    networks:
-      - tracklytics-net
-
-  # ─────────────────────────────────────────
-  # 7. Frontend React — el vigente (RT-03: todo corre en Docker). Build
+  # 6. Frontend React — el vigente (RT-03: todo corre en Docker). Build
   #    multi-stage (Vite compila, Nginx sirve estático + proxea al backend)
   #    en `frontend/Dockerfile`; reglas de proxy en `frontend/nginx.conf`
   #    replican exactamente las de `frontend/vite.config.ts` (dev server).

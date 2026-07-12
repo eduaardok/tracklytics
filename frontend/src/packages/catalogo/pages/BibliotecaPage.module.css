@@ -265,6 +265,105 @@
 
 .detailActions { display: flex; gap: var(--space-sm); margin-left: auto; }
 
+/* ── Colaboradores ── */
+.colabPanel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  padding: var(--space-md);
+  margin-bottom: var(--space-lg);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.colabEmpty {
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+  color: var(--color-muted);
+  margin: 0;
+}
+
+.colabList {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+}
+
+.colabRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  padding: 6px 8px;
+  border-radius: var(--radius-sm);
+}
+.colabRow:hover { background: var(--color-surface-raised); }
+
+.colabName {
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+  color: var(--color-ink);
+  text-decoration: none;
+}
+.colabName:hover { text-decoration: underline; }
+
+.colabRemove {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: var(--radius-sm);
+  border: none;
+  background: transparent;
+  color: var(--color-muted);
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+.colabRemove:hover { color: var(--color-error); background: var(--color-surface-raised); }
+
+.colabForm {
+  display: flex;
+  gap: var(--space-sm);
+  padding-top: var(--space-sm);
+  border-top: 1px solid var(--color-border);
+}
+
+/* ── Reorder ── */
+.reorderRow {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.reorderControls {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  flex-shrink: 0;
+}
+
+.reorderBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 16px;
+  border: none;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--color-muted);
+  font-size: 0.6875rem;
+  line-height: 1;
+  cursor: pointer;
+}
+.reorderBtn:hover:not(:disabled) { color: var(--color-ink); background: var(--color-surface-raised); }
+.reorderBtn:disabled { opacity: 0.25; cursor: not-allowed; }
+
 /* ── Blocked (B2B) ── */
 .blocked {
   max-width: 560px;

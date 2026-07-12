@@ -8,14 +8,34 @@ import { AppShell } from '@app/layout/AppShell'
 import { SeguridadShell } from '@app/layout/SeguridadShell'
 import { RouteLoadingFallback } from '@shared/components/RouteLoadingFallback'
 import { CatalogPage, TrackDetailPage, ArtistDetailPage, AlbumDetailPage, BibliotecaPage } from '@packages/catalogo'
-import { PermisosPage, AuditoriaPage, ErroresPage, LoginPage, RegisterPage, ProfilePage, RequireAuth } from '@packages/seguridad'
-import { FacturacionPage, AuditoriaFacturacionPage } from '@packages/facturacion'
+// Mismo motivo que el bloque de arriba (`@app/layout`): 6 de estos 7 barrels
+// (seguridad/facturacion/creadores/social/distribucion/experiencia) también
+// re-exportan una página con Recharts (los dashboards de S10 Día 3, ver
+// `lazyNamed` más abajo) — importar CUALQUIER binding vía el barrel arrastra
+// ese módulo de vuelta al bundle principal, aunque el binding usado no sea
+// el que pesa. Se importa cada componente directo de su archivo para no
+// tocar el barrel desde código eager (hallazgo real: sin esto, el bundle
+// principal pasó de ~445kB a ~805kB — verificado con `npm run build`).
+import { RequireAuth } from '@packages/seguridad/components/RequireAuth'
+import { PermisosPage } from '@packages/seguridad/pages/PermisosPage'
+import { ErroresPage } from '@packages/seguridad/pages/ErroresPage'
+import { LoginPage } from '@packages/seguridad/pages/LoginPage'
+import { RegisterPage } from '@packages/seguridad/pages/RegisterPage'
+import { ProfilePage } from '@packages/seguridad/pages/ProfilePage'
+import { FacturacionPage } from '@packages/facturacion/pages/FacturacionPage'
+import { InvoiceDetailPage } from '@packages/facturacion/pages/InvoiceDetailPage'
 import { PlanesPage } from '@packages/suscripciones'
-import { CuentaArtistaPage, RevisionCreadoresPage } from '@packages/creadores'
-import { SeguidosSocialPage, ArtistaSocialPage, TrackSocialPage, ModeracionSocialPage } from '@packages/social'
-import { DistribucionAdminPage, DisponibilidadPage } from '@packages/distribucion'
-import { PartnersConsolePage, PartnersMetricasPage } from '@packages/partners'
-import { SoportePage, TicketsAdminPage, FamiliaAdminPage } from '@packages/experiencia'
+import { CuentaArtistaPage } from '@packages/creadores/pages/CuentaArtistaPage'
+import { SeguidosSocialPage } from '@packages/social/pages/SeguidosSocialPage'
+import { ArtistaSocialPage } from '@packages/social/pages/ArtistaSocialPage'
+import { TrackSocialPage } from '@packages/social/pages/TrackSocialPage'
+import { PerfilPublicoPage } from '@packages/social/pages/PerfilPublicoPage'
+import { DisponibilidadPage } from '@packages/distribucion/pages/DisponibilidadPage'
+import { PartnersConsolePage, PartnersMetricasPage, PartnersLandingPage } from '@packages/partners'
+import { SoportePage } from '@packages/experiencia/pages/SoportePage'
+import { FamiliaAdminPage } from '@packages/experiencia/pages/FamiliaAdminPage'
+import { RecomendacionesPage } from '@packages/experiencia/pages/RecomendacionesPage'
+import { MisGananciasPage } from '@packages/regalias/pages/MisGananciasPage'
 
 // `/analitica` es la única sección con dependencias pesadas (Recharts, ver
 // docs/decisiones-refactorizacion.md §18) que no vale la pena bajar al
@@ -51,9 +71,28 @@ const EtlPage             = lazyNamed(() => import('@packages/ingesta/pages/EtlP
 const CrudDimensionesPage = lazyNamed(() => import('@packages/ingesta/pages/CrudDimensionesPage'), 'CrudDimensionesPage')
 const DataQualityPage     = lazyNamed(() => import('@packages/ingesta/pages/DataQualityPage'), 'DataQualityPage')
 
+// Dashboards de los 6 dominios nuevos (RT-04, S10 Día 3) — cada uno agregó
+// Recharts a una pantalla admin-only que antes no lo tenía; mismo motivo que
+// el bloque de arriba, se sacan del bundle principal.
+const AuditoriaPage            = lazyNamed(() => import('@packages/seguridad/pages/AuditoriaPage'), 'AuditoriaPage')
+const AuditoriaFacturacionPage = lazyNamed(() => import('@packages/facturacion/pages/AuditoriaFacturacionPage'), 'AuditoriaFacturacionPage')
+const RevisionCreadoresPage    = lazyNamed(() => import('@packages/creadores/pages/RevisionCreadoresPage'), 'RevisionCreadoresPage')
+const ModeracionSocialPage     = lazyNamed(() => import('@packages/social/pages/ModeracionSocialPage'), 'ModeracionSocialPage')
+const DistribucionAdminPage    = lazyNamed(() => import('@packages/distribucion/pages/DistribucionAdminPage'), 'DistribucionAdminPage')
+const TicketsAdminPage         = lazyNamed(() => import('@packages/experiencia/pages/TicketsAdminPage'), 'TicketsAdminPage')
+
+// Admin-only, sin Recharts propio — pero importan `distribucionApi`/
+// `creadoresApi` vía sus barrels (RegaliasAdminPage), así que igual se
+// lazy-cargan para no arrastrar esos barrels al bundle principal.
+const RegaliasAdminPage   = lazyNamed(() => import('@packages/regalias/pages/RegaliasAdminPage'), 'RegaliasAdminPage')
+const PublicidadAdminPage = lazyNamed(() => import('@packages/publicidad/pages/PublicidadAdminPage'), 'PublicidadAdminPage')
+
 export const router = createBrowserRouter([
   { path: '/login',    element: <LoginPage /> },
   { path: '/register', element: <RegisterPage /> },
+  // Pública, sin sesión — porte de app/partners/landing.html (legacy) al
+  // retirar `app/` (consolidación a React, 2026-07-10).
+  { path: '/partners', element: <PartnersLandingPage /> },
   {
     path: '/',
     element: <AppShell />,
@@ -69,11 +108,17 @@ export const router = createBrowserRouter([
       // Biblioteca personal (favoritos/playlists/historial): requiere sesión
       // (`require_b2c_user` en /biblioteca/*, backend ya archivado).
       { path: 'biblioteca',  element: <RequireAuth><BibliotecaPage /></RequireAuth> },
+      { path: 'recomendaciones', element: <RequireAuth><RecomendacionesPage /></RequireAuth> },
       { path: 'perfil',      element: <RequireAuth><ProfilePage /></RequireAuth> },
+      // Perfil público (S10 ronda 2): pública/sin sesión — el backend ya
+      // resuelve la visibilidad (404 si es privado), mismo criterio que
+      // `catalogo/track/:factId` de arriba.
+      { path: 'usuarios/:usuarioId', element: <PerfilPublicoPage /> },
       // El resto requiere sesión — sus endpoints dependen de `get_current_user`
       // o `require_b2c_user` en el backend, y hasta ahora el guard nunca se
       // aplicaba del lado del cliente.
       { path: 'facturacion', element: <RequireAuth><FacturacionPage /></RequireAuth> },
+      { path: 'facturacion/:invoiceId', element: <RequireAuth><InvoiceDetailPage /></RequireAuth> },
       { path: 'suscripciones', element: <RequireAuth><PlanesPage /></RequireAuth> },
       { path: 'creadores',   element: <RequireAuth><CuentaArtistaPage /></RequireAuth> },
       { path: 'social',                element: <RequireAuth><SeguidosSocialPage /></RequireAuth> },
@@ -81,6 +126,7 @@ export const router = createBrowserRouter([
       { path: 'social/track/:factId',      element: <RequireAuth><TrackSocialPage /></RequireAuth> },
       { path: 'distribucion/disponibilidad', element: <RequireAuth><DisponibilidadPage /></RequireAuth> },
       { path: 'soporte',     element: <RequireAuth><SoportePage /></RequireAuth> },
+      { path: 'regalias/ganancias', element: <RequireAuth><MisGananciasPage /></RequireAuth> },
     ],
   },
   {
@@ -136,6 +182,8 @@ export const router = createBrowserRouter([
       { path: 'distribucion', element: <DistribucionAdminPage /> },
       { path: 'soporte',     element: <TicketsAdminPage /> },
       { path: 'familia',     element: <FamiliaAdminPage /> },
+      { path: 'regalias',    element: <RegaliasAdminPage /> },
+      { path: 'publicidad',  element: <PublicidadAdminPage /> },
       // `partners` e `ingesta` viven aquí, no en árboles propios: son
       // herramientas de back-office 100% admin-only (partners: la consola de
       // verificación, no la API en sí — ver packages/partners/README.md;

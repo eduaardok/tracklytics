@@ -10,11 +10,12 @@ from core.deps import get_current_user
 from paquetes.creadores.deps import require_admin, require_cuenta_artista_aprobada
 from paquetes.creadores.promocion import NEUTRAL_AUDIO_DEFAULTS, promover_a_fact_tracks
 from paquetes.creadores.queries import (
-    CUENTA_ACTUAL_POR_ID, CUENTA_ACTUAL_POR_USUARIO, CUENTA_EXISTE_POR_USUARIO,
-    GENERO_EXISTE, SUBIDA_ACTUAL_POR_ID, SUBIDAS_POR_CUENTA,
-    cuentas_admin_sql, subidas_admin_sql,
+    ARTIST_ID_POR_NOMBRE, CUENTA_ACTUAL_POR_ID, CUENTA_ACTUAL_POR_USUARIO, CUENTA_EXISTE_POR_USUARIO,
+    CUENTAS_ARTISTA_TOTAL, GENERO_EXISTE, SUBIDA_ACTUAL_POR_ID, SUBIDAS_POR_CUENTA,
+    SUBIDAS_POR_ESTADO, cuentas_admin_sql, subidas_admin_sql,
 )
 from paquetes.seguridad import audit
+from paquetes.social import notificaciones
 
 router = APIRouter(prefix="/app/v1/creadores", tags=["Creadores"])
 
@@ -220,4 +221,26 @@ async def resolver_track(subida_id: str, body: ResolverTrackBody, admin: dict = 
         antes={"subida_id": subida_id, "estado": "pendiente"},
         despues={"subida_id": subida_id, "estado": nuevo_estado, "fact_id_promovido": fact_id_promovido},
     )
+
+    # Notificaciones (S10 ronda 2): un track aprobado notifica a todos los
+    # seguidores activos del artista. El vínculo artist_id se resuelve por
+    # nombre_artistico (mismo join "suave" que `promocion.py`) — si el
+    # artista no existiera todavía en DIM_ARTISTS esto sería un bug de
+    # promover_a_fact_tracks (ya lo crea si falta), así que siempre resuelve.
+    if body.decision == "aprobar" and fact_id_promovido is not None:
+        artista = query_one(ARTIST_ID_POR_NOMBRE, {"name": cuenta["nombre_artistico"]})
+        if artista:
+            notificaciones.crear_para_seguidores_de_artista(
+                artista["artist_id"], "nuevo_track_artista_seguido", "track", str(fact_id_promovido),
+                f"Nuevo track de {cuenta['nombre_artistico']}: {subida['track_name']}",
+            )
+
     return {"status": "ok", "subida_id": subida_id, "estado": nuevo_estado, "fact_id_promovido": fact_id_promovido}
+
+
+@router.get("/admin/dashboard")
+def dashboard_creadores(admin: dict = Depends(require_admin)):
+    return {
+        "subidas_por_estado":   query_rows(SUBIDAS_POR_ESTADO),
+        "cuentas_artista_total": (query_one(CUENTAS_ARTISTA_TOTAL) or {}).get("n", 0),
+    }

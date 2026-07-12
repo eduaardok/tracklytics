@@ -2,6 +2,10 @@ import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ErrorState } from '@shared/components/ErrorState'
 import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
+import { MiniDonutChart } from '@shared/components/charts/MiniDonutChart'
+import { STATUS_COLORS, CHART_COLORS } from '@shared/components/charts/colors'
+import { apiErrorMessage } from '@shared/lib/api-client'
+import { useToast } from '@shared/context/ToastContext'
 import { experienciaApi } from '../api/experiencia.api'
 import type { EstadoTicket, Ticket } from '../types'
 import styles from './ExperienciaPages.module.css'
@@ -12,6 +16,16 @@ function fmtDate(iso: string) {
 }
 
 const ESTADOS: EstadoTicket[] = ['abierto', 'en_proceso', 'resuelto', 'cerrado']
+
+// 4 estados, 4 colores distinguibles: warning (necesita atención) / violeta
+// (en curso, no es un color de estado reservado) / good (resuelto) / neutral
+// (cerrado, inerte) — evita que dos categorías compartan color en el donut.
+const ESTADO_COLOR: Record<string, string> = {
+  abierto:    STATUS_COLORS.warning,
+  en_proceso: CHART_COLORS.violeta,
+  resuelto:   STATUS_COLORS.good,
+  cerrado:    STATUS_COLORS.neutral,
+}
 
 const FILTROS: { value: string; label: string }[] = [
   { value: '', label: 'Todos' },
@@ -24,6 +38,7 @@ const FILTROS: { value: string; label: string }[] = [
 export function TicketsAdminPage() {
   useDocumentTitle('Soporte — administración')
   const queryClient = useQueryClient()
+  const toast = useToast()
   const [estado, setEstado] = useState('')
 
   const tickets = useQuery({
@@ -31,10 +46,19 @@ export function TicketsAdminPage() {
     queryFn:  () => experienciaApi.ticketsAdmin(estado || undefined),
   })
 
+  const dashboard = useQuery({
+    queryKey: ['experiencia', 'dashboard'],
+    queryFn:  () => experienciaApi.dashboard(),
+  })
+
   const actualizar = useMutation({
     mutationFn: ({ factId, nuevoEstado }: { factId: number; nuevoEstado: EstadoTicket }) =>
       experienciaApi.actualizarTicket(factId, nuevoEstado),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['experiencia', 'admin', 'tickets'] }),
+    onSuccess: (_res, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['experiencia', 'admin', 'tickets'] })
+      toast.success(`Ticket actualizado a "${variables.nuevoEstado.replace('_', ' ')}"`)
+    },
+    onError: (err) => toast.error(apiErrorMessage(err, 'No se pudo actualizar el ticket.')),
   })
 
   const pending = actualizar.isPending ? actualizar.variables : undefined
@@ -43,6 +67,24 @@ export function TicketsAdminPage() {
   return (
     <section className={styles.page}>
       <h1 className={styles.heading}>Soporte — administración</h1>
+
+      <div className={styles.dashboardGrid}>
+        <div className={styles.chartPanel}>
+          <p className={styles.panelTitle}>Tickets por estado</p>
+          <MiniDonutChart
+            data={(dashboard.data?.tickets_por_estado ?? []).map((t) => ({
+              name: t.estado, value: t.total, color: ESTADO_COLOR[t.estado] ?? STATUS_COLORS.neutral,
+            }))}
+          />
+        </div>
+        <div className={styles.kpiPanel}>
+          <p className={styles.panelTitle}>Resumen</p>
+          <div className={styles.kpiRow}>
+            <span className={styles.kpiValue}>{dashboard.data?.tickets_abiertos_total ?? '—'}</span>
+            <span className={styles.kpiLabel}>Tickets abiertos o en proceso</span>
+          </div>
+        </div>
+      </div>
 
       <div className={styles.queuePanel}>
         <div className={styles.queueHeader}>

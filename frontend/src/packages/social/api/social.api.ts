@@ -4,6 +4,8 @@ import type {
   Comentario, ComentarioBody, ComentarioResultado,
   ModerarComentarioBody, ModerarComentarioResultado,
   ComparticionBody, ComparticionResultado,
+  DashboardSocial, FeedItem,
+  NotificacionesResultado, PerfilPublico,
 } from '../types'
 
 export const socialApi = {
@@ -39,4 +41,24 @@ export const socialApi = {
   // ── Compartir ────────────────────────────────────────────────────────────────
   compartir: (body: ComparticionBody) =>
     apiClient.post<ComparticionResultado>('/social/comparticiones', body),
+
+  dashboard: () =>
+    apiClient.get<DashboardSocial>('/social/admin/dashboard'),
+
+  feed: () =>
+    apiClient.get<ApiResponse<FeedItem>>('/social/feed'),
+
+  // ── Notificaciones (S10 ronda 2) ────────────────────────────────────────────
+  notificaciones: (limit = 30) =>
+    apiClient.get<NotificacionesResultado>(`/social/notificaciones?limit=${limit}`),
+
+  marcarNotificacionLeida: (factId: number) =>
+    apiClient.patch<{ status: string }>(`/social/notificaciones/${factId}/leer`, {}),
+
+  marcarTodasLeidas: () =>
+    apiClient.patch<{ status: string }>('/social/notificaciones/leer-todas', {}),
+
+  // ── Perfiles públicos ────────────────────────────────────────────────────────
+  perfilPublico: (usuarioId: string) =>
+    apiClient.get<PerfilPublico>(`/social/usuarios/${usuarioId}/perfil`),
 }

@@ -1,6 +1,11 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
+import { MiniLineChart } from '@shared/components/charts/MiniLineChart'
+import { MiniBarChart } from '@shared/components/charts/MiniBarChart'
+import { CHART_COLORS } from '@shared/components/charts/colors'
+import { apiErrorMessage } from '@shared/lib/api-client'
+import { useToast } from '@shared/context/ToastContext'
 import { socialApi } from '../api/social.api'
 import type { Comentario, EstadoModeracion } from '../types'
 import styles from './SocialPages.module.css'
@@ -25,6 +30,7 @@ const FILTROS: { value: string; label: string }[] = [
 export function ModeracionSocialPage() {
   useDocumentTitle('Moderación social')
   const queryClient = useQueryClient()
+  const toast = useToast()
   const [estado, setEstado] = useState('')
 
   const comentarios = useQuery({
@@ -32,12 +38,32 @@ export function ModeracionSocialPage() {
     queryFn:  () => socialApi.comentariosAdmin({ estado: estado || undefined }),
   })
 
+  const dashboard = useQuery({
+    queryKey: ['social', 'dashboard'],
+    queryFn:  () => socialApi.dashboard(),
+  })
+
+  // Backend devuelve formato largo (una fila por día×tipo) — se pivota a
+  // formato ancho (una fila por día, una columna por tipo) para MiniLineChart.
+  const actividadPorDia = (() => {
+    const porDia = new Map<string, { dia: string; comentario: number; comparticion: number }>()
+    for (const r of dashboard.data?.actividad_por_dia ?? []) {
+      const fila = porDia.get(r.dia) ?? { dia: r.dia, comentario: 0, comparticion: 0 }
+      if (r.tipo === 'comentario') fila.comentario = r.total
+      else fila.comparticion = r.total
+      porDia.set(r.dia, fila)
+    }
+    return Array.from(porDia.values()).sort((a, b) => a.dia.localeCompare(b.dia))
+  })()
+
   const moderar = useMutation({
     mutationFn: ({ factId, decision }: { factId: number; decision: 'oculto' | 'eliminado' }) =>
       socialApi.moderarComentario(factId, { decision }),
-    onSuccess: () => {
+    onSuccess: (_res, variables) => {
       queryClient.invalidateQueries({ queryKey: ['social', 'admin', 'comentarios'] })
+      toast.success(variables.decision === 'oculto' ? 'Comentario ocultado' : 'Comentario eliminado')
     },
+    onError: (err) => toast.error(apiErrorMessage(err, 'No se pudo moderar el comentario.')),
   })
 
   const pending = moderar.isPending ? moderar.variables : undefined
@@ -46,6 +72,27 @@ export function ModeracionSocialPage() {
   return (
     <section className={styles.page}>
       <h1 className={styles.heading}>Moderación social</h1>
+
+      <div className={styles.dashboardGrid}>
+        <div className={styles.chartPanel}>
+          <p className={styles.panelTitle}>Actividad social real por día (14 días)</p>
+          <MiniLineChart
+            data={actividadPorDia}
+            xKey="dia"
+            series={[
+              { key: 'comentario', label: 'Comentarios', color: CHART_COLORS.violeta },
+              { key: 'comparticion', label: 'Comparticiones', color: CHART_COLORS.teal },
+            ]}
+          />
+        </div>
+        <div className={styles.chartPanel}>
+          <p className={styles.panelTitle}>Artistas más seguidos</p>
+          <MiniBarChart
+            data={(dashboard.data?.artistas_mas_seguidos ?? []).map((a) => ({ name: a.nombre, value: a.seguidores }))}
+            color={CHART_COLORS.ambar}
+          />
+        </div>
+      </div>
 
       <div className={styles.queuePanel}>
         <div className={styles.queueHeader}>

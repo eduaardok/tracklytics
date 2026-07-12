@@ -15,16 +15,28 @@ export type Track = {
   imagen_url?:  string | null
 }
 
-export type TrackDetail = Track & {
-  loudness:         number
-  speechiness:      number
+// `danceability/energy/valence/speechiness/acousticness/instrumentalness/
+// liveness` ya NO viajan en `TrackDetail` — solo `GET
+// /tracks/fact/{fact_id}/audio-features` (premium, ver `AudioFeatures` abajo)
+// las expone. Antes viajaban aquí siempre y el paywall de TrackDetailPage
+// era 100% del cliente (auditoría 2026-07-10, cierre de `require_active_
+// subscription`) — un usuario free podía leerlas igual desde Network.
+export type TrackDetail = Omit<Track, 'danceability' | 'energy' | 'valence'> & {
+  loudness:   number
+  tempo:      number
+  artist_id:  number
+  album_name: string
+  album_id:   number
+}
+
+export type AudioFeatures = {
+  danceability:     number
+  energy:           number
+  valence:          number
   acousticness:     number
+  speechiness:      number
   instrumentalness: number
   liveness:         number
-  tempo:            number
-  artist_id:        number
-  album_name:       string
-  album_id:         number
 }
 
 export type Artist = {
@@ -67,6 +79,12 @@ export type TracksSearchParams = {
   genre?:  string
   limit?:  number
   offset?: number
+  // Filtros avanzados (S10 Día 3) — antes la búsqueda solo filtraba por
+  // texto/género pese a que popularity/tempo/energy ya viajaban en cada Track.
+  popularityMin?: number
+  tempoMin?:      number
+  tempoMax?:      number
+  energyMin?:     number
 }
 
 // Forma reducida usada por favoritos/historial/tracks de playlist — estos
@@ -102,11 +120,21 @@ export type Playlist = {
   playlist_id: string
   name:        string
   track_count: number
+  es_publica:  boolean
+}
+
+export type Colaborador = {
+  usuario_id: string
+  nombre:     string
+  email:      string
 }
 
 export type PlaylistDetail = {
-  playlist_id: string
-  name:        string
-  data:        LibraryTrack[]
-  total:       number
+  playlist_id:   string
+  name:          string
+  data:          LibraryTrack[]
+  total:         number
+  is_owner:      boolean
+  colaboradores: Colaborador[]
+  es_publica:    boolean
 }

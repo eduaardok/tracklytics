@@ -17,7 +17,66 @@ ORDER BY b.fecha_inicio DESC
 
 COMENTARIO_POR_ID = "SELECT * FROM FACT_COMENTARIO WHERE fact_id = {fact_id:UInt64} LIMIT 1"
 
-COMENTARIO_PADRE_INFO = "SELECT fact_id, fact_id_track FROM FACT_COMENTARIO WHERE fact_id = {fact_id:UInt64} LIMIT 1"
+# `usuario_id` incluido (además de fact_id/fact_id_track): necesario para
+# notificar al autor del comentario padre cuando alguien le responde
+# (notificaciones.py) — antes esta query solo se usaba para validar que el
+# padre existiera y perteneciera al mismo track.
+COMENTARIO_PADRE_INFO = """
+SELECT fact_id, fact_id_track, usuario_id
+FROM FACT_COMENTARIO WHERE fact_id = {fact_id:UInt64} LIMIT 1
+"""
+
+# Resuelve el usuario dueño de la cuenta de artista que subió un track, a
+# partir de su fact_id — usado para notificar "comentario en tu contenido"
+# cuando el comentario es raíz (no respuesta). El vínculo DIM_ARTISTS <->
+# DIM_CUENTA_ARTISTA es por nombre_artistico (mismo join "suave" ya aceptado
+# en `creadores/promocion.py::_resolver_artist_id`, no hay FK real entre
+# ambas tablas) — un track sin cuenta de artista resoluble (ej. dataset
+# original, no `user_uploaded`) simplemente no genera notificación.
+AUTOR_TRACK_POR_FACT_ID = """
+SELECT ca.usuario_id AS usuario_id
+FROM FACT_TRACKS ft
+JOIN DIM_ARTISTS a ON a.artist_id = ft.artist_id
+JOIN DIM_CUENTA_ARTISTA ca ON ca.nombre_artistico = a.name
+WHERE ft.fact_id = {fact_id:UInt64} AND ca.estado_cuenta = 'aprobada'
+LIMIT 1
+"""
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Notificaciones (S10 ronda 2)
+# ─────────────────────────────────────────────────────────────────────────────
+
+SEGUIDORES_ACTIVOS_DE_ARTISTA = """
+SELECT usuario_id FROM BRIDGE_SEGUIMIENTO_ARTISTA
+WHERE artista_id = {artista_id:UInt32} AND activo = 1
+"""
+
+NOTIFICACIONES_DE_USUARIO = """
+SELECT fact_id, tipo, referencia_tipo, referencia_id, mensaje, leido, fecha_creacion, fecha_lectura
+FROM FACT_NOTIFICACION
+WHERE usuario_destino_id = {usuario_id:String}
+ORDER BY fecha_creacion DESC
+LIMIT {limit:UInt32}
+"""
+
+NOTIFICACIONES_NO_LEIDAS_TOTAL = """
+SELECT count() AS n FROM FACT_NOTIFICACION
+WHERE usuario_destino_id = {usuario_id:String} AND leido = 0
+"""
+
+NOTIFICACION_POR_ID = """
+SELECT fact_id, usuario_destino_id, leido
+FROM FACT_NOTIFICACION WHERE fact_id = {fact_id:UInt64} LIMIT 1
+"""
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Perfiles públicos/privados (S10 ronda 2)
+# ─────────────────────────────────────────────────────────────────────────────
+
+PERFIL_PUBLICO_USUARIO = """
+SELECT usuario_id, nombre, perfil_publico
+FROM DIM_USUARIO WHERE usuario_id = {usuario_id:String} LIMIT 1
+"""
 
 # Columnas calificadas con AS explícito (mismo motivo ya documentado en
 # `paquetes/creadores/queries.py`): el LEFT JOIN de una tabla contra sí misma
@@ -58,3 +117,63 @@ def comentarios_admin_sql(where: str) -> str:
     {where}
     ORDER BY c.fecha_creacion DESC
     """
+
+# Dashboard (RT-04, S10 Día 3): actividad social real por día, últimos 14
+# días — 2 series (comentarios vs comparticiones), ambas append-only.
+ACTIVIDAD_SOCIAL_POR_DIA = """
+SELECT toDate(fecha_creacion) AS dia, 'comentario' AS tipo, count() AS total
+FROM FACT_COMENTARIO
+WHERE fecha_creacion >= now() - INTERVAL 14 DAY AND estado_moderacion != 'eliminado'
+GROUP BY dia
+UNION ALL
+SELECT toDate(fecha) AS dia, 'comparticion' AS tipo, count() AS total
+FROM FACT_COMPARTICION
+WHERE fecha >= now() - INTERVAL 14 DAY
+GROUP BY dia
+ORDER BY dia
+"""
+
+ARTISTAS_MAS_SEGUIDOS = """
+SELECT b.artista_id AS artista_id, a.name AS nombre, count() AS seguidores
+FROM BRIDGE_SEGUIMIENTO_ARTISTA b
+JOIN DIM_ARTISTS a ON a.artist_id = b.artista_id
+WHERE b.activo = 1
+GROUP BY b.artista_id, a.name
+ORDER BY seguidores DESC
+LIMIT 5
+"""
+
+# Feed de actividad (S10 Día 3): el modelo solo tiene seguimiento de ARTISTAS
+# (BRIDGE_SEGUIMIENTO_ARTISTA) — no existe un concepto de "seguir a otro
+# usuario" en el modelo de datos. Se interpreta "actividad de a quién sigo"
+# como actividad reciente (comentarios + comparticiones) sobre tracks de los
+# artistas que el usuario sigue, que es la relación de seguimiento real que
+# existe — ver design.md del change de este día para la decisión completa.
+FEED_ACTIVIDAD_SEGUIDOS = """
+SELECT tipo, id, usuario_id, usuario_nombre, contenido, fecha, track_name, artista_id, artista_nombre
+FROM (
+    SELECT 'comentario' AS tipo, c.fact_id AS id, c.usuario_id AS usuario_id,
+           u.nombre AS usuario_nombre, c.contenido AS contenido, c.fecha_creacion AS fecha,
+           t.track_name AS track_name, a.artist_id AS artista_id, a.name AS artista_nombre
+    FROM FACT_COMENTARIO c
+    JOIN FACT_TRACKS t ON t.fact_id = c.fact_id_track
+    JOIN DIM_ARTISTS a ON a.artist_id = t.artist_id
+    LEFT JOIN DIM_USUARIO u ON u.usuario_id = c.usuario_id
+    WHERE c.estado_moderacion = 'visible' AND c.comentario_padre_id IS NULL
+      AND a.artist_id IN (SELECT artista_id FROM BRIDGE_SEGUIMIENTO_ARTISTA WHERE usuario_id = {usuario_id:String} AND activo = 1)
+
+    UNION ALL
+
+    SELECT 'comparticion' AS tipo, s.fact_id AS id, s.usuario_id AS usuario_id,
+           u.nombre AS usuario_nombre, '' AS contenido, s.fecha AS fecha,
+           t.track_name AS track_name, a.artist_id AS artista_id, a.name AS artista_nombre
+    FROM FACT_COMPARTICION s
+    JOIN FACT_TRACKS t ON t.fact_id = s.fact_id_track
+    JOIN DIM_ARTISTS a ON a.artist_id = t.artist_id
+    LEFT JOIN DIM_USUARIO u ON u.usuario_id = s.usuario_id
+    WHERE s.fact_id_track IS NOT NULL
+      AND a.artist_id IN (SELECT artista_id FROM BRIDGE_SEGUIMIENTO_ARTISTA WHERE usuario_id = {usuario_id:String} AND activo = 1)
+)
+ORDER BY fecha DESC
+LIMIT 30
+"""

@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { isAuthenticated } from '@shared/lib/session'
+import { apiErrorMessage } from '@shared/lib/api-client'
+import { useToast } from '@shared/context/ToastContext'
 import { bibliotecaApi } from '../api/biblioteca.api'
 import styles from './AddToPlaylistMenu.module.css'
 
@@ -18,6 +20,7 @@ export function AddToPlaylistMenu({ factId }: Props) {
   const wrapRef    = useRef<HTMLDivElement>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
   const queryClient = useQueryClient()
+  const toast = useToast()
 
   const { data } = useQuery({
     queryKey: QUERY_KEY,
@@ -30,9 +33,12 @@ export function AddToPlaylistMenu({ factId }: Props) {
     mutationFn: (playlistId: string) => bibliotecaApi.agregarTrackAPlaylist(playlistId, factId),
     onSuccess: (res, playlistId) => {
       const pl = playlists.find((p) => p.playlist_id === playlistId)
+      const msg = res.already_added ? `Ya está en "${pl?.name}"` : `Agregado a "${pl?.name}"`
       setFeedback(res.already_added ? `Ya está en "${pl?.name}"` : `✓ Agregado a "${pl?.name}"`)
       queryClient.invalidateQueries({ queryKey: QUERY_KEY })
+      if (!res.already_added) toast.success(msg)
     },
+    onError: (err) => toast.error(apiErrorMessage(err, 'No se pudo agregar el track a la playlist.')),
   })
 
   const createAndAdd = useMutation({
@@ -45,7 +51,9 @@ export function AddToPlaylistMenu({ factId }: Props) {
       setFeedback(`✓ Playlist "${pl.name}" creada`)
       setNewName('')
       queryClient.invalidateQueries({ queryKey: QUERY_KEY })
+      toast.success(`Playlist "${pl.name}" creada`)
     },
+    onError: (err) => toast.error(apiErrorMessage(err, 'No se pudo crear la playlist.')),
   })
 
   useEffect(() => {

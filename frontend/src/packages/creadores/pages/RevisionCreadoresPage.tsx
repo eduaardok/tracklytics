@@ -1,9 +1,19 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ErrorState } from '@shared/components/ErrorState'
 import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
+import { MiniDonutChart } from '@shared/components/charts/MiniDonutChart'
+import { STATUS_COLORS } from '@shared/components/charts/colors'
+import { apiErrorMessage } from '@shared/lib/api-client'
+import { useToast } from '@shared/context/ToastContext'
 import { creadoresApi } from '../api/creadores.api'
 import type { CuentaArtista, SubidaTrack } from '../types'
 import styles from './CreadoresPages.module.css'
+
+const ESTADO_COLOR: Record<string, string> = {
+  pendiente: STATUS_COLORS.warning,
+  aprobado:  STATUS_COLORS.good,
+  rechazado: STATUS_COLORS.error,
+}
 
 function fmtDate(iso: string | null) {
   if (!iso) return '—'
@@ -61,6 +71,7 @@ type Decision = 'aprobar' | 'rechazar'
 export function RevisionCreadoresPage() {
   useDocumentTitle('Revisión de creadores')
   const queryClient = useQueryClient()
+  const toast = useToast()
 
   const cuentas = useQuery({
     queryKey: ['creadores', 'admin', 'cuentas', 'pendiente'],
@@ -72,20 +83,29 @@ export function RevisionCreadoresPage() {
     queryFn:  () => creadoresApi.tracksAdmin('pendiente'),
   })
 
+  const dashboard = useQuery({
+    queryKey: ['creadores', 'dashboard'],
+    queryFn:  () => creadoresApi.dashboard(),
+  })
+
   const resolverCuenta = useMutation({
     mutationFn: ({ cuentaArtistaId, decision }: { cuentaArtistaId: string; decision: Decision }) =>
       creadoresApi.resolverCuenta(cuentaArtistaId, { decision }),
-    onSuccess: () => {
+    onSuccess: (_res, variables) => {
       queryClient.invalidateQueries({ queryKey: ['creadores', 'admin', 'cuentas', 'pendiente'] })
+      toast.success(variables.decision === 'aprobar' ? 'Cuenta de artista aprobada' : 'Cuenta de artista rechazada')
     },
+    onError: (err) => toast.error(apiErrorMessage(err, 'No se pudo resolver la cuenta de artista.')),
   })
 
   const resolverTrack = useMutation({
     mutationFn: ({ subidaId, decision }: { subidaId: string; decision: Decision }) =>
       creadoresApi.resolverTrack(subidaId, { decision }),
-    onSuccess: () => {
+    onSuccess: (_res, variables) => {
       queryClient.invalidateQueries({ queryKey: ['creadores', 'admin', 'tracks', 'pendiente'] })
+      toast.success(variables.decision === 'aprobar' ? 'Track aprobado' : 'Track rechazado')
     },
+    onError: (err) => toast.error(apiErrorMessage(err, 'No se pudo resolver el track.')),
   })
 
   // Per-row pending state: only the row + action actually in flight is
@@ -99,6 +119,24 @@ export function RevisionCreadoresPage() {
   return (
     <section className={styles.page}>
       <h1 className={styles.heading}>Revisión de creadores</h1>
+
+      <div className={styles.dashboardGrid}>
+        <div className={styles.chartPanel}>
+          <p className={styles.panelTitle}>Subidas por estado de revisión</p>
+          <MiniDonutChart
+            data={(dashboard.data?.subidas_por_estado ?? []).map((d) => ({
+              name: d.estado, value: d.total, color: ESTADO_COLOR[d.estado] ?? STATUS_COLORS.neutral,
+            }))}
+          />
+        </div>
+        <div className={styles.kpiPanel}>
+          <p className={styles.panelTitle}>Resumen</p>
+          <div className={styles.kpiRow}>
+            <span className={styles.kpiValue}>{dashboard.data?.cuentas_artista_total ?? '—'}</span>
+            <span className={styles.kpiLabel}>Cuentas de artista totales</span>
+          </div>
+        </div>
+      </div>
 
       <div className={styles.queueGrid}>
         <div className={styles.queuePanel}>

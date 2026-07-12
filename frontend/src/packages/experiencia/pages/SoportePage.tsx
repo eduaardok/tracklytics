@@ -2,6 +2,8 @@ import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ErrorState } from '@shared/components/ErrorState'
 import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
+import { apiErrorMessage } from '@shared/lib/api-client'
+import { useToast } from '@shared/context/ToastContext'
 import { experienciaApi } from '../api/experiencia.api'
 import type { EstadoTicket, Ticket } from '../types'
 import styles from './ExperienciaPages.module.css'
@@ -28,6 +30,7 @@ function EstadoBadge({ estado }: { estado: EstadoTicket }) {
 export function SoportePage() {
   useDocumentTitle('Soporte')
   const queryClient = useQueryClient()
+  const toast = useToast()
   const [asunto, setAsunto] = useState('')
   const [descripcion, setDescripcion] = useState('')
 
@@ -42,7 +45,9 @@ export function SoportePage() {
       setAsunto('')
       setDescripcion('')
       queryClient.invalidateQueries({ queryKey: ['experiencia', 'mis-tickets'] })
+      toast.success('Ticket creado')
     },
+    onError: (err) => toast.error(apiErrorMessage(err, 'No se pudo crear el ticket.')),
   })
 
   const data: Ticket[] = tickets.data?.data ?? []

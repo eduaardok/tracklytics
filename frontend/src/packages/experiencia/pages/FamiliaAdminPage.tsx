@@ -3,6 +3,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ErrorState } from '@shared/components/ErrorState'
 import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { UserPicker, type UserSearchResult } from '@shared/components/UserPicker'
+import { apiErrorMessage } from '@shared/lib/api-client'
+import { useToast } from '@shared/context/ToastContext'
 import { experienciaApi } from '../api/experiencia.api'
 import styles from './ExperienciaPages.module.css'
 
@@ -18,6 +20,7 @@ function fmtDate(iso: string) {
 export function FamiliaAdminPage() {
   useDocumentTitle('Plan familiar')
   const queryClient = useQueryClient()
+  const toast = useToast()
   const [titularUser, setTitularUser] = useState<UserSearchResult | null>(null)
   const [suscripcionId, setSuscripcionId] = useState('')
   const [miembroUser, setMiembroUser] = useState<UserSearchResult | null>(null)
@@ -35,8 +38,12 @@ export function FamiliaAdminPage() {
       setMsg({ tipo: 'ok', texto: `Titular creado — suscripcion_id: ${res.suscripcion_id}` })
       setSuscripcionId(res.suscripcion_id)
       setTitularUser(null)
+      toast.success('Titular del plan familiar creado')
     },
-    onError: () => setMsg({ tipo: 'error', texto: 'No se pudo crear el titular (¿suscripción premium activa?).' }),
+    onError: (err) => {
+      setMsg({ tipo: 'error', texto: 'No se pudo crear el titular (¿suscripción premium activa?).' })
+      toast.error(apiErrorMessage(err, 'No se pudo crear el titular.'))
+    },
   })
 
   const agregarMiembro = useMutation({
@@ -44,13 +51,21 @@ export function FamiliaAdminPage() {
     onSuccess: () => {
       setMiembroUser(null)
       queryClient.invalidateQueries({ queryKey: ['experiencia', 'familia', suscripcionId] })
+      toast.success('Miembro agregado al plan familiar')
     },
-    onError: () => setMsg({ tipo: 'error', texto: 'No se pudo agregar el miembro (¿límite alcanzado o ya en otro plan?).' }),
+    onError: (err) => {
+      setMsg({ tipo: 'error', texto: 'No se pudo agregar el miembro (¿límite alcanzado o ya en otro plan?).' })
+      toast.error(apiErrorMessage(err, 'No se pudo agregar el miembro.'))
+    },
   })
 
   const quitarMiembro = useMutation({
     mutationFn: (usuarioId: string) => experienciaApi.quitarMiembro(suscripcionId, usuarioId),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['experiencia', 'familia', suscripcionId] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['experiencia', 'familia', suscripcionId] })
+      toast.success('Miembro quitado del plan familiar')
+    },
+    onError: (err) => toast.error(apiErrorMessage(err, 'No se pudo quitar al miembro.')),
   })
 
   const miembros = plan.data?.data ?? []

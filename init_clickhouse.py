@@ -311,6 +311,10 @@ DDL_STATEMENTS = [
         pais           String,
         fecha_registro DateTime,
         rol            String,
+        -- Perfiles públicos/privados (S10 ronda 2): privado por defecto —
+        -- un usuario recién registrado no debería exponer su perfil hasta
+        -- que lo decida explícitamente en Mi Perfil.
+        perfil_publico UInt8 DEFAULT 0,
         actualizado_en DateTime DEFAULT now()
     ) ENGINE = ReplacingMergeTree(actualizado_en)
     ORDER BY usuario_id
@@ -558,6 +562,32 @@ DDL_STATEMENTS = [
     ORDER BY (usuario_id, fecha)
     """,
 
+    # Notificaciones (S10 ronda 2): `fact_id` UInt64 aleatorio en Python, mismo
+    # patrón sin lock que FACT_COMENTARIO/FACT_COMPARTICION. `referencia_id`
+    # es String genérico (no UInt64) porque referencia tanto fact_id de track
+    # (numérico) como playlist_id de PocketBase (string) según `referencia_tipo`.
+    # `leido` se actualiza in-place vía ALTER UPDATE, mismo patrón que
+    # `estado_moderacion` en FACT_COMENTARIO — no ReplacingMergeTree porque no
+    # hay necesidad de deduplicar filas, solo de mutar un campo.
+    f"""
+    CREATE TABLE IF NOT EXISTS {DB}.FACT_NOTIFICACION (
+        fact_id            UInt64,
+        usuario_destino_id String,
+        tipo               Enum8(
+            'nuevo_track_artista_seguido'=1,
+            'comentario_en_tu_contenido'=2,
+            'nuevo_colaborador_playlist'=3
+        ),
+        referencia_tipo    Enum8('track'=1, 'playlist'=2, 'comentario'=3),
+        referencia_id      String,
+        mensaje            String,
+        leido              UInt8 DEFAULT 0,
+        fecha_creacion     DateTime,
+        fecha_lectura      Nullable(DateTime)
+    ) ENGINE = MergeTree()
+    ORDER BY (usuario_destino_id, fecha_creacion)
+    """,
+
     # ── capability `distribucion`: mercado, sellos, licencias, restricciones ───
     f"""
     CREATE TABLE IF NOT EXISTS {DB}.DIM_PAIS (
@@ -724,6 +754,16 @@ DDL_STATEMENTS = [
     f"ALTER TABLE {DB}.DIM_ARTISTS ADD COLUMN IF NOT EXISTS imagen_url Nullable(String)",
     f"ALTER TABLE {DB}.DIM_ALBUMS ADD COLUMN IF NOT EXISTS imagen_url Nullable(String)",
 
+    # Portada por canción (no por álbum): muchos `album_name` del dataset base
+    # son en realidad compilaciones tipo playlist (ej. "Daily Pop Mix",
+    # "Alternative Christmas 2022") con decenas de artistas distintos bajo el
+    # mismo álbum — heredar la portada del álbum ahí muestra la misma carátula
+    # genérica en canciones de artistas que no tienen nada que ver entre sí.
+    # Esta columna guarda la portada exacta de esa canción puntual (resuelta
+    # por su propio `track_id`), y se prioriza sobre `DIM_ALBUMS.imagen_url`
+    # en las queries de catálogo — ver `resolver_portadas_tracks_spotify`.
+    f"ALTER TABLE {DB}.FACT_TRACKS ADD COLUMN IF NOT EXISTS imagen_url Nullable(String)",
+
     # ── completar-modelo-base: cierre de gap del modelo de negocio original ────
     # (DIM_CANAL_MARKETING, DIM_REGION, DIM_COMPONENTE_INFRAESTRUCTURA,
     # FACT_ADQUISICION, FACT_DISPONIBILIDAD). DIM_REGION es agrupación de
@@ -774,6 +814,158 @@ DDL_STATEMENTS = [
         fecha            DateTime
     ) ENGINE = MergeTree()
     ORDER BY (componente_id, fecha)
+    """,
+
+    # ── Capability `regalias` (S10, auditoría 2026-07-10): dos tipos de derecho
+    # (master/grabación y publishing/composición, sin DIM_EDITORIAL — decisión
+    # del usuario) repartidos pro-rata sobre el mismo pool de ingresos que
+    # alimenta `publicidad` (suscripciones + ads). Ver design.md para el
+    # cálculo completo (streams reales × pool real, nada hardcodeado).
+    f"""
+    CREATE TABLE IF NOT EXISTS {DB}.DIM_PRODUCTOR (
+        productor_id    UInt32,
+        nombre          String,
+        fecha_registro  DateTime DEFAULT now()
+    ) ENGINE = MergeTree()
+    ORDER BY productor_id
+    """,
+
+    f"""
+    CREATE TABLE IF NOT EXISTS {DB}.BRIDGE_PRODUCTOR_TRACK (
+        fact_id_track     UInt64,
+        productor_id      UInt32,
+        rol               String DEFAULT 'productor',
+        fecha_asignacion  DateTime DEFAULT now()
+    ) ENGINE = MergeTree()
+    ORDER BY (fact_id_track, productor_id)
+    """,
+
+    # Login propio del sello (análogo a DIM_CUENTA_ARTISTA), pero de alta
+    # exclusiva de admin — a diferencia de un artista (cualquiera puede
+    # solicitar una cuenta), un sello ya es una entidad de catálogo
+    # administrada por admin (`distribucion.DIM_SELLO_DISCOGRAFICO`), así que
+    # vincularlo a un usuario real es una operación de onboarding B2B, no de
+    # autoservicio. El usuario vinculado inicia sesión igual que cualquier
+    # Cliente B2B (`role=analyst`, capability `seguridad`); esta tabla solo
+    # resuelve a qué `sello_id` corresponde ese usuario para sus reportes.
+    f"""
+    CREATE TABLE IF NOT EXISTS {DB}.DIM_CUENTA_SELLO (
+        cuenta_sello_id  String,
+        usuario_id       String,
+        sello_id         UInt32,
+        activo           UInt8 DEFAULT 1,
+        fecha_creacion   DateTime DEFAULT now()
+    ) ENGINE = MergeTree()
+    ORDER BY cuenta_sello_id
+    """,
+
+    # Split por track (no por álbum): mismo criterio que el resto del modelo
+    # de negocio, que usa `fact_id_track`/`fact_id` como grano atómico en
+    # todas partes (FACT_RESTRICCION_REPRODUCCION, FACT_SUBIDA_TRACK, etc.),
+    # nunca álbum. `pct_master_*` deben sumar 100 entre sí (mismo criterio
+    # para `pct_publishing_*`); no se aplica en DDL, sí en el endpoint de
+    # creación del contrato (ver router.py).
+    f"""
+    CREATE TABLE IF NOT EXISTS {DB}.DIM_CONTRATO_REGALIA (
+        contrato_id             String,
+        fact_id_track           UInt64,
+        sello_id                Nullable(UInt32),
+        cuenta_artista_id       Nullable(String),
+        productor_id            Nullable(UInt32),
+        pct_master_sello        Float32 DEFAULT 0,
+        pct_master_artista      Float32 DEFAULT 0,
+        pct_master_productor    Float32 DEFAULT 0,
+        pct_publishing_sello    Float32 DEFAULT 0,
+        pct_publishing_artista  Float32 DEFAULT 0,
+        vigente_desde           Date,
+        vigente_hasta           Nullable(Date),
+        activo                  UInt8 DEFAULT 1,
+        creado_en               DateTime DEFAULT now()
+    ) ENGINE = MergeTree()
+    ORDER BY (fact_id_track, vigente_desde)
+    """,
+
+    # Una fila por rightsholder por track por período (no una fila agregada
+    # por período) — permite auditar exactamente cuánto le tocó a cada sello/
+    # artista/productor de cada track, no solo el total. `streams_periodo` es
+    # el conteo real de reproducciones de ese track en el período (fuente:
+    # FACT_ENGAGEMENT_USUARIO, event_type='reproduccion'), no un valor fijo.
+    f"""
+    CREATE TABLE IF NOT EXISTS {DB}.FACT_LIQUIDACION_REGALIA (
+        liquidacion_id     String,
+        contrato_id        String,
+        fact_id_track      UInt64,
+        tipo_rightsholder  Enum8('sello'=1, 'artista'=2, 'productor'=3),
+        rightsholder_id    String,
+        periodo_inicio     Date,
+        periodo_fin        Date,
+        streams_periodo    UInt32,
+        monto              Float32,
+        moneda             String DEFAULT 'USD',
+        fecha_calculo      DateTime DEFAULT now()
+    ) ENGINE = MergeTree()
+    ORDER BY (rightsholder_id, periodo_inicio)
+    """,
+
+    # ── Capability `publicidad` (S10, auditoría 2026-07-10): el tier free se
+    # financia con ads — FACT_INGRESO_PUBLICITARIO alimenta el mismo pool que
+    # reparte `FACT_LIQUIDACION_REGALIA` junto con FACT_TRANSACCION_PAGO
+    # (suscripciones), igual que el modelo real de Spotify (pool "market-
+    # centric": ingreso total del período repartido pro-rata por streams).
+    f"""
+    CREATE TABLE IF NOT EXISTS {DB}.DIM_ANUNCIANTE (
+        anunciante_id   UInt32,
+        nombre          String,
+        sector          String DEFAULT '',
+        fecha_registro  DateTime DEFAULT now()
+    ) ENGINE = MergeTree()
+    ORDER BY anunciante_id
+    """,
+
+    f"""
+    CREATE TABLE IF NOT EXISTS {DB}.DIM_CAMPANA_PUBLICITARIA (
+        campana_id         UInt32,
+        anunciante_id      UInt32,
+        nombre             String,
+        cpm                Float32,
+        presupuesto_total  Float32,
+        fecha_inicio       Date,
+        fecha_fin          Nullable(Date),
+        activa             UInt8 DEFAULT 1
+    ) ENGINE = MergeTree()
+    ORDER BY campana_id
+    """,
+
+    # Un anuncio mostrado entre canciones a un usuario free — separado de
+    # FACT_INGRESO_PUBLICITARIO (que solo registra impresiones COMPLETADAS,
+    # con el monto real ya calculado) para poder medir tasa de completitud
+    # sin mezclar el evento de exposición con el de ingreso reconocido.
+    f"""
+    CREATE TABLE IF NOT EXISTS {DB}.FACT_IMPRESION_ANUNCIO (
+        impresion_id  String,
+        campana_id    UInt32,
+        usuario_id    String,
+        completado    UInt8 DEFAULT 0,
+        fecha         DateTime DEFAULT now()
+    ) ENGINE = MergeTree()
+    ORDER BY (usuario_id, fecha)
+    """,
+
+    # Ingreso reconocido en tiempo real por cada impresión completada
+    # (`monto = campana.cpm / 1000`), no un agregado periódico — así una
+    # impresión real genera una fila real de ingreso de inmediato (RT-01:
+    # ese cálculo ocurre en Python, en el mismo request que registra la
+    # impresión), y `regalias` solo necesita sumar esta tabla por rango de
+    # fecha para conocer el ingreso publicitario real de cualquier período.
+    f"""
+    CREATE TABLE IF NOT EXISTS {DB}.FACT_INGRESO_PUBLICITARIO (
+        ingreso_id    String,
+        impresion_id  String,
+        campana_id    UInt32,
+        monto         Float32,
+        fecha         DateTime DEFAULT now()
+    ) ENGINE = MergeTree()
+    ORDER BY (campana_id, fecha)
     """,
 ]
 

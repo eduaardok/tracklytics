@@ -2,6 +2,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { getRole } from '@shared/lib/session'
 import { ErrorState } from '@shared/components/ErrorState'
 import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
+import { apiErrorMessage } from '@shared/lib/api-client'
+import { useToast } from '@shared/context/ToastContext'
 import { experienciaApi } from '../api/experiencia.api'
 import type { TopTrackPlaylist } from '../types'
 import styles from './ExperienciaPages.module.css'
@@ -14,6 +16,7 @@ import styles from './ExperienciaPages.module.css'
 export function TopTracksPlaylistsPage() {
   useDocumentTitle('Tracks más agregados a playlists')
   const queryClient = useQueryClient()
+  const toast = useToast()
   const isAdmin = getRole() === 'admin'
 
   const topTracks = useQuery({
@@ -23,7 +26,11 @@ export function TopTracksPlaylistsPage() {
 
   const sincronizar = useMutation({
     mutationFn: () => experienciaApi.sincronizarPlaylists(),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['experiencia', 'playlists-top-tracks'] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['experiencia', 'playlists-top-tracks'] })
+      toast.success('Resincronización disparada')
+    },
+    onError: (err) => toast.error(apiErrorMessage(err, 'No se pudo disparar la resincronización.')),
   })
 
   const data: TopTrackPlaylist[] = topTracks.data?.data ?? []

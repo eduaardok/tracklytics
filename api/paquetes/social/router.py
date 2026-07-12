@@ -2,19 +2,30 @@ import random
 from datetime import datetime, timezone
 from typing import Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
 from pydantic import BaseModel
 
 from core.database import execute, get_client, query_one, query_rows
 from core.deps import get_current_user, require_b2c_user
+from paquetes.biblioteca import pb_playlists
+from paquetes.biblioteca.queries import TRACKS_BY_FACT_IDS
 from paquetes.seguridad import audit
 from paquetes.seguridad.deps import require_admin
+from paquetes.social import notificaciones
 from paquetes.social.queries import (
+    ACTIVIDAD_SOCIAL_POR_DIA,
     ARTISTA_EXISTE,
+    ARTISTAS_MAS_SEGUIDOS,
     ARTISTAS_SEGUIDOS_POR_USUARIO,
+    AUTOR_TRACK_POR_FACT_ID,
     COMENTARIO_PADRE_INFO,
     COMENTARIO_POR_ID,
     COMENTARIOS_VISIBLES_DE_TRACK,
+    FEED_ACTIVIDAD_SEGUIDOS,
+    NOTIFICACION_POR_ID,
+    NOTIFICACIONES_DE_USUARIO,
+    NOTIFICACIONES_NO_LEIDAS_TOTAL,
+    PERFIL_PUBLICO_USUARIO,
     SEGUIMIENTO_ACTIVO_EXISTE,
     TRACK_EXISTE,
     comentarios_admin_sql,
@@ -98,6 +109,14 @@ def mis_seguidos(user: dict = Depends(get_current_user)):
     return {"data": query_rows(ARTISTAS_SEGUIDOS_POR_USUARIO, {"usuario_id": user["record"]["id"]})}
 
 
+@router.get("/feed")
+def feed_actividad(user: dict = Depends(get_current_user)):
+    """Feed de actividad real (S10 Día 3) — el modelo solo tiene seguimiento
+    de artistas, no de usuarios; ver FEED_ACTIVIDAD_SEGUIDOS (queries.py) para
+    la decisión de interpretación."""
+    return {"data": query_rows(FEED_ACTIVIDAD_SEGUIDOS, {"usuario_id": user["record"]["id"]})}
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # 2. Comentarios (CU-O32/CU-O33)
 # ─────────────────────────────────────────────────────────────────────────────
@@ -116,6 +135,7 @@ def comentar_track(body: ComentarioBody, user: dict = Depends(require_b2c_user))
         raise HTTPException(status_code=404, detail="Track no encontrado")
 
     tipo = "comentario_raiz"
+    padre = None
     if body.comentario_padre_id is not None:
         padre = query_one(COMENTARIO_PADRE_INFO, {"fact_id": body.comentario_padre_id})
         if not padre:
@@ -135,7 +155,30 @@ def comentar_track(body: ComentarioBody, user: dict = Depends(require_b2c_user))
         )],
         column_names=_FACT_COMENTARIO_COLS,
     )
+    _notificar_comentario(tipo, usuario_id, body, padre)
     return {"status": "ok", "fact_id": fact_id, "estado_moderacion": "visible"}
+
+
+def _notificar_comentario(tipo: str, autor_id: str, body: ComentarioBody, padre: dict | None) -> None:
+    # "comentario_en_tu_contenido" (notificaciones, S10 ronda 2): una respuesta
+    # notifica al autor del comentario padre; un comentario raíz notifica al
+    # dueño de la cuenta de artista que subió el track (si es resoluble — ver
+    # AUTOR_TRACK_POR_FACT_ID). Nunca se autonotifica el propio autor.
+    if tipo == "comentario_respuesta":
+        destino = (padre or {}).get("usuario_id")
+        if destino and destino != autor_id:
+            notificaciones.crear(
+                destino, "comentario_en_tu_contenido", "comentario", str(body.comentario_padre_id),
+                "Alguien respondió tu comentario",
+            )
+    else:
+        autor_track = query_one(AUTOR_TRACK_POR_FACT_ID, {"fact_id": body.fact_id_track})
+        destino = autor_track["usuario_id"] if autor_track else None
+        if destino and destino != autor_id:
+            notificaciones.crear(
+                destino, "comentario_en_tu_contenido", "track", str(body.fact_id_track),
+                "Nuevo comentario en uno de tus tracks",
+            )
 
 
 @router.get("/comentarios/{fact_id_track}")
@@ -245,3 +288,95 @@ def compartir(body: ComparticionBody, user: dict = Depends(require_b2c_user)):
         column_names=_FACT_COMPARTICION_COLS,
     )
     return {"status": "ok", "fact_id": fact_id, **_armar_contenido_compartir(body)}
+
+
+@router.get("/admin/dashboard")
+def dashboard_social(admin: dict = Depends(require_admin)):
+    return {
+        "actividad_por_dia":    query_rows(ACTIVIDAD_SOCIAL_POR_DIA),
+        "artistas_mas_seguidos": query_rows(ARTISTAS_MAS_SEGUIDOS),
+    }
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 5. Notificaciones (S10 ronda 2)
+# ─────────────────────────────────────────────────────────────────────────────
+
+@router.get("/notificaciones")
+def mis_notificaciones(limit: int = Query(30, ge=1, le=100), user: dict = Depends(get_current_user)):
+    usuario_id = user["record"]["id"]
+    return {
+        "data":      query_rows(NOTIFICACIONES_DE_USUARIO, {"usuario_id": usuario_id, "limit": limit}),
+        "no_leidas": (query_one(NOTIFICACIONES_NO_LEIDAS_TOTAL, {"usuario_id": usuario_id}) or {}).get("n", 0),
+    }
+
+
+@router.patch("/notificaciones/leer-todas")
+def marcar_todas_leidas(user: dict = Depends(get_current_user)):
+    usuario_id = user["record"]["id"]
+    execute(
+        "ALTER TABLE FACT_NOTIFICACION UPDATE leido = 1, fecha_lectura = now() "
+        "WHERE usuario_destino_id = {usuario_id:String} AND leido = 0",
+        {"usuario_id": usuario_id},
+    )
+    return {"status": "ok"}
+
+
+@router.patch("/notificaciones/{fact_id}/leer")
+def marcar_notificacion_leida(fact_id: int, user: dict = Depends(get_current_user)):
+    notif = query_one(NOTIFICACION_POR_ID, {"fact_id": fact_id})
+    if not notif:
+        raise HTTPException(status_code=404, detail="Notificación no encontrada")
+    if notif["usuario_destino_id"] != user["record"]["id"]:
+        raise HTTPException(status_code=403, detail="Esta notificación no te pertenece")
+    execute(
+        "ALTER TABLE FACT_NOTIFICACION UPDATE leido = 1, fecha_lectura = now() WHERE fact_id = {fact_id:UInt64}",
+        {"fact_id": fact_id},
+    )
+    return {"status": "ok"}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 6. Perfiles públicos/privados (S10 ronda 2)
+# ─────────────────────────────────────────────────────────────────────────────
+
+async def _usuario_opcional(request: Request, authorization: str | None = Header(None)) -> dict | None:
+    # Un perfil público debe poder verse sin sesión — no se puede usar
+    # get_current_user directo (exige 401 sin token). Reintenta la misma
+    # verificación y degrada a None ante cualquier fallo (token ausente,
+    # expirado o inválido) en vez de rechazar la request.
+    if not authorization:
+        return None
+    try:
+        return await get_current_user(request, authorization)
+    except HTTPException:
+        return None
+
+
+@router.get("/usuarios/{usuario_id}/perfil")
+async def perfil_publico(usuario_id: str, viewer: dict | None = Depends(_usuario_opcional)):
+    fila = query_one(PERFIL_PUBLICO_USUARIO, {"usuario_id": usuario_id})
+    if not fila:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+
+    es_propio_dueno = viewer is not None and viewer["record"]["id"] == usuario_id
+    if not fila["perfil_publico"] and not es_propio_dueno:
+        raise HTTPException(status_code=404, detail="Este perfil es privado")
+
+    playlists_pb = await pb_playlists.listar_publicas(usuario_id)
+    playlists = []
+    for pl in playlists_pb:
+        items = await pb_playlists.listar_tracks_admin(pl["id"])
+        fact_ids = [it["fact_id"] for it in items]
+        tracks_by_fact = {r["fact_id"]: r for r in query_rows(TRACKS_BY_FACT_IDS, {"fact_ids": fact_ids})} if fact_ids else {}
+        ordered = sorted(items, key=lambda it: it["position"])
+        tracks  = [tracks_by_fact[it["fact_id"]] for it in ordered if it["fact_id"] in tracks_by_fact]
+        playlists.append({"playlist_id": pl["id"], "name": pl["name"], "data": tracks, "total": len(tracks)})
+
+    return {
+        "usuario_id":     usuario_id,
+        "nombre":         fila["nombre"],
+        "perfil_publico": bool(fila["perfil_publico"]),
+        "es_propio":      es_propio_dueno,
+        "playlists":      playlists,
+    }

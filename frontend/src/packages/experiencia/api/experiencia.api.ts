@@ -1,13 +1,14 @@
 import { apiClient, type ApiResponse } from '@shared/lib/api-client'
 import type {
-  EstadoTicket, PlanFamiliar, Recomendacion,
+  EstadoTicket, MiFamilia, PlanFamiliar, Recomendacion, SeccionRecomendaciones,
   SincronizacionResultado, Ticket, TicketBody, TopTrackPlaylist,
+  DashboardExperiencia,
 } from '../types'
 
 export const experienciaApi = {
   // ── Recomendaciones (RF-EXP-002/003) ────────────────────────────────────────
   recomendaciones: (limit = 10) =>
-    apiClient.get<{ data: Recomendacion[]; algoritmo: string }>(`/experiencia/recomendaciones?limit=${limit}`),
+    apiClient.get<{ secciones: SeccionRecomendaciones[] }>(`/experiencia/recomendaciones?limit=${limit}`),
 
   // ── Tickets de soporte (RF-EXP-004/005) ─────────────────────────────────────
   crearTicket: (body: TicketBody) =>
@@ -45,4 +46,24 @@ export const experienciaApi = {
 
   quitarMiembro: (suscripcionId: string, usuarioId: string) =>
     apiClient.delete<{ status: string }>(`/experiencia/familia/${suscripcionId}/miembros/${usuarioId}`),
+
+  // ── Plan familiar, autoservicio del titular (CU-O51/52/53, cambio 2026-07-09) ──
+  // A diferencia de los 4 de arriba (admin, requieren `suscripcion_id` y rol
+  // admin), estos operan siempre sobre el usuario autenticado.
+  crearMiPlanFamiliar: () =>
+    apiClient.post<{ status: string; suscripcion_id: string; es_titular: boolean }>('/experiencia/familia', {}),
+
+  miPlanFamiliar: () =>
+    apiClient.get<MiFamilia>('/experiencia/familia'),
+
+  agregarMiMiembro: (email: string) =>
+    apiClient.post<{ status: string; usuario_id: string; nombre: string; total: number }>(
+      '/experiencia/familia/miembros', { email },
+    ),
+
+  quitarMiMiembro: (usuarioId: string) =>
+    apiClient.delete<{ status: string }>(`/experiencia/familia/miembros/${usuarioId}`),
+
+  dashboard: () =>
+    apiClient.get<DashboardExperiencia>('/experiencia/admin/dashboard'),
 }

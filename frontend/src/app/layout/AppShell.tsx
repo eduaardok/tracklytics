@@ -2,9 +2,14 @@ import { useEffect, useState } from 'react'
 import { Outlet, NavLink, useLocation } from 'react-router-dom'
 import {
   LayoutGrid, Library, CreditCard, Receipt, Mic2, Users, Globe, LifeBuoy,
-  BarChart3, ShieldCheck, PanelLeftClose, PanelLeftOpen, type LucideIcon,
+  BarChart3, ShieldCheck, PanelLeftClose, PanelLeftOpen, Sparkles, Coins, type LucideIcon,
 } from 'lucide-react'
-import { UserMenu } from '@packages/seguridad'
+// Import directo, no vía el barrel `@packages/seguridad` (arrastraría los
+// dashboards con Recharts de ese paquete al bundle principal — ver router.tsx).
+import { UserMenu } from '@packages/seguridad/components/UserMenu'
+// Mismo criterio: `@packages/social` exporta ModeracionSocialPage (dashboard
+// con Recharts) en su barrel — import directo del componente.
+import { NotificationBell } from '@packages/social/components/NotificationBell'
 import { PlayerBarActions } from '@packages/catalogo'
 import { PlayerBar } from '@shared/components/PlayerBar'
 import { usePlayer } from '@shared/context/PlayerContext'
@@ -21,7 +26,8 @@ export type NavItem = { to: string; label: string; icon: LucideIcon; end?: boole
 // grupo — es una acción puntual, no de consumo diario, igual que Facturación/
 // Creadores/Social/Distribución.
 const NAV_PRIMARY: NavItem[] = [
-  { to: '/',              label: 'Catálogo',      icon: LayoutGrid, end: true },
+  { to: '/',              label: 'Catálogo',       icon: LayoutGrid, end: true },
+  { to: '/recomendaciones', label: 'Para ti',      icon: Sparkles },
   { to: '/biblioteca',    label: 'Mi Biblioteca',  icon: Library },
   { to: '/suscripciones', label: 'Mi Plan',        icon: CreditCard },
 ]
@@ -32,6 +38,7 @@ const NAV_SECONDARY: NavItem[] = [
   { to: '/social',                       label: 'Social',      icon: Users },
   { to: '/distribucion/disponibilidad',  label: 'Distribución', icon: Globe },
   { to: '/soporte',                      label: 'Soporte',     icon: LifeBuoy },
+  { to: '/regalias/ganancias',           label: 'Mis ganancias', icon: Coins },
 ]
 
 // Hallazgo post-migración a sidebar (Fase 8): ni antes (nav horizontal +
@@ -112,7 +119,7 @@ export function AppShell() {
 
   return (
     <div className={styles.shell}>
-      <header className={styles.brandBar}>
+      <header className={styles.brandBar} data-print-hide="true">
         <button
           type="button"
           className={styles.hamburger}
@@ -127,7 +134,10 @@ export function AppShell() {
           <span className={styles.brand}>Tracklytics</span>
           <span className={styles.badge}>beta</span>
         </a>
-        <UserMenu />
+        <div className={styles.headerActions}>
+          <NotificationBell />
+          <UserMenu />
+        </div>
       </header>
 
       <div className={styles.body}>
@@ -138,6 +148,7 @@ export function AppShell() {
             collapsed ? styles.sidebarCollapsed : '',
           ].join(' ').trim()}
           aria-label="Navegación principal"
+          data-print-hide="true"
         >
           <div className={styles.navGroups}>
             {NAV_PRIMARY.map(renderNavItem)}
@@ -182,7 +193,9 @@ export function AppShell() {
         reservePlayerSpace={!!currentTrack}
       />
 
-      <PlayerBar actions={<PlayerBarActions />} />
+      <div data-print-hide="true">
+        <PlayerBar actions={<PlayerBarActions />} />
+      </div>
     </div>
   )
 }

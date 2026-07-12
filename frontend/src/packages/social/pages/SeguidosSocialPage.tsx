@@ -11,6 +11,11 @@ function fmtDate(iso: string) {
   return isNaN(d.getTime()) ? iso : d.toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })
 }
 
+function fmtDateTime(iso: string) {
+  const d = new Date(iso.replace(' ', 'T'))
+  return isNaN(d.getTime()) ? iso : d.toLocaleString('es-ES', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
+}
+
 export function SeguidosSocialPage() {
   useDocumentTitle('Social')
   const navigate = useNavigate()
@@ -21,13 +26,50 @@ export function SeguidosSocialPage() {
     queryFn:  () => socialApi.misSeguidos(),
   })
 
+  const feed = useQuery({
+    queryKey: ['social', 'feed'],
+    queryFn:  () => socialApi.feed(),
+  })
+
   const data = seguidos.data?.data ?? []
+  const feedData = feed.data?.data ?? []
 
   return (
     <section className={styles.page}>
       <h1 className={styles.heading}>Social</h1>
 
-      <p className={styles.sectionLabel}>Artistas seguidos</p>
+      <p className={styles.sectionLabel}>Actividad reciente de artistas que sigo</p>
+      {feed.isError ? (
+        <div className={styles.bannerError} role="alert">No se pudo cargar el feed de actividad.</div>
+      ) : feed.isLoading ? (
+        <ul className={styles.followedList}>
+          <li className={styles.followedRow}><span className={styles.skel} style={{ width: '50%', height: 14 }} /></li>
+        </ul>
+      ) : feedData.length === 0 ? (
+        <div className={styles.emptyState}>
+          <span className={styles.emptyTitle}>Sin actividad todavía</span>
+          <span className={styles.emptyBody}>
+            Cuando sigas artistas y otros usuarios comenten o compartan sus tracks, aparecerá aquí.
+          </span>
+        </div>
+      ) : (
+        <ul className={styles.followedList}>
+          {feedData.map((item) => (
+            <li key={`${item.tipo}-${item.id}`} className={styles.followedRow} style={{ flexDirection: 'column', alignItems: 'flex-start', gap: 2 }}>
+              <span className={styles.followedName}>
+                {item.usuario_nombre || 'Alguien'}{' '}
+                {item.tipo === 'comentario' ? 'comentó' : 'compartió'} un track de {item.artista_nombre}
+              </span>
+              {item.tipo === 'comentario' && item.contenido && (
+                <span className={styles.followedMeta}>&ldquo;{item.contenido}&rdquo;</span>
+              )}
+              <span className={styles.followedMeta}>{item.track_name} · {fmtDateTime(item.fecha)}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <p className={styles.sectionLabel} style={{ marginTop: 'var(--space-xl)' }}>Artistas seguidos</p>
 
       {seguidos.isError ? (
         <div className={styles.bannerError} role="alert">No se pudieron cargar tus seguidos (¿sesión activa?).</div>
@@ -55,8 +97,7 @@ export function SeguidosSocialPage() {
 
       <p className={styles.sectionLabel} style={{ marginTop: 'var(--space-xl)' }}>Comentar un track</p>
       <p className={styles.emptyBody} style={{ marginBottom: 0 }}>
-        La navegación desde el catálogo hacia el detalle de un track la construye la capability
-        <code> experiencia</code>. Mientras tanto, busca el track:
+        Busca el track por nombre o artista, y selecciónalo de la lista de sugerencias:
       </p>
       <form
         className={styles.jumpForm}

@@ -50,4 +50,22 @@ export const bibliotecaApi = {
 
   quitarTrackDePlaylist: (playlistId: string, factId: number) =>
     apiClient.delete<{ status: string }>(`/biblioteca/playlists/${playlistId}/tracks/${factId}`),
+
+  reordenarPlaylist: (playlistId: string, factIds: number[]) =>
+    apiClient.put<{ status: string }>(`/biblioteca/playlists/${playlistId}/reordenar`, { fact_ids: factIds }),
+
+  agregarColaborador: (playlistId: string, email: string) =>
+    apiClient.post<{ status: string; usuario_id: string; nombre: string }>(
+      `/biblioteca/playlists/${playlistId}/colaboradores`, { email },
+    ),
+
+  quitarColaborador: (playlistId: string, usuarioId: string) =>
+    apiClient.delete<{ status: string }>(`/biblioteca/playlists/${playlistId}/colaboradores/${usuarioId}`),
+
+  // Perfiles públicos (S10 ronda 2): el dueño decide cuáles de sus playlists
+  // expone en su perfil público.
+  actualizarVisibilidadPlaylist: (playlistId: string, esPublica: boolean) =>
+    apiClient.patch<{ playlist_id: string; name: string; es_publica: boolean }>(
+      `/biblioteca/playlists/${playlistId}/visibilidad`, { es_publica: esPublica },
+    ),
 }
