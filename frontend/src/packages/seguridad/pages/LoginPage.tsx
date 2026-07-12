@@ -20,6 +20,10 @@ export function LoginPage() {
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
+    if (!email.trim() || !password) {
+      setError('Completa correo y contraseña.')
+      return
+    }
     setError(null)
     setSubmitting(true)
     try {
@@ -49,7 +53,7 @@ export function LoginPage() {
 
           {error && <div className={styles.bannerError} role="alert">{error}</div>}
 
-          <form className={styles.form} onSubmit={handleSubmit}>
+          <form className={styles.form} onSubmit={handleSubmit} noValidate>
             <div className={styles.field}>
               <label className={styles.fieldLabel} htmlFor="email">Correo electrónico</label>
               <input

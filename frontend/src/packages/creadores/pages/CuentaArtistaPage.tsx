@@ -1,9 +1,10 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { catalogoApi } from '@packages/catalogo'
-import { ApiError } from '@shared/lib/api-client'
+import { ApiError, apiErrorMessage } from '@shared/lib/api-client'
 import { ErrorState } from '@shared/components/ErrorState'
 import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
+import { useToast } from '@shared/context/ToastContext'
 import { creadoresApi } from '../api/creadores.api'
 import type { EstadoCuenta, EstadoRevision, SubidaTrack } from '../types'
 import styles from './CreadoresPages.module.css'
@@ -102,6 +103,7 @@ export function CuentaArtistaPage() {
   const [explicit, setExplicit]               = useState(false)
 
   const queryClient = useQueryClient()
+  const toast = useToast()
 
   const cuenta = useQuery({
     queryKey: ['creadores', 'cuenta'],
@@ -125,7 +127,9 @@ export function CuentaArtistaPage() {
     mutationFn: () => creadoresApi.solicitarCuenta({ nombre_artistico: nombreArtistico }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['creadores', 'cuenta'] })
+      toast.success('Solicitud de cuenta de artista enviada')
     },
+    onError: (err) => toast.error(apiErrorMessage(err, 'No se pudo enviar la solicitud de cuenta de artista.')),
   })
 
   const subir = useMutation({
@@ -140,7 +144,9 @@ export function CuentaArtistaPage() {
     onSuccess: () => {
       setTrackName(''); setAlbumName(''); setGenreId(''); setDurationSeconds(''); setExplicit(false)
       queryClient.invalidateQueries({ queryKey: ['creadores', 'tracks'] })
+      toast.success('Track subido — pendiente de revisión')
     },
+    onError: (err) => toast.error(apiErrorMessage(err, 'No se pudo subir el track.')),
   })
 
   const noTieneCuenta = cuenta.isError && esNoEncontrado(cuenta.error)
@@ -171,7 +177,15 @@ export function CuentaArtistaPage() {
             cada solicitud antes de aprobarla.
           </p>
           <form
-            onSubmit={(e) => { e.preventDefault(); solicitar.mutate() }}
+            onSubmit={(e) => {
+              e.preventDefault()
+              if (!nombreArtistico.trim()) {
+                toast.error('Escribe un nombre artístico.')
+                return
+              }
+              solicitar.mutate()
+            }}
+            noValidate
           >
             <div className={styles.field} style={{ marginBottom: 'var(--space-md)' }}>
               <label className={styles.fieldLabel} htmlFor="nombre_artistico">Nombre artístico</label>
@@ -222,7 +236,15 @@ export function CuentaArtistaPage() {
               <p className={styles.sectionLabel}>Subir un track</p>
               <form
                 className={styles.uploadForm}
-                onSubmit={(e) => { e.preventDefault(); subir.mutate() }}
+                onSubmit={(e) => {
+                  e.preventDefault()
+                  if (!trackName.trim() || !genreId || !durationSeconds) {
+                    toast.error('Completa nombre, género y duración del track.')
+                    return
+                  }
+                  subir.mutate()
+                }}
+                noValidate
               >
                 <div className={`${styles.field} ${styles['field--wide']}`}>
                   <label className={styles.fieldLabel} htmlFor="track_name">Nombre del track</label>

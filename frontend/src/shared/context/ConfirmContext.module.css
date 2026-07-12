@@ -1,0 +1,96 @@
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-modal);
+  background: oklch(0.03 0 0 / 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-lg);
+  animation: backdrop-in var(--duration-fast) var(--ease-standard);
+}
+
+.dialog {
+  width: 100%;
+  max-width: 380px;
+  background: var(--color-surface-raised);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-lg);
+  box-shadow: 0 24px 64px oklch(0.03 0 0 / 0.55);
+  animation: dialog-in var(--duration-deliberate) var(--ease-standard);
+}
+
+.title {
+  font-family: var(--font-sans);
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--color-ink);
+  margin-bottom: var(--space-xs);
+}
+
+.message {
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  color: var(--color-muted);
+  line-height: 1.5;
+  white-space: pre-line;
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-sm);
+  margin-top: var(--space-lg);
+}
+
+.cancelBtn,
+.confirmBtn,
+.confirmBtnDanger {
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  font-weight: 600;
+  border-radius: var(--radius-sm);
+  padding: 8px 16px;
+  height: 36px;
+  cursor: pointer;
+  transition: background-color var(--duration-fast) var(--ease-standard), opacity var(--duration-fast) var(--ease-standard);
+}
+
+.cancelBtn {
+  background: transparent;
+  border: 1px solid var(--color-border);
+  color: var(--color-ink);
+}
+.cancelBtn:hover { background: var(--color-surface); }
+.cancelBtn:focus-visible { outline: none; box-shadow: 0 0 0 2px oklch(0.48 0.15 290 / 0.4); }
+
+.confirmBtn {
+  background: var(--color-primary);
+  border: none;
+  color: var(--color-ink);
+}
+.confirmBtn:hover { background: oklch(0.54 0.16 290); }
+.confirmBtn:focus-visible { outline: none; box-shadow: 0 0 0 2px oklch(0.48 0.15 290 / 0.5); }
+
+.confirmBtnDanger {
+  background: var(--color-error);
+  border: none;
+  color: oklch(0.98 0 0);
+}
+.confirmBtnDanger:hover { background: oklch(0.58 0.22 25); }
+.confirmBtnDanger:focus-visible { outline: none; box-shadow: 0 0 0 2px oklch(0.65 0.22 25 / 0.5); }
+
+@keyframes backdrop-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes dialog-in {
+  from { transform: translateY(8px) scale(0.98); opacity: 0; }
+  to { transform: translateY(0) scale(1); opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .backdrop, .dialog { animation: none; }
+}

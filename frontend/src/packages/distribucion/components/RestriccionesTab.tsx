@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ErrorState } from '@shared/components/ErrorState'
+import { apiErrorMessage } from '@shared/lib/api-client'
+import { useToast } from '@shared/context/ToastContext'
 import { distribucionApi } from '../api/distribucion.api'
 import styles from '../pages/DistribucionPages.module.css'
 
@@ -11,6 +13,7 @@ function fmtDate(iso: string) {
 
 export function RestriccionesTab() {
   const queryClient = useQueryClient()
+  const toast = useToast()
   const [factIdTrack, setFactIdTrack] = useState('')
   const [consultado, setConsultado] = useState<number | null>(null)
   const [paisId, setPaisId] = useState('')
@@ -37,13 +40,19 @@ export function RestriccionesTab() {
     onSuccess: () => {
       setPaisId(''); setCanalId(''); setTipoRestriccionId('')
       queryClient.invalidateQueries({ queryKey: ['distribucion', 'restricciones', consultado] })
+      toast.success('Restricción creada')
     },
+    onError: (err) => toast.error(apiErrorMessage(err, 'No se pudo crear la restricción.')),
   })
 
   const desactivar = useMutation({
     mutationFn: ({ pais, canal }: { pais: number; canal: number }) =>
       distribucionApi.desactivarRestriccion(consultado as number, pais, canal),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['distribucion', 'restricciones', consultado] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['distribucion', 'restricciones', consultado] })
+      toast.success('Restricción desactivada')
+    },
+    onError: (err) => toast.error(apiErrorMessage(err, 'No se pudo desactivar la restricción.')),
   })
 
   const paisesData = paises.data?.data ?? []
@@ -57,6 +66,7 @@ export function RestriccionesTab() {
       <form
         className={styles.jumpForm}
         onSubmit={(e) => { e.preventDefault(); if (factIdTrack.trim()) setConsultado(Number(factIdTrack)) }}
+        noValidate
       >
         <input
           className={styles.jumpInput}

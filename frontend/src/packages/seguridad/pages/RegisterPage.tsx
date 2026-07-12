@@ -1,8 +1,13 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import { Link, Navigate, useNavigate } from 'react-router-dom'
 import { isAuthenticated } from '@shared/lib/session'
 import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { resolverDestinoPostAuth } from '@packages/suscripciones'
+// Import directo, no vía el barrel `@packages/distribucion` (arrastraría
+// DistribucionAdminPage —con Recharts— al bundle principal, RegisterPage es
+// una ruta pública eager — ver comentario equivalente en router.tsx).
+import { distribucionApi } from '@packages/distribucion/api/distribucion.api'
+import type { Pais } from '@packages/distribucion/types'
 import { authApi, type RolAutoRegistrable } from '../api/auth.api'
 import { AuthHero } from './AuthHero'
 import styles from './AuthPages.module.css'
@@ -14,14 +19,29 @@ export function RegisterPage() {
   const [email, setEmail]       = useState('')
   const [password, setPassword] = useState('')
   const [pais, setPais]         = useState('')
+  const [paises, setPaises]     = useState<Pais[]>([])
   const [rol, setRol]           = useState<RolAutoRegistrable>('user')
   const [error, setError]       = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
+
+  // Catálogo público (sin sesión) — antes el país se guardaba como texto
+  // libre y casi nunca resolvía contra DIM_PAIS (RF-DIS-007/CU-O41).
+  useEffect(() => {
+    distribucionApi.paisesPublico().then((res) => setPaises(res.data ?? [])).catch(() => setPaises([]))
+  }, [])
 
   if (isAuthenticated()) return <Navigate to="/" replace />
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
+    if (!nombre.trim() || !email.trim() || !password) {
+      setError('Completa nombre, correo y contraseña.')
+      return
+    }
+    if (password.length < 8) {
+      setError('La contraseña debe tener al menos 8 caracteres.')
+      return
+    }
     setError(null)
     setSubmitting(true)
     try {
@@ -44,7 +64,7 @@ export function RegisterPage() {
 
           {error && <div className={styles.bannerError} role="alert">{error}</div>}
 
-          <form className={styles.form} onSubmit={handleSubmit}>
+          <form className={styles.form} onSubmit={handleSubmit} noValidate>
             <div className={styles.field}>
               <label className={styles.fieldLabel} htmlFor="nombre">Nombre</label>
               <input
@@ -89,15 +109,18 @@ export function RegisterPage() {
 
             <div className={styles.field}>
               <label className={styles.fieldLabel} htmlFor="pais">País</label>
-              <input
+              <select
                 id="pais"
                 className={styles.input}
-                type="text"
-                placeholder="Tu país"
-                autoComplete="country-name"
+                autoComplete="country"
                 value={pais}
                 onChange={(e) => setPais(e.target.value)}
-              />
+              >
+                <option value="">Selecciona tu país</option>
+                {paises.map((p) => (
+                  <option key={p.pais_id} value={p.codigo_iso}>{p.nombre}</option>
+                ))}
+              </select>
             </div>
 
             <div className={styles.field}>

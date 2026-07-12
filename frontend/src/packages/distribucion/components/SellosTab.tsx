@@ -1,11 +1,14 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ErrorState } from '@shared/components/ErrorState'
+import { apiErrorMessage } from '@shared/lib/api-client'
+import { useToast } from '@shared/context/ToastContext'
 import { distribucionApi } from '../api/distribucion.api'
 import styles from '../pages/DistribucionPages.module.css'
 
 export function SellosTab() {
   const queryClient = useQueryClient()
+  const toast = useToast()
   const [nombre, setNombre] = useState('')
   const [editId, setEditId] = useState<number | null>(null)
   const [asignarArtistId, setAsignarArtistId] = useState('')
@@ -23,7 +26,9 @@ export function SellosTab() {
     onSuccess: () => {
       setNombre('')
       queryClient.invalidateQueries({ queryKey: ['distribucion', 'sellos'] })
+      toast.success('Sello creado')
     },
+    onError: (err) => toast.error(apiErrorMessage(err, 'No se pudo crear el sello.')),
   })
 
   const editar = useMutation({
@@ -31,7 +36,9 @@ export function SellosTab() {
     onSuccess: () => {
       setEditId(null)
       queryClient.invalidateQueries({ queryKey: ['distribucion', 'sellos'] })
+      toast.success('Sello actualizado')
     },
+    onError: (err) => toast.error(apiErrorMessage(err, 'No se pudo actualizar el sello.')),
   })
 
   const asignar = useMutation({
@@ -40,8 +47,14 @@ export function SellosTab() {
       if (asignarArtistId.trim()) await distribucionApi.asignarSelloArtista(Number(asignarArtistId), { sello_id: selloId })
       if (asignarAlbumId.trim()) await distribucionApi.asignarSelloAlbum(Number(asignarAlbumId), { sello_id: selloId })
     },
-    onSuccess: () => setAsignarMsg('Sello asignado correctamente.'),
-    onError: () => setAsignarMsg('No se pudo asignar el sello (¿id existente?).'),
+    onSuccess: () => {
+      setAsignarMsg('Sello asignado correctamente.')
+      toast.success('Sello asignado')
+    },
+    onError: (err) => {
+      setAsignarMsg('No se pudo asignar el sello (¿id existente?).')
+      toast.error(apiErrorMessage(err, 'No se pudo asignar el sello.'))
+    },
   })
 
   const data = sellos.data?.data ?? []
@@ -116,6 +129,7 @@ export function SellosTab() {
       <form
         className={styles.form}
         onSubmit={(e) => { e.preventDefault(); setAsignarMsg(null); asignar.mutate() }}
+        noValidate
       >
         <div className={styles.field}>
           <label className={styles.fieldLabel} htmlFor="asignar-sello">Sello</label>

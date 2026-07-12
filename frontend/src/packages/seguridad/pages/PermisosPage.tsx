@@ -2,6 +2,8 @@ import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { UserPicker, type UserSearchResult } from '@shared/components/UserPicker'
+import { apiErrorMessage } from '@shared/lib/api-client'
+import { useToast } from '@shared/context/ToastContext'
 import { seguridadApi } from '../api/seguridad.api'
 import type { Permiso } from '../types'
 import styles from './SeguridadPages.module.css'
@@ -14,6 +16,7 @@ export function PermisosPage() {
   const [permitido, setPermitido]   = useState(true)
 
   const queryClient = useQueryClient()
+  const toast = useToast()
   const buscado = selectedUser?.usuario_id ?? ''
 
   const { data, isLoading, isError } = useQuery({
@@ -28,7 +31,9 @@ export function PermisosPage() {
       setRecurso('')
       setAccion('')
       queryClient.invalidateQueries({ queryKey: ['seguridad', 'permisos', buscado] })
+      toast.success(permitido ? 'Permiso otorgado' : 'Permiso revocado')
     },
+    onError: (err) => toast.error(apiErrorMessage(err, 'No se pudo actualizar el permiso.')),
   })
 
   const permisos: Permiso[] = data?.data ?? []
@@ -87,7 +92,15 @@ export function PermisosPage() {
         <form
           className={styles.form}
           style={{ marginTop: 'var(--space-lg)' }}
-          onSubmit={(e) => { e.preventDefault(); asignar.mutate() }}
+          onSubmit={(e) => {
+            e.preventDefault()
+            if (!recurso.trim() || !accion.trim()) {
+              toast.error('Completa recurso y acción.')
+              return
+            }
+            asignar.mutate()
+          }}
+          noValidate
         >
           <div className={styles.field}>
             <label htmlFor="recurso">recurso</label>

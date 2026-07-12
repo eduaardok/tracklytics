@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
+import { useConfirm } from '@shared/context/ConfirmContext'
 import { ingestaApi, IngestaApiError } from '../api/ingesta.api'
 import { DIM_TABLE_OPTIONS, type DimRow } from '../types'
 import styles from './CrudDimensionesPage.module.css'
@@ -109,6 +110,7 @@ function ConfirmModal({ title, body, onConfirm, onCancel }: { title: string; bod
 export function CrudDimensionesPage() {
   useDocumentTitle('Dimensiones del catálogo')
   const queryClient = useQueryClient()
+  const confirm = useConfirm()
   const [table, setTable]   = useState<string>(DIM_TABLE_OPTIONS[0].key)
   const [search, setSearch] = useState('')
   const [page, setPage]     = useState(1)
@@ -189,7 +191,7 @@ export function CrudDimensionesPage() {
       refetchList()
     } catch (err) {
       if (err instanceof IngestaApiError && err.status === 409) {
-        const forzar = window.confirm(`${err.message}\n\n¿Eliminar de todas formas?`)
+        const forzar = await confirm(`${err.message}\n\n¿Eliminar de todas formas?`, { danger: true, confirmLabel: 'Eliminar de todas formas' })
         if (forzar) {
           try {
             await ingestaApi.dimDelete(table, id, true)
