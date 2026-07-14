@@ -1,7 +1,7 @@
 import { apiClient, type ApiResponse } from '@shared/lib/api-client'
 import type {
   MetodoPago, Transaccion, Invoice, InvoiceDetalle,
-  MetodosPagoResponse, DashboardFacturacion,
+  MetodosPagoResponse, DashboardFacturacion, EmpresaInfo,
   RegistrarMetodoPagoBody, PagarSuscripcionBody, PagoResultado,
 } from '../types'
 
@@ -34,4 +34,10 @@ export const facturacionApi = {
 
   dashboard: () =>
     apiClient.get<DashboardFacturacion>('/facturacion/admin/dashboard'),
+
+  empresa: () =>
+    apiClient.get<EmpresaInfo>('/facturacion/empresa'),
+
+  actualizarEmpresa: (body: EmpresaInfo) =>
+    apiClient.put<{ status: string } & EmpresaInfo>('/facturacion/empresa', body),
 }

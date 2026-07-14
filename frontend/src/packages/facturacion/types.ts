@@ -25,6 +25,9 @@ export type Invoice = {
   iva:            number
   fecha_emision:  string
   estado:         string
+  // Puede venir `null` si la transacción asociada no se encuentra (LEFT
+  // JOIN) — el fallback de moneda vive en el formateo, no acá.
+  moneda:         string | null
 }
 
 export type RegistrarMetodoPagoBody = {
@@ -80,4 +83,12 @@ export type DashboardFacturacion = {
   ingreso_por_dia:          { dia: string; total: number }[]
   transacciones_24h:        number
   ingreso_total_historico:  number
+}
+
+// GET/PUT /empresa (CU-O81) — identidad de la empresa emisora que aparece en
+// el encabezado de cada factura, editable solo por admin.
+export type EmpresaInfo = {
+  razon_social: string
+  ruc:          string
+  direccion:    string
 }

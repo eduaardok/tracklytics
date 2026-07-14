@@ -5,12 +5,13 @@ from typing import Literal
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
-from core.database import get_client, query_one, query_rows
+from core.database import execute, get_client, query_one, query_rows
 from core.deps import get_current_user
 from paquetes.facturacion.deps import require_admin, require_suscripcion_activa
 from paquetes.suscripciones import pb_client
 from paquetes.facturacion.queries import (
     IVA_RATE,
+    EMPRESA_ACTUAL,
     INGRESO_POR_DIA,
     INGRESO_TOTAL_HISTORICO,
     INVOICE_DETALLE,
@@ -222,3 +223,37 @@ def dashboard_facturacion(admin: dict = Depends(require_admin)):
         "transacciones_24h":      (query_one(TRANSACCIONES_ULTIMAS_24H) or {}).get("n", 0),
         "ingreso_total_historico": (query_one(INGRESO_TOTAL_HISTORICO) or {}).get("total") or 0,
     }
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Información de la empresa emisora (CU-O81) — fila única en DIM_EMPRESA
+# ─────────────────────────────────────────────────────────────────────────────
+
+class EmpresaBody(BaseModel):
+    razon_social: str
+    ruc:          str
+    direccion:    str
+
+
+@router.get("/empresa")
+def obtener_empresa(user: dict = Depends(get_current_user)):
+    row = query_one(EMPRESA_ACTUAL)
+    if not row:
+        raise HTTPException(status_code=404, detail="Información de la empresa no configurada")
+    return row
+
+
+@router.put("/empresa")
+def actualizar_empresa(body: EmpresaBody, admin: dict = Depends(require_admin)):
+    antes = query_one(EMPRESA_ACTUAL) or {}
+    execute(
+        "ALTER TABLE DIM_EMPRESA UPDATE razon_social = {razon_social:String}, "
+        "ruc = {ruc:String}, direccion = {direccion:String} WHERE empresa_id = 1",
+        {"razon_social": body.razon_social, "ruc": body.ruc, "direccion": body.direccion},
+    )
+    despues = {"razon_social": body.razon_social, "ruc": body.ruc, "direccion": body.direccion}
+    audit.record(
+        usuario_id=admin["record"]["id"], accion="editar_empresa", tabla_afectada="DIM_EMPRESA",
+        antes=antes, despues=despues,
+    )
+    return {"status": "ok", **despues}

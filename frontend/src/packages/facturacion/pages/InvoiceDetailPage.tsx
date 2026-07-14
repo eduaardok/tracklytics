@@ -28,6 +28,12 @@ export function InvoiceDetailPage() {
     queryFn:  () => facturacionApi.invoiceDetalle(invoiceId!),
     enabled:  !!invoiceId,
   })
+  // Encabezado de la factura (razón social/RUC/dirección) — antes fijo en
+  // este componente, ahora editable por admin (CU-O81, GET /facturacion/empresa).
+  const empresa = useQuery({
+    queryKey: ['facturacion', 'empresa'],
+    queryFn:  () => facturacionApi.empresa(),
+  })
 
   if (invoice.isLoading) return <section className={styles.page}><p className={styles.muted}>Cargando…</p></section>
   if (invoice.isError || !invoice.data) {
@@ -57,9 +63,9 @@ export function InvoiceDetailPage() {
             <span className={styles.brandName}>Tracklytics</span>
           </div>
           <div className={styles.meta}>
-            <div>Tracklytics S.A.</div>
-            <div>RUC 0000000000001</div>
-            <div>Quito, Ecuador</div>
+            <div>{empresa.data?.razon_social ?? '—'}</div>
+            <div>{empresa.data ? `RUC ${empresa.data.ruc}` : '—'}</div>
+            <div>{empresa.data?.direccion ?? '—'}</div>
           </div>
         </div>
 

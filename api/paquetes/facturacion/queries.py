@@ -28,11 +28,16 @@ WHERE usuario_id = {usuario_id:String}
 ORDER BY fecha DESC
 """
 
+EMPRESA_ACTUAL = "SELECT razon_social, ruc, direccion FROM DIM_EMPRESA WHERE empresa_id = 1 LIMIT 1"
+
 INVOICES_POR_USUARIO = """
-SELECT invoice_id, usuario_id, transaccion_id, monto, iva, fecha_emision, estado
-FROM FACT_INVOICE
-WHERE usuario_id = {usuario_id:String}
-ORDER BY fecha_emision DESC
+SELECT i.invoice_id AS invoice_id, i.usuario_id AS usuario_id, i.transaccion_id AS transaccion_id,
+       i.monto AS monto, i.iva AS iva, i.fecha_emision AS fecha_emision, i.estado AS estado,
+       t.moneda AS moneda
+FROM FACT_INVOICE i
+LEFT JOIN FACT_TRANSACCION_PAGO t ON t.transaccion_id = i.transaccion_id
+WHERE i.usuario_id = {usuario_id:String}
+ORDER BY i.fecha_emision DESC
 """
 
 # Detalle de una invoice para la vista imprimible (CU-O21/O22, factura

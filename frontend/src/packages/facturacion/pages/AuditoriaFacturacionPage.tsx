@@ -192,8 +192,8 @@ export function AuditoriaFacturacionPage() {
                   invoicesData.map((inv) => (
                     <tr key={inv.invoice_id}>
                       <td>{fmtDate(inv.fecha_emision)}</td>
-                      <td>{fmt(inv.monto, 'EUR')}</td>
-                      <td>{fmt(inv.iva, 'EUR')}</td>
+                      <td>{fmt(inv.monto, inv.moneda ?? undefined)}</td>
+                      <td>{fmt(inv.iva, inv.moneda ?? undefined)}</td>
                       <td><StatusBadge estado={inv.estado} /></td>
                     </tr>
                   ))

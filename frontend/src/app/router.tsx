@@ -21,6 +21,7 @@ import { PermisosPage } from '@packages/seguridad/pages/PermisosPage'
 import { ErroresPage } from '@packages/seguridad/pages/ErroresPage'
 import { LoginPage } from '@packages/seguridad/pages/LoginPage'
 import { RegisterPage } from '@packages/seguridad/pages/RegisterPage'
+import { AboutPage } from '@packages/seguridad/pages/AboutPage'
 import { ProfilePage } from '@packages/seguridad/pages/ProfilePage'
 import { FacturacionPage } from '@packages/facturacion/pages/FacturacionPage'
 import { InvoiceDetailPage } from '@packages/facturacion/pages/InvoiceDetailPage'
@@ -61,6 +62,10 @@ const TendenciasPage          = lazyNamed(() => import('@packages/analitica/page
 const ReporteDiarioPage       = lazyNamed(() => import('@packages/analitica/pages/ReporteDiarioPage'), 'ReporteDiarioPage')
 const AdquisicionPage         = lazyNamed(() => import('@packages/analitica/pages/AdquisicionPage'), 'AdquisicionPage')
 const DisponibilidadInfraPage = lazyNamed(() => import('@packages/analitica/pages/DisponibilidadInfraPage'), 'DisponibilidadInfraPage')
+const ChurnPage               = lazyNamed(() => import('@packages/analitica/pages/ChurnPage'), 'ChurnPage')
+const FunnelConversionPage    = lazyNamed(() => import('@packages/analitica/pages/FunnelConversionPage'), 'FunnelConversionPage')
+const PnlPage                 = lazyNamed(() => import('@packages/analitica/pages/PnlPage'), 'PnlPage')
+const MrrArrPage              = lazyNamed(() => import('@packages/analitica/pages/MrrArrPage'), 'MrrArrPage')
 const TopTracksPlaylistsPage  = lazyNamed(() => import('@packages/experiencia/pages/TopTracksPlaylistsPage'), 'TopTracksPlaylistsPage')
 
 // `ingesta/DataQualityPage` también usa Recharts (donut de distribución por
@@ -76,6 +81,7 @@ const DataQualityPage     = lazyNamed(() => import('@packages/ingesta/pages/Data
 // el bloque de arriba, se sacan del bundle principal.
 const AuditoriaPage            = lazyNamed(() => import('@packages/seguridad/pages/AuditoriaPage'), 'AuditoriaPage')
 const AuditoriaFacturacionPage = lazyNamed(() => import('@packages/facturacion/pages/AuditoriaFacturacionPage'), 'AuditoriaFacturacionPage')
+const EmpresaConfigPage = lazyNamed(() => import('@packages/facturacion/pages/EmpresaConfigPage'), 'EmpresaConfigPage')
 const RevisionCreadoresPage    = lazyNamed(() => import('@packages/creadores/pages/RevisionCreadoresPage'), 'RevisionCreadoresPage')
 const ModeracionSocialPage     = lazyNamed(() => import('@packages/social/pages/ModeracionSocialPage'), 'ModeracionSocialPage')
 const DistribucionAdminPage    = lazyNamed(() => import('@packages/distribucion/pages/DistribucionAdminPage'), 'DistribucionAdminPage')
@@ -86,10 +92,12 @@ const TicketsAdminPage         = lazyNamed(() => import('@packages/experiencia/p
 // lazy-cargan para no arrastrar esos barrels al bundle principal.
 const RegaliasAdminPage   = lazyNamed(() => import('@packages/regalias/pages/RegaliasAdminPage'), 'RegaliasAdminPage')
 const PublicidadAdminPage = lazyNamed(() => import('@packages/publicidad/pages/PublicidadAdminPage'), 'PublicidadAdminPage')
+const SimulacionPage      = lazyNamed(() => import('@packages/simulacion/pages/SimulacionPage'), 'SimulacionPage')
 
 export const router = createBrowserRouter([
-  { path: '/login',    element: <LoginPage /> },
-  { path: '/register', element: <RegisterPage /> },
+  { path: '/login',      element: <LoginPage /> },
+  { path: '/register',   element: <RegisterPage /> },
+  { path: '/acerca-de',  element: <AboutPage /> },
   // Pública, sin sesión — porte de app/partners/landing.html (legacy) al
   // retirar `app/` (consolidación a React, 2026-07-10).
   { path: '/partners', element: <PartnersLandingPage /> },
@@ -156,9 +164,16 @@ export const router = createBrowserRouter([
       // esta ruta necesita además el guard genérico de rol, igual que el resto
       // del árbol admin-only (`/seguridad`).
       { path: 'reporte-diario',         element: <RequireAuth roles={['admin']}><ReporteDiarioPage /></RequireAuth> },
-      { path: 'suscripciones',          element: <ComingSoonPage section="Suscripciones" description="Métricas de planes activos, conversiones B2C/B2B y retención por cohorte." /> },
+      // CU-O72 (monetizacion-retencion-mejoras): reemplaza el placeholder —
+      // el backend gatea `/analitica/churn` con `require_staff` (admin), no
+      // solo `require_b2b_panel_access` — mismo criterio que reporte-diario.
+      { path: 'suscripciones',          element: <RequireAuth roles={['admin']}><ChurnPage /></RequireAuth> },
       // CU-O54 (completar-modelo-base): reemplaza el placeholder — FACT_ADQUISICION ya existe.
       { path: 'adquisicion',            element: <AdquisicionPage /> },
+      // CU-O73/CU-O74 (monetizacion-retencion-mejoras): también admin-only.
+      { path: 'funnel-conversion',      element: <RequireAuth roles={['admin']}><FunnelConversionPage /></RequireAuth> },
+      { path: 'pnl',                    element: <RequireAuth roles={['admin']}><PnlPage /></RequireAuth> },
+      { path: 'mrr-arr',                element: <RequireAuth roles={['admin']}><MrrArrPage /></RequireAuth> },
       { path: 'partners',               element: <ComingSoonPage section="Partners" description="Rendimiento por partner, SLA de entrega y cobertura de catálogo." /> },
       // CU-O55 (completar-modelo-base): reemplaza el placeholder — FACT_DISPONIBILIDAD ya existe.
       // No confundir con `/distribucion/disponibilidad` (restricción geográfica de reproducción).
@@ -177,6 +192,7 @@ export const router = createBrowserRouter([
       { path: 'auditoria',  element: <AuditoriaPage /> },
       { path: 'errores',    element: <ErroresPage /> },
       { path: 'facturacion', element: <AuditoriaFacturacionPage /> },
+      { path: 'facturacion/empresa', element: <EmpresaConfigPage /> },
       { path: 'creadores',   element: <RevisionCreadoresPage /> },
       { path: 'social',      element: <ModeracionSocialPage /> },
       { path: 'distribucion', element: <DistribucionAdminPage /> },
@@ -184,6 +200,7 @@ export const router = createBrowserRouter([
       { path: 'familia',     element: <FamiliaAdminPage /> },
       { path: 'regalias',    element: <RegaliasAdminPage /> },
       { path: 'publicidad',  element: <PublicidadAdminPage /> },
+      { path: 'simulacion',  element: <SimulacionPage /> },
       // `partners` e `ingesta` viven aquí, no en árboles propios: son
       // herramientas de back-office 100% admin-only (partners: la consola de
       // verificación, no la API en sí — ver packages/partners/README.md;
