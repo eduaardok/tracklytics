@@ -78,6 +78,10 @@ El sistema SHALL permitir a un usuario con rol `admin` consultar y modificar los
 - **WHEN** un usuario con rol `admin` otorga un permiso sobre un recurso/acción a un usuario que no lo tenía
 - **THEN** el sistema agrega el nuevo permiso al historial de `FACT_PERMISO_USUARIO` y queda activo de inmediato
 
+#### Scenario: Recurso y acción se eligen de un catálogo cerrado, no se escriben libres
+- **WHEN** un usuario con rol `admin` abre el formulario para otorgar o revocar un permiso
+- **THEN** el sistema ofrece `recurso` y `accion` como una selección entre los valores conocidos del sistema (`GET /permisos/catalogo`), sin permitir texto arbitrario que nunca matchee ningún permiso real
+
 #### Scenario: Admin revoca un permiso existente
 - **WHEN** un usuario con rol `admin` revoca un permiso previamente otorgado a un usuario
 - **THEN** el sistema registra la revocación en `FACT_PERMISO_USUARIO` sin eliminar el historial anterior, y el permiso deja de estar activo
@@ -97,6 +101,10 @@ El sistema SHALL registrar en `FACT_AUDIT_LOG` cada operación sensible realizad
 - **WHEN** un usuario con rol `admin` solicita el historial de auditoría
 - **THEN** el sistema retorna los registros de `FACT_AUDIT_LOG` ordenados del más reciente al más antiguo
 
+#### Scenario: Auditoría identifica al usuario por nombre, no solo por ID
+- **WHEN** un usuario con rol `admin` consulta el historial de auditoría
+- **THEN** cada registro incluye el nombre y correo del usuario que ejecutó la acción (resueltos contra `DIM_USUARIO`), mostrando el `usuario_id` crudo únicamente cuando no se pudo resolver una identidad
+
 #### Scenario: Usuario sin rol admin intenta consultar auditoría
 - **WHEN** un usuario con rol `user` o `analyst` intenta consultar el registro de auditoría
 - **THEN** el sistema rechaza la operación indicando que la auditoría es exclusiva de `admin`
@@ -111,6 +119,10 @@ El sistema SHALL capturar toda excepción no controlada ocurrida en la API en `F
 #### Scenario: Admin consulta el registro de errores de sistema
 - **WHEN** un usuario con rol `admin` solicita el historial de errores de sistema
 - **THEN** el sistema retorna los registros de `FACT_ERROR_SISTEMA` ordenados del más reciente al más antiguo, incluyendo su estado de resolución
+
+#### Scenario: Errores de sistema identifican al usuario por nombre, no solo por ID
+- **WHEN** un usuario con rol `admin` consulta el registro de errores de sistema y el error tiene un usuario asociado
+- **THEN** el registro incluye el nombre y correo de ese usuario (resueltos contra `DIM_USUARIO`), mostrando el `usuario_id` crudo únicamente cuando no se pudo resolver una identidad
 
 #### Scenario: Usuario sin rol admin intenta consultar errores de sistema
 - **WHEN** un usuario con rol `user` o `analyst` intenta consultar el registro de errores de sistema
@@ -134,6 +146,10 @@ El sistema SHALL permitir a un usuario con rol `admin` buscar usuarios por coinc
 #### Scenario: Usuario sin rol admin intenta buscar usuarios
 - **WHEN** un usuario con rol distinto de `admin` intenta buscar usuarios por nombre o correo
 - **THEN** el sistema rechaza la operación indicando que la búsqueda de usuarios es exclusiva de `admin`
+
+#### Scenario: Admin explora el listado completo de usuarios sin escribir un término
+- **WHEN** un usuario con rol `admin` abre el listado completo de usuarios sin escribir ningún término de búsqueda, opcionalmente filtrando por rol
+- **THEN** el sistema retorna una página de usuarios con nombre, correo, rol y fecha de registro, pensada para una presentación tabular de varias columnas y no solo para autocompletar
 
 ## Entradas
 

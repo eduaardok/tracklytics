@@ -29,6 +29,10 @@ Esta capability es el corazón del producto B2B: convierte el catálogo musical 
 | Operativo | Data Analyst / BI Lead | Inteligencia de negocio y comparativa | CU-O16 Generar reporte diario operativo | Como Data Analyst/BI Lead, quiero generar un reporte diario con suscripciones, adquisiciones e ingestas del día, para dar seguimiento operativo continuo |
 | Operativo | Data Analyst / BI Lead | Analítica | CU-O54 Consultar adquisición de usuarios por canal | Como Data Analyst/BI Lead, quiero ver cuántos usuarios nuevos se adquieren por canal de marketing y semana, para evaluar qué canal está funcionando mejor |
 | Operativo | Lead Data Engineer / CTO | Analítica | CU-O55 Consultar disponibilidad de infraestructura por componente | Como Lead Data Engineer/CTO, quiero ver el porcentaje de disponibilidad de cada componente del sistema por semana, para detectar degradaciones antes de que afecten a los usuarios |
+| Operativo | Lead Data Engineer / CTO | Analítica | CU-O72 Consultar tasa de churn mensual | Como Lead Data Engineer/CTO, quiero ver la tasa de churn mensual de suscripciones, para medir la retención y actuar sobre las causas de cancelación |
+| Operativo | Lead Data Engineer / CTO | Analítica | CU-O73 Consultar funnel de conversión free → premium | Como Lead Data Engineer/CTO, quiero ver cuántos usuarios free avanzan hasta suscribirse, para medir la efectividad del modelo freemium |
+| Operativo | Lead Data Engineer / CTO | Analítica | CU-O74 Consultar P&L consolidado | Como Lead Data Engineer/CTO, quiero ver el margen neto consolidado del negocio, para evaluar la salud financiera del período |
+| Operativo | Lead Data Engineer / CTO | Analítica | CU-O77 Consultar MRR/ARR | Como Lead Data Engineer/CTO, quiero ver el ingreso mensual recurrente actual y su proyección anual, para medir la salud del negocio de suscripción |
 
 ## Requirements
 
@@ -152,6 +156,65 @@ El sistema SHALL registrar eventos de disponibilidad por componente de infraestr
 - **WHEN** un usuario sin suscripción B2B activa intenta acceder a la vista de disponibilidad de infraestructura
 - **THEN** el sistema deniega el acceso con el mismo mecanismo ya usado en el resto de vistas tácticas de `analitica`
 
+### Requirement: Tasa de churn mensual
+El sistema SHALL permitir a un usuario con rol `admin` consultar la tasa de churn mensual de
+suscripciones para un rango de fechas, calculada como cancelaciones del mes sobre suscripciones
+activas al inicio del mes, agrupable opcionalmente por motivo de cancelación.
+
+#### Scenario: Consultar la tasa de churn de un rango de meses
+- **WHEN** un usuario con rol `admin` solicita la tasa de churn mensual para un rango de fechas
+- **THEN** el sistema retorna, por mes, el número de cancelaciones, las suscripciones activas al inicio del mes y la tasa de churn resultante
+
+#### Scenario: Consultar la tasa de churn agrupada por motivo
+- **WHEN** un usuario con rol `admin` solicita la tasa de churn mensual indicando que desea el desglose por motivo de cancelación
+- **THEN** el sistema retorna, por mes y por motivo, el número de cancelaciones correspondiente
+
+#### Scenario: Mes sin suscripciones activas al inicio
+- **WHEN** un mes del rango solicitado no tiene ninguna suscripción activa registrada al inicio de ese mes
+- **THEN** el sistema retorna la tasa de churn de ese mes como no disponible, en vez de un valor calculado por división entre cero
+
+### Requirement: Funnel de conversión free → premium
+El sistema SHALL permitir a un usuario con rol `admin` consultar, para un rango de fechas, el
+funnel de conversión de usuarios free: cuántos usuarios free estuvieron activos, cuántos de ellos
+vieron al menos un anuncio (de tipo audio o display), y cuántos se suscribieron a un plan de pago
+(premium o estudiante) dentro de ese mismo rango.
+
+#### Scenario: Consultar el funnel de conversión de un rango de fechas
+- **WHEN** un usuario con rol `admin` solicita el funnel de conversión para un rango de fechas
+- **THEN** el sistema retorna el número de usuarios free activos, el número de esos usuarios que vieron al menos un anuncio, y el número de esos usuarios que se suscribieron a un plan de pago dentro del rango
+
+#### Scenario: Rango sin ninguna conversión
+- **WHEN** un usuario con rol `admin` solicita el funnel de conversión de un rango de fechas en el que ningún usuario free se suscribió a un plan de pago
+- **THEN** el sistema retorna el funnel con el conteo de conversión en cero, sin error
+
+### Requirement: P&L consolidado
+El sistema SHALL permitir a un usuario con rol `admin` consultar, para un rango de fechas, el
+margen neto consolidado del negocio: ingreso por suscripciones más ingreso publicitario, menos
+regalías pagadas a rightsholders en ese mismo rango.
+
+#### Scenario: Consultar el P&L consolidado de un rango de fechas
+- **WHEN** un usuario con rol `admin` solicita el P&L consolidado para un rango de fechas
+- **THEN** el sistema retorna el ingreso por suscripciones, el ingreso publicitario, las regalías pagadas y el margen neto resultante para ese rango
+
+#### Scenario: Rango sin actividad de ingreso ni de regalías
+- **WHEN** un usuario con rol `admin` solicita el P&L consolidado de un rango de fechas sin transacciones de suscripción, ingreso publicitario ni liquidaciones de regalías
+- **THEN** el sistema retorna todos los componentes en cero y un margen neto de cero, sin error
+
+### Requirement: MRR y ARR
+El sistema SHALL permitir a un usuario con rol `admin` consultar el ingreso mensual recurrente
+actual (MRR, suma del monto de todas las suscripciones de pago activas) y su proyección anual
+(ARR, MRR × 12), junto con una tendencia histórica de ingreso cobrado por mes. La tendencia
+histórica SHALL indicar explícitamente que aproxima el ingreso recurrente por mes cobrado, no una
+reconstrucción de MRR punto-en-el-tiempo.
+
+#### Scenario: Consultar MRR y ARR actuales
+- **WHEN** un usuario con rol `admin` solicita el MRR/ARR actual
+- **THEN** el sistema retorna el MRR (suma de montos de suscripciones de pago activas), el ARR (MRR × 12), y la tendencia histórica de ingreso cobrado por mes
+
+#### Scenario: Sin ninguna suscripción de pago activa
+- **WHEN** un usuario con rol `admin` solicita el MRR/ARR y no hay ninguna suscripción de pago activa
+- **THEN** el sistema retorna MRR y ARR en cero, sin error
+
 ## Entradas
 
 - Género seleccionado (perfil de audio).
@@ -159,6 +222,7 @@ El sistema SHALL registrar eventos de disponibilidad por componente de infraestr
 - Rango de semanas a consultar (tendencias temporales).
 - Track o artista identificado (índice de desempeño relativo).
 - Fecha (reporte diario operativo).
+- Rango de fechas y, opcionalmente, desglose por motivo (tasa de churn mensual, funnel de conversión, P&L consolidado).
 
 ## Salidas
 
@@ -170,6 +234,10 @@ El sistema SHALL registrar eventos de disponibilidad por componente de infraestr
 - Reporte diario con ingestas ETL + engagement del día, aviso de pendiente táctico para suscripciones/adquisiciones, y botón de exportación a PDF.
 - Tabla de usuarios nuevos por canal de marketing y semana.
 - Serie de disponibilidad por componente de infraestructura y semana.
+- Tasa de churn mensual, con desglose opcional por motivo.
+- Funnel de conversión free → vio anuncio → se suscribió.
+- P&L consolidado (ingreso por suscripciones, ingreso publicitario, regalías pagadas, margen neto).
+- MRR y ARR actuales, con tendencia histórica de ingreso cobrado por mes.
 
 ## Dependencias
 
@@ -177,8 +245,9 @@ El sistema SHALL registrar eventos de disponibilidad por componente de infraestr
 - **FACT_ENGAGEMENT_USUARIO** (modelo de negocio) para `engagement_score` e índice de desempeño relativo.
 - **FACT_ADQUISICION**, **DIM_CANAL_MARKETING**, **DIM_REGION** (modelo de negocio) para adquisición de usuarios por canal.
 - **FACT_DISPONIBILIDAD**, **DIM_COMPONENTE_INFRAESTRUCTURA** (modelo de negocio) para disponibilidad de infraestructura.
+- **FACT_CANCELACION_SUSCRIPCION** (capability `suscripciones`), **FACT_IMPRESION_ANUNCIO**/**FACT_INGRESO_PUBLICITARIO** (capability `publicidad`), **FACT_TRANSACCION_PAGO** (capability `facturacion`), **FACT_LIQUIDACION_REGALIA** (capability `regalias`) — para churn, funnel de conversión y P&L consolidado.
 - **Capability `catalogo`**: fuente de las interacciones de usuario (favoritos, reproducciones, playlists) que alimentan el engagement.
-- **Capability `suscripciones`**: gating de acceso por plan activo.
+- **Capability `suscripciones`**: gating de acceso por plan activo; también fuente de altas de suscripción (PocketBase) para churn y funnel.
 
 ## Fuera de alcance
 

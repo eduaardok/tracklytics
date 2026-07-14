@@ -38,6 +38,7 @@ licencia ese sello, y qué tracks tienen una restricción de reproducción vigen
 | Operativo | Lead Data Engineer / CTO | Distribución | CU-O39 Consultar licencias por sello o por país | Como Lead Data Engineer/CTO, quiero consultar las licencias vigentes o vencidas de un sello, o todas las licencias de un país, para dar seguimiento a los acuerdos |
 | Operativo | Lead Data Engineer / CTO | Distribución | CU-O40 Administrar restricciones de reproducción | Como Lead Data Engineer/CTO, quiero crear o desactivar una restricción de reproducción sobre un track en un país y canal, para reflejar limitaciones de derechos vigentes |
 | Operativo | Usuario B2C | Distribución | CU-O41 Consultar disponibilidad de un track por país | Como Usuario B2C, quiero saber si un track está disponible en mi país antes de reproducirlo, para entender por qué algunos tracks no se reproducen |
+| Operativo | Usuario B2C | Distribución | CU-O80 Explorar disponibilidad del catálogo por país en una lista | Como Usuario B2C, quiero ver una lista filtrable del catálogo con su estado de disponibilidad en mi país, para explorar qué está disponible o bloqueado sin tener que conocer de antemano el nombre de cada track |
 ## Requirements
 ### Requirement: Administración de sellos discográficos
 El sistema SHALL permitir a un usuario con rol admin crear y editar sellos discográficos. Esta operación SHALL estar restringida exclusivamente a usuarios con rol admin y SHALL registrarse en `FACT_AUDIT_LOG`.
@@ -154,6 +155,31 @@ El sistema SHALL permitir a un Usuario B2C autenticado consultar si un track est
 #### Scenario: País del usuario no reconocido al consultar disponibilidad
 - **WHEN** un Usuario B2C autenticado cuyo país de perfil no coincide con ningún país conocido por el sistema consulta la disponibilidad de un track
 - **THEN** el sistema indica que el track está disponible, al no poder determinar de forma confiable el país del usuario
+
+### Requirement: Explorar disponibilidad del catálogo por país en una lista
+El sistema SHALL permitir a un Usuario B2C autenticado consultar una lista paginada del catálogo
+con su estado de disponibilidad (disponible o bloqueado) para su país o para un país indicado, sin
+requerir que conozca de antemano el nombre de ningún track. La lista SHALL ser filtrable por estado
+(disponible, bloqueado, todos) y SHALL admitir una búsqueda opcional por nombre de track o artista
+para acotarla. Esta consulta SHALL ser de solo lectura y no SHALL bloquear ni registrar ningún
+intento de reproducción, con el mismo criterio de determinación de país ya vigente para la consulta
+de un track puntual.
+
+#### Scenario: Explorar la lista de disponibilidad sin buscar un track específico
+- **WHEN** un Usuario B2C autenticado abre la vista de disponibilidad sin escribir ningún término de búsqueda
+- **THEN** el sistema muestra una página del catálogo con el estado de disponibilidad (disponible o bloqueado) de cada track para su país
+
+#### Scenario: Filtrar la lista por estado de disponibilidad
+- **WHEN** un Usuario B2C autenticado filtra la lista de disponibilidad por "bloqueado"
+- **THEN** el sistema muestra únicamente los tracks bloqueados en su país
+
+#### Scenario: Acotar la lista con una búsqueda por nombre
+- **WHEN** un Usuario B2C autenticado escribe parte del nombre de un track o artista mientras explora la lista de disponibilidad
+- **THEN** el sistema acota la lista a los tracks cuyo nombre o artista coincide, manteniendo el filtro de estado activo
+
+#### Scenario: País del usuario no reconocido al explorar la lista
+- **WHEN** un Usuario B2C autenticado cuyo país de perfil no coincide con ningún país conocido por el sistema abre la vista de disponibilidad
+- **THEN** el sistema muestra todos los tracks de la página como disponibles, al no poder determinar de forma confiable el país del usuario
 
 ### Requirement: Auditoría de acciones administrativas de distribución
 El sistema SHALL registrar en `FACT_AUDIT_LOG` cada acción CRUD de administración de sellos, licencias y restricciones, incluyendo el administrador que la ejecutó, la tabla afectada y el estado antes/después.

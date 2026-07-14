@@ -43,6 +43,8 @@ plataforma (ver capability `publicidad`).
 | Operativo | Lead Data Engineer / CTO | Regalías | CU-O63 Liquidar regalías de un período | Como Lead Data Engineer/CTO, quiero calcular cuánto le corresponde a cada rightsholder por los streams reales de un período, para poder demostrar y auditar el pago |
 | Operativo | Artista | Regalías | CU-O64 Consultar mis ganancias | Como Artista, quiero ver cuánto he ganado por período y por track, para conocer el retorno real de mi música en la plataforma |
 | Operativo | Sello | Regalías | CU-O65 Consultar las ganancias de mi sello | Como Sello, quiero ver las ganancias agregadas de todos mis artistas por período, para reportar el desempeño de mi catálogo |
+| Operativo | Artista / Sello | Regalías | CU-O75 Solicitar retiro de ganancias | Como Artista o Sello, quiero solicitar el retiro de mi saldo disponible, para cobrar lo que ya gané |
+| Operativo | Lead Data Engineer / CTO | Regalías | CU-O76 Procesar o rechazar una solicitud de retiro | Como Lead Data Engineer/CTO, quiero aprobar o rechazar una solicitud de retiro, para controlar la salida de dinero simulada de la plataforma |
 
 ## Requirements
 
@@ -102,7 +104,9 @@ ese período (suscripciones exitosas más ingreso publicitario), la porción de 
 a rightsholders, y la participación real de cada track en el total de streams del período. El
 sistema SHALL registrar una fila por rightsholder por track liquidado en `FACT_LIQUIDACION_REGALIA`.
 Un track reproducido sin contrato vigente en el período SHALL contar en el total de streams pero
-SHALL no generar ninguna liquidación.
+SHALL no generar ninguna liquidación. Si el rango de fechas exacto ya fue liquidado previamente, el
+sistema SHALL no volver a generar liquidaciones para ese rango, indicándolo explícitamente en la
+respuesta.
 
 #### Scenario: Liquidación de un período con streams reales
 - **WHEN** se ejecuta la liquidación para un período que tiene transacciones exitosas, ingreso publicitario y streams reales de tracks con contrato vigente
@@ -115,6 +119,10 @@ SHALL no generar ninguna liquidación.
 #### Scenario: Período sin ningún ingreso
 - **WHEN** se ejecuta la liquidación para un período sin transacciones exitosas ni ingreso publicitario
 - **THEN** el sistema no genera ninguna liquidación, sin producir un error
+
+#### Scenario: Intento de liquidar un período ya liquidado
+- **WHEN** se solicita liquidar un rango de fechas cuyo `periodo_inicio` y `periodo_fin` exactos ya tienen liquidaciones registradas
+- **THEN** el sistema no genera liquidaciones duplicadas y responde indicando que ese período ya fue liquidado
 
 ### Requirement: Consulta de ganancias propias
 El sistema SHALL permitir a un Artista consultar sus propias ganancias liquidadas por período y por
@@ -133,26 +141,55 @@ exclusivamente a sus propios registros.
 - **WHEN** un usuario autenticado sin cuenta de artista ni de sello intenta consultar ganancias
 - **THEN** el sistema rechaza la operación indicando que no tiene ninguna cuenta de rightsholder asociada
 
+### Requirement: Solicitud y procesamiento de retiro de ganancias
+El sistema SHALL permitir a un Artista o Sello solicitar el retiro de su saldo disponible (suma de
+sus liquidaciones en `FACT_LIQUIDACION_REGALIA` menos sus retiros ya solicitados o procesados), y
+SHALL permitir a un usuario con rol `admin` procesar (simulado) o rechazar cada solicitud de
+retiro. Un retiro solicitado SHALL descontar del saldo disponible de inmediato, para impedir que se
+solicite el mismo saldo dos veces mientras la primera solicitud sigue pendiente. Un retiro rechazado
+SHALL devolver ese monto al saldo disponible.
+
+#### Scenario: Artista o sello solicita un retiro dentro de su saldo disponible
+- **WHEN** un Artista o Sello solicita el retiro de un monto menor o igual a su saldo disponible
+- **THEN** el sistema registra la solicitud en estado "pendiente" y descuenta ese monto del saldo disponible mostrado
+
+#### Scenario: Solicitud de retiro por encima del saldo disponible
+- **WHEN** un Artista o Sello solicita el retiro de un monto mayor a su saldo disponible
+- **THEN** el sistema rechaza la solicitud indicando el saldo disponible real
+
+#### Scenario: Admin procesa una solicitud de retiro
+- **WHEN** un usuario con rol `admin` marca una solicitud de retiro pendiente como procesada
+- **THEN** el sistema cambia su estado a "procesado" y ese monto no vuelve a estar disponible para un nuevo retiro
+
+#### Scenario: Admin rechaza una solicitud de retiro
+- **WHEN** un usuario con rol `admin` rechaza una solicitud de retiro pendiente
+- **THEN** el sistema cambia su estado a "rechazado" y devuelve ese monto al saldo disponible del rightsholder
+
 ## Entradas
 
 - Nombre del productor; identificador de track y de productor (asignación).
 - Identificador de track, porcentajes de master/publishing por rightsholder, fecha de vigencia (contrato).
 - Identificador de usuario y de sello (alta de cuenta de sello).
 - Rango de fechas (liquidación).
+- Monto a retirar (solicitud de retiro).
 
 ## Salidas
 
 - Confirmación de productor registrado y asignado.
 - Confirmación del contrato creado, o error de porcentajes desbalanceados.
 - Confirmación de la cuenta de sello creada.
-- Resultado de la liquidación: número de rightsholders liquidados y monto total del período.
+- Resultado de la liquidación: número de rightsholders liquidados y monto total del período, o
+  indicación de que ese período ya estaba liquidado.
 - Listado de ganancias propias (artista o sello) por período y por track.
+- Saldo disponible y listado de solicitudes de retiro propias, con su estado.
+- Confirmación de retiro solicitado, procesado o rechazado.
 
 ## Dependencias
 
 - **ClickHouse**: `DIM_PRODUCTOR`, `BRIDGE_PRODUCTOR_TRACK`, `DIM_CONTRATO_REGALIA`,
-  `FACT_LIQUIDACION_REGALIA`, `DIM_CUENTA_SELLO`, `FACT_TRACKS`, `FACT_ENGAGEMENT_USUARIO`
-  (streams reales), `FACT_TRANSACCION_PAGO` (ingreso de suscripciones), `DIM_SELLO_DISCOGRAFICO`.
+  `FACT_LIQUIDACION_REGALIA`, `FACT_RETIRO_REGALIA`, `DIM_CUENTA_SELLO`, `FACT_TRACKS`,
+  `FACT_ENGAGEMENT_USUARIO` (streams reales), `FACT_TRANSACCION_PAGO` (ingreso de suscripciones),
+  `DIM_SELLO_DISCOGRAFICO`.
 - **Capability `publicidad`**: `FACT_INGRESO_PUBLICITARIO` (ingreso publicitario del período).
 - **Capability `creadores`**: `DIM_CUENTA_ARTISTA` (resolución de artista rightsholder).
 - **Capability `seguridad`**: token de sesión autenticado, gating de `admin`.
@@ -160,6 +197,7 @@ exclusivamente a sus propios registros.
 ## Fuera de alcance
 
 - `DIM_EDITORIAL`/gestión de composición separada del artista (decisión explícita del usuario).
-- Pago real (transferencia bancaria) a un rightsholder — la liquidación calcula el monto, no lo desembolsa.
+- Pago real (transferencia bancaria) a un rightsholder — un retiro "procesado" es una simulación de
+  éxito (mismo criterio que el resto del dinero del proyecto), no una transferencia bancaria real.
 - Disputas o correcciones sobre una liquidación ya calculada.
 - Contratos a nivel álbum (ver design.md, Decisión 2).

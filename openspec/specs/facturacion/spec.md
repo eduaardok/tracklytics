@@ -26,6 +26,7 @@ Permitir que un usuario registre un método de pago, pague una suscripción exis
 | Operativo | Usuario B2C / Cliente B2B | Facturación y cobros | CU-O21 Pagar una suscripción existente y recibir el invoice | Como Usuario B2C, quiero pagar mi suscripción con un método de pago registrado, para mantener mi acceso y recibir un comprobante |
 | Operativo | Usuario B2C / Cliente B2B | Facturación y cobros | CU-O22 Consultar mi historial de transacciones e invoices | Como Usuario B2C, quiero ver mi historial de pagos e invoices, para llevar control de mis cobros |
 | Operativo | Lead Data Engineer / CTO | Facturación y cobros | CU-O23 Auditar el historial de facturación de cualquier usuario | Como Lead Data Engineer/CTO, quiero consultar el historial de facturación de cualquier usuario, para dar soporte y auditar cobros |
+| Operativo | Lead Data Engineer / CTO | Facturación y cobros | CU-O81 Administrar la información de la empresa emisora | Como Lead Data Engineer/CTO, quiero editar la razón social, RUC y dirección de la empresa que aparece en cada factura, para mantenerla correcta sin depender de un cambio de código |
 ## Requirements
 ### Requirement: Registro de método de pago
 El sistema SHALL permitir a un usuario autenticado registrar un método de pago simulado (tipo, últimos 4 dígitos, país), asociado únicamente a su propia cuenta.
@@ -81,6 +82,54 @@ El sistema SHALL restringir la consulta del historial de facturación de otro us
 - **WHEN** un usuario con rol distinto de `admin` intenta consultar el historial de transacciones o invoices de otro usuario
 - **THEN** el sistema rechaza la operación indicando que esa consulta es exclusiva de `admin`
 
+### Requirement: Renovación automática de suscripción
+El sistema SHALL renovar periódicamente cualquier suscripción de pago activa cuyo último cobro
+exitoso (o su fecha de alta, si nunca se cobró) tenga 30 días o más, simulando un nuevo cobro con
+el último método de pago del usuario. Si el usuario no tiene ningún método de pago registrado, el
+sistema SHALL omitir esa renovación sin cancelar la suscripción. Si el cobro simulado de la
+renovación falla, el sistema SHALL cancelar la suscripción de inmediato (ver capability
+`suscripciones`, "Cancelar suscripción activa") y registrar el motivo como churn involuntario, en
+vez de dejarla activa sin haber cobrado.
+
+#### Scenario: Renovación exitosa de una suscripción vencida
+- **WHEN** una suscripción de pago activa tiene 30 días o más desde su último cobro exitoso, y el usuario tiene un método de pago registrado
+- **THEN** el sistema simula un nuevo cobro por el monto del plan y, si resulta exitoso, registra la transacción y emite el invoice correspondiente
+
+#### Scenario: Renovación fallida cancela la suscripción
+- **WHEN** el cobro simulado de una renovación resulta fallido
+- **THEN** el sistema registra la transacción fallida, cancela la suscripción y registra la cancelación como involuntaria, sin dejarla activa
+
+#### Scenario: Suscripción vencida sin método de pago registrado
+- **WHEN** una suscripción de pago activa tiene 30 días o más desde su último cobro y el usuario no tiene ningún método de pago registrado
+- **THEN** el sistema omite la renovación de esa suscripción sin cancelarla ni generar ninguna transacción
+
+#### Scenario: Suscripción aún no vencida
+- **WHEN** una suscripción de pago activa tiene menos de 30 días desde su último cobro exitoso
+- **THEN** el sistema no genera ninguna renovación para esa suscripción todavía
+
+### Requirement: Administración de la información de la empresa emisora
+El sistema SHALL permitir a cualquier usuario autenticado consultar la información vigente de la
+empresa emisora (razón social, RUC, dirección) que aparece en el encabezado de cada factura. El
+sistema SHALL permitir exclusivamente a un usuario con rol `admin` editar esa información, y SHALL
+registrar el cambio en el log de auditoría con el administrador que lo realizó. Solo existe un
+registro de información de la empresa en todo el sistema.
+
+#### Scenario: Consultar la información de la empresa
+- **WHEN** cualquier usuario autenticado solicita la información de la empresa emisora
+- **THEN** el sistema retorna la razón social, el RUC y la dirección vigentes
+
+#### Scenario: Admin edita la información de la empresa
+- **WHEN** un usuario con rol `admin` envía una razón social, RUC y/o dirección nuevos
+- **THEN** el sistema actualiza el registro único de información de la empresa y registra el cambio en el log de auditoría
+
+#### Scenario: Usuario sin rol admin intenta editar la información de la empresa
+- **WHEN** un usuario con rol distinto de `admin` intenta editar la información de la empresa
+- **THEN** el sistema rechaza la operación indicando que es exclusiva de `admin`
+
+#### Scenario: El encabezado de una factura refleja la información vigente
+- **WHEN** cualquier usuario consulta el detalle de una factura después de que la información de la empresa fue editada
+- **THEN** el encabezado de esa factura muestra la razón social, RUC y dirección vigentes al momento de la consulta, no los que tenía la empresa al emitirse la factura
+
 ## Entradas
 
 - Tipo, últimos 4 dígitos y país (registro de método de pago).
@@ -103,6 +152,7 @@ El sistema SHALL restringir la consulta del historial de facturación de otro us
 ## Fuera de alcance
 
 - Integración con una pasarela de pago real (Stripe/Adyen/PayPal).
-- Reintento automático de transacciones fallidas.
+- Reintento (dunning) de una renovación fallida — una sola pasada: si falla, cancela de inmediato
+  en vez de reintentar en los días siguientes.
 - Anulación, corrección o nota de crédito sobre un invoice ya emitido.
 - Tarificación de IVA variable por país/región.
