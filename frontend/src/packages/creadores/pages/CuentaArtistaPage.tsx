@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { catalogoApi } from '@packages/catalogo'
 import { ApiError, apiErrorMessage } from '@shared/lib/api-client'
@@ -95,7 +96,12 @@ function SkelTrackRow() {
 
 export function CuentaArtistaPage() {
   useDocumentTitle('Creadores')
-  const [nombreArtistico, setNombreArtistico] = useState('')
+  // Llega precargado cuando el registro entra por la tarjeta "Artista"
+  // (RegisterPage → `/creadores?onboarding=artista&nombre=...`) — el nombre
+  // artístico arranca en blanco de todos modos si el visitante llega
+  // directo a `/creadores` sin pasar por ese flujo.
+  const [searchParams] = useSearchParams()
+  const [nombreArtistico, setNombreArtistico] = useState(searchParams.get('nombre') ?? '')
   const [trackName, setTrackName]             = useState('')
   const [albumName, setAlbumName]             = useState('')
   const [genreId, setGenreId]                 = useState('')

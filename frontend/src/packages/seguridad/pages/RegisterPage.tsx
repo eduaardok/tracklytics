@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react'
-import { Link, Navigate, useNavigate } from 'react-router-dom'
+import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom'
 import { isAuthenticated } from '@shared/lib/session'
 import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { resolverDestinoPostAuth } from '@packages/suscripciones'
@@ -8,19 +8,32 @@ import { resolverDestinoPostAuth } from '@packages/suscripciones'
 // una ruta pública eager — ver comentario equivalente en router.tsx).
 import { distribucionApi } from '@packages/distribucion/api/distribucion.api'
 import type { Pais } from '@packages/distribucion/types'
-import { authApi, type RolAutoRegistrable } from '../api/auth.api'
+import { authApi } from '../api/auth.api'
 import { AuthHero } from './AuthHero'
 import styles from './AuthPages.module.css'
+
+// "Artista" no es un rol de backend propio (`ROLES_AUTO_REGISTRABLES` sigue
+// siendo user/analyst) — es intención de UI: crea una cuenta `user` normal
+// y, al terminar, entra directo al flujo ya existente de solicitud de
+// cuenta de artista (`/creadores`, aprobación de admin), con el nombre
+// precargado. Mismo criterio que Spotify for Artists: primero existe la
+// cuenta de oyente, el perfil de artista se reclama/gestiona aparte.
+type TipoCuenta = 'user' | 'analyst' | 'artista'
 
 export function RegisterPage() {
   useDocumentTitle('Crear cuenta')
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const [nombre, setNombre]     = useState('')
   const [email, setEmail]       = useState('')
   const [password, setPassword] = useState('')
   const [pais, setPais]         = useState('')
   const [paises, setPaises]     = useState<Pais[]>([])
-  const [rol, setRol]           = useState<RolAutoRegistrable>('user')
+  // Preselecciona "Artista" cuando se llega desde el enlace correspondiente
+  // en `/acerca-de` (`?tipo=artista`).
+  const [tipoCuenta, setTipoCuenta] = useState<TipoCuenta>(
+    searchParams.get('tipo') === 'artista' ? 'artista' : 'user',
+  )
   const [error, setError]       = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
 
@@ -45,7 +58,12 @@ export function RegisterPage() {
     setError(null)
     setSubmitting(true)
     try {
-      const usuario = await authApi.registro(email, password, nombre, rol, pais)
+      const rolEnvio = tipoCuenta === 'analyst' ? 'analyst' : 'user'
+      const usuario = await authApi.registro(email, password, nombre, rolEnvio, pais)
+      if (tipoCuenta === 'artista') {
+        navigate(`/creadores?onboarding=artista&nombre=${encodeURIComponent(nombre.trim())}`, { replace: true })
+        return
+      }
       const destino = await resolverDestinoPostAuth(usuario.role)
       navigate(destino.onboarding ? `${destino.path}?onboarding=1` : destino.path, { replace: true })
     } catch (err) {
@@ -132,8 +150,8 @@ export function RegisterPage() {
                     type="radio"
                     name="role"
                     value="user"
-                    checked={rol === 'user'}
-                    onChange={() => setRol('user')}
+                    checked={tipoCuenta === 'user'}
+                    onChange={() => setTipoCuenta('user')}
                   />
                   <span className={styles.roleCard}>
                     <span className={styles.roleTitle}>Usuario</span>
@@ -146,12 +164,26 @@ export function RegisterPage() {
                     type="radio"
                     name="role"
                     value="analyst"
-                    checked={rol === 'analyst'}
-                    onChange={() => setRol('analyst')}
+                    checked={tipoCuenta === 'analyst'}
+                    onChange={() => setTipoCuenta('analyst')}
                   />
                   <span className={styles.roleCard}>
                     <span className={styles.roleTitle}>Cliente empresarial</span>
                     <span className={styles.roleTag}>EMPRESARIAL · B2B</span>
+                  </span>
+                </label>
+                <label className={`${styles.roleOption} ${styles.roleOptionWide}`}>
+                  <input
+                    className={styles.roleInput}
+                    type="radio"
+                    name="role"
+                    value="artista"
+                    checked={tipoCuenta === 'artista'}
+                    onChange={() => setTipoCuenta('artista')}
+                  />
+                  <span className={styles.roleCard}>
+                    <span className={styles.roleTitle}>Artista</span>
+                    <span className={styles.roleTag}>CREA TU CUENTA Y RECLAMA TU PERFIL DE ARTISTA</span>
                   </span>
                 </label>
               </div>
@@ -164,6 +196,9 @@ export function RegisterPage() {
 
           <p className={styles.footer}>
             ¿Ya tienes cuenta? <Link to="/login">Inicia sesión</Link>
+          </p>
+          <p className={styles.footer}>
+            ¿Eres sello, productora o distribuidora? <Link to="/acerca-de">Conoce tus opciones</Link>
           </p>
         </div>
       </div>

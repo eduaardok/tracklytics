@@ -5,10 +5,13 @@ import { apiClient } from '@shared/lib/api-client'
 import styles from './UserPicker.module.css'
 
 export type UserSearchResult = {
-  usuario_id: string
-  nombre:     string
-  email:      string
-  rol:        string
+  usuario_id:     string
+  nombre:         string
+  email:          string
+  rol:            string
+  // Solo viaja en modo "explorar lista completa" (`usuarios_listado_sql`) —
+  // el endpoint de búsqueda por texto (`USUARIOS_BUSQUEDA`) no lo selecciona.
+  fecha_registro?: string
 }
 
 type BuscarUsuariosResponse = {
@@ -158,7 +161,11 @@ export function UserPicker({ label, selected, onSelect, onClear }: Props) {
           </button>
         )}
         {showDropdown && !searchQuery.isError && (
-          <div className={styles.dropdown} role="listbox" aria-label={`Resultados — ${label}`}>
+          <div
+            className={modoExplorar ? `${styles.dropdown} ${styles.dropdownWide}` : styles.dropdown}
+            role="listbox"
+            aria-label={`Resultados — ${label}`}
+          >
             {modoExplorar && (
               <div className={styles.browseFilters}>
                 <select
@@ -174,6 +181,14 @@ export function UserPicker({ label, selected, onSelect, onClear }: Props) {
                 <span className={styles.dropdownMeta}>{total} usuario{total !== 1 ? 's' : ''}</span>
               </div>
             )}
+            {modoExplorar && items.length > 0 && (
+              <div className={`${styles.dropdownRow} ${styles.dropdownHead}`} aria-hidden="true">
+                <span>Nombre</span>
+                <span>Correo</span>
+                <span>Rol</span>
+                <span>Registro</span>
+              </div>
+            )}
             <ul className={styles.dropdownList}>
               {items.length === 0 && !searchQuery.isLoading && (
                 <li>
@@ -184,10 +199,23 @@ export function UserPicker({ label, selected, onSelect, onClear }: Props) {
               )}
               {items.map((u) => (
                 <li key={u.usuario_id} role="option" aria-selected={false}>
-                  <button type="button" className={styles.dropdownItem} onMouseDown={() => select(u)}>
-                    <span className={styles.dropdownName}>{u.nombre}</span>
-                    <span className={styles.dropdownMeta}>{u.email} · {u.rol}</span>
-                  </button>
+                  {modoExplorar ? (
+                    <button
+                      type="button"
+                      className={`${styles.dropdownItem} ${styles.dropdownRow}`}
+                      onMouseDown={() => select(u)}
+                    >
+                      <span className={styles.dropdownName}>{u.nombre}</span>
+                      <span className={styles.dropdownMeta}>{u.email}</span>
+                      <span className={styles.dropdownMeta}>{u.rol}</span>
+                      <span className={styles.dropdownMeta}>{u.fecha_registro?.slice(0, 10) ?? '—'}</span>
+                    </button>
+                  ) : (
+                    <button type="button" className={styles.dropdownItem} onMouseDown={() => select(u)}>
+                      <span className={styles.dropdownName}>{u.nombre}</span>
+                      <span className={styles.dropdownMeta}>{u.email} · {u.rol}</span>
+                    </button>
+                  )}
                 </li>
               ))}
             </ul>

@@ -1,0 +1,124 @@
+.page {
+  min-height: 100vh;
+  background: var(--color-bg);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-lg) var(--space-2xl, 3rem);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  font-weight: 800;
+  font-size: 1.0625rem;
+  color: var(--color-ink);
+  text-decoration: none;
+}
+
+.btnOutline {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--color-ink);
+  background: transparent;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 8px var(--space-md);
+  text-decoration: none;
+}
+
+/* Identidad propia (antes un fondo plano sin ningún elemento gráfico, ver
+   feedback de usuario): dos glows radiales en --color-primary/--color-accent,
+   mismo tratamiento ya usado en AuthPages.module.css — `.glow` contenido
+   dentro de `.hero` (no de toda la página) y `.heroInner` por encima con
+   `position: relative`, así el texto nunca queda debajo del degradado. */
+.hero {
+  position: relative;
+  overflow: hidden;
+  padding: 3.5rem var(--space-2xl, 3rem) 2rem;
+}
+
+.glow {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(560px 560px at 8% -20%, oklch(0.48 0.15 290 / 0.22), transparent 65%),
+    radial-gradient(480px 480px at 96% 10%, oklch(0.70 0.14 195 / 0.16), transparent 65%);
+  pointer-events: none;
+}
+
+.heroInner { position: relative; max-width: 900px; }
+.hero h1 { font-size: 2.1rem; font-weight: 800; margin-bottom: var(--space-md); line-height: 1.2; }
+.hero p { color: var(--color-muted); font-size: 1.0625rem; max-width: 640px; }
+
+.section { padding: var(--space-xl) var(--space-2xl, 3rem) var(--space-2xl, 3rem); max-width: 1100px; }
+.section h2 { font-size: 1.25rem; font-weight: 700; margin-bottom: var(--space-md); }
+
+.personaGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: var(--space-md);
+}
+
+.personaCard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  padding: var(--space-lg);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.personaFeatured { border-color: var(--color-primary); background: var(--color-surface-raised); }
+
+.personaTag {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  letter-spacing: 0.04em;
+  color: var(--color-primary-light);
+}
+
+.personaCard h3 { font-size: 1.0625rem; font-weight: 800; }
+.personaDesc { color: var(--color-muted); font-size: 0.8125rem; flex-grow: 1; }
+
+.btnPrimary {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--color-ink);
+  background: var(--color-primary);
+  border: none;
+  border-radius: var(--radius-md);
+  padding: 9px var(--space-md);
+  text-decoration: none;
+  align-self: flex-start;
+}
+
+.btnOutlineWide {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--color-ink);
+  background: transparent;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 9px var(--space-md);
+  text-decoration: none;
+  align-self: flex-start;
+}
+
+@media (max-width: 760px) {
+  .header, .hero, .section { padding-left: var(--space-md); padding-right: var(--space-md); }
+}

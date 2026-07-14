@@ -90,6 +90,9 @@ export function LoginPage() {
           <p className={styles.footer}>
             ¿No tienes cuenta? <Link to="/register">Regístrate</Link>
           </p>
+          <p className={styles.footer}>
+            <Link to="/acerca-de">Acerca de Tracklytics</Link>
+          </p>
         </div>
       </div>
     </div>

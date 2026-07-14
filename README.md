@@ -170,7 +170,7 @@ Los volúmenes se recrean solos. No es necesario ningún paso manual adicional.
 | `/analitica/*` — Dashboard, engagement, géneros, comparación, benchmark, tendencias, playlists top, adquisición de usuarios, disponibilidad de infraestructura | `analyst`/`admin` con suscripción B2B activa |
 | `/analitica/reporte-diario` | `admin` únicamente |
 | `/seguridad/*` — Permisos, auditoría, errores, dashboards administrativos (auditoria/facturacion/creadores/social/distribucion/soporte, cada uno `GET /admin/dashboard`), moderación, plan familiar, regalías (contratos/liquidación), publicidad (anunciantes/campañas), partners (consola), ingesta (ETL/CRUD/calidad de datos) | `admin` únicamente |
-| `/login`, `/register` | Pública |
+| `/login`, `/register`, `/acerca-de` | Pública |
 
 > `/analitica/disponibilidad` (uptime de infraestructura) y `/distribucion/disponibilidad`
 > (restricción geográfica de reproducción) son vistas distintas con nombres parecidos —
@@ -199,6 +199,12 @@ Credenciales Airflow: `admin` / valor de `AIRFLOW_PASSWORD` en `.env` (por defec
 
 El rol `admin` solo se asigna desde PocketBase Admin (`http://localhost:8090/_/`).
 Los roles `user` y `analyst` se seleccionan durante el registro.
+
+`/acerca-de` (pública) actúa de hub de marca y explica las tres rutas de alta reales, sin
+crear roles nuevos: **oyente** (`/register`, rol `user`), **artista** (`/register?tipo=artista`
+crea la misma cuenta `user` y entra directo a `/creadores` a solicitar la cuenta de artista,
+aprobación de admin) y **sello/productora/distribuidora** (sin autoregistro — programa de
+Partners en `/partners`, acceso por API key).
 
 La API de **partners** (`/partners/v1/*`) usa un esquema de autenticación completamente
 distinto: no hay sesión de PocketBase ni rol — cada solicitud se autentica con una
@@ -293,7 +299,12 @@ su caso de uso ideal.
   [Regalías y publicidad](#regalías-y-publicidad-modelo-de-negocio-real) más abajo
 - Selección de track/usuario por búsqueda (nombre/artista o nombre/correo) en vez de IDs
   internos crudos, en las vistas de disponibilidad (distribución), comentarios (social),
-  permisos, auditoría de facturación y plan familiar
+  permisos, auditoría de facturación y plan familiar — el selector de usuario también se
+  puede abrir en modo "explorar lista completa" (paginado, filtrable por rol), con columnas
+  de nombre/correo/rol/fecha de registro en vez de una lista angosta
+- Auditoría y errores de sistema identifican al usuario por nombre y correo, no solo por
+  `usuario_id`; Permisos selecciona recurso/acción de un catálogo cerrado (`GET
+  /seguridad/permisos/catalogo`) en vez de campos de texto libre
 - ETL (disparo/monitoreo del DAG), CRUD de las 11 dimensiones editables, calidad de datos
 - Consola de pruebas de la API de partners
 

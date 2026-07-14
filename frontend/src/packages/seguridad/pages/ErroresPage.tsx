@@ -43,7 +43,16 @@ export function ErroresPage() {
                     <td>{e.codigo}</td>
                     <td>{e.mensaje}</td>
                     <td>{e.servicio}</td>
-                    <td>{e.usuario_id ?? '—'}</td>
+                    <td>
+                      {e.usuario_nombre ? (
+                        <span className={styles.userCell}>
+                          <span className={styles.userCellName}>{e.usuario_nombre}</span>
+                          <span className={styles.userCellMeta}>{e.usuario_email ?? e.usuario_id}</span>
+                        </span>
+                      ) : (
+                        <span className={styles.userCellMeta}>{e.usuario_id ?? '—'}</span>
+                      )}
+                    </td>
                     <td className={e.resolved ? styles.badgeOk : styles.badgeDenied}>
                       {e.resolved ? 'sí' : 'no'}
                     </td>

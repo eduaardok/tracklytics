@@ -212,6 +212,11 @@
 
 .roleOption { position: relative; }
 
+/* Tercera tarjeta de tipo de cuenta ("Artista") — ocupa el ancho completo
+   de la grilla de 2 columnas en vez de forzar una tercera columna angosta
+   dentro de la card de 380px. */
+.roleOptionWide { grid-column: 1 / -1; }
+
 .roleInput {
   position: absolute;
   opacity: 0;

@@ -25,6 +25,17 @@ export function PermisosPage() {
     enabled:  buscado.length > 0,
   })
 
+  // Catálogo de recursos/acciones conocidos (`_RECURSOS_CONOCIDOS`/
+  // `_ACCIONES_CONOCIDAS` en el backend) — reemplaza los inputs de texto
+  // libre de abajo, que antes permitían crear permisos con typos que nunca
+  // matcheaban ningún `PERMISO_VIGENTE_UNO` real.
+  const catalogo = useQuery({
+    queryKey: ['seguridad', 'permisos', 'catalogo'],
+    queryFn:  () => seguridadApi.catalogoPermisos(),
+  })
+  const recursos = catalogo.data?.recursos ?? []
+  const acciones = catalogo.data?.acciones ?? []
+
   const asignar = useMutation({
     mutationFn: () => seguridadApi.asignarPermiso({ usuario_id: buscado, recurso, accion, permitido }),
     onSuccess: () => {
@@ -103,21 +114,41 @@ export function PermisosPage() {
           noValidate
         >
           <div className={styles.field}>
-            <label htmlFor="recurso">recurso</label>
-            <input id="recurso" type="text" value={recurso} onChange={(e) => setRecurso(e.target.value)} required />
+            <label htmlFor="recurso">Recurso</label>
+            <select
+              id="recurso"
+              value={recurso}
+              onChange={(e) => setRecurso(e.target.value)}
+              required
+              disabled={catalogo.isLoading}
+            >
+              <option value="" disabled>Selecciona…</option>
+              {recursos.map((r) => <option key={r} value={r}>{r}</option>)}
+            </select>
           </div>
           <div className={styles.field}>
-            <label htmlFor="accion">acción</label>
-            <input id="accion" type="text" value={accion} onChange={(e) => setAccion(e.target.value)} required />
+            <label htmlFor="accion">Acción</label>
+            <select
+              id="accion"
+              value={accion}
+              onChange={(e) => setAccion(e.target.value)}
+              required
+              disabled={catalogo.isLoading}
+            >
+              <option value="" disabled>Selecciona…</option>
+              {acciones.map((a) => <option key={a} value={a}>{a}</option>)}
+            </select>
           </div>
-          <div className={`${styles.field} ${styles.checkboxField}`}>
-            <input
+          <div className={styles.field}>
+            <label htmlFor="permitido">Acceso</label>
+            <select
               id="permitido"
-              type="checkbox"
-              checked={permitido}
-              onChange={(e) => setPermitido(e.target.checked)}
-            />
-            <label htmlFor="permitido">permitido</label>
+              value={permitido ? 'otorgar' : 'revocar'}
+              onChange={(e) => setPermitido(e.target.value === 'otorgar')}
+            >
+              <option value="otorgar">Otorgar acceso</option>
+              <option value="revocar">Revocar acceso</option>
+            </select>
           </div>
           <button className={styles.button} type="submit" disabled={asignar.isPending}>
             {permitido ? 'Otorgar' : 'Revocar'}

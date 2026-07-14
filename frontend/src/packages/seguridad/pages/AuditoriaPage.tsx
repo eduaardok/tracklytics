@@ -71,7 +71,16 @@ export function AuditoriaPage() {
                 entradas.map((e) => (
                   <tr key={e.audit_id}>
                     <td>{e.timestamp}</td>
-                    <td>{e.usuario_id}</td>
+                    <td>
+                      {e.usuario_nombre ? (
+                        <span className={styles.userCell}>
+                          <span className={styles.userCellName}>{e.usuario_nombre}</span>
+                          <span className={styles.userCellMeta}>{e.usuario_email ?? e.usuario_id}</span>
+                        </span>
+                      ) : (
+                        <span className={styles.userCellMeta}>{e.usuario_id || 'Sistema'}</span>
+                      )}
+                    </td>
                     <td>{e.accion}</td>
                     <td>{e.tabla_afectada}</td>
                     <td>{e.antes}</td>

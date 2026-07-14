@@ -9,6 +9,8 @@ export type Permiso = {
 export type AuditLogEntry = {
   audit_id:       string
   usuario_id:     string
+  usuario_nombre: string | null
+  usuario_email:  string | null
   accion:         string
   tabla_afectada: string
   antes:          string
@@ -17,13 +19,15 @@ export type AuditLogEntry = {
 }
 
 export type ErrorSistemaEntry = {
-  error_id:   string
-  codigo:     string
-  mensaje:    string
-  servicio:   string
-  usuario_id: string | null
-  timestamp:  string
-  resolved:   boolean
+  error_id:       string
+  codigo:         string
+  mensaje:        string
+  servicio:       string
+  usuario_id:     string | null
+  usuario_nombre: string | null
+  usuario_email:  string | null
+  timestamp:      string
+  resolved:       boolean
 }
 
 export type AsignarPermisoBody = {
@@ -31,6 +35,11 @@ export type AsignarPermisoBody = {
   recurso:    string
   accion:     string
   permitido:  boolean
+}
+
+export type CatalogoPermisos = {
+  recursos: string[]
+  acciones: string[]
 }
 
 export type DashboardSeguridad = {
