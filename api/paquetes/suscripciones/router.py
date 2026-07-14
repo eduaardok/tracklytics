@@ -40,7 +40,20 @@ def _role(user: dict) -> str:
 
 @router.get("/planes")
 async def listar_planes(user: dict = Depends(get_current_user)):
-    return {"data": planes_para_rol(_role(user))}
+    """El plan `premium` viaja con `elegible_trial` para que el frontend
+    muestre el disclosure de fecha de cobro ANTES de confirmar solo cuando el
+    usuario realmente va a entrar en período de prueba — misma condición
+    ("nunca tuvo una suscripción previa a premium, activa o cancelada") que
+    aplica `confirmar_suscripcion` al decidir `en_trial`, evaluada acá para no
+    duplicarla en el cliente sin visibilidad del historial real."""
+    planes = planes_para_rol(_role(user))
+    for plan in planes:
+        if plan["id"] == "premium":
+            historial_premium = await pb_client.list_historial_por_plan(
+                user["token"], user["record"]["id"], "premium",
+            )
+            plan["elegible_trial"] = len(historial_premium) == 0
+    return {"data": planes}
 
 
 @router.post("", status_code=201)
