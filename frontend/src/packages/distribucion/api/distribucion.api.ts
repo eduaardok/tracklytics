@@ -5,6 +5,7 @@ import type {
   Licencia, LicenciaBody,
   Restriccion, RestriccionBody,
   Disponibilidad, DashboardDistribucion,
+  EstadoDisponibilidadFiltro, DisponibilidadListaResponse,
 } from '../types'
 
 export const distribucionApi = {
@@ -65,6 +66,15 @@ export const distribucionApi = {
   // ── Disponibilidad (B2C, solo lectura) ──────────────────────────────────────
   disponibilidad: (factIdTrack: number) =>
     apiClient.get<Disponibilidad>(`/distribucion/disponibilidad/${factIdTrack}`),
+
+  disponibilidadLista: (params: { page?: number; limit?: number; estado?: EstadoDisponibilidadFiltro; search?: string } = {}) => {
+    const qs = new URLSearchParams()
+    qs.set('page', String(params.page ?? 1))
+    qs.set('limit', String(params.limit ?? 50))
+    qs.set('estado', params.estado ?? 'todos')
+    if (params.search && params.search.trim()) qs.set('search', params.search.trim())
+    return apiClient.get<DisponibilidadListaResponse>(`/distribucion/disponibilidad?${qs.toString()}`)
+  },
 
   dashboard: () =>
     apiClient.get<DashboardDistribucion>('/distribucion/admin/dashboard'),

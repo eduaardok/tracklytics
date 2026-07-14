@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ErrorState } from '@shared/components/ErrorState'
 import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { apiErrorMessage } from '@shared/lib/api-client'
+import { getRole } from '@shared/lib/session'
 import { useToast } from '@shared/context/ToastContext'
 import { facturacionApi } from '../api/facturacion.api'
 import type { MetodoPago } from '../types'
@@ -53,6 +54,7 @@ function SkelRows({ cols, n = 3 }: { cols: number; n?: number }) {
 
 export function FacturacionPage() {
   useDocumentTitle('Facturación')
+  const role = getRole()
   const [selectedMethodId, setSelectedMethodId] = useState('')
   const [showAddForm, setShowAddForm]           = useState(false)
   const [tipo, setTipo]                         = useState('')
@@ -62,19 +64,24 @@ export function FacturacionPage() {
   const queryClient = useQueryClient()
   const toast = useToast()
 
+  // admin ya tiene acceso completo sin pagar — evita el roundtrip
+  // innecesario (no hay nada que facturar para ese rol).
   const metodos = useQuery({
     queryKey: ['facturacion', 'metodos-pago'],
     queryFn:  () => facturacionApi.metodosPago(),
+    enabled:  role !== 'admin',
   })
 
   const transacciones = useQuery({
     queryKey: ['facturacion', 'transacciones'],
     queryFn:  () => facturacionApi.transacciones(),
+    enabled:  role !== 'admin',
   })
 
   const invoices = useQuery({
     queryKey: ['facturacion', 'invoices'],
     queryFn:  () => facturacionApi.invoices(),
+    enabled:  role !== 'admin',
   })
 
   const registrarMetodo = useMutation({
@@ -110,6 +117,19 @@ export function FacturacionPage() {
     : suscripcion
     ? `Pagar — ${fmt(suscripcion.monto, suscripcion.moneda)}/mes`
     : 'Pagar'
+
+  // admin (Lead Data Engineer/CTO) ya tiene acceso completo a la plataforma
+  // sin pagar — no le corresponde ningún flujo de facturación.
+  if (role === 'admin') {
+    return (
+      <section className={styles.page}>
+        <h1 className={styles.heading}>Facturación</h1>
+        <p className={styles.emptyMethods}>
+          Como administrador, tienes acceso completo a la plataforma sin necesidad de facturación.
+        </p>
+      </section>
+    )
+  }
 
   return (
     <section className={styles.page}>
@@ -344,8 +364,8 @@ export function FacturacionPage() {
                 invoicesData.map((inv) => (
                   <tr key={inv.invoice_id}>
                     <td>{fmtDate(inv.fecha_emision)}</td>
-                    <td>{fmt(inv.monto, 'EUR')}</td>
-                    <td>{fmt(inv.iva, 'EUR')}</td>
+                    <td>{fmt(inv.monto, inv.moneda ?? undefined)}</td>
+                    <td>{fmt(inv.iva, inv.moneda ?? undefined)}</td>
                     <td><StatusBadge estado={inv.estado} /></td>
                     <td><Link to={`/facturacion/${inv.invoice_id}`}>Ver factura</Link></td>
                   </tr>

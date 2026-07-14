@@ -1,5 +1,6 @@
 import random
 from datetime import date, datetime, timezone
+from typing import Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
@@ -28,6 +29,8 @@ from paquetes.distribucion.queries import (
     TIPO_RESTRICCION_EXISTE,
     TIPOS_RESTRICCION_LIST,
     TRACK_EXISTE,
+    disponibilidad_lista_sql,
+    disponibilidad_lista_total_sql,
     licencias_sql,
 )
 
@@ -300,6 +303,76 @@ def listar_restricciones(fact_id_track: int = Query(...)):
 # ─────────────────────────────────────────────────────────────────────────────
 # 4. Disponibilidad por país — solo lectura (CU-O44, RF-DIS-008)
 # ─────────────────────────────────────────────────────────────────────────────
+
+@router.get("/disponibilidad")
+def listar_disponibilidad(
+    user: dict = Depends(require_b2c_user),
+    page: int = Query(1, ge=1),
+    limit: int = Query(50, ge=1, le=200),
+    estado: Literal["todos", "disponible", "bloqueado"] = "todos",
+    search: Optional[str] = Query(None),
+    pais_id: Optional[int] = Query(None),
+):
+    """CU-O80: lista navegable del catálogo con su estado de disponibilidad
+    para un país, en vez de exigir buscar un track puntual (ver `/disponibilidad/{fact_id_track}` abajo, que se mantiene sin cambios)."""
+    if pais_id is not None:
+        if query_one(PAIS_EXISTE, {"pais_id": pais_id})["n"] == 0:
+            raise HTTPException(status_code=404, detail="País no encontrado")
+        resolved_pais_id = pais_id
+    else:
+        resolved_pais_id = resolver_pais_id(user["record"].get("pais", ""))
+
+    offset = (page - 1) * limit
+
+    if resolved_pais_id is None:
+        # País no reconocido: fail-open, mismo criterio que el endpoint
+        # puntual (design.md, Decisión 5) — todo se muestra disponible, así
+        # que filtrar por "bloqueado" no puede devolver ninguna fila real.
+        if estado == "bloqueado":
+            return {"data": [], "page": page, "limit": limit, "total": 0, "pais_id": None}
+
+        where_parts = []
+        params: dict = {"limit": limit, "offset": offset}
+        if search and search.strip():
+            where_parts.append(
+                "(position(lower(f.track_name), lower({search:String})) > 0 "
+                "OR position(lower(a.name), lower({search:String})) > 0)"
+            )
+            params["search"] = search.strip()
+        where = f"WHERE {' AND '.join(where_parts)}" if where_parts else ""
+        rows = query_rows(
+            f"""
+            SELECT f.fact_id AS fact_id_track, f.track_name AS track_name,
+                   a.name AS artist_name, 1 AS disponible, NULL AS tipo_restriccion
+            FROM FACT_TRACKS f JOIN DIM_ARTISTS a ON f.artist_id = a.artist_id
+            {where} ORDER BY f.fact_id LIMIT {{limit:UInt32}} OFFSET {{offset:UInt32}}
+            """,
+            params,
+        )
+        total = query_one(
+            f"SELECT count() AS n FROM FACT_TRACKS f JOIN DIM_ARTISTS a ON f.artist_id = a.artist_id {where}",
+            params,
+        )["n"]
+        return {"data": rows, "page": page, "limit": limit, "total": total, "pais_id": None}
+
+    where_parts = []
+    params = {"pais_id": resolved_pais_id, "canal_id": CANAL_STREAMING_ID, "limit": limit, "offset": offset}
+    if estado == "disponible":
+        where_parts.append("b.tipo_restriccion_id = 0")
+    elif estado == "bloqueado":
+        where_parts.append("b.tipo_restriccion_id != 0")
+    if search and search.strip():
+        where_parts.append(
+            "(position(lower(f.track_name), lower({search:String})) > 0 "
+            "OR position(lower(a.name), lower({search:String})) > 0)"
+        )
+        params["search"] = search.strip()
+    where = f"WHERE {' AND '.join(where_parts)}" if where_parts else ""
+
+    rows = query_rows(disponibilidad_lista_sql(where), params)
+    total = query_one(disponibilidad_lista_total_sql(where), params)["n"]
+    return {"data": rows, "page": page, "limit": limit, "total": total, "pais_id": resolved_pais_id}
+
 
 @router.get("/disponibilidad/{fact_id_track}")
 def consultar_disponibilidad(fact_id_track: int, user: dict = Depends(require_b2c_user)):

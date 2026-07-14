@@ -13,10 +13,17 @@ import { facturacionApi } from '@packages/facturacion/api/facturacion.api'
 import type { MetodoPago } from '@packages/facturacion/types'
 import { suscripcionesApi } from '../api/suscripciones.api'
 import { PLAN_ACTIVO_QUERY_KEY } from '../hooks/usePlanActivo'
-import type { Plan } from '../types'
+import { DIAS_TRIAL_PREMIUM, type MotivoCancelacion, type Plan } from '../types'
 import styles from './PlanesPage.module.css'
 
 const TIPOS_METODO = ['Visa', 'Mastercard', 'Amex']
+
+const MOTIVOS_CANCELACION: { value: MotivoCancelacion; label: string }[] = [
+  { value: 'otro',        label: 'Prefiero no decir' },
+  { value: 'precio',      label: 'El precio' },
+  { value: 'no_uso',      label: 'No lo uso lo suficiente' },
+  { value: 'competencia', label: 'Uso otro servicio' },
+]
 
 function fmtFecha(iso?: string): string {
   if (!iso) return '—'
@@ -26,6 +33,12 @@ function fmtFecha(iso?: string): string {
 
 function fmtPrecio(precio: number, moneda: string): string {
   return precio > 0 ? `${precio} ${moneda}/mes` : 'Gratis'
+}
+
+function fmtFechaCobroTrial(): string {
+  const fin = new Date()
+  fin.setDate(fin.getDate() + DIAS_TRIAL_PREMIUM)
+  return fin.toLocaleDateString('es-ES')
 }
 
 // PlanesPage cubre "seleccionar plan", "consultar plan activo" y "cancelar"
@@ -45,18 +58,24 @@ export function PlanesPage() {
   const [nuevoTipo, setNuevoTipo]         = useState(TIPOS_METODO[0])
   const [nuevoDigitos, setNuevoDigitos]   = useState('')
   const [formError, setFormError]         = useState<string | null>(null)
+  const [motivoCancelacion, setMotivoCancelacion] = useState<MotivoCancelacion>('otro')
+  const [emailInstitucional, setEmailInstitucional] = useState('')
 
   const queryClient = useQueryClient()
   const toast = useToast()
   const confirm = useConfirm()
 
+  // admin ya tiene acceso completo sin plan — evita el roundtrip innecesario
+  // (el backend igual devolvería `[]`/`null`, ver planes.py).
   const planesQuery = useQuery({
     queryKey: ['suscripciones', 'planes'],
     queryFn:  () => suscripcionesApi.planes(),
+    enabled:  role !== 'admin',
   })
   const activaQuery = useQuery({
     queryKey: PLAN_ACTIVO_QUERY_KEY,
     queryFn:  () => suscripcionesApi.activa(),
+    enabled:  role !== 'admin',
   })
   // Solo se necesita cuando el plan seleccionado es de pago — evita el
   // roundtrip para planes free (ver `enabled`).
@@ -83,10 +102,12 @@ export function PlanesPage() {
   })
 
   const confirmar = useMutation({
-    mutationFn: (body: { plan_id: string; metodo_pago_id: string | null }) => suscripcionesApi.confirmar(body),
+    mutationFn: (body: { plan_id: string; metodo_pago_id: string | null; email_institucional?: string | null }) =>
+      suscripcionesApi.confirmar(body),
     onSuccess: (res) => {
       setSelectedPlan(null)
       setMetodoElegidoId(null)
+      setEmailInstitucional('')
       setFormError(null)
       queryClient.invalidateQueries({ queryKey: PLAN_ACTIVO_QUERY_KEY })
       queryClient.invalidateQueries({ queryKey: ['suscripciones', 'planes'] })
@@ -103,7 +124,8 @@ export function PlanesPage() {
   })
 
   const cancelar = useMutation({
-    mutationFn: (suscripcionId: string) => suscripcionesApi.cancelar(suscripcionId),
+    mutationFn: ({ suscripcionId, motivo }: { suscripcionId: string; motivo: MotivoCancelacion }) =>
+      suscripcionesApi.cancelar(suscripcionId, motivo),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: PLAN_ACTIVO_QUERY_KEY })
       toast.success('Suscripción cancelada')
@@ -122,10 +144,26 @@ export function PlanesPage() {
     return null
   }
 
+  // admin (Lead Data Engineer/CTO) ya tiene acceso completo a la plataforma
+  // sin pagar — el backend rechaza confirmar/planear una suscripción para
+  // este rol (ver suscripciones/router.py), así que esta ruta no le muestra
+  // el flujo de selección de plan aunque llegue acá por URL directa.
+  if (role === 'admin') {
+    return (
+      <section className={styles.page}>
+        <h1 className={styles.heading}>Mi plan</h1>
+        <p className={styles.muted}>
+          Como administrador, tienes acceso completo a la plataforma sin necesidad de una suscripción.
+        </p>
+      </section>
+    )
+  }
+
   function handleSelect(plan: Plan) {
     setSelectedPlan(plan)
     setMetodoElegidoId(null)
     setNuevoDigitos('')
+    setEmailInstitucional('')
     setFormError(null)
   }
 
@@ -136,7 +174,15 @@ export function PlanesPage() {
       setFormError('Selecciona o agrega un método de pago para continuar.')
       return
     }
-    confirmar.mutate({ plan_id: selectedPlan.id, metodo_pago_id: metodoElegidoId })
+    if (selectedPlan.id === 'estudiante' && !emailInstitucional.trim().toLowerCase().includes('.edu')) {
+      setFormError('Ingresa un email institucional válido (.edu) para el plan estudiante.')
+      return
+    }
+    confirmar.mutate({
+      plan_id: selectedPlan.id,
+      metodo_pago_id: metodoElegidoId,
+      email_institucional: selectedPlan.id === 'estudiante' ? emailInstitucional.trim() : null,
+    })
   }
 
   return (
@@ -162,13 +208,31 @@ export function PlanesPage() {
           <div className={styles.currentSub}>
             {fmtPrecio(activa.monto, activa.moneda)} · desde {fmtFecha(activa.created)}
           </div>
+          {activa.en_prueba && (
+            <p className={styles.muted}>
+              En período de prueba — termina el {fmtFecha(activa.fecha_fin_trial ?? undefined)}
+            </p>
+          )}
+          {activa.tipo_plan !== 'free' && (
+            <div className={styles.field}>
+              <label className={styles.fieldLabel} htmlFor="motivo-cancelacion">Motivo (si cancelas)</label>
+              <select
+                id="motivo-cancelacion"
+                className={styles.input}
+                value={motivoCancelacion}
+                onChange={(e) => setMotivoCancelacion(e.target.value as MotivoCancelacion)}
+              >
+                {MOTIVOS_CANCELACION.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
+              </select>
+            </div>
+          )}
           <button
             type="button"
             className={styles.btnDanger}
             disabled={cancelar.isPending}
             onClick={async () => {
               const ok = await confirm('¿Cancelar tu suscripción activa?', { danger: true, confirmLabel: 'Cancelar suscripción' })
-              if (ok) cancelar.mutate(activa.id)
+              if (ok) cancelar.mutate({ suscripcionId: activa.id, motivo: motivoCancelacion })
             }}
           >
             {cancelar.isPending ? 'Cancelando…' : 'Cancelar suscripción'}
@@ -211,7 +275,26 @@ export function PlanesPage() {
       {selectedPlan && (
         <form className={styles.confirmForm} onSubmit={handleConfirmar}>
           <h2 className={styles.confirmTitle}>Confirmar suscripción a {selectedPlan.nombre}</h2>
+          {selectedPlan.elegible_trial && (
+            <p className={styles.muted}>
+              Tu prueba gratuita dura {DIAS_TRIAL_PREMIUM} días. A partir del {fmtFechaCobroTrial()} se
+              te cobrará el precio del plan, salvo que canceles antes.
+            </p>
+          )}
           {formError && <p className={styles.formError} role="alert">{formError}</p>}
+          {selectedPlan.id === 'estudiante' && (
+            <div className={styles.field}>
+              <label className={styles.fieldLabel} htmlFor="email-institucional">Email institucional</label>
+              <input
+                id="email-institucional"
+                className={styles.input}
+                type="email"
+                placeholder="tu.nombre@universidad.edu"
+                value={emailInstitucional}
+                onChange={(e) => setEmailInstitucional(e.target.value)}
+              />
+            </div>
+          )}
           {selectedPlan.precio > 0 && (
             <div className={styles.field}>
               <span className={styles.fieldLabel}>Método de pago</span>
@@ -280,6 +363,8 @@ export function PlanesPage() {
         <div className={confirmar.data?.pago?.estado === 'fallida' ? styles.formError : styles.bannerOk}>
           {confirmar.data?.pago?.estado === 'fallida'
             ? '⚠ El plan se activó pero el cobro fue rechazado — verifica tu método de pago.'
+            : confirmar.data?.data?.en_prueba
+            ? '✓ Suscripción confirmada — período de prueba de 7 días, sin cobro por ahora.'
             : '✓ Suscripción confirmada' + (confirmar.data?.pago ? ' y cobro procesado.' : '.')}
         </div>
       )}

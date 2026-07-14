@@ -1,19 +1,21 @@
 import random
 import uuid
 from datetime import date, datetime
+from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
 from core.database import execute, get_client, query_one, query_rows
 from core.deps import get_current_user
+from paquetes.creadores.queries import CUENTA_ACTUAL_POR_USUARIO
 from paquetes.publicidad.queries import (
     ANUNCIANTE_EXISTE,
     ANUNCIANTE_ID_MAX,
     ANUNCIANTES_LIST,
     CAMPANA_ID_MAX,
     CAMPANA_POR_ID,
-    CAMPANAS_ELEGIBLES,
+    CAMPANAS_ELEGIBLES_POR_TIPO,
     CAMPANAS_LIST,
     IMPRESION_POR_ID,
     INGRESO_YA_RECONOCIDO,
@@ -25,9 +27,19 @@ from paquetes.suscripciones import pb_client
 router = APIRouter(prefix="/app/v1/publicidad", tags=["Publicidad"])
 
 
-async def _plan_de_usuario(user: dict) -> str:
+def _es_artista_aprobado(usuario_id: str) -> bool:
+    cuenta = query_one(CUENTA_ACTUAL_POR_USUARIO, {"usuario_id": usuario_id})
+    return bool(cuenta) and cuenta["estado_cuenta"] == "aprobada"
+
+
+async def _usuario_exento_de_ads(user: dict) -> bool:
+    """Exento de anuncios: plan de pago activo, o cuenta de artista aprobada
+    (`creadores`) — ver requirement "Impresión de anuncio..." de `publicidad`."""
+    if _es_artista_aprobado(user["record"]["id"]):
+        return True
     activas = await pb_client.list_activas(user["token"], user["record"]["id"])
-    return activas[0]["tipo_plan"] if activas else "free"
+    plan = activas[0]["tipo_plan"] if activas else "free"
+    return plan != "free"
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -63,6 +75,11 @@ class CampanaBody(BaseModel):
     presupuesto_total: float
     fecha_inicio: date
     fecha_fin: date | None = None
+    # tipo_anuncio (monetizacion-retencion-mejoras): una campaña es de un solo
+    # formato, así se contrata en la industria real — 'display' exige
+    # url_destino para el redirect al hacer click.
+    tipo_anuncio: Literal["audio", "display"] = "audio"
+    url_destino: str = ""
 
 
 @router.post("/admin/campanas", status_code=201)
@@ -71,12 +88,20 @@ def crear_campana(body: CampanaBody, admin: dict = Depends(require_admin)):
         raise HTTPException(status_code=404, detail="Anunciante no encontrado")
     if body.cpm <= 0:
         raise HTTPException(status_code=422, detail="El CPM debe ser mayor que 0")
+    if body.tipo_anuncio == "display" and not body.url_destino.strip():
+        raise HTTPException(status_code=422, detail="Una campaña display requiere una URL de destino")
 
     nuevo_id = ((query_one(CAMPANA_ID_MAX) or {}).get("n") or 0) + 1
     get_client().insert(
         "DIM_CAMPANA_PUBLICITARIA",
-        [(nuevo_id, body.anunciante_id, body.nombre, body.cpm, body.presupuesto_total, body.fecha_inicio, body.fecha_fin)],
-        column_names=["campana_id", "anunciante_id", "nombre", "cpm", "presupuesto_total", "fecha_inicio", "fecha_fin"],
+        [(
+            nuevo_id, body.anunciante_id, body.nombre, body.cpm, body.presupuesto_total,
+            body.fecha_inicio, body.fecha_fin, body.tipo_anuncio, body.url_destino.strip(),
+        )],
+        column_names=[
+            "campana_id", "anunciante_id", "nombre", "cpm", "presupuesto_total",
+            "fecha_inicio", "fecha_fin", "tipo_anuncio", "url_destino",
+        ],
     )
     return {"status": "ok", "campana_id": nuevo_id}
 
@@ -93,12 +118,13 @@ def listar_campanas(admin: dict = Depends(require_admin)):
 @router.post("/impresion", status_code=201)
 async def registrar_impresion(user: dict = Depends(get_current_user)):
     """Se llama cuando un Usuario B2C reproduce un track. Usuarios con plan de
-    pago no reciben anuncio (`campana: null`) — ver CU-O67."""
-    plan = await _plan_de_usuario(user)
-    if plan != "free":
+    pago o con cuenta de artista aprobada no reciben anuncio (`campana: null`)
+    — ver CU-O67. Solo campañas `tipo_anuncio='audio'` son elegibles para este
+    trigger."""
+    if await _usuario_exento_de_ads(user):
         return {"campana": None}
 
-    elegibles = query_rows(CAMPANAS_ELEGIBLES)
+    elegibles = query_rows(CAMPANAS_ELEGIBLES_POR_TIPO, {"tipo": "audio"})
     if not elegibles:
         return {"campana": None}
 
@@ -112,11 +138,37 @@ async def registrar_impresion(user: dict = Depends(get_current_user)):
     return {"campana": {"campana_id": campana["campana_id"], "cpm": campana["cpm"]}, "impresion_id": impresion_id}
 
 
-@router.post("/impresion/{impresion_id}/completar", status_code=201)
-def completar_impresion(impresion_id: str, user: dict = Depends(get_current_user)):
+@router.post("/impresion-display", status_code=201)
+async def registrar_impresion_display(user: dict = Depends(get_current_user)):
+    """Trigger nuevo (monetizacion-retencion-mejoras), independiente del
+    reproductor — se llama al cargar home/catálogo. Solo campañas
+    `tipo_anuncio='display'` son elegibles; usuarios con plan de pago o con
+    cuenta de artista aprobada no reciben banner (`campana: null`)."""
+    if await _usuario_exento_de_ads(user):
+        return {"campana": None}
+
+    elegibles = query_rows(CAMPANAS_ELEGIBLES_POR_TIPO, {"tipo": "display"})
+    if not elegibles:
+        return {"campana": None}
+
+    campana = random.choice(elegibles)
+    impresion_id = str(uuid.uuid4())
+    get_client().insert(
+        "FACT_IMPRESION_ANUNCIO",
+        [(impresion_id, campana["campana_id"], user["record"]["id"], 0)],
+        column_names=["impresion_id", "campana_id", "usuario_id", "completado"],
+    )
+    return {
+        "campana": {"campana_id": campana["campana_id"], "cpm": campana["cpm"], "url_destino": campana["url_destino"]},
+        "impresion_id": impresion_id,
+    }
+
+
+def _completar_impresion(impresion_id: str, user: dict) -> dict:
     """Reconoce el ingreso real de una impresión completada
     (`monto = cpm/1000`, ver design.md Decisión 4) — idempotente: completar
-    la misma impresión dos veces no duplica el ingreso."""
+    la misma impresión dos veces no duplica el ingreso. Compartida por el
+    cierre del anuncio de audio y el click de un banner display."""
     impresion = query_one(IMPRESION_POR_ID, {"impresion_id": impresion_id})
     if not impresion:
         raise HTTPException(status_code=404, detail="Impresión no encontrada")
@@ -141,6 +193,30 @@ def completar_impresion(impresion_id: str, user: dict = Depends(get_current_user
         column_names=["ingreso_id", "impresion_id", "campana_id", "monto"],
     )
     return {"status": "ok", "ingreso_id": ingreso_id, "monto": monto}
+
+
+@router.post("/impresion/{impresion_id}/completar", status_code=201)
+def completar_impresion(impresion_id: str, user: dict = Depends(get_current_user)):
+    return _completar_impresion(impresion_id, user)
+
+
+@router.post("/impresion/{impresion_id}/click", status_code=201)
+def registrar_click(impresion_id: str, user: dict = Depends(get_current_user)):
+    """Click en un banner display (monetizacion-retencion-mejoras): marca
+    `click=1` y reconoce el ingreso igual que "completar" en audio —
+    completarse en display significa haber hecho click (ver spec.md,
+    "Registro de click en anuncio display")."""
+    impresion = query_one(IMPRESION_POR_ID, {"impresion_id": impresion_id})
+    if not impresion:
+        raise HTTPException(status_code=404, detail="Impresión no encontrada")
+    if impresion["usuario_id"] != user["record"]["id"]:
+        raise HTTPException(status_code=403, detail="Esta impresión no pertenece a este usuario")
+
+    execute(
+        "ALTER TABLE FACT_IMPRESION_ANUNCIO UPDATE click = 1 WHERE impresion_id = {id:String}",
+        {"id": impresion_id},
+    )
+    return _completar_impresion(impresion_id, user)
 
 
 # ─────────────────────────────────────────────────────────────────────────────

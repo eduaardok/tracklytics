@@ -72,6 +72,24 @@ export type Disponibilidad = {
   tipo_restriccion: string | null
 }
 
+export type EstadoDisponibilidadFiltro = 'todos' | 'disponible' | 'bloqueado'
+
+export type DisponibilidadListaRow = {
+  fact_id_track:    number
+  track_name:       string
+  artist_name:      string
+  disponible:       boolean
+  tipo_restriccion: string | null
+}
+
+export type DisponibilidadListaResponse = {
+  data:    DisponibilidadListaRow[]
+  page:    number
+  limit:   number
+  total:   number
+  pais_id: number | null
+}
+
 export type DashboardDistribucion = {
   restricciones_por_pais:  { pais: string; total: number }[]
   licencias_activas_total: number

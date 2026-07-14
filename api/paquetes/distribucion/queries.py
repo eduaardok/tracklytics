@@ -100,3 +100,48 @@ LIMIT 10
 """
 
 LICENCIAS_ACTIVAS_TOTAL = "SELECT count() AS n FROM DIM_LICENCIA WHERE estado = 'activa'"
+
+# ── Disponibilidad por país como lista navegable (mejoras-producto-revision-qa) ─
+# `BRIDGE_RESTRICCION_TRACK.tipo_restriccion_id` es `UInt16` NO nullable —
+# ClickHouse rellena las filas sin match de un LEFT JOIN con el valor default
+# de la columna (0), no con NULL real, salvo que la sesión tenga
+# `join_use_nulls=1` (no es el caso acá). `IS NULL` sobre esa columna sería
+# siempre falso, marcando TODO el catálogo como bloqueado — bug detectado en
+# verificación manual de esta misma change. El filtro de estado y el cálculo
+# de `disponible` comparan explícitamente contra `0` (ningún
+# `tipo_restriccion_id` real empieza en 0, ver seed de `DIM_TIPO_RESTRICCION`
+# en `init_clickhouse.py`), nunca sobre el alias `disponible` (mismo criterio
+# ya documentado en el proyecto para evitar que ClickHouse reescriba el alias
+# hacia adelante dentro del mismo SELECT).
+
+
+def disponibilidad_lista_sql(where: str) -> str:
+    return f"""
+    SELECT
+        f.fact_id AS fact_id_track,
+        f.track_name AS track_name,
+        a.name AS artist_name,
+        b.tipo_restriccion_id = 0 AS disponible,
+        if(b.tipo_restriccion_id = 0, NULL, t.nombre) AS tipo_restriccion
+    FROM FACT_TRACKS f
+    JOIN DIM_ARTISTS a ON f.artist_id = a.artist_id
+    LEFT JOIN BRIDGE_RESTRICCION_TRACK b
+        ON b.fact_id_track = f.fact_id AND b.pais_id = {{pais_id:UInt16}}
+        AND b.canal_id = {{canal_id:UInt16}} AND b.activo = 1
+    LEFT JOIN DIM_TIPO_RESTRICCION t ON b.tipo_restriccion_id = t.tipo_restriccion_id
+    {where}
+    ORDER BY f.fact_id
+    LIMIT {{limit:UInt32}} OFFSET {{offset:UInt32}}
+    """
+
+
+def disponibilidad_lista_total_sql(where: str) -> str:
+    return f"""
+    SELECT count() AS n
+    FROM FACT_TRACKS f
+    JOIN DIM_ARTISTS a ON f.artist_id = a.artist_id
+    LEFT JOIN BRIDGE_RESTRICCION_TRACK b
+        ON b.fact_id_track = f.fact_id AND b.pais_id = {{pais_id:UInt16}}
+        AND b.canal_id = {{canal_id:UInt16}} AND b.activo = 1
+    {where}
+    """

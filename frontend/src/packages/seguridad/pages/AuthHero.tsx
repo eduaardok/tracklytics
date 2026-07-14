@@ -34,9 +34,8 @@ export function AuthHero() {
         </ul>
 
         <div className={styles.techs}>
-          <span className={styles.techTag}>PocketBase</span>
-          <span className={styles.techTag}>ClickHouse</span>
-          <span className={styles.techTag}>FastAPI</span>
+          <span className={styles.techTag}>Para sellos y productoras</span>
+          <span className={styles.techTag}>Para curadores y artistas</span>
         </div>
       </div>
     </div>
