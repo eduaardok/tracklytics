@@ -8,7 +8,9 @@ from pydantic import BaseModel
 from core.database import get_client, query_one, query_rows
 from core.deps import get_current_user
 from paquetes.creadores.deps import require_admin, require_cuenta_artista_aprobada
-from paquetes.creadores.promocion import NEUTRAL_AUDIO_DEFAULTS, promover_a_fact_tracks
+from paquetes.creadores.promocion import (
+    NEUTRAL_AUDIO_DEFAULTS, perfil_audio_por_genero, promover_a_fact_tracks,
+)
 from paquetes.creadores.queries import (
     ARTIST_ID_POR_NOMBRE, CUENTA_ACTUAL_POR_ID, CUENTA_ACTUAL_POR_USUARIO, CUENTA_EXISTE_POR_USUARIO,
     CUENTAS_ARTISTA_TOTAL, GENERO_EXISTE, SUBIDA_ACTUAL_POR_ID, SUBIDAS_POR_CUENTA,
@@ -138,7 +140,7 @@ def subir_track(body: SubidaTrackBody, cuenta: dict = Depends(require_cuenta_art
         raise HTTPException(status_code=422, detail="El género indicado no existe")
 
     staging_id = str(uuid.uuid4())
-    d = NEUTRAL_AUDIO_DEFAULTS
+    d = {**NEUTRAL_AUDIO_DEFAULTS, **perfil_audio_por_genero(body.genre_id)}
     get_client().insert(
         "STG_ARTIST_UPLOADS",
         [(

@@ -9,6 +9,7 @@ from datetime import date, datetime
 import numpy as np
 import pandas as pd
 
+from gold.enriquecimiento import asignar_country, asignar_release_year
 from gold.portada import cargar_cache_portadas
 from utils.clickhouse_client import get_client, get_date_id, load_lookup, scalar
 from utils.config import get_config
@@ -183,7 +184,7 @@ def run_gold(**context):
                 batch = albums[start:start + 50_000]
                 client.insert(
                     "DIM_ALBUMS",
-                    [(start + i, name, 0, "Studio", 0, "", 0, _cache["albumes"].get(name))
+                    [(start + i, name, asignar_release_year(start + i), "Studio", 0, "", 0, _cache["albumes"].get(name))
                      for i, name in enumerate(batch, 1)],
                     column_names=["album_id", "name", "release_year", "album_type",
                                   "total_tracks_listed", "language", "sello_id", "imagen_url"],
@@ -207,7 +208,7 @@ def run_gold(**context):
                 batch = unique_artists[start:start + 50_000]
                 client.insert(
                     "DIM_ARTISTS",
-                    [(start + i, name, "", 0, "Solo", True, 0, _cache["artistas"].get(name))
+                    [(start + i, name, asignar_country(start + i), 0, "Solo", True, 0, _cache["artistas"].get(name))
                      for i, name in enumerate(batch, 1)],
                     column_names=["artist_id", "name", "country", "debut_year",
                                   "artist_type", "active", "sello_id", "imagen_url"],

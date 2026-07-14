@@ -3,6 +3,7 @@ import { getAuthHeaders } from '@shared/lib/session'
 import type {
   EjecucionIngestaRequest, EjecucionTrigger, EjecucionEstado,
   CargasHistorial, DataQuality, DimListResponse, DimRow, FactsListResponse,
+  RecalificacionTrigger, RecalificacionEstado,
 } from '../types'
 
 // `/app/v1/ingesta/*` funciona con `apiClient` normal (mismo prefijo, mismo
@@ -55,6 +56,14 @@ export const ingestaApi = {
 
   cargas: (page = 1, limit = 20) =>
     apiClient.get<CargasHistorial>(`/ingesta/cargas?page=${page}&limit=${limit}`),
+
+  // CU-O79 — mismo criterio de `rawRequest` que `trigger`: el 409 de
+  // "recalificación ya en curso" trae el mensaje real en `detail`.
+  dispararRecalificacion: () =>
+    rawRequest<RecalificacionTrigger>('/app/v1/ingesta/recalificacion', { method: 'POST' }),
+
+  estadoRecalificacion: (ejecucionId: string) =>
+    apiClient.get<RecalificacionEstado>(`/ingesta/recalificacion/${ejecucionId}`),
 
   // ── Data quality (root-mounted) ───────────────────────────────────────────────
   dataQuality: () => rawRequest<DataQuality>('/data-quality'),

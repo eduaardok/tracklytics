@@ -10,6 +10,7 @@ AIRFLOW_URL  = os.getenv("AIRFLOW_URL",      "http://airflow:8080")
 AIRFLOW_USER = os.getenv("AIRFLOW_USER",     "admin")
 AIRFLOW_PASS = os.getenv("AIRFLOW_PASSWORD", "tracklytics2026")
 AIRFLOW_DAG  = os.getenv("AIRFLOW_DAG_ID",  "tracklytics_etl")
+RECALIFICACION_DAG = os.getenv("RECALIFICACION_DAG_ID", "tracklytics_recalificacion")
 
 PB_URL      = os.getenv("POCKETBASE_URL", "http://pocketbase:8090")
 # Credenciales de superusuario: usadas solo por `partners` para resolver la

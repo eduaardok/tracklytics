@@ -52,6 +52,26 @@ export type CargasHistorial = {
   ultima_carga: CargaLog | null
 }
 
+// ── Recalificación administrativa del catálogo (CU-O79) ─────────────────────
+export type RecalificacionTrigger = {
+  ejecucion_id: string
+  airflow:      unknown
+}
+
+export type RecalificacionResultado = {
+  albumes_corregidos:  number
+  artistas_corregidos: number
+  tracks_corregidos:   number
+  duration_seconds:    number
+}
+
+export type RecalificacionEstado = {
+  ejecucion_id: string
+  estado:       string | null
+  tarea_estado: string | null
+  resultado:    RecalificacionResultado | null
+}
+
 // ── Data quality (root-mounted GET /data-quality) ───────────────────────────────
 export type DataQuality = {
   total_records:         number

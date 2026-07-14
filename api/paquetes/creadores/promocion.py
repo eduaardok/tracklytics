@@ -3,8 +3,10 @@ import asyncio
 from core.database import execute, get_client, query_one
 from paquetes.creadores.queries import (
     ALBUM_ID_MAX, ALBUM_ID_POR_NOMBRE, ARTIST_ID_MAX, ARTIST_ID_POR_NOMBRE,
-    FACT_ID_MAX, LOAD_WEEK_MAX,
+    FACT_ID_MAX, LOAD_WEEK_MAX, PERFIL_AUDIO_GLOBAL, PERFIL_AUDIO_POR_GENERO,
 )
+
+MIN_MUESTRA_GENERO = 30  # mismo umbral que etl/gold/enriquecimiento.py
 
 # Valores neutros fijos para los 13 atributos de audio de un track subido por
 # un artista (design.md, Non-Goals: no hay análisis de audio real/DSP en este
@@ -40,6 +42,21 @@ FACT_ID_FLOOR_USER_UPLOADED = 10_000_000
 _TS_MAP = {1: 1, 3: 2, 4: 3, 5: 4}
 
 _promocion_lock = asyncio.Lock()
+
+
+def perfil_audio_por_genero(genre_id: int) -> dict:
+    """Perfil de audio de partida para un track subido, calibrado contra el
+    género elegido en vez de un valor neutro fijo (spec `creadores`, requirement
+    de subida de track). Si el género no tiene una muestra mínima de tracks
+    reales, usa el perfil general del catálogo como respaldo."""
+    fila = query_one(PERFIL_AUDIO_POR_GENERO, {"genre_id": genre_id})
+    if fila and (fila.get("n") or 0) >= MIN_MUESTRA_GENERO:
+        return {k: fila[k] for k in NEUTRAL_AUDIO_DEFAULTS if k in fila}
+
+    respaldo = query_one(PERFIL_AUDIO_GLOBAL) or {}
+    perfil = dict(NEUTRAL_AUDIO_DEFAULTS)
+    perfil.update({k: v for k, v in respaldo.items() if v is not None})
+    return perfil
 
 
 def _resolver_artist_id(nombre_artistico: str) -> int:

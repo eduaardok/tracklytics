@@ -12,6 +12,7 @@ from typing import Optional
 import numpy as np
 import pandas as pd
 
+from gold.enriquecimiento import calcular_perfiles_por_genero
 from utils.clickhouse_client import get_client, get_date_id, load_lookup
 from utils.config import get_config
 
@@ -111,6 +112,7 @@ def _generate_synthetic(
     genre_map: dict,
     mode: str = "uniform",
     empirical: Optional[dict] = None,
+    perfiles_genero: Optional[dict] = None,
 ) -> pd.DataFrame:
     rng = np.random.default_rng(week * 42)
 
@@ -118,19 +120,35 @@ def _generate_synthetic(
     artist_ids = np.array(list(artist_map.values()), dtype=np.int64)
     album_ids  = np.array(list(album_map.values()),  dtype=np.int64)
     genre_ids  = np.array(list(genre_map.values()),  dtype=np.int64)
+    g_ids      = rng.choice(genre_ids, n)
 
     if mode == "empirical" and empirical is not None:
-        pops      = rng.choice(empirical["popularity"],       n).astype(np.int32)
-        tempos    = rng.choice(empirical["tempo"],            n).astype(np.float32)
-        energies  = rng.choice(empirical["energy"],          n).astype(np.float32)
-        dance     = rng.choice(empirical["danceability"],    n).astype(np.float32)
-        loud      = rng.choice(empirical["loudness"],        n).astype(np.float32)
-        speech    = rng.choice(empirical["speechiness"],     n).astype(np.float32)
-        acoust    = rng.choice(empirical["acousticness"],    n).astype(np.float32)
-        instrum   = rng.choice(empirical["instrumentalness"], n).astype(np.float32)
-        livenes   = rng.choice(empirical["liveness"],        n).astype(np.float32)
-        valence   = rng.choice(empirical["valence"],         n).astype(np.float32)
-        durations = rng.choice(empirical["duration_ms"],     n).astype(np.int64)
+        pops      = rng.choice(empirical["popularity"],   n).astype(np.int32)
+        loud      = rng.choice(empirical["loudness"],     n).astype(np.float32)
+        speech    = rng.choice(empirical["speechiness"],  n).astype(np.float32)
+        livenes   = rng.choice(empirical["liveness"],     n).astype(np.float32)
+        durations = rng.choice(empirical["duration_ms"],  n).astype(np.int64)
+
+        # Género asignado primero (g_ids), características de audio remuestreadas
+        # del pool empírico DEL PROPIO GÉNERO (design.md, decisión 2) — respaldo
+        # al pool global si el género no tiene perfil propio (muestra insuficiente).
+        energies  = np.empty(n, dtype=np.float32)
+        dance     = np.empty(n, dtype=np.float32)
+        acoust    = np.empty(n, dtype=np.float32)
+        instrum   = np.empty(n, dtype=np.float32)
+        valence   = np.empty(n, dtype=np.float32)
+        tempos    = np.empty(n, dtype=np.float32)
+        perfiles_genero = perfiles_genero or {}
+        for genero in np.unique(g_ids):
+            mask  = g_ids == genero
+            count = int(mask.sum())
+            pool  = perfiles_genero.get(int(genero), empirical)
+            energies[mask] = rng.choice(pool["energy"],           count).astype(np.float32)
+            dance[mask]    = rng.choice(pool["danceability"],     count).astype(np.float32)
+            acoust[mask]   = rng.choice(pool["acousticness"],     count).astype(np.float32)
+            instrum[mask]  = rng.choice(pool["instrumentalness"], count).astype(np.float32)
+            valence[mask]  = rng.choice(pool["valence"],          count).astype(np.float32)
+            tempos[mask]   = rng.choice(pool["tempo"],            count).astype(np.float32)
 
     elif mode == "normal":
         def _norm_float(mu, sigma, lo, hi):
@@ -170,7 +188,6 @@ def _generate_synthetic(
     exp_ids   = rng.integers(1, 3,        n)
     a_ids     = rng.choice(artist_ids,    n)
     al_ids    = rng.choice(album_ids,     n)
-    g_ids     = rng.choice(genre_ids,     n)
 
     track_names = _build_track_names(rng, n)
 
@@ -224,11 +241,15 @@ def run_synthetic(**context):
     artist_map = load_lookup(client, "DIM_ARTISTS", "name", "artist_id")
 
     empirical = None
+    perfiles_genero = None
     if mode == "empirical":
         empirical = _load_empirical(client)
         if empirical is None:
             print("[synthetic] WARN: no hay datos reales para modo empirical — usando uniform.")
             mode = "uniform"
+        else:
+            perfiles_genero = calcular_perfiles_por_genero(client)
+            print(f"[synthetic] Perfiles de audio por género: {len(perfiles_genero)} géneros con muestra propia.")
 
     print(f"[synthetic] Modo de distribución: {mode}")
 
@@ -237,7 +258,7 @@ def run_synthetic(**context):
         syn_date_id = get_date_id(client, syn_week)
         syn_df      = _generate_synthetic(
             syn_week, next_id, syn_date_id, artist_map, album_map, genre_map,
-            mode=mode, empirical=empirical,
+            mode=mode, empirical=empirical, perfiles_genero=perfiles_genero,
         )
         for start in range(0, len(syn_df), 50_000):
             client.insert_df("FACT_TRACKS", syn_df.iloc[start:start + 50_000])

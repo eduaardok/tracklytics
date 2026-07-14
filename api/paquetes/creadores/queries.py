@@ -124,6 +124,36 @@ def subidas_admin_sql(where: str) -> str:
 
 GENERO_EXISTE = "SELECT count() AS n FROM DIM_GENRES WHERE genre_id = {genre_id:UInt16}"
 
+# ── Perfil de audio por género (subida de track, mismo criterio de la ingesta) ─
+# Consulta propia y liviana en vez de importar `etl/gold/enriquecimiento.py`:
+# API y ETL corren en contenedores/entornos Python separados (ver design.md de
+# `enriquecimiento-catalogo`, decisión 2 — misma convención de duplicación
+# intencional ya usada entre `regalias/router.py` y `regalias_liquidacion.py`).
+PERFIL_AUDIO_POR_GENERO = """
+SELECT
+    count()                    AS n,
+    avg(energy)                AS energy,
+    avg(danceability)          AS danceability,
+    avg(acousticness)          AS acousticness,
+    avg(instrumentalness)      AS instrumentalness,
+    avg(valence)                AS valence,
+    avg(tempo)                  AS tempo
+FROM FACT_TRACKS
+WHERE source_type = 'real' AND genre_id = {genre_id:UInt16}
+"""
+
+PERFIL_AUDIO_GLOBAL = """
+SELECT
+    avg(energy)                AS energy,
+    avg(danceability)          AS danceability,
+    avg(acousticness)          AS acousticness,
+    avg(instrumentalness)      AS instrumentalness,
+    avg(valence)                AS valence,
+    avg(tempo)                  AS tempo
+FROM FACT_TRACKS
+WHERE source_type = 'real'
+"""
+
 # ── Resolución de dimensiones para la promoción a FACT_TRACKS (promocion.py) ──
 
 ARTIST_ID_POR_NOMBRE = "SELECT artist_id FROM DIM_ARTISTS WHERE name = {name:String} LIMIT 1"

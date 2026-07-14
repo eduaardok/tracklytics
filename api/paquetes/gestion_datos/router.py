@@ -7,6 +7,7 @@ from pydantic import BaseModel
 
 from core.config import (
     AIRFLOW_DAG, AIRFLOW_PASS, AIRFLOW_URL, AIRFLOW_USER, CH_DB, DIM_FK_COLUMN, DIM_TABLES,
+    RECALIFICACION_DAG,
 )
 from core.database import execute, get_client, query_one, query_rows
 from paquetes.gestion_datos.deps import require_lead_data_engineer
@@ -326,15 +327,17 @@ class EjecucionIngestaRequest(BaseModel):
     synthetic_mode: Literal["uniform", "normal", "empirical"] = "uniform"
 
 
-async def _airflow_has_active_run() -> bool:
+async def _airflow_has_active_run(dag_id: str = AIRFLOW_DAG) -> bool:
     """Guard de concurrencia (tarea 2.3): el pipeline actual trunca toda
     FACT_TRACKS en cada corrida (recarga completa, no incremental), por lo
     que dos ejecuciones simultáneas de cualquier semana corromperían los
     datos entre sí. ETL_BATCH_CONTROL no tiene una columna de estado para
     marcar "en curso" y el Migration Plan de esta capability prohíbe
     modificar el modelo de datos técnico — el guard se apoya en el estado
-    real de Airflow (dagRuns activos) en vez de un campo nuevo en ClickHouse."""
-    url = f"{AIRFLOW_URL}/api/v1/dags/{AIRFLOW_DAG}/dagRuns"
+    real de Airflow (dagRuns activos) en vez de un campo nuevo en ClickHouse.
+    Reutilizado por la recalificación (tarea 3 de `enriquecimiento-catalogo`)
+    pasando su propio `dag_id`, para no permitir dos recalificaciones a la vez."""
+    url = f"{AIRFLOW_URL}/api/v1/dags/{dag_id}/dagRuns"
     async with httpx.AsyncClient(timeout=10) as client:
         resp = await client.get(
             url,
@@ -446,6 +449,78 @@ async def estado_ejecucion(ejecucion_id: str):
         "ejecucion_id": ejecucion_id,
         "estado":       run_resp.json().get("state"),
         "etapas":       etapas,
+    }
+
+
+_recalificacion_lock = asyncio.Lock()
+
+
+@v1_router.post("/recalificacion", status_code=202)
+async def disparar_recalificacion():
+    """CU-O79: dispara `tracklytics_recalificacion` (DAG independiente, design.md
+    decisión 3) para corregir en bloque álbumes/artistas sin año/país informado
+    y tracks no reales con perfil de audio incoherente con su género."""
+    async with _recalificacion_lock:
+        try:
+            if await _airflow_has_active_run(RECALIFICACION_DAG):
+                raise HTTPException(
+                    status_code=409,
+                    detail="Ya hay una recalificación en curso en Airflow. Espere a que finalice.",
+                )
+        except httpx.RequestError as exc:
+            raise HTTPException(status_code=502, detail=f"Cannot reach Airflow: {exc}")
+
+        url = f"{AIRFLOW_URL}/api/v1/dags/{RECALIFICACION_DAG}/dagRuns"
+        try:
+            async with httpx.AsyncClient(timeout=10) as client:
+                resp = await client.post(url, json={"conf": {}}, auth=(AIRFLOW_USER, AIRFLOW_PASS))
+            if resp.status_code not in (200, 201):
+                raise HTTPException(status_code=resp.status_code, detail=f"Airflow error: {resp.text}")
+            airflow_data = resp.json()
+        except httpx.RequestError as exc:
+            raise HTTPException(status_code=502, detail=f"Cannot reach Airflow: {exc}")
+
+    return {"ejecucion_id": airflow_data.get("dag_run_id"), "airflow": airflow_data}
+
+
+@v1_router.get("/recalificacion/{ejecucion_id}")
+async def estado_recalificacion(ejecucion_id: str):
+    """Estado de una ejecución de recalificación, mismo patrón que `estado_ejecucion`."""
+    base = f"{AIRFLOW_URL}/api/v1/dags/{RECALIFICACION_DAG}/dagRuns/{ejecucion_id}"
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            run_resp   = await client.get(base, auth=(AIRFLOW_USER, AIRFLOW_PASS))
+            tasks_resp = await client.get(f"{base}/taskInstances", auth=(AIRFLOW_USER, AIRFLOW_PASS))
+    except httpx.RequestError as exc:
+        raise HTTPException(status_code=502, detail=f"Cannot reach Airflow: {exc}")
+
+    if run_resp.status_code == 404:
+        raise HTTPException(status_code=404, detail="Ejecución no encontrada")
+    if not run_resp.is_success:
+        raise HTTPException(status_code=run_resp.status_code, detail=f"Airflow error: {run_resp.text}")
+
+    tarea_estado = None
+    if tasks_resp.is_success:
+        for t in tasks_resp.json().get("task_instances", []):
+            if t.get("task_id") == "task_recalificacion":
+                tarea_estado = t.get("state")
+
+    resultado = None
+    if tarea_estado == "success":
+        xcom_url = f"{base}/taskInstances/task_recalificacion/xcomEntries/resultado"
+        try:
+            async with httpx.AsyncClient(timeout=10) as client:
+                xcom_resp = await client.get(xcom_url, auth=(AIRFLOW_USER, AIRFLOW_PASS))
+            if xcom_resp.is_success:
+                resultado = xcom_resp.json().get("value")
+        except httpx.RequestError:
+            pass
+
+    return {
+        "ejecucion_id": ejecucion_id,
+        "estado":       run_resp.json().get("state"),
+        "tarea_estado": tarea_estado,
+        "resultado":    resultado,
     }
 
 
