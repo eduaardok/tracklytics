@@ -83,6 +83,8 @@ export function InvoiceDetailPage() {
           <div>
             <div className={styles.sectionLabel}>Método de pago</div>
             <div>{inv.metodo_tipo ? `${inv.metodo_tipo} •••• ${inv.metodo_ultimos_4}` : '—'}</div>
+            {inv.metodo_nombre_titular && <div className={styles.muted}>{inv.metodo_nombre_titular}</div>}
+            {inv.metodo_pais && <div className={styles.muted}>{inv.metodo_pais}</div>}
           </div>
         </div>
 

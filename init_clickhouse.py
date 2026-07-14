@@ -404,6 +404,10 @@ DDL_STATEMENTS = [
         tipo               String,
         ultimos_4_digitos  String,
         pais               String,
+        nombre_titular     String DEFAULT '',
+        direccion          String DEFAULT '',
+        ciudad             String DEFAULT '',
+        codigo_postal      String DEFAULT '',
         creado_en          DateTime DEFAULT now()
     ) ENGINE = MergeTree()
     ORDER BY (usuario_id, metodo_pago_id)
@@ -629,6 +633,36 @@ DDL_STATEMENTS = [
         estado       Enum8('activa'=1, 'vencida'=2, 'suspendida'=3) DEFAULT 'activa'
     ) ENGINE = MergeTree()
     ORDER BY (sello_id, pais_id)
+    """,
+
+    # Contrapartida "de solicitud" de DIM_LICENCIA: hoy el admin crea licencias
+    # de forma unilateral, sin dejar rastro de que un sello las pidió. Este
+    # cambio introduce el flujo pendiente -> aprobada/rechazada, mismo patrón
+    # ReplacingMergeTree(actualizado_en) que DIM_CUENTA_ARTISTA (aprobación de
+    # cuenta de artista, `creadores`). `canales_solicitados` se guarda solo
+    # para contexto/auditoría — DIM_LICENCIA no tiene columna de canal (el
+    # canal vive un nivel más abajo, en DIM_CANAL_DISTRIBUCION /
+    # FACT_RESTRICCION_REPRODUCCION), así que no se propaga al aprobar. No
+    # existe todavía un login de "usuario sello" (solo admin/user/analyst vía
+    # PocketBase): por ahora el admin crea la solicitud en nombre del sello,
+    # pero `sello_id` queda en la fila para que un futuro login de sello
+    # pueda filtrar "mis solicitudes" sin cambiar el modelo.
+    f"""
+    CREATE TABLE IF NOT EXISTS {DB}.SOLICITUD_LICENCIA (
+        solicitud_id            String,
+        sello_id                UInt32,
+        paises_solicitados      Array(UInt16),
+        canales_solicitados     Array(UInt16),
+        fecha_inicio_propuesta  Date,
+        fecha_fin_propuesta     Nullable(Date),
+        estado                  Enum8('pendiente'=1, 'aprobada'=2, 'rechazada'=3) DEFAULT 'pendiente',
+        motivo_rechazo          Nullable(String),
+        fecha_solicitud         DateTime,
+        fecha_resolucion        Nullable(DateTime),
+        admin_resolutor_id      Nullable(String),
+        actualizado_en          DateTime DEFAULT now()
+    ) ENGINE = ReplacingMergeTree(actualizado_en)
+    ORDER BY solicitud_id
     """,
 
     f"""

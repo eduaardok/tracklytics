@@ -1,21 +1,25 @@
 import { useEffect, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { analiticaApi } from '../api/analitica.api'
-import type { ArtistSearchResult } from '../types'
-import styles from './ArtistPicker.module.css'
+import { apiClient, type ApiResponse } from '@shared/lib/api-client'
+import styles from './TrackPicker.module.css'
+
+export type AlbumSearchResult = {
+  album_id:     number
+  name:         string
+  release_year?: number | null
+}
 
 type Props = {
   label:    string
-  selected: ArtistSearchResult | null
-  onSelect: (artist: ArtistSearchResult) => void
+  selected: AlbumSearchResult | null
+  onSelect: (album: AlbumSearchResult) => void
   onClear:  () => void
 }
 
-// Extraído del patrón de búsqueda+dropdown de EngagementPage (debounce 300ms,
-// mousedown en vez de click para seleccionar antes del blur) — aquí solo busca
-// artistas, reusado por ComparacionPage (x2) y ArtistaBenchmarkPage (x1) para no
-// triplicar la misma lógica de búsqueda.
-export function ArtistPicker({ label, selected, onSelect, onClear }: Props) {
+// Mismo patrón que TrackPicker/ArtistPicker/UserPicker (S11) — reemplaza el
+// `album_id` crudo que "Asignar sello a artista o álbum" exigía conocer de
+// memoria.
+export function AlbumPicker({ label, selected, onSelect, onClear }: Props) {
   const [query, setQuery]               = useState('')
   const [debouncedQ, setDebouncedQ]     = useState('')
   const [showDropdown, setShowDropdown] = useState(false)
@@ -32,14 +36,17 @@ export function ArtistPicker({ label, selected, onSelect, onClear }: Props) {
   }, [debouncedQ, selected])
 
   const searchQuery = useQuery({
-    queryKey: ['analitica', 'artist-picker-search', debouncedQ],
-    queryFn:  () => analiticaApi.artistsSearch(debouncedQ),
-    enabled:  debouncedQ.length >= 2 && !selected,
+    queryKey: ['shared', 'album-picker-search', debouncedQ],
+    queryFn:  () =>
+      apiClient.get<ApiResponse<AlbumSearchResult>>(
+        `/albums/search?q=${encodeURIComponent(debouncedQ)}&limit=8`,
+      ),
+    enabled: debouncedQ.length >= 2 && !selected,
   })
 
-  function select(artist: ArtistSearchResult) {
-    onSelect(artist)
-    setQuery(artist.name)
+  function select(album: AlbumSearchResult) {
+    onSelect(album)
+    setQuery(album.name)
     setShowDropdown(false)
   }
 
@@ -65,7 +72,7 @@ export function ArtistPicker({ label, selected, onSelect, onClear }: Props) {
           onChange={(e) => { if (!selected) setQuery(e.target.value) }}
           onFocus={() => { if (!selected && debouncedQ.length >= 2) setShowDropdown(true) }}
           onBlur={() => setTimeout(() => setShowDropdown(false), 150)}
-          placeholder="Nombre del artista…"
+          placeholder="Nombre del álbum…"
           aria-label={label}
           aria-haspopup="listbox"
           aria-expanded={showDropdown}
@@ -88,9 +95,12 @@ export function ArtistPicker({ label, selected, onSelect, onClear }: Props) {
               </li>
             )}
             {items.map((a) => (
-              <li key={a.artist_id} role="option" aria-selected={false}>
+              <li key={a.album_id} role="option" aria-selected={false}>
                 <button type="button" className={styles.dropdownItem} onMouseDown={() => select(a)}>
-                  <span className={styles.dropdownName}>{a.name}</span>
+                  <span className={styles.dropdownMeta}>
+                    <span className={styles.dropdownName}>{a.name}</span>
+                    {a.release_year ? <span className={styles.dropdownSub}>{a.release_year}</span> : null}
+                  </span>
                 </button>
               </li>
             ))}

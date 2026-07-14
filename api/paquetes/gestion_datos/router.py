@@ -15,8 +15,9 @@ from paquetes.gestion_datos.queries import (
     ETL_LOGS, ETL_LOGS_TOTAL, ETL_STATUS_LAST,
     DATA_QUALITY_COUNTS, DATA_QUALITY_REJECTION, DATA_QUALITY_LAST_LOAD,
     CARGAS_HISTORIAL, CARGAS_ULTIMA, ETL_BATCH_EXISTS,
+    ETL_MUESTRA, ETL_MUESTRA_LAST_WEEK, ETL_DISTRIBUCION_GENEROS,
     dim_fk_references_sql, dim_list_sql, dim_list_total_sql, dim_pk_sql, dim_str_cols_sql,
-    facts_list_sql,
+    facts_list_sql, etl_distribucion_atributo_sql,
 )
 
 router = APIRouter(tags=["Data Management"], dependencies=[Depends(require_lead_data_engineer)])
@@ -542,3 +543,53 @@ def historial_cargas(
         ultima["requiere_revision"] = (ultima.get("tasa_rechazo_pct") or 0) > 1.0
 
     return {"data": rows, "page": page, "limit": limit, "total": total, "ultima_carga": ultima}
+
+
+def _resolve_week_number(week_number: Optional[int]) -> int:
+    """Sin `week_number` explícito, usa la semana más reciente presente en
+    FACT_TRACKS (no ETL_LOGS: una ejecución fallida puede loggearse sin haber
+    insertado filas, y lo que este panel necesita es la semana con datos)."""
+    if week_number is not None:
+        return week_number
+    row = query_one(ETL_MUESTRA_LAST_WEEK)
+    if not row or row["n"] is None:
+        raise HTTPException(status_code=404, detail="No hay ninguna semana cargada en FACT_TRACKS todavía")
+    return row["n"]
+
+
+_ATTR_COLUMNS = ("energy", "valence", "danceability")
+
+
+@v1_router.get("/etl/muestra")
+def etl_muestra(
+    week_number: Optional[int] = Query(None, description="Semana de load_week; por defecto, la más reciente cargada"),
+    limit: int = Query(200, ge=1, le=200),
+):
+    """Muestra aleatoria de una semana ya cargada, para inspección visual de lo
+    que efectivamente se generó/insertó (Context: no había forma de ver qué
+    produjo un modo `synthetic_mode` sin consultar ClickHouse a mano)."""
+    week = _resolve_week_number(week_number)
+    rows = query_rows(ETL_MUESTRA, {"week_number": week, "limit": limit})
+    return {"week_number": week, "data": rows}
+
+
+@v1_router.get("/etl/distribucion")
+def etl_distribucion(
+    week_number: Optional[int] = Query(None, description="Semana de load_week; por defecto, la más reciente cargada"),
+):
+    """Agregados sobre el set COMPLETO de filas de una semana (no la muestra):
+    distribución por género y bins de 0.2 (5 bins, 0.0–1.0) para energy/valence/
+    danceability."""
+    week = _resolve_week_number(week_number)
+    generos = query_rows(ETL_DISTRIBUCION_GENEROS, {"week_number": week})
+
+    atributos: dict[str, list[dict[str, Any]]] = {}
+    for col in _ATTR_COLUMNS:
+        bin_rows = query_rows(etl_distribucion_atributo_sql(col), {"week_number": week})
+        by_bin = {row["bin"]: row["n"] for row in bin_rows}
+        atributos[col] = [
+            {"bin": i, "rango": f"{i * 0.2:.1f}–{i * 0.2 + 0.2:.1f}", "n": by_bin.get(i, 0)}
+            for i in range(5)
+        ]
+
+    return {"week_number": week, "generos": generos, "atributos": atributos}

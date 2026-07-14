@@ -23,7 +23,6 @@ from airflow.utils.trigger_rule import TriggerRule
 from bronze.extractor import run_bronze
 from silver.cleaner import run_silver
 from gold.loader import run_gold, run_log, run_log_failure
-from gold.portada import run_portada
 from gold.synthetic import run_synthetic
 
 
@@ -65,11 +64,13 @@ with DAG(
     task_bronze    = PythonOperator(task_id="task_bronze",    python_callable=run_bronze)
     task_silver    = PythonOperator(task_id="task_silver",    python_callable=run_silver)
     task_gold      = PythonOperator(task_id="task_gold",      python_callable=run_gold)
-    # RF-EXP-009 (capability `experiencia`): resolución de portada real,
-    # aditiva sobre DIM_ARTISTS/DIM_ALBUMS ya pobladas por task_gold — un
-    # fallo aquí no debe tumbar la ingesta de catálogo (retries propios,
-    # errores de red ya absorbidos dentro de `resolver_portadas`).
-    task_portada   = PythonOperator(task_id="task_portada",   python_callable=run_portada)
+    # Resolución de portada (RF-EXP-009) ya no vive en este DAG (S11): con más
+    # semanas cargadas, el volumen de artistas/álbumes nuevos a resolver vía
+    # oEmbed empujó la duración de la ingesta semanal a ~3 min pese a ser
+    # aditiva y no bloquear la disponibilidad de FACT_TRACKS/DIM_ARTISTS/
+    # DIM_ALBUMS. Se movió a `reload_portadas_dag` (mismo patrón que
+    # `reload_portadas_1h.py`/`reload_portadas_5h.py`, disparable aparte y sin
+    # afectar `ETL_LOGS.duration_seconds` de esta ingesta).
     task_synthetic = PythonOperator(task_id="task_synthetic", python_callable=run_synthetic)
     task_log       = PythonOperator(task_id="task_log",       python_callable=run_log)
 
@@ -82,5 +83,5 @@ with DAG(
         trigger_rule=TriggerRule.ONE_FAILED,
     )
 
-    task_bronze >> task_silver >> task_gold >> task_portada >> task_synthetic >> task_log
-    [task_bronze, task_silver, task_gold, task_portada, task_synthetic] >> task_log_failure
+    task_bronze >> task_silver >> task_gold >> task_synthetic >> task_log
+    [task_bronze, task_silver, task_gold, task_synthetic] >> task_log_failure

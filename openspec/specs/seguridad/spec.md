@@ -129,7 +129,7 @@ El sistema SHALL capturar toda excepción no controlada ocurrida en la API en `F
 - **THEN** el sistema rechaza la operación indicando que la consulta de errores es exclusiva de `admin`
 
 ### Requirement: Búsqueda de usuarios por nombre o correo
-El sistema SHALL permitir a un usuario con rol `admin` buscar usuarios por coincidencia parcial de nombre o de correo electrónico, devolviendo como máximo un número acotado de resultados por consulta. Esta búsqueda SHALL ser de solo lectura y SHALL estar restringida a `admin`.
+El sistema SHALL permitir a un usuario con rol `admin` buscar usuarios por coincidencia parcial de nombre o de correo electrónico, devolviendo como máximo un número acotado de resultados por consulta. Esta búsqueda SHALL ser de solo lectura y SHALL estar restringida a `admin`. Cuando no se especifique término de búsqueda, el sistema SHALL retornar el listado completo de usuarios paginado, en vez de una lista vacía, para soportar una vista de administración de usuarios sin necesidad de conocer un nombre o correo de antemano.
 
 #### Scenario: Admin busca un usuario por nombre parcial
 - **WHEN** un usuario con rol `admin` busca usuarios escribiendo parte de un nombre
@@ -147,9 +147,76 @@ El sistema SHALL permitir a un usuario con rol `admin` buscar usuarios por coinc
 - **WHEN** un usuario con rol distinto de `admin` intenta buscar usuarios por nombre o correo
 - **THEN** el sistema rechaza la operación indicando que la búsqueda de usuarios es exclusiva de `admin`
 
-#### Scenario: Admin explora el listado completo de usuarios sin escribir un término
-- **WHEN** un usuario con rol `admin` abre el listado completo de usuarios sin escribir ningún término de búsqueda, opcionalmente filtrando por rol
-- **THEN** el sistema retorna una página de usuarios con nombre, correo, rol y fecha de registro, pensada para una presentación tabular de varias columnas y no solo para autocompletar
+#### Scenario: Admin lista todos los usuarios sin término de búsqueda
+- **WHEN** un usuario con rol `admin` solicita el listado de usuarios sin especificar un término de búsqueda
+- **THEN** el sistema retorna el listado completo de usuarios, paginado, ordenado por fecha de registro descendente
+
+### Requirement: Actualización del propio perfil
+El sistema SHALL permitir a cualquier usuario autenticado actualizar su propio nombre y país declarado, sin requerir ningún rol especial. El sistema NO SHALL permitir que un usuario actualice el perfil de otro usuario mediante este mecanismo.
+
+#### Scenario: Usuario actualiza su propio nombre
+- **WHEN** un usuario autenticado envía un nuevo nombre para su propio perfil
+- **THEN** el sistema persiste el cambio y lo refleja en las consultas posteriores de su perfil
+
+#### Scenario: Usuario actualiza su país declarado
+- **WHEN** un usuario autenticado envía un nuevo país para su propio perfil, seleccionado de un catálogo de países conocido
+- **THEN** el sistema persiste el país declarado, de forma que las consultas de disponibilidad geográfica (capability `distribucion`) puedan resolverlo de forma confiable
+
+### Requirement: Consulta y cierre remoto de sesiones activas propias
+El sistema SHALL permitir a cualquier usuario autenticado consultar la lista de sus propias sesiones actualmente abiertas (`FACT_SESION` sin `fecha_fin`), y cerrar remotamente cualquiera de ellas por `sesion_id`. El sistema SHALL rechazar el cierre de una sesión que no pertenezca al usuario autenticado.
+
+#### Scenario: Usuario consulta sus sesiones abiertas en múltiples dispositivos
+- **WHEN** un usuario autenticado que inició sesión desde más de un dispositivo consulta sus sesiones activas
+- **THEN** el sistema retorna una sesión por cada inicio de sesión sin cerrar, identificando el dispositivo de cada una
+
+#### Scenario: Usuario cierra remotamente una de sus sesiones
+- **WHEN** un usuario autenticado solicita cerrar una sesión propia distinta a la actual
+- **THEN** el sistema registra en `FACT_SESION` la fecha de fin y la duración de esa sesión, y esa sesión deja de aparecer en la lista de sesiones abiertas
+
+#### Scenario: Usuario intenta cerrar una sesión de otro usuario
+- **WHEN** un usuario autenticado intenta cerrar una sesión cuyo `usuario_id` no coincide con el suyo
+- **THEN** el sistema rechaza la operación sin modificar la sesión ajena
+
+### Requirement: Panel administrativo de métricas operativas de seguridad
+El sistema SHALL exponer a un usuario con rol `admin` un panel con métricas operativas agregadas de la capability `seguridad`: acciones auditadas por día, errores de sistema de las últimas 24 horas, y total de sesiones actualmente abiertas en la plataforma.
+
+#### Scenario: Admin consulta el panel de métricas de seguridad
+- **WHEN** un usuario con rol `admin` solicita el dashboard de seguridad
+- **THEN** el sistema retorna la serie diaria de acciones auditadas, el conteo de errores de las últimas 24 horas y el total de sesiones abiertas, calculados sobre datos reales de `FACT_AUDIT_LOG`/`FACT_ERROR_SISTEMA`/`FACT_SESION`
+
+#### Scenario: Usuario sin rol admin intenta consultar el panel de seguridad
+- **WHEN** un usuario sin rol `admin` intenta consultar el dashboard de seguridad
+- **THEN** el sistema rechaza la operación
+
+### Requirement: Visibilidad de perfil (público/privado)
+El sistema SHALL permitir a un usuario autenticado consultar y actualizar la visibilidad de su propio perfil (público o privado), privado por defecto para cualquier cuenta nueva. Esta preferencia SHALL ser de solo lectura para cualquier otro usuario.
+
+#### Scenario: Consultar la visibilidad propia del perfil
+- **WHEN** un usuario autenticado solicita los datos de su propio perfil
+- **THEN** el sistema retorna, entre otros campos, si su perfil está marcado como público o privado
+
+#### Scenario: Cambiar la visibilidad del propio perfil
+- **WHEN** un usuario autenticado actualiza su perfil marcándolo como público o privado
+- **THEN** el sistema persiste esa preferencia y la refleja en consultas posteriores de su perfil
+
+#### Scenario: Cuenta nueva nace privada
+- **WHEN** un usuario se registra
+- **THEN** su perfil queda marcado como privado hasta que lo cambie explícitamente
+
+### Requirement: Exploración paginada de usuarios sin término de búsqueda
+El sistema SHALL permitir a un usuario con rol admin listar la tabla completa de usuarios de forma paginada sin proporcionar un término de búsqueda, filtrable opcionalmente por rol y por rango de fecha de registro.
+
+#### Scenario: Listar usuarios sin escribir un término de búsqueda
+- **WHEN** un usuario con rol admin solicita el listado de usuarios sin un término de búsqueda
+- **THEN** el sistema retorna una página de la tabla completa de usuarios ordenada por fecha de registro descendente, junto con el total de usuarios y la página solicitada
+
+#### Scenario: Filtrar el listado por rol
+- **WHEN** un usuario con rol admin solicita el listado de usuarios indicando un rol
+- **THEN** el sistema retorna únicamente los usuarios con ese rol
+
+#### Scenario: Filtrar el listado por rango de fecha de registro
+- **WHEN** un usuario con rol admin solicita el listado de usuarios indicando una fecha de registro mínima, máxima, o ambas
+- **THEN** el sistema retorna únicamente los usuarios registrados dentro de ese rango
 
 ## Entradas
 

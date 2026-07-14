@@ -6,6 +6,7 @@ import type {
   Restriccion, RestriccionBody,
   Disponibilidad, DashboardDistribucion,
   EstadoDisponibilidadFiltro, DisponibilidadListaResponse,
+  SolicitudLicencia, SolicitudLicenciaBody, RechazarSolicitudBody, EstadoSolicitudLicencia,
 } from '../types'
 
 export const distribucionApi = {
@@ -52,6 +53,31 @@ export const distribucionApi = {
 
   crearLicencia: (body: LicenciaBody) =>
     apiClient.post<{ status: string; licencia_id: number }>('/distribucion/licencias', body),
+
+  // ── Solicitudes de licencia ──────────────────────────────────────────────────
+  // Interino: sin login de "sello" todavía (solo admin/user/analyst vía
+  // PocketBase), el admin crea la solicitud en nombre del sello — mismo
+  // criterio que `crearLicencia` arriba.
+  crearSolicitudLicencia: (body: SolicitudLicenciaBody) =>
+    apiClient.post<{ status: string; solicitud_id: string; estado: string }>('/distribucion/solicitudes-licencia', body),
+
+  solicitudesLicencia: (estado?: EstadoSolicitudLicencia) => {
+    const suffix = estado ? `?estado=${estado}` : ''
+    return apiClient.get<ApiResponse<SolicitudLicencia>>(`/distribucion/solicitudes-licencia${suffix}`)
+  },
+
+  solicitudesLicenciaDeSello: (selloId: number) =>
+    apiClient.get<ApiResponse<SolicitudLicencia>>(`/distribucion/sellos/${selloId}/solicitudes-licencia`),
+
+  aprobarSolicitudLicencia: (solicitudId: string) =>
+    apiClient.post<{ status: string; solicitud_id: string; estado: string; licencia_ids: number[] }>(
+      `/distribucion/solicitudes-licencia/${solicitudId}/aprobar`, {},
+    ),
+
+  rechazarSolicitudLicencia: (solicitudId: string, body: RechazarSolicitudBody) =>
+    apiClient.post<{ status: string; solicitud_id: string; estado: string }>(
+      `/distribucion/solicitudes-licencia/${solicitudId}/rechazar`, body,
+    ),
 
   // ── Restricciones de reproducción ───────────────────────────────────────────
   restricciones: (factIdTrack: number) =>

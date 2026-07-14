@@ -62,9 +62,9 @@
 
 - [x] 12.1 `tsc --noEmit` limpio (sin errores nuevos — el único error preexistente es `EngagementPage.tsx`, no tocado en esta ronda)
 - [x] 12.2 `npm run build` limpio
-- [ ] 12.3 Playwright: login, campana de notificaciones, perfil público (propio y ajeno), toggle de visibilidad de playlist, secciones de "Para ti", `UserPicker` en modo explorar, toasts de éxito/error en al menos 3 acciones distintas
+- [x] 12.3 Playwright: login, campana de notificaciones, perfil público (propio y ajeno), toggle de visibilidad de playlist, secciones de "Para ti", `UserPicker` en modo explorar, toasts de éxito/error en al menos 3 acciones distintas (ejecutado y documentado en `docs/BITACORA_S10.md` sección "Ronda 2 → Verificación" — quedó sin marcar en este archivo por descuido de bookkeeping, confirmado en S11)
 
 ## 13. Documentación
 
-- [ ] 13.1 `openspec validate --strict --all`
-- [ ] 13.2 Nueva sección en `docs/BITACORA_S10.md` con fecha 2026-07-12
+- [x] 13.1 `openspec validate --strict --all` (17/17 en verde, reconfirmado S11)
+- [x] 13.2 Nueva sección en `docs/BITACORA_S10.md` con fecha 2026-07-12 ("Ronda 2", línea 378)

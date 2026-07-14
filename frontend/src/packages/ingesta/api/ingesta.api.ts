@@ -3,7 +3,7 @@ import { getAuthHeaders } from '@shared/lib/session'
 import type {
   EjecucionIngestaRequest, EjecucionTrigger, EjecucionEstado,
   CargasHistorial, DataQuality, DimListResponse, DimRow, FactsListResponse,
-  RecalificacionTrigger, RecalificacionEstado,
+  RecalificacionTrigger, RecalificacionEstado, EtlMuestra, EtlDistribucion,
 } from '../types'
 
 // `/app/v1/ingesta/*` funciona con `apiClient` normal (mismo prefijo, mismo
@@ -56,6 +56,18 @@ export const ingestaApi = {
 
   cargas: (page = 1, limit = 20) =>
     apiClient.get<CargasHistorial>(`/ingesta/cargas?page=${page}&limit=${limit}`),
+
+  // Muestra/distribución de una semana ya cargada — inspección visual de lo
+  // que efectivamente produjo un modo synthetic_mode dado.
+  etlMuestra: (weekNumber?: number, limit = 200) =>
+    apiClient.get<EtlMuestra>(
+      `/ingesta/etl/muestra?limit=${limit}${weekNumber !== undefined ? `&week_number=${weekNumber}` : ''}`,
+    ),
+
+  etlDistribucion: (weekNumber?: number) =>
+    apiClient.get<EtlDistribucion>(
+      `/ingesta/etl/distribucion${weekNumber !== undefined ? `?week_number=${weekNumber}` : ''}`,
+    ),
 
   // CU-O79 — mismo criterio de `rawRequest` que `trigger`: el 409 de
   // "recalificación ya en curso" trae el mensaje real en `detail`.

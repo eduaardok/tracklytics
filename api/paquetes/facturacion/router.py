@@ -47,6 +47,20 @@ class MetodoPagoBody(BaseModel):
     tipo: str
     ultimos_4_digitos: str
     pais: str = ""
+    # Dirección de facturación — dato descriptivo capturado por el checkout
+    # simulado (front). Nunca se incluyen aquí número de tarjeta completo,
+    # expiración ni CVV: al no existir el campo en este schema, no hay forma
+    # de que esos datos lleguen a persistirse (ver design.md, "Sin pasarela
+    # de pago real").
+    # Opcional a nivel de schema (default "") para no romper el alta rápida
+    # de método de pago que ya existe en `suscripciones/PlanesPage.tsx`
+    # (flujo mínimo, fuera del alcance de este cambio) — el checkout
+    # simulado y más realista de `FacturacionPage.tsx` sí lo exige
+    # client-side antes de enviar la petición.
+    nombre_titular: str = ""
+    direccion: str = ""
+    ciudad: str = ""
+    codigo_postal: str = ""
 
 
 @router.post("/metodos-pago", status_code=201)
@@ -56,15 +70,24 @@ def registrar_metodo_pago(body: MetodoPagoBody, user: dict = Depends(get_current
 
     get_client().insert(
         "DIM_METODO_PAGO",
-        [(metodo_pago_id, usuario_id, body.tipo, body.ultimos_4_digitos, body.pais)],
-        column_names=["metodo_pago_id", "usuario_id", "tipo", "ultimos_4_digitos", "pais"],
+        [(
+            metodo_pago_id, usuario_id, body.tipo, body.ultimos_4_digitos, body.pais,
+            body.nombre_titular, body.direccion, body.ciudad, body.codigo_postal,
+        )],
+        column_names=[
+            "metodo_pago_id", "usuario_id", "tipo", "ultimos_4_digitos", "pais",
+            "nombre_titular", "direccion", "ciudad", "codigo_postal",
+        ],
     )
     audit.record(
         usuario_id=usuario_id,
         accion="registro_metodo_pago",
         tabla_afectada="DIM_METODO_PAGO",
         antes=None,
-        despues={"tipo": body.tipo, "ultimos_4_digitos": body.ultimos_4_digitos, "pais": body.pais},
+        despues={
+            "tipo": body.tipo, "ultimos_4_digitos": body.ultimos_4_digitos, "pais": body.pais,
+            "nombre_titular": body.nombre_titular, "ciudad": body.ciudad,
+        },
     )
     return {"status": "ok", "metodo_pago_id": metodo_pago_id}
 

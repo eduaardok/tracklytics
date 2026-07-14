@@ -1,4 +1,5 @@
 import random
+import uuid
 from datetime import date, datetime, timezone
 from typing import Literal, Optional
 
@@ -26,13 +27,21 @@ from paquetes.distribucion.queries import (
     SELLO_ID_MAX,
     SELLO_POR_ID,
     SELLOS_LIST,
+    SOLICITUD_LICENCIA_ACTUAL_POR_ID,
     TIPO_RESTRICCION_EXISTE,
     TIPOS_RESTRICCION_LIST,
     TRACK_EXISTE,
     disponibilidad_lista_sql,
     disponibilidad_lista_total_sql,
     licencias_sql,
+    solicitudes_licencia_sql,
 )
+
+_SOLICITUD_LICENCIA_COLS = [
+    "solicitud_id", "sello_id", "paises_solicitados", "canales_solicitados",
+    "fecha_inicio_propuesta", "fecha_fin_propuesta", "estado", "motivo_rechazo",
+    "fecha_solicitud", "fecha_resolucion", "admin_resolutor_id",
+]
 
 router = APIRouter(prefix="/app/v1/distribucion", tags=["Distribucion"])
 
@@ -236,6 +245,153 @@ def listar_licencias(sello_id: int | None = Query(None), pais_id: int | None = Q
         params["pais_id"] = pais_id
     where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
     return {"data": query_rows(licencias_sql(where), params)}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 2b. Solicitudes de licencia (RF-DIS-003/004): un sello ya no queda a merced
+# de que el admin cree licencias unilateralmente — el flujo pasa primero por
+# `pendiente`, y el admin aprueba o rechaza (mismo idioma que la aprobación de
+# cuenta de artista en `creadores/router.py::resolver_cuenta`). Todavía no
+# existe login de "sello" (solo admin/user/analyst vía PocketBase): por ahora
+# el admin crea la solicitud en nombre del sello (`require_admin`, igual que
+# `crear_licencia`), pero cada fila guarda `sello_id`, así que un futuro login
+# de sello puede filtrar "mis solicitudes" sin migrar el modelo.
+# ─────────────────────────────────────────────────────────────────────────────
+
+class SolicitudLicenciaBody(BaseModel):
+    sello_id: int
+    paises_solicitados: list[int]
+    canales_solicitados: list[int]
+    fecha_inicio_propuesta: date
+    fecha_fin_propuesta: date | None = None
+
+
+class RechazarSolicitudBody(BaseModel):
+    motivo: str
+
+
+@router.post("/solicitudes-licencia", status_code=201)
+def crear_solicitud_licencia(body: SolicitudLicenciaBody, admin: dict = Depends(require_admin)):
+    if not body.paises_solicitados:
+        raise HTTPException(status_code=422, detail="Debe incluir al menos un país solicitado")
+    if not body.canales_solicitados:
+        raise HTTPException(status_code=422, detail="Debe incluir al menos un canal solicitado")
+    if query_one(SELLO_EXISTE, {"sello_id": body.sello_id})["n"] == 0:
+        raise HTTPException(status_code=404, detail="Sello no encontrado")
+    for pais_id in body.paises_solicitados:
+        if query_one(PAIS_EXISTE, {"pais_id": pais_id})["n"] == 0:
+            raise HTTPException(status_code=404, detail=f"País no encontrado: {pais_id}")
+    for canal_id in body.canales_solicitados:
+        if query_one(CANAL_EXISTE, {"canal_id": canal_id})["n"] == 0:
+            raise HTTPException(status_code=404, detail=f"Canal de distribución no encontrado: {canal_id}")
+
+    solicitud_id = str(uuid.uuid4())
+    ahora = datetime.now(timezone.utc)
+    get_client().insert(
+        "SOLICITUD_LICENCIA",
+        [(
+            solicitud_id, body.sello_id, body.paises_solicitados, body.canales_solicitados,
+            body.fecha_inicio_propuesta, body.fecha_fin_propuesta, "pendiente", None,
+            ahora, None, None,
+        )],
+        column_names=_SOLICITUD_LICENCIA_COLS,
+    )
+    audit.record(
+        usuario_id=admin["record"]["id"], accion="crear_solicitud_licencia", tabla_afectada="SOLICITUD_LICENCIA",
+        antes=None,
+        despues={
+            "solicitud_id": solicitud_id, "sello_id": body.sello_id,
+            "paises_solicitados": body.paises_solicitados, "canales_solicitados": body.canales_solicitados,
+            "fecha_inicio_propuesta": str(body.fecha_inicio_propuesta),
+            "fecha_fin_propuesta": str(body.fecha_fin_propuesta) if body.fecha_fin_propuesta else None,
+        },
+    )
+    return {"status": "ok", "solicitud_id": solicitud_id, "estado": "pendiente"}
+
+
+@router.get("/solicitudes-licencia", dependencies=[Depends(require_admin)])
+def listar_solicitudes_licencia(estado: str | None = Query(None)):
+    where, params = "", {}
+    if estado:
+        where = "WHERE s.estado = {estado:String}"
+        params["estado"] = estado
+    return {"data": query_rows(solicitudes_licencia_sql(where), params)}
+
+
+@router.get("/sellos/{sello_id}/solicitudes-licencia", dependencies=[Depends(require_admin)])
+def listar_solicitudes_licencia_de_sello(sello_id: int):
+    if query_one(SELLO_EXISTE, {"sello_id": sello_id})["n"] == 0:
+        raise HTTPException(status_code=404, detail="Sello no encontrado")
+    return {"data": query_rows(solicitudes_licencia_sql("WHERE s.sello_id = {sello_id:UInt32}"), {"sello_id": sello_id})}
+
+
+def _resolver_solicitud_pendiente(solicitud_id: str) -> dict:
+    solicitud = query_one(SOLICITUD_LICENCIA_ACTUAL_POR_ID, {"solicitud_id": solicitud_id})
+    if not solicitud:
+        raise HTTPException(status_code=404, detail="Solicitud de licencia no encontrada")
+    if solicitud["estado"] != "pendiente":
+        raise HTTPException(
+            status_code=409,
+            detail=f"La solicitud ya fue resuelta (estado actual: {solicitud['estado']})",
+        )
+    return solicitud
+
+
+@router.post("/solicitudes-licencia/{solicitud_id}/aprobar")
+def aprobar_solicitud_licencia(solicitud_id: str, admin: dict = Depends(require_admin)):
+    solicitud = _resolver_solicitud_pendiente(solicitud_id)
+    admin_id = admin["record"]["id"]
+
+    siguiente_id = ((query_one(LICENCIA_ID_MAX) or {}).get("n") or 0) + 1
+    licencia_ids: list[int] = []
+    for pais_id in solicitud["paises_solicitados"]:
+        get_client().insert(
+            "DIM_LICENCIA",
+            [(siguiente_id, solicitud["sello_id"], pais_id, solicitud["fecha_inicio_propuesta"], solicitud["fecha_fin_propuesta"], "activa")],
+            column_names=["licencia_id", "sello_id", "pais_id", "fecha_inicio", "fecha_fin", "estado"],
+        )
+        licencia_ids.append(siguiente_id)
+        siguiente_id += 1
+
+    get_client().insert(
+        "SOLICITUD_LICENCIA",
+        [(
+            solicitud_id, solicitud["sello_id"], solicitud["paises_solicitados"], solicitud["canales_solicitados"],
+            solicitud["fecha_inicio_propuesta"], solicitud["fecha_fin_propuesta"], "aprobada", None,
+            solicitud["fecha_solicitud"], datetime.now(timezone.utc), admin_id,
+        )],
+        column_names=_SOLICITUD_LICENCIA_COLS,
+    )
+    audit.record(
+        usuario_id=admin_id, accion="aprobar_solicitud_licencia", tabla_afectada="SOLICITUD_LICENCIA",
+        antes={"solicitud_id": solicitud_id, "estado": "pendiente"},
+        despues={"solicitud_id": solicitud_id, "estado": "aprobada", "licencia_ids": licencia_ids},
+    )
+    return {"status": "ok", "solicitud_id": solicitud_id, "estado": "aprobada", "licencia_ids": licencia_ids}
+
+
+@router.post("/solicitudes-licencia/{solicitud_id}/rechazar")
+def rechazar_solicitud_licencia(solicitud_id: str, body: RechazarSolicitudBody, admin: dict = Depends(require_admin)):
+    if not body.motivo.strip():
+        raise HTTPException(status_code=422, detail="El motivo de rechazo no puede estar vacío")
+    solicitud = _resolver_solicitud_pendiente(solicitud_id)
+    admin_id = admin["record"]["id"]
+
+    get_client().insert(
+        "SOLICITUD_LICENCIA",
+        [(
+            solicitud_id, solicitud["sello_id"], solicitud["paises_solicitados"], solicitud["canales_solicitados"],
+            solicitud["fecha_inicio_propuesta"], solicitud["fecha_fin_propuesta"], "rechazada", body.motivo,
+            solicitud["fecha_solicitud"], datetime.now(timezone.utc), admin_id,
+        )],
+        column_names=_SOLICITUD_LICENCIA_COLS,
+    )
+    audit.record(
+        usuario_id=admin_id, accion="rechazar_solicitud_licencia", tabla_afectada="SOLICITUD_LICENCIA",
+        antes={"solicitud_id": solicitud_id, "estado": "pendiente"},
+        despues={"solicitud_id": solicitud_id, "estado": "rechazada", "motivo_rechazo": body.motivo},
+    )
+    return {"status": "ok", "solicitud_id": solicitud_id, "estado": "rechazada"}
 
 
 # ─────────────────────────────────────────────────────────────────────────────

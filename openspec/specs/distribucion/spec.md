@@ -188,3 +188,25 @@ El sistema SHALL registrar en `FACT_AUDIT_LOG` cada acción CRUD de administraci
 - **WHEN** un usuario con rol admin crea, edita o desactiva un sello, una licencia o una restricción de reproducción
 - **THEN** el sistema registra en `FACT_AUDIT_LOG` el administrador que ejecutó el cambio, la acción realizada, la tabla afectada y el estado antes/después
 
+### Requirement: Catálogo público de países
+El sistema SHALL exponer el catálogo de países conocidos (`DIM_PAIS`) sin requerir autenticación, para que las pantallas de registro de cuenta y de edición de perfil puedan ofrecer un selector de país antes de que exista una sesión de usuario o sin depender de un rol administrativo. Este endpoint SHALL ser de solo lectura.
+
+#### Scenario: Consultar el catálogo de países sin sesión
+- **WHEN** cualquier cliente, autenticado o no, solicita el catálogo público de países
+- **THEN** el sistema retorna la lista completa de países conocidos con su nombre y código ISO
+
+#### Scenario: El país declarado por el usuario proviene del catálogo conocido
+- **WHEN** un usuario selecciona su país de este catálogo al registrarse o editar su perfil
+- **THEN** el valor declarado coincide exactamente con un país conocido por el sistema, de modo que la consulta de disponibilidad por país (`Consulta de disponibilidad de un track por país`) pueda resolverlo de forma confiable en vez de caer en el caso de "país no reconocido"
+
+### Requirement: Panel administrativo de métricas de distribución
+El sistema SHALL exponer a un usuario con rol `admin` un panel con métricas operativas agregadas de la capability `distribucion`: conteo de restricciones de reproducción activas por país, y total de licencias en estado activo.
+
+#### Scenario: Admin consulta el panel de métricas de distribución
+- **WHEN** un usuario con rol `admin` solicita el dashboard de distribución
+- **THEN** el sistema retorna el conteo de restricciones agrupado por país y el total de licencias activas, calculados sobre `FACT_RESTRICCION_REPRODUCCION`/`DIM_LICENCIA`
+
+#### Scenario: Usuario sin rol admin intenta consultar el panel de distribución
+- **WHEN** un usuario sin rol `admin` intenta consultar el dashboard de distribución
+- **THEN** el sistema rechaza la operación
+

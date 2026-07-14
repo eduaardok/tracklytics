@@ -9,15 +9,18 @@ from paquetes.creadores.queries import CUENTA_ACTUAL_POR_ID
 from paquetes.distribucion.queries import SELLO_EXISTE
 from paquetes.regalias.deps import require_admin, require_cuenta_sello
 from paquetes.regalias.queries import (
+    CONTRATO_EXISTE,
     CONTRATOS_LIST,
     CONTRATOS_VIGENTES_EN_PERIODO,
     CUENTA_SELLO_EXISTE_USUARIO,
     GANANCIAS_ARTISTA,
     GANANCIAS_SELLO,
     LIQUIDACION_YA_EXISTE_PERIODO,
+    LIQUIDACIONES_POR_CONTRATO,
     PRODUCTOR_EXISTE,
     PRODUCTOR_ID_MAX,
     PRODUCTORES_LIST,
+    RESUMEN_CONTRATO,
     RETIRO_POR_ID,
     RETIROS_POR_RIGHTSHOLDER,
     SALDO_DISPONIBLE_RIGHTSHOLDER,
@@ -150,6 +153,29 @@ def crear_contrato(body: ContratoBody, admin: dict = Depends(require_admin)):
 @router.get("/admin/contratos")
 def listar_contratos(admin: dict = Depends(require_admin)):
     return {"data": query_rows(CONTRATOS_LIST)}
+
+
+def _contrato_o_404(contrato_id: str) -> None:
+    if not (query_one(CONTRATO_EXISTE, {"contrato_id": contrato_id}) or {}).get("n"):
+        raise HTTPException(status_code=404, detail="Contrato no encontrado")
+
+
+@router.get("/admin/contratos/{contrato_id}/liquidaciones")
+def listar_liquidaciones_contrato(contrato_id: str, admin: dict = Depends(require_admin)):
+    _contrato_o_404(contrato_id)
+    return {"data": query_rows(LIQUIDACIONES_POR_CONTRATO, {"contrato_id": contrato_id})}
+
+
+@router.get("/admin/contratos/{contrato_id}/resumen")
+def resumen_contrato(contrato_id: str, admin: dict = Depends(require_admin)):
+    _contrato_o_404(contrato_id)
+    fila = query_one(RESUMEN_CONTRATO, {"contrato_id": contrato_id}) or {}
+    num_liquidaciones = int(fila.get("num_liquidaciones") or 0)
+    return {
+        "total_liquidado":    round(float(fila.get("total_liquidado") or 0), 2),
+        "ultima_liquidacion": fila.get("ultima_liquidacion") if num_liquidaciones else None,
+        "num_liquidaciones":  num_liquidaciones,
+    }
 
 
 # ─────────────────────────────────────────────────────────────────────────────

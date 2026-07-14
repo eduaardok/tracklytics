@@ -390,3 +390,52 @@
   .dashboardGrid { grid-template-columns: 1fr; }
 }
 
+/* ── Solicitudes de licencia: grupo de checkboxes (países/canales) ──
+   El resto de los <select> de este módulo asumen selección única; una
+   solicitud puede cubrir varios países/canales a la vez, así que se usa un
+   grupo de checkboxes simple en vez de un widget de multi-select nuevo. */
+.checkboxGroup {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm) var(--space-md);
+  padding: 8px 0;
+}
+
+.checkboxItem {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+  color: var(--color-ink);
+  cursor: pointer;
+}
+
+.checkboxItem input[type='checkbox'] {
+  accent-color: var(--color-primary);
+  width: 15px;
+  height: 15px;
+  cursor: pointer;
+}
+
+/* ── Rechazo con motivo, inline en la fila (sin diálogo nativo) ── */
+.inlineRejectForm {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.inlineRejectInput {
+  background: var(--color-bg);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+  padding: 5px 10px;
+  height: 30px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+  outline: none;
+  min-width: 180px;
+}
+.inlineRejectInput:focus { border-color: var(--color-primary); }
+

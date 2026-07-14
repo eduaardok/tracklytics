@@ -101,6 +101,46 @@ LIMIT 10
 
 LICENCIAS_ACTIVAS_TOTAL = "SELECT count() AS n FROM DIM_LICENCIA WHERE estado = 'activa'"
 
+# ── Solicitudes de licencia ─────────────────────────────────────────────────
+# SOLICITUD_LICENCIA es ReplacingMergeTree(actualizado_en) — mismo motivo ya
+# documentado para DIM_CUENTA_ARTISTA (`creadores/queries.py`): una fila ya
+# resuelta puede seguir viéndose como `pendiente` si se lee la tabla cruda,
+# así que el estado vigente siempre se resuelve con argMax(columna, version)
+# agrupando por solicitud_id, nunca filtrando la tabla directamente. Igual
+# que allí, cualquier WHERE sobre un campo que también se proyecta como
+# alias de una función de agregación se aplica en una capa EXTERNA a esa
+# agregación (subselect), o dispara "Code 184: ILLEGAL_AGGREGATION".
+
+_SOLICITUD_RESUELTA = """
+    SELECT
+        solicitud_id,
+        anyLast(sello_id)                           AS sello_id,
+        argMax(paises_solicitados, actualizado_en)   AS paises_solicitados,
+        argMax(canales_solicitados, actualizado_en)  AS canales_solicitados,
+        anyLast(fecha_inicio_propuesta)              AS fecha_inicio_propuesta,
+        argMax(fecha_fin_propuesta, actualizado_en)  AS fecha_fin_propuesta,
+        argMax(estado, actualizado_en)               AS estado,
+        argMax(motivo_rechazo, actualizado_en)       AS motivo_rechazo,
+        anyLast(fecha_solicitud)                     AS fecha_solicitud,
+        argMax(fecha_resolucion, actualizado_en)     AS fecha_resolucion,
+        argMax(admin_resolutor_id, actualizado_en)   AS admin_resolutor_id
+    FROM SOLICITUD_LICENCIA
+    GROUP BY solicitud_id
+"""
+
+
+def solicitudes_licencia_sql(where: str) -> str:
+    return f"""
+    SELECT * FROM ({_SOLICITUD_RESUELTA}) s
+    {where}
+    ORDER BY s.fecha_solicitud DESC
+    """
+
+
+SOLICITUD_LICENCIA_ACTUAL_POR_ID = f"""
+SELECT * FROM ({_SOLICITUD_RESUELTA}) WHERE solicitud_id = {{solicitud_id:String}} LIMIT 1
+"""
+
 # ── Disponibilidad por país como lista navegable (mejoras-producto-revision-qa) ─
 # `BRIDGE_RESTRICCION_TRACK.tipo_restriccion_id` es `UInt16` NO nullable —
 # ClickHouse rellena las filas sin match de un LEFT JOIN con el valor default

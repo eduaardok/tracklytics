@@ -36,7 +36,7 @@ El sistema SHALL permitir a un usuario autenticado registrar un método de pago 
 - **THEN** el sistema registra el método de pago asociado a ese usuario y queda disponible para pagar una suscripción
 
 ### Requirement: Pago de una suscripción existente
-El sistema SHALL permitir simular el pago de una suscripción activa del usuario autenticado usando uno de sus métodos de pago registrados, y SHALL registrar el resultado de la transacción como exitoso o fallido.
+El sistema SHALL permitir simular el pago de una suscripción activa del usuario autenticado usando uno de sus métodos de pago registrados, y SHALL registrar el resultado de la transacción como exitoso o fallido. Esta lógica de cobro SHALL ser reusable: además de invocarse de forma explícita, la capability `suscripciones` la invoca automáticamente al activar un plan de pago, de modo que activar y pagar ocurran en una sola operación desde la perspectiva del usuario.
 
 #### Scenario: Pago simulado exitoso
 - **WHEN** un usuario autenticado con una suscripción activa y un método de pago registrado inicia un pago, y la transacción simulada resulta exitosa
@@ -45,6 +45,10 @@ El sistema SHALL permitir simular el pago de una suscripción activa del usuario
 #### Scenario: Pago simulado fallido
 - **WHEN** un usuario autenticado inicia un pago y la transacción simulada resulta fallida
 - **THEN** el sistema registra la transacción con estado fallido, sin generar ningún invoice
+
+#### Scenario: Cobro automático al activar una suscripción de pago
+- **WHEN** la capability `suscripciones` activa un plan de pago con un método de pago válido
+- **THEN** el sistema procesa el cobro con la misma lógica que un pago explícito, sin exigir una segunda operación separada del usuario
 
 ### Requirement: Rechazo de pago sin suscripción activa
 El sistema SHALL rechazar el intento de pago si el usuario no tiene ninguna suscripción activa, sin registrar transacción ni invoice.
@@ -61,11 +65,15 @@ El sistema SHALL emitir automáticamente un invoice (monto e IVA) al momento de 
 - **THEN** el sistema emite automáticamente un invoice con el monto y el IVA correspondientes, asociado a esa transacción
 
 ### Requirement: Consulta del propio historial de facturación
-El sistema SHALL permitir a un usuario autenticado consultar su propio historial de transacciones e invoices.
+El sistema SHALL permitir a un usuario autenticado consultar su propio historial de transacciones e invoices. El detalle de una invoice individual SHALL incluir el nombre del plan asociado, los datos del método de pago utilizado y el nombre/correo del usuario, para soportar una vista imprimible con formato profesional.
 
-#### Scenario: Consultar historial propio
-- **WHEN** un usuario autenticado solicita su historial de transacciones o de invoices
-- **THEN** el sistema retorna únicamente los registros asociados a ese usuario
+#### Scenario: Consultar el propio historial
+- **WHEN** un usuario autenticado consulta su historial de transacciones o invoices sin especificar `usuario_id`
+- **THEN** el sistema retorna únicamente las transacciones/invoices asociadas a ese usuario
+
+#### Scenario: Consultar el detalle de una invoice propia
+- **WHEN** un usuario autenticado consulta el detalle de una invoice que le pertenece
+- **THEN** el sistema retorna el monto, IVA, estado, nombre del plan, datos del método de pago y sus propios datos de contacto
 
 ### Requirement: Acceso restringido al historial de facturación de terceros
 El sistema SHALL restringir la consulta del historial de facturación de otro usuario exclusivamente a `admin`; un usuario con rol distinto de `admin` SHALL recibir un rechazo al intentarlo. El admin SHALL poder localizar al usuario objetivo mediante una búsqueda por nombre o correo, sin requerir que conozca ni escriba su `usuario_id`.
@@ -129,6 +137,17 @@ registro de información de la empresa en todo el sistema.
 #### Scenario: El encabezado de una factura refleja la información vigente
 - **WHEN** cualquier usuario consulta el detalle de una factura después de que la información de la empresa fue editada
 - **THEN** el encabezado de esa factura muestra la razón social, RUC y dirección vigentes al momento de la consulta, no los que tenía la empresa al emitirse la factura
+
+### Requirement: Panel administrativo de métricas de facturación
+El sistema SHALL exponer a un usuario con rol `admin` un panel con métricas operativas agregadas de la capability `facturacion`: ingreso diario de transacciones exitosas, conteo de transacciones de las últimas 24 horas, e ingreso histórico total.
+
+#### Scenario: Admin consulta el panel de métricas de facturación
+- **WHEN** un usuario con rol `admin` solicita el dashboard de facturación
+- **THEN** el sistema retorna la serie diaria de ingreso de transacciones exitosas, el conteo de transacciones de las últimas 24 horas y el ingreso histórico total, calculados sobre `FACT_TRANSACCION_PAGO`
+
+#### Scenario: Usuario sin rol admin intenta consultar el panel de facturación
+- **WHEN** un usuario sin rol `admin` intenta consultar el dashboard de facturación
+- **THEN** el sistema rechaza la operación
 
 ## Entradas
 

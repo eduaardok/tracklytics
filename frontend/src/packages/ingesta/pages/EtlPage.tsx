@@ -1,9 +1,21 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
+import { MiniBarChart } from '@shared/components/charts/MiniBarChart'
+import { EmptyState } from '@shared/components/EmptyState'
 import { ingestaApi, IngestaApiError } from '../api/ingesta.api'
 import type { SyntheticMode, EjecucionEstado, RecalificacionEstado } from '../types'
 import styles from './EtlPage.module.css'
+
+// Paleta categórica validada (dataviz skill) — mismos criterios que
+// DataQualityPage.tsx (violeta principal, teal secundario) contra la
+// superficie oscura real de la app.
+const CHART_COLOR_GENRE = 'oklch(0.64 0.15 290)'
+const CHART_COLOR_ENERGY = 'oklch(0.65 0.14 195)'
+const CHART_COLOR_VALENCE = 'oklch(0.62 0.16 70)'
+const CHART_COLOR_DANCE = 'oklch(0.68 0.13 340)'
+
+const TOP_GENEROS = 15
 
 const STAGE_ORDER  = ['extraccion', 'transformacion_staging', 'carga_clickhouse', 'auditoria'] as const
 const STAGE_LABELS: Record<string, string> = {
@@ -88,6 +100,39 @@ export function EtlPage() {
     queryKey: ['ingesta', 'cargas'],
     queryFn:  () => ingestaApi.cargas(),
   })
+
+  // "Datos generados por semana" — semanas distintas ya presentes en el
+  // historial cargado, más recientes primero. `selectedWeek` arranca en null
+  // (no se sabe todavía cuál es la más reciente) y se fija apenas llega el
+  // historial, en vez de duplicar esa resolución acá.
+  const [selectedWeek, setSelectedWeek] = useState<number | null>(null)
+  const weekOptions = useMemo(() => {
+    const weeks = new Set((cargas.data?.data ?? []).map((row) => row.week_number))
+    return Array.from(weeks).sort((a, b) => b - a)
+  }, [cargas.data])
+
+  useEffect(() => {
+    if (selectedWeek === null && weekOptions.length > 0) setSelectedWeek(weekOptions[0])
+  }, [selectedWeek, weekOptions])
+
+  const muestra = useQuery({
+    queryKey: ['ingesta', 'etl-muestra', selectedWeek],
+    queryFn:  () => ingestaApi.etlMuestra(selectedWeek!),
+    enabled:  selectedWeek !== null,
+  })
+
+  const distribucion = useQuery({
+    queryKey: ['ingesta', 'etl-distribucion', selectedWeek],
+    queryFn:  () => ingestaApi.etlDistribucion(selectedWeek!),
+    enabled:  selectedWeek !== null,
+  })
+
+  const generoChartData = useMemo(() => {
+    const generos = distribucion.data?.generos ?? []
+    const top = generos.slice(0, TOP_GENEROS).map((g) => ({ name: g.genre_name, value: g.n }))
+    const restantes = generos.length - top.length
+    return { top, restantes }
+  }, [distribucion.data])
 
   useEffect(() => {
     if (!ejecucionId) return
@@ -314,6 +359,116 @@ export function EtlPage() {
             </table>
           </div>
         </div>
+      )}
+
+      <div className={styles.sectionHeaderRow} style={{ marginTop: 'var(--space-xl)' }}>
+        <p className={styles.sectionLabel} style={{ marginBottom: 0 }}>Datos generados por semana</p>
+        {weekOptions.length > 0 && (
+          <select
+            className={styles.select}
+            aria-label="Semana"
+            value={selectedWeek ?? ''}
+            onChange={(e) => setSelectedWeek(Number(e.target.value))}
+          >
+            {weekOptions.map((w) => <option key={w} value={w}>Semana {w}</option>)}
+          </select>
+        )}
+      </div>
+
+      {weekOptions.length === 0 && !cargas.isLoading && (
+        <div className={styles.panel}>
+          <EmptyState icon="◔" title="Sin cargas todavía" body="Dispare una ingesta para poder inspeccionar lo que produce." />
+        </div>
+      )}
+
+      {selectedWeek !== null && (
+        <>
+          <div className={styles.chartGrid}>
+            <div className={styles.panel}>
+              <p className={styles.panelTitle}>
+                Distribución por género
+                {generoChartData.restantes > 0 && (
+                  <span className={styles.muted}> · +{generoChartData.restantes} más</span>
+                )}
+              </p>
+              {distribucion.isLoading && <div style={{ minHeight: 220 }} />}
+              {!distribucion.isLoading && (
+                <MiniBarChart data={generoChartData.top} color={CHART_COLOR_GENRE} />
+              )}
+            </div>
+            <div className={styles.panel}>
+              <p className={styles.panelTitle}>Energy (bins de 0.2)</p>
+              {!distribucion.isLoading && (
+                <MiniBarChart
+                  data={(distribucion.data?.atributos.energy ?? []).map((b) => ({ name: b.rango, value: b.n }))}
+                  color={CHART_COLOR_ENERGY}
+                />
+              )}
+            </div>
+            <div className={styles.panel}>
+              <p className={styles.panelTitle}>Valence (bins de 0.2)</p>
+              {!distribucion.isLoading && (
+                <MiniBarChart
+                  data={(distribucion.data?.atributos.valence ?? []).map((b) => ({ name: b.rango, value: b.n }))}
+                  color={CHART_COLOR_VALENCE}
+                />
+              )}
+            </div>
+            <div className={styles.panel}>
+              <p className={styles.panelTitle}>Danceability (bins de 0.2)</p>
+              {!distribucion.isLoading && (
+                <MiniBarChart
+                  data={(distribucion.data?.atributos.danceability ?? []).map((b) => ({ name: b.rango, value: b.n }))}
+                  color={CHART_COLOR_DANCE}
+                />
+              )}
+            </div>
+          </div>
+
+          <p className={styles.sectionLabel} style={{ marginTop: 'var(--space-lg)' }}>
+            Muestra ({muestra.data?.data.length ?? 0} tracks)
+          </p>
+          {muestra.isLoading && <div className={styles.panel} style={{ minHeight: 120 }} />}
+          {muestra.isError && (
+            <div className={styles.panel}><p className={styles.errorText}>No se pudo cargar la muestra.</p></div>
+          )}
+          {muestra.data && muestra.data.data.length > 0 && (
+            <div className={styles.panel}>
+              <div className={styles.tableScroll} style={{ maxHeight: 420, overflowY: 'auto' }}>
+                <table className={styles.table}>
+                  <thead>
+                    <tr>
+                      <th className={styles.thLeft}>Track</th>
+                      <th className={styles.thLeft}>Artista</th>
+                      <th className={styles.thLeft}>Género</th>
+                      <th className={styles.thRight}>Popularidad</th>
+                      <th className={styles.thLeft}>Origen</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {muestra.data.data.map((row, i) => (
+                      <tr key={i}>
+                        <td className={styles.rowLabel}>{row.track_name}</td>
+                        <td className={styles.rowLabel}>{row.artist_name}</td>
+                        <td className={styles.rowLabel}>{row.genre_name}</td>
+                        <td className={styles.rowValue}>{row.popularity}</td>
+                        <td className={styles.rowLabel}>
+                          <span className={
+                            row.source_type === 'real' ? styles.sourceReal :
+                            row.source_type === 'synthetic' ? styles.sourceSynthetic :
+                            styles.sourceUploaded
+                          }>
+                            {row.source_type}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </>
       )}
     </section>
   )

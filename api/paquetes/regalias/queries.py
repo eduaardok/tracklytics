@@ -30,6 +30,26 @@ WHERE activo = 1
 ORDER BY fact_id_track, vigente_desde DESC
 """
 
+CONTRATO_EXISTE = "SELECT count() AS n FROM DIM_CONTRATO_REGALIA WHERE contrato_id = {contrato_id:String}"
+
+# ── Historial de liquidaciones de un contrato (detalle en RegaliasAdminPage) ─
+LIQUIDACIONES_POR_CONTRATO = """
+SELECT liquidacion_id, periodo_inicio, periodo_fin, tipo_rightsholder, rightsholder_id,
+       streams_periodo, monto, moneda, fecha_calculo
+FROM FACT_LIQUIDACION_REGALIA
+WHERE contrato_id = {contrato_id:String}
+ORDER BY periodo_inicio DESC
+"""
+
+RESUMEN_CONTRATO = """
+SELECT
+    coalesce(sum(monto), 0)   AS total_liquidado,
+    max(periodo_fin)          AS ultima_liquidacion,
+    count()                   AS num_liquidaciones
+FROM FACT_LIQUIDACION_REGALIA
+WHERE contrato_id = {contrato_id:String}
+"""
+
 CUENTA_SELLO_POR_USUARIO = """
 SELECT c.cuenta_sello_id, c.usuario_id, c.sello_id, c.activo, c.fecha_creacion, s.nombre AS nombre_sello
 FROM DIM_CUENTA_SELLO c

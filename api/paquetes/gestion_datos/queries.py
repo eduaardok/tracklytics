@@ -140,3 +140,47 @@ FROM ETL_LOGS
 ORDER BY run_timestamp DESC
 LIMIT 1
 """
+
+# ── Muestra/distribución de una semana cargada (panel interno de ingesta) ──────
+
+ETL_MUESTRA_LAST_WEEK = "SELECT max(load_week) AS n FROM FACT_TRACKS"
+
+ETL_MUESTRA = """
+SELECT
+    ft.track_name AS track_name,
+    a.name         AS artist_name,
+    g.name         AS genre_name,
+    ft.popularity  AS popularity,
+    ft.source_type AS source_type
+FROM FACT_TRACKS ft
+JOIN DIM_ARTISTS a ON ft.artist_id = a.artist_id
+JOIN DIM_GENRES  g ON ft.genre_id  = g.genre_id
+WHERE ft.load_week = {week_number:UInt8}
+ORDER BY rand()
+LIMIT {limit:UInt32}
+"""
+
+ETL_DISTRIBUCION_GENEROS = """
+SELECT
+    g.name AS genre_name,
+    count() AS n
+FROM FACT_TRACKS ft
+JOIN DIM_GENRES g ON ft.genre_id = g.genre_id
+WHERE ft.load_week = {week_number:UInt8}
+GROUP BY g.name
+ORDER BY n DESC
+"""
+
+# Bins de ancho fijo 0.2 sobre [0,1] para energy/valence/danceability —
+# `least(4, floor(col / 0.2))` para que un valor exactamente en 1.0 caiga en
+# el último bin (4) en vez de desbordar a un bin 5 inexistente.
+def etl_distribucion_atributo_sql(column: str) -> str:
+    return f"""
+SELECT
+    least(4, toUInt8(floor({column} / 0.2))) AS bin,
+    count() AS n
+FROM FACT_TRACKS
+WHERE load_week = {{week_number:UInt8}}
+GROUP BY bin
+ORDER BY bin
+"""

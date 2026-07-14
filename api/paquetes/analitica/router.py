@@ -1,3 +1,4 @@
+import asyncio
 from datetime import date, datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Query
@@ -11,7 +12,9 @@ from paquetes.analitica.queries import (
     ARTISTAS_SEARCH_V1, ARTISTS_SEARCH, ARTISTS_SEARCH_TOTAL,
     BAJAS_ANTES_DE,
     CANCELACIONES_POR_MES, CANCELACIONES_POR_MES_Y_MOTIVO,
-    DASHBOARD_AUDIO_AVG, DASHBOARD_EXPLICIT_DIST, DASHBOARD_KPIS, DASHBOARD_LAST_ETL,
+    DASHBOARD_AUDIO_AVG, DASHBOARD_ENGAGEMENT_POR_GENERO, DASHBOARD_EXPLICIT_DIST,
+    DASHBOARD_INGRESOS_PUBLICITARIOS_DIARIO, DASHBOARD_INGRESOS_SUSCRIPCION_DIARIO,
+    DASHBOARD_KPIS, DASHBOARD_LAST_ETL, DASHBOARD_REGALIAS_PAGADAS_DIARIO,
     DASHBOARD_TOP_ARTISTS, DASHBOARD_TOP_GENRES,
     DASHBOARD_TOTAL_ARTISTS, DASHBOARD_TOTAL_GENRES, DASHBOARD_TOTAL_TRACKS,
     DISPONIBILIDAD_POR_COMPONENTE,
@@ -23,6 +26,10 @@ from paquetes.analitica.queries import (
     TENDENCIAS_LOAD_WEEK, TRACK_POPULARITY, TRENDS_WEEKLY,
     USUARIOS_CON_IMPRESION_EN_RANGO,
 )
+# Cross-package import de la query ya usada por `distribucion` — se reusa
+# verbatim en vez de duplicarla; router.py ya importa cruzado de
+# `paquetes.suscripciones` (pb_client) más abajo, mismo patrón ya establecido.
+from paquetes.distribucion.queries import RESTRICCIONES_POR_PAIS
 from paquetes.suscripciones import pb_client
 
 # Planes de pago, B2C y B2B (monetizacion-retencion-mejoras) — mismos ids que
@@ -48,9 +55,79 @@ def _meses_entre(desde: date, hasta: date) -> list[date]:
 router = APIRouter(tags=["Analytics"], dependencies=[Depends(require_b2b_panel_access)])
 
 
+# Grupos de plan para la serie de altas por semana del dashboard — 6 planes
+# individuales (free/premium/estudiante/basico/pro/enterprise) sobre ~66
+# suscripciones totales dan 1-2 altas por semana por plan (demasiado ruido
+# para una serie apilada legible); se agrupan en 3 series de negocio
+# (free / b2c de pago / b2b) que comparten la paleta categórica de 3 tonos ya
+# validada y usada en el resto del proyecto (shared/components/charts/colors.ts).
+GRUPOS_PLAN: dict[str, tuple[str, ...]] = {
+    "free":      ("free",),
+    "b2c_pago":  ("premium", "estudiante"),
+    "b2b":       ("basico", "pro", "enterprise"),
+}
+
+
+def _lunes(d: date) -> date:
+    return d - timedelta(days=d.weekday())
+
+
+async def _altas_por_semana_y_grupo(semanas: int = 6) -> list[dict]:
+    """Altas de suscripción (cualquier estado, cualquier momento) por semana
+    (lunes a lunes) y grupo de plan, para las últimas `semanas` semanas
+    completas — ventana fija en vez de resolver la fecha de la primera alta
+    contra PocketBase, porque cubre con margen el rango real de datos
+    (~3.5 semanas verificado con clickhouse-client) sin un round-trip extra."""
+    hoy = date.today()
+    lunes_actual = _lunes(hoy)
+    lunes_semanas = [lunes_actual - timedelta(weeks=i) for i in range(semanas - 1, -1, -1)]
+
+    async def _celda(lunes: date, tipos_plan: tuple[str, ...]) -> int:
+        desde = datetime.combine(lunes, datetime.min.time())
+        hasta = desde + timedelta(days=7)
+        return await pb_client.contar_altas_en_rango(desde, hasta, tipos_plan)
+
+    tareas = [
+        _celda(lunes, tipos_plan)
+        for lunes in lunes_semanas
+        for tipos_plan in GRUPOS_PLAN.values()
+    ]
+    resultados = await asyncio.gather(*tareas)
+
+    filas = []
+    it = iter(resultados)
+    for lunes in lunes_semanas:
+        fila = {"semana": lunes.isoformat()}
+        for grupo in GRUPOS_PLAN:
+            fila[grupo] = next(it)
+        filas.append(fila)
+    return filas
+
+
+def _serie_ingresos_vs_regalias() -> list[dict]:
+    """Merge por día de las 3 FACT tables de ingresos/regalías (rangos de
+    fecha distintos entre sí) en una sola serie con las 3 claves siempre
+    presentes (0 si ese día no tuvo movimiento en esa fuente) — así el
+    stacked area del frontend no tiene que manejar `undefined`."""
+    suscripciones = {r["dia"].isoformat(): float(r["monto"]) for r in query_rows(DASHBOARD_INGRESOS_SUSCRIPCION_DIARIO)}
+    publicidad    = {r["dia"].isoformat(): float(r["monto"]) for r in query_rows(DASHBOARD_INGRESOS_PUBLICITARIOS_DIARIO)}
+    regalias      = {r["dia"].isoformat(): float(r["monto"]) for r in query_rows(DASHBOARD_REGALIAS_PAGADAS_DIARIO)}
+
+    dias = sorted(set(suscripciones) | set(publicidad) | set(regalias))
+    return [
+        {
+            "dia": d,
+            "ingresos_suscripciones": round(suscripciones.get(d, 0.0), 2),
+            "ingresos_publicidad":    round(publicidad.get(d, 0.0), 2),
+            "regalias_pagadas":       round(regalias.get(d, 0.0), 2),
+        }
+        for d in dias
+    ]
+
+
 @router.get("/dashboard/executive", tags=["Dashboard"])
 @cached(ttl=60)
-def dashboard_executive():
+async def dashboard_executive():
     return {
         "totals": {
             "tracks":  query_one(DASHBOARD_TOTAL_TRACKS)["n"],
@@ -62,6 +139,10 @@ def dashboard_executive():
         "top_artists":           query_rows(DASHBOARD_TOP_ARTISTS),
         "last_etl":              query_one(DASHBOARD_LAST_ETL),
         "explicit_distribution": query_rows(DASHBOARD_EXPLICIT_DIST),
+        "ingresos_vs_regalias":  _serie_ingresos_vs_regalias(),
+        "altas_por_plan_semana": await _altas_por_semana_y_grupo(),
+        "engagement_por_genero": query_rows(DASHBOARD_ENGAGEMENT_POR_GENERO),
+        "reproducciones_bloqueadas_por_pais": query_rows(RESTRICCIONES_POR_PAIS),
     }
 
 

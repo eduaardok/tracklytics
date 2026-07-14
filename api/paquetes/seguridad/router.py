@@ -23,7 +23,6 @@ from paquetes.seguridad.queries import (
     SESION_ABIERTA_POR_DISPOSITIVO,
     SESION_POR_ID,
     SESIONES_ABIERTAS_TOTAL,
-    USUARIO_EXISTE_EN_DIM,
     USUARIO_POR_ID,
     USUARIOS_BUSQUEDA,
     usuarios_listado_sql,
@@ -161,8 +160,22 @@ async def login(body: LoginBody, request: Request):
     # Backfill: usuarios creados antes de que existiera esta capability no
     # tienen fila en DIM_USUARIO/FACT_PERMISO_USUARIO — se completa en su
     # próximo login (design.md, Migration Plan).
-    if not query_one(USUARIO_EXISTE_EN_DIM, {"usuario_id": usuario_id}):
+    fila_dim = query_one(USUARIO_POR_ID, {"usuario_id": usuario_id})
+    if not fila_dim:
         _insert_dim_usuario(usuario_id, record.get("email", body.email), record.get("name", ""), record.get("pais", ""), rol)
+        _sembrar_permisos_por_defecto(usuario_id, rol)
+    elif fila_dim.get("rol") != rol:
+        # Bugfix S11: DIM_USUARIO.rol solo se escribía una vez, al crear la
+        # cuenta (aquí o en el backfill de arriba) — si el rol cambiaba
+        # después en PocketBase (fuente real de autorización), el espejo
+        # analítico quedaba desincronizado para siempre (caso real:
+        # admin@demo.tracklytics.com, promovido a admin en PocketBase sin
+        # que DIM_USUARIO se enterara). PocketBase es la fuente de verdad;
+        # cada login re-sincroniza el rol del espejo si divergió.
+        execute(
+            "ALTER TABLE DIM_USUARIO UPDATE rol = {rol:String} WHERE usuario_id = {usuario_id:String}",
+            {"rol": rol, "usuario_id": usuario_id},
+        )
         _sembrar_permisos_por_defecto(usuario_id, rol)
 
     os_ = _infer_os(request.headers.get("user-agent", ""))

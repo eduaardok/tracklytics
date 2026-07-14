@@ -39,6 +39,9 @@ export const experienciaApi = {
   verPlanFamiliar: (suscripcionId: string) =>
     apiClient.get<PlanFamiliar>(`/experiencia/familia/${suscripcionId}`),
 
+  resolverSuscripcionDeUsuario: (usuarioId: string) =>
+    apiClient.get<{ suscripcion_id: string }>(`/experiencia/familia/resolver-suscripcion/${usuarioId}`),
+
   agregarMiembro: (suscripcionId: string, usuarioId: string) =>
     apiClient.post<{ status: string; total: number }>(
       `/experiencia/familia/${suscripcionId}/miembros`, { usuario_id: usuarioId },

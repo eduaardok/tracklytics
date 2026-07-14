@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ErrorState } from '@shared/components/ErrorState'
 import { apiErrorMessage } from '@shared/lib/api-client'
 import { useToast } from '@shared/context/ToastContext'
+import { TrackPicker, type TrackSearchResult } from '@shared/components/TrackPicker'
 import { distribucionApi } from '../api/distribucion.api'
 import styles from '../pages/DistribucionPages.module.css'
 
@@ -14,8 +15,8 @@ function fmtDate(iso: string) {
 export function RestriccionesTab() {
   const queryClient = useQueryClient()
   const toast = useToast()
-  const [factIdTrack, setFactIdTrack] = useState('')
-  const [consultado, setConsultado] = useState<number | null>(null)
+  const [track, setTrack] = useState<TrackSearchResult | null>(null)
+  const consultado = track?.fact_id ?? null
   const [paisId, setPaisId] = useState('')
   const [canalId, setCanalId] = useState('')
   const [tipoRestriccionId, setTipoRestriccionId] = useState('')
@@ -62,26 +63,16 @@ export function RestriccionesTab() {
 
   return (
     <div>
-      <p className={styles.sectionLabel}>Track</p>
-      <form
-        className={styles.jumpForm}
-        onSubmit={(e) => { e.preventDefault(); if (factIdTrack.trim()) setConsultado(Number(factIdTrack)) }}
-        noValidate
-      >
-        <input
-          className={styles.jumpInput}
-          type="number"
-          min={1}
-          value={factIdTrack}
-          onChange={(e) => setFactIdTrack(e.target.value)}
-          placeholder="fact_id del track"
-        />
-        <button className={styles.btnPrimary} type="submit">Ver restricciones</button>
-      </form>
+      <TrackPicker
+        label="Track"
+        selected={track}
+        onSelect={setTrack}
+        onClear={() => setTrack(null)}
+      />
 
       {consultado !== null && (
         <>
-          <p className={styles.sectionLabel} style={{ marginTop: 'var(--space-xl)' }}>Nueva restricción para el track #{consultado}</p>
+          <p className={styles.sectionLabel} style={{ marginTop: 'var(--space-xl)' }}>Nueva restricción para «{track?.track_name}»</p>
           <form
             className={styles.form}
             onSubmit={(e) => { e.preventDefault(); if (paisId && canalId && tipoRestriccionId) crear.mutate() }}

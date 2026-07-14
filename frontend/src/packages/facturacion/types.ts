@@ -3,6 +3,10 @@ export type MetodoPago = {
   tipo:              string
   ultimos_4_digitos: string
   pais:              string
+  nombre_titular:    string
+  direccion:         string
+  ciudad:            string
+  codigo_postal:     string
   creado_en:         string
 }
 
@@ -34,6 +38,10 @@ export type RegistrarMetodoPagoBody = {
   tipo:              string
   ultimos_4_digitos: string
   pais?:             string
+  nombre_titular?:   string
+  direccion?:        string
+  ciudad?:           string
+  codigo_postal?:    string
 }
 
 export type PagarSuscripcionBody = {
@@ -76,6 +84,8 @@ export type InvoiceDetalle = {
   suscripcion_id:  string | null
   metodo_tipo:     string | null
   metodo_ultimos_4: string | null
+  metodo_nombre_titular: string | null
+  metodo_pais:     string | null
   plan_nombre:     string
 }
 

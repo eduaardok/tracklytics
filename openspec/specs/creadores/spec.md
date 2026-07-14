@@ -123,6 +123,17 @@ El sistema SHALL registrar en `FACT_AUDIT_LOG` cada aprobación o rechazo de una
 - **WHEN** un usuario con rol `admin` aprueba o rechaza una cuenta de artista o un track subido
 - **THEN** el sistema registra en `FACT_AUDIT_LOG` el administrador que ejecutó el cambio, la acción realizada, la tabla afectada y el estado antes/después
 
+### Requirement: Panel administrativo de métricas de creadores
+El sistema SHALL exponer a un usuario con rol `admin` un panel con métricas operativas agregadas de la capability `creadores`: conteo de subidas de track por estado de revisión, y total de cuentas de artista existentes.
+
+#### Scenario: Admin consulta el panel de métricas de creadores
+- **WHEN** un usuario con rol `admin` solicita el dashboard de creadores
+- **THEN** el sistema retorna el conteo de subidas agrupado por estado de revisión y el total de cuentas de artista, calculados sobre `FACT_SUBIDA_TRACK`/`DIM_CUENTA_ARTISTA`
+
+#### Scenario: Usuario sin rol admin intenta consultar el panel de creadores
+- **WHEN** un usuario sin rol `admin` intenta consultar el dashboard de creadores
+- **THEN** el sistema rechaza la operación
+
 ## Entradas
 
 - Nombre artístico (solicitud de cuenta de artista).

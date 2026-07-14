@@ -237,3 +237,35 @@ tbody tr:last-child .rowValue {
 @media (prefers-reduced-motion: reduce) {
   .stageRunning .stageDot { animation: none; }
 }
+
+/* ── Datos generados por semana ── */
+.sectionHeaderRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+  margin-bottom: var(--space-sm);
+}
+
+.chartGrid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--space-md);
+  margin-bottom: var(--space-md);
+}
+
+.panelTitle {
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--color-muted);
+  margin-bottom: var(--space-sm);
+}
+
+.sourceReal       { font-family: var(--font-mono); font-size: 0.75rem; color: var(--color-success); }
+.sourceSynthetic  { font-family: var(--font-mono); font-size: 0.75rem; color: var(--color-muted); }
+.sourceUploaded   { font-family: var(--font-mono); font-size: 0.75rem; color: oklch(0.62 0.16 70); }
+
+@media (max-width: 720px) {
+  .chartGrid { grid-template-columns: 1fr; }
+}

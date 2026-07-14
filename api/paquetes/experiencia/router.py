@@ -351,6 +351,20 @@ async def crear_titular(body: TitularBody, admin: dict = Depends(require_admin))
     return {"status": "ok", "suscripcion_id": suscripcion_id, "usuario_id": usuario_id, "es_titular": True}
 
 
+@router.get("/familia/resolver-suscripcion/{usuario_id}")
+async def resolver_suscripcion_de_usuario(usuario_id: str, admin: dict = Depends(require_admin)):
+    """UX (S11): el panel admin de plan familiar pedía `suscripcion_id` como
+    texto libre — un ID de PocketBase que el humano no tiene forma de conocer.
+    Se busca ahora por el usuario titular (`UserPicker`, ya usado arriba en la
+    misma página) y se resuelve su suscripción premium activa aquí."""
+    suscripcion = await pb_client.suscripcion_activa_de_usuario(usuario_id)
+    if not suscripcion:
+        raise HTTPException(status_code=404, detail="El usuario no tiene una suscripción activa")
+    if suscripcion.get("tipo_plan") != "premium":
+        raise HTTPException(status_code=403, detail="El plan familiar solo aplica a suscriptores del plan premium")
+    return {"suscripcion_id": suscripcion["id"]}
+
+
 @router.get("/familia/{suscripcion_id}")
 def ver_plan_familiar(suscripcion_id: str, admin: dict = Depends(require_admin)):
     miembros = query_rows(MIEMBROS_DE_SUSCRIPCION, {"suscripcion_id": suscripcion_id})

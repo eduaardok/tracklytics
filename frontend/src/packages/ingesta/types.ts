@@ -154,3 +154,38 @@ export type FactsListResponse = {
   limit: number
   total: number
 }
+
+// ── Muestra/distribución de una semana cargada (GET /app/v1/ingesta/etl/muestra|distribucion) ──
+export type MuestraTrackRow = {
+  track_name:  string
+  artist_name: string
+  genre_name:  string
+  popularity:  number
+  source_type: string
+}
+
+export type EtlMuestra = {
+  week_number: number
+  data:        MuestraTrackRow[]
+}
+
+export type GeneroDistribucion = {
+  genre_name: string
+  n:          number
+}
+
+export type AtributoBin = {
+  bin:   number
+  rango: string
+  n:     number
+}
+
+export type EtlDistribucion = {
+  week_number: number
+  generos:     GeneroDistribucion[]
+  atributos: {
+    energy:       AtributoBin[]
+    valence:      AtributoBin[]
+    danceability: AtributoBin[]
+  }
+}

@@ -9,7 +9,8 @@ IVA_RATE = 0.15
 TASA_EXITO_DEFAULT = 0.9
 
 METODOS_PAGO_POR_USUARIO = """
-SELECT metodo_pago_id, tipo, ultimos_4_digitos, pais, creado_en
+SELECT metodo_pago_id, tipo, ultimos_4_digitos, pais,
+       nombre_titular, direccion, ciudad, codigo_postal, creado_en
 FROM DIM_METODO_PAGO
 WHERE usuario_id = {usuario_id:String}
 ORDER BY creado_en DESC
@@ -51,7 +52,8 @@ SELECT
     i.monto AS monto, i.iva AS iva, i.fecha_emision AS fecha_emision, i.estado AS estado,
     u.nombre AS usuario_nombre, u.email AS usuario_email,
     t.metodo_pago_id AS metodo_pago_id, t.moneda AS moneda, t.suscripcion_id AS suscripcion_id,
-    m.tipo AS metodo_tipo, m.ultimos_4_digitos AS metodo_ultimos_4
+    m.tipo AS metodo_tipo, m.ultimos_4_digitos AS metodo_ultimos_4,
+    m.nombre_titular AS metodo_nombre_titular, m.pais AS metodo_pais
 FROM FACT_INVOICE i
 LEFT JOIN DIM_USUARIO u          ON u.usuario_id = i.usuario_id
 LEFT JOIN FACT_TRANSACCION_PAGO t ON t.transaccion_id = i.transaccion_id

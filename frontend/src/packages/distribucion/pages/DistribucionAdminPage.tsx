@@ -6,12 +6,14 @@ import { CHART_COLORS } from '@shared/components/charts/colors'
 import { SellosTab } from '../components/SellosTab'
 import { LicenciasTab } from '../components/LicenciasTab'
 import { RestriccionesTab } from '../components/RestriccionesTab'
+import { SolicitudesLicenciaTab } from '../components/SolicitudesLicenciaTab'
 import { distribucionApi } from '../api/distribucion.api'
 import styles from './DistribucionPages.module.css'
 
 const TABS = [
   { id: 'sellos',        label: 'Sellos' },
   { id: 'licencias',     label: 'Licencias' },
+  { id: 'solicitudes',   label: 'Solicitudes de licencia' },
   { id: 'restricciones', label: 'Restricciones' },
 ] as const
 
@@ -63,6 +65,7 @@ export function DistribucionAdminPage() {
 
       {tab === 'sellos' && <SellosTab />}
       {tab === 'licencias' && <LicenciasTab />}
+      {tab === 'solicitudes' && <SolicitudesLicenciaTab />}
       {tab === 'restricciones' && <RestriccionesTab />}
     </section>
   )

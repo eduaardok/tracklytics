@@ -94,3 +94,32 @@ export type DashboardDistribucion = {
   restricciones_por_pais:  { pais: string; total: number }[]
   licencias_activas_total: number
 }
+
+// ── Solicitudes de licencia ──────────────────────────────────────────────────
+export type EstadoSolicitudLicencia = 'pendiente' | 'aprobada' | 'rechazada'
+
+export type SolicitudLicencia = {
+  solicitud_id:           string
+  sello_id:               number
+  paises_solicitados:     number[]
+  canales_solicitados:    number[]
+  fecha_inicio_propuesta: string
+  fecha_fin_propuesta:    string | null
+  estado:                 EstadoSolicitudLicencia
+  motivo_rechazo:         string | null
+  fecha_solicitud:        string
+  fecha_resolucion:       string | null
+  admin_resolutor_id:     string | null
+}
+
+export type SolicitudLicenciaBody = {
+  sello_id:               number
+  paises_solicitados:     number[]
+  canales_solicitados:    number[]
+  fecha_inicio_propuesta: string
+  fecha_fin_propuesta?:   string | null
+}
+
+export type RechazarSolicitudBody = {
+  motivo: string
+}

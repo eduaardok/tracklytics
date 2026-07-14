@@ -1,5 +1,8 @@
 import { useQuery } from '@tanstack/react-query'
 import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
+import { MiniLineChart } from '@shared/components/charts/MiniLineChart'
+import { MiniBarChart, type BarDatum } from '@shared/components/charts/MiniBarChart'
+import { CHART_COLORS } from '@shared/components/charts/colors'
 import { analiticaApi } from '../api/analitica.api'
 import styles from './DashboardPage.module.css'
 
@@ -37,6 +40,14 @@ function DashboardSkeleton() {
         <div className={styles.panel} style={{ minHeight: 250 }} />
         <div className={styles.panel} style={{ minHeight: 250 }} />
       </div>
+      <div className={styles.midGrid}>
+        <div className={styles.panel} style={{ minHeight: 220 }} />
+        <div className={styles.panel} style={{ minHeight: 220 }} />
+      </div>
+      <div className={styles.midGrid}>
+        <div className={styles.panel} style={{ minHeight: 220 }} />
+        <div className={styles.panel} style={{ minHeight: 220 }} />
+      </div>
       <div className={styles.etlPanel} style={{ minHeight: 44 }} />
     </>
   )
@@ -62,10 +73,31 @@ export function DashboardPage() {
     )
   }
 
-  const { totals, audio_averages: audio, top_genres, top_artists, last_etl } = data
+  const {
+    totals, audio_averages: audio, top_genres, top_artists, last_etl,
+    ingresos_vs_regalias, altas_por_plan_semana, engagement_por_genero,
+    reproducciones_bloqueadas_por_pais,
+  } = data
   const etlOk = last_etl?.status === 'success'
 
   const subtitle = `// ${fmt(totals.tracks)} tracks · ${fmt(totals.artists)} artistas · ${totals.genres} géneros`
+
+  const ingresosData = ingresos_vs_regalias.map((d) => ({
+    dia: new Date(d.dia).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' }),
+    ingresos_suscripciones: d.ingresos_suscripciones,
+    ingresos_publicidad:    d.ingresos_publicidad,
+    regalias_pagadas:       d.regalias_pagadas,
+  }))
+
+  const altasPlanData = altas_por_plan_semana.map((d) => ({
+    semana:   new Date(d.semana).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' }),
+    free:     d.free,
+    b2c_pago: d.b2c_pago,
+    b2b:      d.b2b,
+  }))
+
+  const engagementData: BarDatum[] = engagement_por_genero.map((g) => ({ name: g.name, value: g.value }))
+  const restriccionesData: BarDatum[] = reproducciones_bloqueadas_por_pais.map((r) => ({ name: r.pais, value: r.total }))
 
   return (
     <section>
@@ -139,6 +171,56 @@ export function DashboardPage() {
                 </li>
               ))}
             </ol>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Charts de negocio: ingresos vs. regalías + altas por plan ── */}
+      <div className={styles.midGrid}>
+        <div>
+          <p className={styles.sectionLabel}>Ingresos vs. regalías pagadas (diario)</p>
+          <div className={styles.panel}>
+            <MiniLineChart
+              data={ingresosData}
+              xKey="dia"
+              series={[
+                { key: 'ingresos_suscripciones', label: 'Suscripciones', color: CHART_COLORS.teal },
+                { key: 'ingresos_publicidad',    label: 'Publicidad',    color: CHART_COLORS.violeta },
+                { key: 'regalias_pagadas',       label: 'Regalías pagadas', color: CHART_COLORS.ambar },
+              ]}
+            />
+          </div>
+        </div>
+
+        <div>
+          <p className={styles.sectionLabel}>Altas de suscripción por plan (semanal)</p>
+          <div className={styles.panel}>
+            <MiniLineChart
+              data={altasPlanData}
+              xKey="semana"
+              series={[
+                { key: 'free',     label: 'Free',        color: CHART_COLORS.teal },
+                { key: 'b2c_pago', label: 'B2C de pago',  color: CHART_COLORS.violeta },
+                { key: 'b2b',      label: 'B2B',          color: CHART_COLORS.ambar },
+              ]}
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* ── Charts de negocio: engagement por género + restricciones por país ── */}
+      <div className={styles.midGrid}>
+        <div>
+          <p className={styles.sectionLabel}>Géneros con más engagement real</p>
+          <div className={styles.panel}>
+            <MiniBarChart data={engagementData} color={CHART_COLORS.teal} />
+          </div>
+        </div>
+
+        <div>
+          <p className={styles.sectionLabel}>Reproducciones bloqueadas por país</p>
+          <div className={styles.panel}>
+            <MiniBarChart data={restriccionesData} color={CHART_COLORS.ambar} />
           </div>
         </div>
       </div>

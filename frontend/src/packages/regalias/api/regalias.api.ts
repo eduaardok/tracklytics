@@ -1,7 +1,8 @@
 import { apiClient, type ApiResponse } from '@shared/lib/api-client'
 import type {
   Contrato, ContratoBody, CuentaSello, GananciasResponse,
-  LiquidarBody, LiquidarResultado, Productor, Retiro, SaldoResponse,
+  LiquidacionContrato, LiquidarBody, LiquidarResultado, Productor, Retiro,
+  ResumenContrato, SaldoResponse,
 } from '../types'
 
 export const regaliasApi = {
@@ -19,6 +20,12 @@ export const regaliasApi = {
 
   crearContrato: (body: ContratoBody) =>
     apiClient.post<{ status: string; contrato_id: string }>('/regalias/admin/contratos', body),
+
+  liquidacionesContrato: (contratoId: string) =>
+    apiClient.get<ApiResponse<LiquidacionContrato>>(`/regalias/admin/contratos/${contratoId}/liquidaciones`),
+
+  resumenContrato: (contratoId: string) =>
+    apiClient.get<ResumenContrato>(`/regalias/admin/contratos/${contratoId}/resumen`),
 
   crearCuentaSello: (usuarioId: string, selloId: number) =>
     apiClient.post<{ status: string; cuenta_sello_id: string }>('/regalias/admin/cuentas-sello', { usuario_id: usuarioId, sello_id: selloId }),

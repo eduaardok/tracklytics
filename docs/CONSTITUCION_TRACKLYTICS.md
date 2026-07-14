@@ -50,10 +50,13 @@ ni de las especificaciones funcionales.
 - **Staging:** archivos Parquet como capa intermedia transitoria entre
   PocketBase y ClickHouse (se eliminan tras cada carga exitosa).
 - **Base de datos analítica principal:** ClickHouse (columnar, motor
-  MergeTree) es la única fuente analítica del sistema.
-- **Entidades operativas de usuario:** PocketBase también almacena
-  entidades propias de la aplicación (playlists, con sus reglas de
-  acceso por usuario).
+  MergeTree). No es solo la fuente analítica: por decisión deliberada
+  (RT-05, fricción arquitectónica intencional — ver §3) también aloja
+  dominios transaccionales/operativos que en un sistema "de manual" irían
+  en una base relacional aparte (métodos de pago, transacciones,
+  solicitudes de licencia, auditoría). PocketBase queda reservado a
+  identidad de usuario y a las entidades cuyas reglas de acceso dependen
+  de su motor de auth (playlists, favoritos, suscripciones activas).
 - **ETL y orquestación:** Python (pandas, pyarrow, clickhouse-connect)
   para el movimiento de datos, orquestado con Apache Airflow.
 - **API:** FastAPI, con inyección de dependencias, caché TTL, y cliente
@@ -61,10 +64,19 @@ ni de las especificaciones funcionales.
   concurrencia entre vistas del frontend.
 - **Contenedores:** Docker y Docker Compose; el sistema completo se
   levanta sin pasos de configuración manual adicionales.
-- **Frontend:** HTML, CSS y JavaScript vanilla, Bootstrap 5 servido en
-  local (sin CDN), Plotly.js para visualizaciones, iconografía SVG
-  inline. Organizado en paquetes funcionales: autenticación, catálogo,
-  biblioteca, analítica.
+- **Frontend:** React 18 + TypeScript + Vite, servido en producción vía
+  Nginx desde un build multi-stage (sin volumen montado — un cambio de
+  código exige reconstruir la imagen, no solo reiniciar el contenedor).
+  `recharts` para visualización de datos. Organizado en paquetes por
+  capability (uno por dominio de negocio: `analitica`, `catalogo`,
+  `creadores`, `distribucion`, `experiencia`, `facturacion`, `ingesta`,
+  `partners`, `publicidad`, `regalias`, `seguridad`, `simulacion`,
+  `social`, `suscripciones`), con componentes verdaderamente
+  transversales (buscadores tipo `TrackPicker`/`ArtistPicker`/
+  `AlbumPicker`/`UserPicker`) en `shared/`. El frontend legado en
+  HTML/CSS/JS vanilla + Bootstrap 5 + Plotly.js fue retirado por completo
+  (S10) — no queda ninguna superficie de producto sirviéndose desde
+  `app/`.
 - **Control de versiones:** Git y GitHub.
 
 ## 2. Arquitectura del pipeline de catálogo
@@ -74,6 +86,17 @@ disco) → ClickHouse (tablas de hechos y dimensiones). El flujo de carga
 del catálogo siempre pasa por Parquet; nunca se inserta directo de
 PocketBase a ClickHouse. Todo movimiento de datos de este pipeline
 ocurre desde código Python.
+
+El DAG semanal de ingesta (`tracklytics_etl`) solo incluye lo que
+bloquea la disponibilidad de `FACT_TRACKS`/`DIM_ARTISTS`/`DIM_ALBUMS`
+(bronze → silver → gold → synthetic → log). Trabajo aditivo que no
+bloquea esa disponibilidad — la resolución de portadas reales de
+artistas/álbumes (oEmbed de Spotify + respaldo iTunes/Deezer) es el
+primer caso — vive en un DAG separado y desacoplado (`reload_portadas`,
+disparable de forma independiente), para que su costo de red no infle
+`ETL_LOGS.duration_seconds` de la ingesta real (decisión S11: sacarlo
+del DAG principal redujo la duración de una carga de 11 semanas
+acumuladas de ~3-6 min a 65s).
 
 ## 3. Principios de arquitectura no negociables
 
@@ -97,12 +120,24 @@ ocurre desde código Python.
 - **P5 — Fuente analítica única.** ClickHouse es la única fuente
   analítica principal del sistema; ningún panel ni reporte se construye
   sobre agregaciones calculadas en tiempo real desde la base de datos
-  operativa.
+  operativa. Esto se sostiene incluso a costa de fricción arquitectónica
+  deliberada (RT-05): dominios que un sistema transaccional "de manual"
+  resolvería en una base relacional aparte (pagos, solicitudes,
+  auditoría) también viven en ClickHouse, sacrificando algunas garantías
+  transaccionales (sin `UPDATE`/`DELETE` fila-a-fila baratos; los estados
+  "pendiente → resuelto" se modelan re-insertando en `ReplacingMergeTree`
+  o con `ALTER TABLE ... UPDATE` mutations) a cambio de no fragmentar la
+  fuente de verdad analítica. Es una decisión consciente, no un descuido.
 - **P6 — Modelo de negocio relacionado al dominio.** El modelo de datos
-  debe sostener un mínimo de diez tablas relacionadas directamente con
-  el contexto de negocio de Tracklytics (catálogo musical, suscripciones,
-  adquisición, integraciones, disponibilidad, ingesta de datos,
-  engagement de usuario).
+  debe sostener el contexto de negocio de Tracklytics (catálogo musical,
+  suscripciones, adquisición, integraciones, disponibilidad, ingesta de
+  datos, engagement de usuario) con las tablas que cada capability
+  necesite. El piso original de diez tablas (RT-06, ver `openspec/
+  config.yaml`) quedó superado hace tiempo — el sistema no fija ya un
+  número objetivo de tablas; el modelo crece por necesidad real de cada
+  capability nueva, no para cumplir una cuota. A la fecha de esta
+  revisión (S11) hay 66 tablas físicas en ClickHouse repartidas en 14
+  capabilities de negocio.
 
 ## 4. Modelo de datos técnico (catálogo musical)
 
@@ -117,6 +152,17 @@ identificador de track puede aparecer en múltiples filas de la tabla de
 hechos, porque un track puede pertenecer a más de un género —relación
 N:M resuelta como filas independientes en la tabla de hechos.
 
+`FACT_TRACKS.source_type` (`Enum8('real', 'synthetic', 'user_uploaded')`)
+es el campo de procedencia canónico de un registro (RT-07) — reemplaza a
+un flag booleano `is_synthetic` como mecanismo de clasificación en esta
+tabla. Es una distinción de tres vías, no dos: un track puede venir del
+dataset base, de generación de datos de referencia, o de una subida real
+de un artista (`creadores`) — un booleano no alcanza a representarlo.
+Nótese que `source_type` todavía no se propagó a todas las tablas del
+proyecto: `FACT_ENGAGEMENT_USUARIO`, por ejemplo, conserva su propio
+`is_synthetic Bool` — deuda técnica conocida, no una inconsistencia de
+diseño sin resolver conscientemente.
+
 ## 5. Modelo de datos de negocio
 
 `FACT_SUSCRIPCION`, `FACT_ADQUISICION`, `FACT_INTEGRACION_PARTNER`,
@@ -127,12 +173,31 @@ modelo de negocio es independiente del modelo técnico de catálogo; no
 deben conflactarse en ningún artefacto de documentación o
 implementación.
 
+Patrón recurrente para flujos de solicitud/aprobación (`DIM_CUENTA_ARTISTA`
+en `creadores`, `SOLICITUD_LICENCIA` en `distribucion` desde S11): una
+tabla de solicitud separada de la tabla de "lo ya vigente", nunca un
+estado embebido en la dimensión final. Una solicitud pendiente o
+rechazada no debe poder confundirse con algo actualmente activo, y una
+sola solicitud puede resolver en múltiples filas de la dimensión final
+(p. ej. una solicitud de licencia para N países aprueba N filas en
+`DIM_LICENCIA`). El estado de la solicitud se resuelve re-insertando en
+una `ReplacingMergeTree` con `actualizado_en` más reciente — nunca un
+`UPDATE` de fila suelta.
+
 ## 6. Roles del sistema
 
-Tres roles: usuario final (consumidor B2C), analista (Cliente B2B,
-Data Analyst / BI Lead) y administrador (Lead Data Engineer, CTO). El
-catálogo completo de actores y sus responsabilidades específicas se
-documenta en la especificación de negocio.
+Tres roles de identidad (PocketBase): usuario final (consumidor B2C),
+analista (Cliente B2B, Data Analyst / BI Lead) y administrador (Lead Data
+Engineer, CTO). El catálogo completo de actores y sus responsabilidades
+específicas se documenta en la especificación de negocio.
+
+El sello discográfico es un actor de negocio real (crea solicitudes de
+licencia, ve el estado de las suyas) pero, a la fecha de esta revisión,
+no tiene una identidad de login propia — el rol `admin` actúa en su
+nombre como interín (`distribucion`, S11). El modelo de datos de la
+solicitud ya guarda `sello_id` de forma que, cuando exista login de
+sello, la transición no requiera rediseñar el esquema — solo agregar la
+identidad y el gating de acceso.
 
 ## 7. Calidad de software
 

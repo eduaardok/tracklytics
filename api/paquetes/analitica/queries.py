@@ -322,6 +322,55 @@ JOIN DIM_EXPLICIT_TYPE e ON ft.explicit_id = e.explicit_id
 GROUP BY e.label
 """
 
+# ── Dashboard: charts de negocio (auditoría "numbers-only" 2026-07-14) ────────
+# Series diarias de ingresos vs. regalías pagadas — el rango real de datos en
+# las 3 FACT tables es de solo ~12 días (ver verificación con clickhouse-client
+# antes de escribir esto), por lo que `toDate` (día) da una serie mucho más
+# legible que `toStartOfWeek` (que colapsaría todo en 1-2 puntos). Cada query
+# se agrega por separado (no UNION) porque los rangos de fecha de las 3 tablas
+# no coinciden — el merge por fecha se resuelve en Python (router.py).
+DASHBOARD_INGRESOS_SUSCRIPCION_DIARIO = """
+SELECT toDate(fecha) AS dia, sum(monto) AS monto
+FROM FACT_TRANSACCION_PAGO
+WHERE estado = 'exitosa'
+GROUP BY dia
+ORDER BY dia
+"""
+
+DASHBOARD_INGRESOS_PUBLICITARIOS_DIARIO = """
+SELECT toDate(fecha) AS dia, sum(monto) AS monto
+FROM FACT_INGRESO_PUBLICITARIO
+GROUP BY dia
+ORDER BY dia
+"""
+
+# `fecha_calculo` (no `periodo_inicio`) — es el mismo campo que ya usa
+# REGALIAS_PAGADAS_EN_RANGO para el P&L consolidado (momento en que la
+# liquidación se calculó/pagó), para que este chart y el endpoint /pnl
+# cuenten la misma plata con el mismo criterio de fecha.
+DASHBOARD_REGALIAS_PAGADAS_DIARIO = """
+SELECT toDate(fecha_calculo) AS dia, sum(monto) AS monto
+FROM FACT_LIQUIDACION_REGALIA
+GROUP BY dia
+ORDER BY dia
+"""
+
+# Top géneros por engagement real — mismo raw_score que ENGAGEMENT_BY_FACT/
+# ENGAGEMENT_BY_ARTIST (reproduccion x1 + favorito_add x3), agregado por
+# género en vez de por track/artista, para no inventar una fórmula de
+# scoring distinta a la ya usada en el resto de `analitica`.
+DASHBOARD_ENGAGEMENT_POR_GENERO = """
+SELECT
+    g.name                                                                        AS name,
+    countIf(e.event_type = 'reproduccion') + countIf(e.event_type = 'favorito_add') * 3 AS value
+FROM FACT_ENGAGEMENT_USUARIO e
+JOIN FACT_TRACKS ft ON e.fact_id = ft.fact_id
+JOIN DIM_GENRES g ON ft.genre_id = g.genre_id
+GROUP BY g.name
+ORDER BY value DESC
+LIMIT 10
+"""
+
 # ── completar-modelo-base: adquisición de usuarios y disponibilidad de ────────
 # infraestructura (CU-O54/CU-O55). `semana` es el lunes de la semana de
 # `fecha` (toMonday), no `load_week` de FACT_TRACKS — estas tablas son un

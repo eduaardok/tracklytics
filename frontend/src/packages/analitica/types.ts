@@ -177,4 +177,28 @@ export type DashboardData = {
     records_inserted:  number
   } | null
   explicit_distribution: Array<{ explicit_label: string; track_count: number }>
+  // ── Charts de negocio (auditoría "numbers-only" 2026-07-14) ────────────────
+  // Serie diaria (no semanal: el rango real de datos es de ~12 días, ver
+  // api/paquetes/analitica/queries.py) de ingresos por suscripciones/
+  // publicidad vs. regalías pagadas (salida de dinero, no ingreso).
+  ingresos_vs_regalias: Array<{
+    dia:                     string
+    ingresos_suscripciones:  number
+    ingresos_publicidad:     number
+    regalias_pagadas:        number
+  }>
+  // Altas de suscripción por semana, agrupadas en 3 series de negocio (free /
+  // b2c de pago / b2b) — 6 planes individuales sobre ~66 suscripciones
+  // totales serían demasiado ruidosos para una serie legible.
+  altas_por_plan_semana: Array<{
+    semana:    string
+    free:      number
+    b2c_pago:  number
+    b2b:       number
+  }>
+  // Top géneros por engagement real (mismo raw_score que /analitica/engagement).
+  engagement_por_genero: Array<{ name: string; value: number }>
+  // Ranking de reproducciones bloqueadas por país (RESTRICCIONES_POR_PAIS,
+  // reusada verbatim desde `distribucion`).
+  reproducciones_bloqueadas_por_pais: Array<{ pais: string; total: number }>
 }

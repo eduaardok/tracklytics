@@ -3,6 +3,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ErrorState } from '@shared/components/ErrorState'
 import { apiErrorMessage } from '@shared/lib/api-client'
 import { useToast } from '@shared/context/ToastContext'
+import { ArtistPicker, type ArtistSearchResult } from '@shared/components/ArtistPicker'
+import { AlbumPicker, type AlbumSearchResult } from '@shared/components/AlbumPicker'
 import { distribucionApi } from '../api/distribucion.api'
 import styles from '../pages/DistribucionPages.module.css'
 
@@ -11,8 +13,8 @@ export function SellosTab() {
   const toast = useToast()
   const [nombre, setNombre] = useState('')
   const [editId, setEditId] = useState<number | null>(null)
-  const [asignarArtistId, setAsignarArtistId] = useState('')
-  const [asignarAlbumId, setAsignarAlbumId] = useState('')
+  const [asignarArtist, setAsignarArtist] = useState<ArtistSearchResult | null>(null)
+  const [asignarAlbum, setAsignarAlbum] = useState<AlbumSearchResult | null>(null)
   const [asignarSelloId, setAsignarSelloId] = useState('')
   const [asignarMsg, setAsignarMsg] = useState<string | null>(null)
 
@@ -44,15 +46,17 @@ export function SellosTab() {
   const asignar = useMutation({
     mutationFn: async () => {
       const selloId = Number(asignarSelloId)
-      if (asignarArtistId.trim()) await distribucionApi.asignarSelloArtista(Number(asignarArtistId), { sello_id: selloId })
-      if (asignarAlbumId.trim()) await distribucionApi.asignarSelloAlbum(Number(asignarAlbumId), { sello_id: selloId })
+      if (asignarArtist) await distribucionApi.asignarSelloArtista(asignarArtist.artist_id, { sello_id: selloId })
+      if (asignarAlbum) await distribucionApi.asignarSelloAlbum(asignarAlbum.album_id, { sello_id: selloId })
     },
     onSuccess: () => {
       setAsignarMsg('Sello asignado correctamente.')
+      setAsignarArtist(null)
+      setAsignarAlbum(null)
       toast.success('Sello asignado')
     },
     onError: (err) => {
-      setAsignarMsg('No se pudo asignar el sello (¿id existente?).')
+      setAsignarMsg('No se pudo asignar el sello.')
       toast.error(apiErrorMessage(err, 'No se pudo asignar el sello.'))
     },
   })
@@ -138,18 +142,22 @@ export function SellosTab() {
             {data.map((s) => <option key={s.sello_id} value={s.sello_id}>{s.nombre}</option>)}
           </select>
         </div>
-        <div className={styles.field}>
-          <label className={styles.fieldLabel} htmlFor="asignar-artist">artist_id (opcional)</label>
-          <input id="asignar-artist" className={styles.input} type="number" min={1} value={asignarArtistId} onChange={(e) => setAsignarArtistId(e.target.value)} />
-        </div>
-        <div className={styles.field}>
-          <label className={styles.fieldLabel} htmlFor="asignar-album">album_id (opcional)</label>
-          <input id="asignar-album" className={styles.input} type="number" min={1} value={asignarAlbumId} onChange={(e) => setAsignarAlbumId(e.target.value)} />
-        </div>
+        <ArtistPicker
+          label="Artista (opcional)"
+          selected={asignarArtist}
+          onSelect={setAsignarArtist}
+          onClear={() => setAsignarArtist(null)}
+        />
+        <AlbumPicker
+          label="Álbum (opcional)"
+          selected={asignarAlbum}
+          onSelect={setAsignarAlbum}
+          onClear={() => setAsignarAlbum(null)}
+        />
         <button
           className={styles.btnPrimary}
           type="submit"
-          disabled={asignar.isPending || !asignarSelloId || (!asignarArtistId.trim() && !asignarAlbumId.trim())}
+          disabled={asignar.isPending || !asignarSelloId || (!asignarArtist && !asignarAlbum)}
         >
           {asignar.isPending ? 'Asignando…' : 'Asignar'}
         </button>

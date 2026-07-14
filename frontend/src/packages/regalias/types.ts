@@ -90,3 +90,22 @@ export type SaldoResponse = {
   saldo_disponible: number
   retiros:          Retiro[]
 }
+
+// ── Historial de liquidaciones de un contrato (detalle en RegaliasAdminPage) ─
+export type LiquidacionContrato = {
+  liquidacion_id:   string
+  periodo_inicio:   string
+  periodo_fin:      string
+  tipo_rightsholder: 'sello' | 'artista' | 'productor'
+  rightsholder_id:  string
+  streams_periodo:  number
+  monto:            number
+  moneda:           string
+  fecha_calculo:    string
+}
+
+export type ResumenContrato = {
+  total_liquidado:     number
+  ultima_liquidacion:  string | null
+  num_liquidaciones:   number
+}

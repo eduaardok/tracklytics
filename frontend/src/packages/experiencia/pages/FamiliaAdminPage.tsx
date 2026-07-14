@@ -22,9 +22,20 @@ export function FamiliaAdminPage() {
   const queryClient = useQueryClient()
   const toast = useToast()
   const [titularUser, setTitularUser] = useState<UserSearchResult | null>(null)
+  const [buscarTitular, setBuscarTitular] = useState<UserSearchResult | null>(null)
   const [suscripcionId, setSuscripcionId] = useState('')
   const [miembroUser, setMiembroUser] = useState<UserSearchResult | null>(null)
   const [msg, setMsg] = useState<{ tipo: 'ok' | 'error'; texto: string } | null>(null)
+  const [busquedaError, setBusquedaError] = useState<string | null>(null)
+
+  const resolverSuscripcion = useMutation({
+    mutationFn: (usuarioId: string) => experienciaApi.resolverSuscripcionDeUsuario(usuarioId),
+    onSuccess: (res) => { setSuscripcionId(res.suscripcion_id); setBusquedaError(null) },
+    onError: (err) => {
+      setSuscripcionId('')
+      setBusquedaError(apiErrorMessage(err, 'Este usuario no tiene un plan familiar (ni una suscripción premium activa).'))
+    },
+  })
 
   const plan = useQuery({
     queryKey: ['experiencia', 'familia', suscripcionId],
@@ -93,18 +104,16 @@ export function FamiliaAdminPage() {
       </form>
       {msg && <div className={msg.tipo === 'error' ? styles.bannerError : styles.bannerOk} role="status">{msg.texto}</div>}
 
-      <p className={styles.sectionLabel}>Ver / gestionar plan por suscripción</p>
+      <p className={styles.sectionLabel}>Ver / gestionar plan por titular</p>
       <form className={styles.form} onSubmit={(e) => e.preventDefault()}>
-        <div className={styles.field}>
-          <label className={styles.fieldLabel} htmlFor="suscripcion-id">suscripcion_id</label>
-          <input
-            id="suscripcion-id"
-            className={styles.input}
-            value={suscripcionId}
-            onChange={(e) => setSuscripcionId(e.target.value)}
-            placeholder="id de la suscripción (PocketBase)"
-          />
-        </div>
+        <UserPicker
+          label="Usuario titular"
+          selected={buscarTitular}
+          onSelect={(u) => { setBuscarTitular(u); resolverSuscripcion.mutate(u.usuario_id) }}
+          onClear={() => { setBuscarTitular(null); setSuscripcionId(''); setBusquedaError(null) }}
+        />
+        {resolverSuscripcion.isPending && <p className={styles.emptyBody}>Buscando su plan familiar…</p>}
+        {busquedaError && <div className={styles.bannerError} role="status">{busquedaError}</div>}
       </form>
 
       {suscripcionId.trim() && (

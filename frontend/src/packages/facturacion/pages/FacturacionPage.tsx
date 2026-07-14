@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ErrorState } from '@shared/components/ErrorState'
@@ -6,8 +6,11 @@ import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { apiErrorMessage } from '@shared/lib/api-client'
 import { getRole } from '@shared/lib/session'
 import { useToast } from '@shared/context/ToastContext'
+import { distribucionApi } from '@packages/distribucion/api/distribucion.api'
+import type { Pais } from '@packages/distribucion/types'
 import { facturacionApi } from '../api/facturacion.api'
 import type { MetodoPago } from '../types'
+import { expiracionValida, formatearNumeroTarjeta, inferirMarcaTarjeta, luhnValido } from '../lib/checkout'
 import styles from './FacturacionPages.module.css'
 
 function fmt(monto: number, moneda = 'EUR') {
@@ -57,12 +60,36 @@ export function FacturacionPage() {
   const role = getRole()
   const [selectedMethodId, setSelectedMethodId] = useState('')
   const [showAddForm, setShowAddForm]           = useState(false)
-  const [tipo, setTipo]                         = useState('')
-  const [ultimos4, setUltimos4]                 = useState('')
-  const [pais, setPais]                         = useState('')
+
+  // ── Checkout simulado — ver design.md: no hay pasarela de pago real. El
+  // número de tarjeta completo, la expiración y el CVV viven SOLO en este
+  // estado local del componente: nunca se incluyen en el body de la
+  // petición ni se registran en consola/auditoría (solo `ultimos4`, ya
+  // extraído, viaja al backend).
+  const [nombreTitular, setNombreTitular]       = useState('')
+  const [numeroTarjeta, setNumeroTarjeta]       = useState('')
+  const [expiracion, setExpiracion]             = useState('')
+  const [cvv, setCvv]                           = useState('')
+  const [direccion, setDireccion]               = useState('')
+  const [ciudad, setCiudad]                     = useState('')
+  const [paisId, setPaisId]                     = useState('')
+  const [codigoPostal, setCodigoPostal]         = useState('')
+  const [paises, setPaises]                     = useState<Pais[]>([])
+
+  // Estados intermedios del "procesando pago" simulado (Validando… /
+  // Autorizando…) — puramente cosmético en el cliente; el resultado real
+  // siempre viene de `facturacionApi.pagarSuscripcion`, nunca se inventa acá.
+  const [procesando, setProcesando] = useState<null | 'validando' | 'autorizando'>(null)
+
+  useEffect(() => {
+    distribucionApi.paisesPublico().then((res) => setPaises(res.data ?? [])).catch(() => setPaises([]))
+  }, [])
 
   const queryClient = useQueryClient()
   const toast = useToast()
+
+  const ultimos4 = numeroTarjeta.replace(/\D/g, '').slice(-4)
+  const tipoInferido = inferirMarcaTarjeta(numeroTarjeta)
 
   // admin ya tiene acceso completo sin pagar — evita el roundtrip
   // innecesario (no hay nada que facturar para ese rol).
@@ -86,18 +113,41 @@ export function FacturacionPage() {
 
   const registrarMetodo = useMutation({
     mutationFn: () =>
-      facturacionApi.registrarMetodoPago({ tipo, ultimos_4_digitos: ultimos4, pais }),
+      facturacionApi.registrarMetodoPago({
+        tipo: tipoInferido,
+        ultimos_4_digitos: ultimos4,
+        pais: paisId,
+        nombre_titular: nombreTitular.trim(),
+        direccion: direccion.trim(),
+        ciudad: ciudad.trim(),
+        codigo_postal: codigoPostal.trim(),
+      }),
     onSuccess: () => {
-      setTipo(''); setUltimos4(''); setPais(''); setShowAddForm(false)
+      setNombreTitular(''); setNumeroTarjeta(''); setExpiracion(''); setCvv('')
+      setDireccion(''); setCiudad(''); setPaisId(''); setCodigoPostal('')
+      setShowAddForm(false)
       queryClient.invalidateQueries({ queryKey: ['facturacion', 'metodos-pago'] })
       toast.success('Método de pago agregado')
     },
     onError: (err) => toast.error(apiErrorMessage(err, 'No se pudo agregar el método de pago.')),
   })
 
+  // Espera `ms` sin bloquear — usada solo para los estados intermedios
+  // cosméticos ("Validando…" / "Autorizando…") antes de la llamada real.
+  const esperar = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+
   const pagar = useMutation({
-    mutationFn: () =>
-      facturacionApi.pagarSuscripcion({ metodo_pago_id: selectedMethodId }),
+    mutationFn: async () => {
+      setProcesando('validando')
+      await esperar(600)
+      setProcesando('autorizando')
+      await esperar(600)
+      try {
+        return await facturacionApi.pagarSuscripcion({ metodo_pago_id: selectedMethodId })
+      } finally {
+        setProcesando(null)
+      }
+    },
     onSuccess: (res) => {
       queryClient.invalidateQueries({ queryKey: ['facturacion', 'transacciones'] })
       queryClient.invalidateQueries({ queryKey: ['facturacion', 'invoices'] })
@@ -113,7 +163,11 @@ export function FacturacionPage() {
   const invoicesData              = invoices.data?.data ?? []
 
   const payLabel = pagar.isPending
-    ? 'Procesando…'
+    ? procesando === 'validando'
+      ? 'Validando…'
+      : procesando === 'autorizando'
+      ? 'Autorizando…'
+      : 'Procesando…'
     : suscripcion
     ? `Pagar — ${fmt(suscripcion.monto, suscripcion.moneda)}/mes`
     : 'Pagar'
@@ -185,6 +239,7 @@ export function FacturacionPage() {
                 </span>
                 <span className={styles.methodType}>{m.tipo}</span>
                 <span className={styles.methodNumber}>•••• {m.ultimos_4_digitos}</span>
+                {m.nombre_titular && <span className={styles.methodCountry}>{m.nombre_titular}</span>}
                 <span className={styles.methodCountry}>{m.pais || '—'}</span>
               </button>
             )
@@ -206,8 +261,24 @@ export function FacturacionPage() {
           className={styles.addForm}
           onSubmit={(e) => {
             e.preventDefault()
-            if (!tipo.trim() || ultimos4.trim().length !== 4) {
-              toast.error('Completa el tipo y los últimos 4 dígitos de la tarjeta.')
+            if (!nombreTitular.trim()) {
+              toast.error('Ingresa el nombre del titular de la tarjeta.')
+              return
+            }
+            if (!luhnValido(numeroTarjeta)) {
+              toast.error('El número de tarjeta no es válido.')
+              return
+            }
+            if (!expiracionValida(expiracion)) {
+              toast.error('La fecha de expiración no es válida o ya venció.')
+              return
+            }
+            if (!/^\d{3,4}$/.test(cvv)) {
+              toast.error('El CVV debe tener 3 o 4 dígitos.')
+              return
+            }
+            if (!paisId) {
+              toast.error('Selecciona el país de facturación.')
               return
             }
             registrarMetodo.mutate()
@@ -215,40 +286,112 @@ export function FacturacionPage() {
           noValidate
         >
           <div className={styles.field}>
-            <label className={styles.fieldLabel} htmlFor="tipo">tipo</label>
+            <label className={styles.fieldLabel} htmlFor="nombreTitular">titular</label>
             <input
-              id="tipo"
+              id="nombreTitular"
               className={styles.input}
               type="text"
-              value={tipo}
-              onChange={(e) => setTipo(e.target.value)}
-              placeholder="visa"
+              autoComplete="cc-name"
+              value={nombreTitular}
+              onChange={(e) => setNombreTitular(e.target.value)}
+              placeholder="Como aparece en la tarjeta"
               required
             />
           </div>
           <div className={styles.field}>
-            <label className={styles.fieldLabel} htmlFor="ultimos4">últimos 4</label>
+            <label className={styles.fieldLabel} htmlFor="numeroTarjeta">número de tarjeta</label>
             <input
-              id="ultimos4"
+              id="numeroTarjeta"
               className={styles.input}
               type="text"
-              value={ultimos4}
-              onChange={(e) => setUltimos4(e.target.value)}
-              maxLength={4}
+              autoComplete="cc-number"
               inputMode="numeric"
-              placeholder="4242"
+              value={numeroTarjeta}
+              onChange={(e) => setNumeroTarjeta(formatearNumeroTarjeta(e.target.value))}
+              maxLength={23}
+              placeholder="4242 4242 4242 4242"
               required
             />
           </div>
           <div className={styles.field}>
-            <label className={styles.fieldLabel} htmlFor="pais">país</label>
+            <label className={styles.fieldLabel} htmlFor="expiracion">expiración (MM/AA)</label>
             <input
-              id="pais"
+              id="expiracion"
               className={styles.input}
               type="text"
-              value={pais}
-              onChange={(e) => setPais(e.target.value)}
-              placeholder="ES"
+              autoComplete="cc-exp"
+              value={expiracion}
+              onChange={(e) => setExpiracion(e.target.value)}
+              maxLength={5}
+              placeholder="12/29"
+              required
+            />
+          </div>
+          <div className={styles.field}>
+            <label className={styles.fieldLabel} htmlFor="cvv">CVV</label>
+            <input
+              id="cvv"
+              className={styles.input}
+              type="password"
+              autoComplete="cc-csc"
+              inputMode="numeric"
+              value={cvv}
+              onChange={(e) => setCvv(e.target.value.replace(/\D/g, '').slice(0, 4))}
+              maxLength={4}
+              placeholder="•••"
+              required
+            />
+          </div>
+          <div className={styles.field}>
+            <label className={styles.fieldLabel} htmlFor="direccion">dirección</label>
+            <input
+              id="direccion"
+              className={styles.input}
+              type="text"
+              autoComplete="address-line1"
+              value={direccion}
+              onChange={(e) => setDireccion(e.target.value)}
+              placeholder="Calle y número"
+            />
+          </div>
+          <div className={styles.field}>
+            <label className={styles.fieldLabel} htmlFor="ciudad">ciudad</label>
+            <input
+              id="ciudad"
+              className={styles.input}
+              type="text"
+              autoComplete="address-level2"
+              value={ciudad}
+              onChange={(e) => setCiudad(e.target.value)}
+              placeholder="Madrid"
+            />
+          </div>
+          <div className={styles.field}>
+            <label className={styles.fieldLabel} htmlFor="paisFacturacion">país</label>
+            <select
+              id="paisFacturacion"
+              className={styles.input}
+              autoComplete="country"
+              value={paisId}
+              onChange={(e) => setPaisId(e.target.value)}
+              required
+            >
+              <option value="">Selecciona…</option>
+              {paises.map((p) => (
+                <option key={p.pais_id} value={p.codigo_iso}>{p.nombre}</option>
+              ))}
+            </select>
+          </div>
+          <div className={styles.field}>
+            <label className={styles.fieldLabel} htmlFor="codigoPostal">código postal</label>
+            <input
+              id="codigoPostal"
+              className={styles.input}
+              type="text"
+              autoComplete="postal-code"
+              value={codigoPostal}
+              onChange={(e) => setCodigoPostal(e.target.value)}
+              placeholder="28001"
             />
           </div>
           <button
@@ -283,6 +426,11 @@ export function FacturacionPage() {
             {!selectedMethodId && metodosData.length > 0 && (
               <span className={styles.sectionLabel} style={{ marginBottom: 0 }}>
                 Selecciona un método para continuar
+              </span>
+            )}
+            {procesando && (
+              <span className={`${styles.badge} ${styles.badgePending}`}>
+                {procesando === 'validando' ? 'Validando…' : 'Autorizando…'}
               </span>
             )}
           </div>

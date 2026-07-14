@@ -11,8 +11,13 @@ import { regaliasApi } from '../api/regalias.api'
 import type { Contrato } from '../types'
 import styles from './RegaliasPages.module.css'
 
-function fmtMoney(v: number) {
-  return new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 }).format(v)
+function fmtMoney(v: number, moneda = 'USD') {
+  return new Intl.NumberFormat('es-ES', { style: 'currency', currency: moneda, maximumFractionDigits: 2 }).format(v)
+}
+
+function fmtDate(iso: string) {
+  const d = new Date(iso)
+  return isNaN(d.getTime()) ? iso : d.toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })
 }
 
 // Panel admin de `regalias` (CU-O59-O63): productores, contratos de reparto,
@@ -104,6 +109,12 @@ export function RegaliasAdminPage() {
     onSuccess: (res) => toast.success(`Período liquidado — ${res.liquidaciones} liquidaciones generadas`),
     onError: (err) => toast.error(apiErrorMessage(err, 'No se pudo liquidar el período.')),
   })
+
+  // ── Historial de liquidaciones de un contrato ────────────────────────────
+  // Patrón "seleccionar fila → detalle aparece debajo" (mismo que
+  // RestriccionesTab en `distribucion`), en vez de modal: no hay
+  // infraestructura de modal compartida en este codebase todavía.
+  const [contratoSeleccionado, setContratoSeleccionado] = useState<string | null>(null)
 
   const productoresData = productores.data?.data ?? []
   const contratosData: Contrato[] = contratos.data?.data ?? []
@@ -216,20 +227,31 @@ export function RegaliasAdminPage() {
 
       <div className={styles.tablePanel}>
         <table className={styles.table}>
-          <thead><tr><th>Track</th><th>Sello</th><th>Artista</th><th>Productor</th><th>Vigente desde</th></tr></thead>
+          <thead><tr><th>Track</th><th>Sello</th><th>Artista</th><th>Productor</th><th>Vigente desde</th><th></th></tr></thead>
           <tbody>
             {contratosData.length === 0 ? (
-              <tr><td colSpan={5} className={styles.emptyState}>Sin contratos todavía.</td></tr>
+              <tr><td colSpan={6} className={styles.emptyState}>Sin contratos todavía.</td></tr>
             ) : contratosData.map((c) => (
               <tr key={c.contrato_id}>
                 <td>{c.fact_id_track}</td><td>{c.sello_id ?? '—'}</td>
                 <td>{c.cuenta_artista_id ? c.cuenta_artista_id.slice(0, 8) + '…' : '—'}</td>
                 <td>{c.productor_id ?? '—'}</td><td>{c.vigente_desde}</td>
+                <td>
+                  <button
+                    type="button"
+                    className={styles.linkBtn}
+                    onClick={() => setContratoSeleccionado(contratoSeleccionado === c.contrato_id ? null : c.contrato_id)}
+                  >
+                    {contratoSeleccionado === c.contrato_id ? 'Ocultar historial' : 'Ver historial'}
+                  </button>
+                </td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
+
+      {contratoSeleccionado && <HistorialContratoDetalle contratoId={contratoSeleccionado} />}
 
       <p className={styles.sectionLabel} style={{ marginTop: 'var(--space-xl)' }}>Liquidar un período</p>
       <form className={styles.form} onSubmit={(e) => { e.preventDefault(); liquidar.mutate() }}>
@@ -257,6 +279,70 @@ export function RegaliasAdminPage() {
       <p className={styles.sectionLabel} style={{ marginTop: 'var(--space-xl)' }}>Solicitudes de retiro</p>
       <RetirosAdminTable />
     </section>
+  )
+}
+
+// Detalle de "Ver historial" de un contrato: resumen agregado (KPIs) +
+// tabla de todas sus liquidaciones. Nota: no se muestra "próxima liquidación
+// esperada" porque el esquema no tiene ningún concepto de periodicidad de
+// liquidación (ni cron ni intervalo en DIM_CONTRATO_REGALIA) — mostrarla
+// implicaría inventar un dato que no existe.
+function HistorialContratoDetalle({ contratoId }: { contratoId: string }) {
+  const resumen = useQuery({
+    queryKey: ['regalias', 'admin', 'contrato-resumen', contratoId],
+    queryFn:  () => regaliasApi.resumenContrato(contratoId),
+  })
+  const liquidaciones = useQuery({
+    queryKey: ['regalias', 'admin', 'contrato-liquidaciones', contratoId],
+    queryFn:  () => regaliasApi.liquidacionesContrato(contratoId),
+  })
+
+  const data = liquidaciones.data?.data ?? []
+
+  return (
+    <div className={styles.detailPanel}>
+      <p className={styles.sectionLabel}>Historial de liquidaciones — contrato {contratoId.slice(0, 8)}…</p>
+
+      <div className={styles.kpiGrid}>
+        <div className={styles.kpiPanel}>
+          <span className={styles.kpiValue}>{resumen.isLoading ? '…' : fmtMoney(resumen.data?.total_liquidado ?? 0)}</span>
+          <span className={styles.kpiLabel}>Total liquidado histórico</span>
+        </div>
+        <div className={styles.kpiPanel}>
+          <span className={styles.kpiValue}>
+            {resumen.isLoading ? '…' : (resumen.data?.ultima_liquidacion ? fmtDate(resumen.data.ultima_liquidacion) : '—')}
+          </span>
+          <span className={styles.kpiLabel}>Última liquidación</span>
+        </div>
+        <div className={styles.kpiPanel}>
+          <span className={styles.kpiValue}>{resumen.isLoading ? '…' : (resumen.data?.num_liquidaciones ?? 0)}</span>
+          <span className={styles.kpiLabel}>Liquidaciones registradas</span>
+        </div>
+      </div>
+
+      <div className={styles.tablePanel}>
+        <table className={styles.table}>
+          <thead>
+            <tr><th>Período</th><th>Rightsholder</th><th>Streams</th><th>Monto</th><th>Calculado</th></tr>
+          </thead>
+          <tbody>
+            {liquidaciones.isLoading ? (
+              <tr><td colSpan={5} className={styles.emptyState}>Cargando…</td></tr>
+            ) : data.length === 0 ? (
+              <tr><td colSpan={5} className={styles.emptyState}>Sin liquidaciones todavía para este contrato.</td></tr>
+            ) : data.map((l) => (
+              <tr key={l.liquidacion_id}>
+                <td>{l.periodo_inicio} — {l.periodo_fin}</td>
+                <td>{l.tipo_rightsholder} · {l.rightsholder_id.length > 8 ? l.rightsholder_id.slice(0, 8) + '…' : l.rightsholder_id}</td>
+                <td>{l.streams_periodo}</td>
+                <td>{fmtMoney(l.monto, l.moneda)}</td>
+                <td>{fmtDate(l.fecha_calculo)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
   )
 }
 
