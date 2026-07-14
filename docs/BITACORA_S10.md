@@ -650,3 +650,70 @@ primer resultado del dropdown en vivo, y el placeholder ahora lo explicita.
 | `frontend/src/packages/analitica/pages/EngagementPage.tsx` | Corregido — Enter selecciona primer resultado |
 | `api/paquetes/seguridad/router.py` | Corregido — login cierra sesión previa del mismo dispositivo |
 | `scripts/backfill_mood_generos.py` | Nuevo — sin ejecutar, pendiente de decisión del usuario |
+
+---
+
+## Bloque 6 — Fricciones de Administración + rutas de alta por tipo de cuenta (12 jul 2026)
+
+QA manual del panel de Administración (`/seguridad`) encuentra tres fricciones que ningún curl
+había marcado como bug porque el backend ya tenía los datos correctos — el gap era exclusivamente
+de frontend:
+
+- **Auditoría y Errores mostraban `usuario_id` crudo.** `AUDIT_LOG_RECIENTES` y
+  `ERRORES_RECIENTES` (`api/paquetes/seguridad/queries.py`) ya resuelven `usuario_nombre`/
+  `usuario_email` vía `LEFT JOIN DIM_USUARIO`; el frontend nunca los pedía ni los pintaba.
+  Corregido en `AuditoriaPage.tsx`/`ErroresPage.tsx`: la columna Usuario ahora muestra nombre +
+  correo apilados, con fallback al `usuario_id` (usuario borrado del DIM) o "Sistema" (acción sin
+  usuario asociado).
+- **Permisos obligaba a escribir `recurso`/`accion` a mano.** `GET /seguridad/permisos/catalogo`
+  ya existía (`_RECURSOS_CONOCIDOS`/`_ACCIONES_CONOCIDAS` en `router.py`) pero no se consumía —
+  cualquier typo creaba un permiso "fantasma" que nunca matcheaba `PERMISO_VIGENTE_UNO`.
+  `PermisosPage.tsx` ahora consume ese catálogo: recurso, acción y "otorgar/revocar" son los tres
+  `<select>`, ningún campo de texto libre ni checkbox ambiguo.
+- **`UserPicker` en modo "explorar lista completa" era angosto.** El dropdown heredaba el ancho
+  del `<input>` que lo dispara (`left:0; right:0` relativo al campo). Se agregó una variante
+  (`right: auto` + `width: min(560px, 92vw)`) que ancla solo por la izquierda y crece hacia la
+  derecha, con las filas reorganizadas en columnas (nombre · correo · rol · fecha de registro) en
+  vez de texto apilado — beneficia a la vez a Permisos, Facturación y Plan familiar, los tres
+  consumidores del componente compartido.
+
+Además, el sitio no tenía ninguna página pública de marca — el único punto de entrada público era
+`/register`, que ya distinguía Personal/Empresarial pero no decía nada de artistas ni
+sellos/productoras. El pedido explícito fue que el registro se sintiera "lo más parecido al
+Spotify real": ahí un oyente se registra normal, un artista reclama/gestiona su perfil desde un
+flujo separado ligado a su cuenta de oyente (Spotify for Artists), y un sello/distribuidora no se
+autoregistra — entra por relación de partner. Ese modelo ya existía casi completo en Tracklytics
+(`creadores` para la solicitud de cuenta de artista con aprobación de admin, `partners` para
+sellos/distribuidoras) y no requería roles nuevos (`PRODUCT.md` define exactamente 3 roles por
+diseño) — solo hacía falta conectarlo y explicarlo:
+
+- **`/acerca-de`** (nueva, pública): hub de marca con tres tarjetas de persona — Oyente →
+  `/register`, Artista → `/register?tipo=artista`, Sello/productora/distribuidora → `/partners`.
+- **`RegisterPage.tsx`**: tercera tarjeta "Artista" en el selector de tipo de cuenta. Sigue
+  creando una cuenta `rol=user` (`ROLES_AUTO_REGISTRABLES` no se tocó — sin cambios de backend);
+  si se eligió "Artista", el registro exitoso redirige a `/creadores?onboarding=artista&nombre=…`
+  en vez del destino B2C normal.
+- **`CuentaArtistaPage.tsx`**: lee `?nombre=` de la URL para precargar el campo de nombre
+  artístico cuando se llega desde ese flujo — el endpoint `solicitarCuenta` no cambió.
+
+### Verificación
+
+- `npm run build` y `npm run type-check` en `frontend/`: cero errores nuevos en cualquier archivo
+  tocado — los 3 errores preexistentes de `EngagementPage.tsx` (no tocado en este bloque) siguen
+  siendo los mismos ya documentados en el Bloque anterior.
+- Sin stack Docker/ClickHouse levantado en esta máquina durante la implementación: no se pudo
+  ejercitar Auditoría/Errores/Permisos con datos reales de admin ni un login real de extremo a
+  extremo contra PocketBase — pendiente de una pasada manual con el stack arriba antes de dar por
+  cerrado el flujo completo de principio a fin.
+
+### Artefactos entregados (bloque 6)
+
+| Artefacto | Estado |
+|---|---|
+| `frontend/src/packages/seguridad/pages/{AuditoriaPage,ErroresPage}.tsx`, `types.ts` | Corregidos — usuario por nombre/correo |
+| `frontend/src/packages/seguridad/pages/PermisosPage.tsx`, `api/seguridad.api.ts` | Corregidos — recurso/acción/acceso por select con catálogo |
+| `frontend/src/shared/components/UserPicker.tsx`, `UserPicker.module.css` | Corregidos — lista ancha en modo explorar |
+| `frontend/src/packages/seguridad/pages/AboutPage.tsx`, `AboutPage.module.css` | Nuevos — `/acerca-de` |
+| `frontend/src/packages/seguridad/pages/{RegisterPage,LoginPage}.tsx` | Corregidos — tarjeta Artista + enlaces a `/acerca-de` |
+| `frontend/src/packages/creadores/pages/CuentaArtistaPage.tsx` | Corregido — precarga de nombre artístico |
+| `frontend/src/app/router.tsx` | Corregido — ruta `/acerca-de` |
