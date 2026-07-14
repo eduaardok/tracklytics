@@ -117,6 +117,41 @@ def ensure_users_text_field(token: str, field_name: str) -> None:
         print(f"[pb-init] WARNING: no se pudo agregar '{field_name}': {patch.status_code} — {patch.text[:200]}")
 
 
+def ensure_collection_field(token: str, collection_name: str, field: dict) -> None:
+    """Adds a field to an existing base collection if not already present
+    (monetizacion-retencion-mejoras) — generalización de
+    `ensure_users_text_field` para colecciones base distintas de `users`:
+    `ensure_collection` solo crea la colección si no existe, nunca agrega
+    campos nuevos a una que ya existía antes de este cambio."""
+    resp = httpx.get(
+        f"{PB_URL}/api/collections/{collection_name}",
+        headers={"Authorization": f"Bearer {token}"},
+        timeout=30,
+    )
+    if resp.status_code != 200:
+        print(f"[pb-init] WARNING: no se pudo obtener la colección {collection_name} ({resp.status_code}).")
+        return
+
+    collection = resp.json()
+    fields = collection.get("fields", [])
+    field_name = field["name"]
+
+    if any(f.get("name") == field_name for f in fields):
+        print(f"[pb-init] Campo '{field_name}' ya existe en {collection_name}. Sin cambios.")
+        return
+
+    patch = httpx.patch(
+        f"{PB_URL}/api/collections/{collection_name}",
+        json={"fields": fields + [field]},
+        headers={"Authorization": f"Bearer {token}"},
+        timeout=30,
+    )
+    if patch.status_code in (200, 204):
+        print(f"[pb-init] Campo '{field_name}' agregado a la colección {collection_name}.")
+    else:
+        print(f"[pb-init] WARNING: no se pudo agregar '{field_name}' a {collection_name}: {patch.status_code} — {patch.text[:200]}")
+
+
 def get_collection_id(token: str, name: str) -> str | None:
     """Returns the real PocketBase id of a collection, or None if it does not exist."""
     resp = httpx.get(
@@ -357,6 +392,12 @@ def main() -> None:
             # fecha_inicio (RF-SUS-003): PocketBase no agrega created/updated
             # automáticamente en colecciones base; hay que declararlos.
             {"name": "created", "type": "autodate", "onCreate": True, "onUpdate": False},
+            # Período de prueba gratuito (monetizacion-retencion-mejoras):
+            # `metodo_pago_id` se guarda para poder cobrar automáticamente al
+            # expirar el trial sin volver a pedirlo (ver design.md, decisión 6).
+            {"name": "en_prueba",       "type": "bool", "required": False},
+            {"name": "fecha_fin_trial", "type": "date", "required": False},
+            {"name": "metodo_pago_id",  "type": "text", "required": False},
         ],
     }
     try:
@@ -364,6 +405,14 @@ def main() -> None:
     except RuntimeError as exc:
         print(f"[pb-init] ERROR: {exc}")
         sys.exit(1)
+
+    # `ensure_collection` es create-only — si la colección ya existía antes de
+    # este cambio (monetizacion-retencion-mejoras), los 3 campos de trial no
+    # se agregan solos; hay que empujarlos explícitamente, igual que 'role'/
+    # 'pais' en users.
+    ensure_collection_field(token, "suscripciones", {"name": "en_prueba", "type": "bool", "required": False})
+    ensure_collection_field(token, "suscripciones", {"name": "fecha_fin_trial", "type": "date", "required": False})
+    ensure_collection_field(token, "suscripciones", {"name": "metodo_pago_id", "type": "text", "required": False})
 
     try:
         # No se define deleteRule: las suscripciones no se eliminan, solo se

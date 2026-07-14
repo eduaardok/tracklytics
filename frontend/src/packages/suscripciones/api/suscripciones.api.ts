@@ -1,6 +1,8 @@
 import { apiClient } from '@shared/lib/api-client'
 import type { ApiResponse } from '@shared/lib/api-client'
-import type { ConfirmarSuscripcionBody, ConfirmarSuscripcionResponse, Plan, SuscripcionActiva } from '../types'
+import type {
+  ConfirmarSuscripcionBody, ConfirmarSuscripcionResponse, MotivoCancelacion, Plan, SuscripcionActiva,
+} from '../types'
 
 export const suscripcionesApi = {
   planes: () =>
@@ -12,8 +14,12 @@ export const suscripcionesApi = {
   confirmar: (body: ConfirmarSuscripcionBody) =>
     apiClient.post<ConfirmarSuscripcionResponse>('/suscripciones', body),
 
-  cancelar: (suscripcionId: string) =>
-    apiClient.post<{ data: SuscripcionActiva }>(`/suscripciones/${suscripcionId}/cancelar`, undefined),
+  // `motivo` (monetizacion-retencion-mejoras): opcional, el backend aplica
+  // "otro" por defecto si no se especifica.
+  cancelar: (suscripcionId: string, motivo?: MotivoCancelacion) =>
+    apiClient.post<{ data: SuscripcionActiva }>(
+      `/suscripciones/${suscripcionId}/cancelar${motivo ? `?motivo=${motivo}` : ''}`, undefined,
+    ),
 }
 
 export type PostAuthDestino = {

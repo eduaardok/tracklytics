@@ -14,13 +14,18 @@ from paquetes.regalias.queries import (
     CUENTA_SELLO_EXISTE_USUARIO,
     GANANCIAS_ARTISTA,
     GANANCIAS_SELLO,
+    LIQUIDACION_YA_EXISTE_PERIODO,
     PRODUCTOR_EXISTE,
     PRODUCTOR_ID_MAX,
     PRODUCTORES_LIST,
+    RETIRO_POR_ID,
+    RETIROS_POR_RIGHTSHOLDER,
+    SALDO_DISPONIBLE_RIGHTSHOLDER,
     STREAMS_POR_TRACK_PERIODO,
     TOTAL_INGRESO_PUBLICITARIO_PERIODO,
     TOTAL_TRANSACCIONES_PERIODO,
     TRACK_EXISTE,
+    retiros_admin_sql,
 )
 from paquetes.seguridad import audit
 from core.deps import get_current_user
@@ -190,13 +195,20 @@ class LiquidarBody(BaseModel):
     periodo_fin: date
 
 
-@router.post("/admin/liquidar", status_code=201)
-def liquidar_periodo(body: LiquidarBody, admin: dict = Depends(require_admin)):
-    if body.periodo_fin <= body.periodo_inicio:
+def liquidar_periodo_interno(periodo_inicio: date, periodo_fin: date) -> dict:
+    """Núcleo de la liquidación (CU-O63) — reutilizado tanto por
+    `POST /admin/liquidar` como por `simulacion` (ver design.md,
+    Decisión 5 de `modelo-financiero-simulacion`). Idempotente por rango de
+    fechas exacto: si ese período ya fue liquidado, no vuelve a insertar
+    (design.md, Decisión 4)."""
+    if periodo_fin <= periodo_inicio:
         raise HTTPException(status_code=422, detail="periodo_fin debe ser posterior a periodo_inicio")
 
-    inicio_dt = datetime.combine(body.periodo_inicio, datetime.min.time())
-    fin_dt = datetime.combine(body.periodo_fin, datetime.min.time())
+    if (query_one(LIQUIDACION_YA_EXISTE_PERIODO, {"inicio": periodo_inicio, "fin": periodo_fin}) or {}).get("n"):
+        return {"status": "ya_liquidado", "liquidaciones": 0}
+
+    inicio_dt = datetime.combine(periodo_inicio, datetime.min.time())
+    fin_dt = datetime.combine(periodo_fin, datetime.min.time())
 
     total_transacciones = float((query_one(TOTAL_TRANSACCIONES_PERIODO, {"inicio": inicio_dt, "fin": fin_dt}) or {}).get("total") or 0)
     total_publicidad = float((query_one(TOTAL_INGRESO_PUBLICITARIO_PERIODO, {"inicio": inicio_dt, "fin": fin_dt}) or {}).get("total") or 0)
@@ -217,7 +229,7 @@ def liquidar_periodo(body: LiquidarBody, admin: dict = Depends(require_admin)):
         return {"status": "ok", "liquidaciones": 0, **resumen}
 
     contratos_rows = query_rows(CONTRATOS_VIGENTES_EN_PERIODO, {
-        "fin_date": body.periodo_fin, "inicio_date": body.periodo_inicio,
+        "fin_date": periodo_fin, "inicio_date": periodo_inicio,
     })
     # Un contrato por track: el primero (ya viene ordenado por vigente_desde DESC).
     contrato_por_track: dict[int, dict] = {}
@@ -246,7 +258,7 @@ def liquidar_periodo(body: LiquidarBody, admin: dict = Depends(require_admin)):
                 continue
             filas.append((
                 str(uuid.uuid4()), contrato["contrato_id"], fact_id_track, tipo, str(rightsholder_id),
-                body.periodo_inicio, body.periodo_fin, track_streams, round(monto, 2), "USD",
+                periodo_inicio, periodo_fin, track_streams, round(monto, 2), "USD",
             ))
 
     if filas:
@@ -257,12 +269,21 @@ def liquidar_periodo(body: LiquidarBody, admin: dict = Depends(require_admin)):
                 "periodo_inicio", "periodo_fin", "streams_periodo", "monto", "moneda",
             ],
         )
+    return {"status": "ok", "liquidaciones": len(filas), **resumen}
+
+
+@router.post("/admin/liquidar", status_code=201)
+def liquidar_periodo(body: LiquidarBody, admin: dict = Depends(require_admin)):
+    resultado = liquidar_periodo_interno(body.periodo_inicio, body.periodo_fin)
     audit.record(
         usuario_id=admin["record"]["id"], accion="liquidar_regalias",
         tabla_afectada="FACT_LIQUIDACION_REGALIA", antes=None,
-        despues={"periodo_inicio": str(body.periodo_inicio), "periodo_fin": str(body.periodo_fin), "filas": len(filas)},
+        despues={
+            "periodo_inicio": str(body.periodo_inicio), "periodo_fin": str(body.periodo_fin),
+            "filas": resultado["liquidaciones"], "status": resultado["status"],
+        },
     )
-    return {"status": "ok", "liquidaciones": len(filas), **resumen}
+    return resultado
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -283,3 +304,112 @@ def mis_ganancias_artista(user: dict = Depends(get_current_user)):
 def mis_ganancias_sello(cuenta: dict = Depends(require_cuenta_sello)):
     filas = query_rows(GANANCIAS_SELLO, {"rightsholder_id": str(cuenta["sello_id"])})
     return {"data": filas, "total": round(sum(f["monto"] for f in filas), 2)}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 6. Retiro de ganancias (CU-O75/CU-O76, modelo-financiero-simulacion)
+# ─────────────────────────────────────────────────────────────────────────────
+
+class RetiroBody(BaseModel):
+    monto: float
+
+
+def _saldo_disponible(tipo: str, rightsholder_id: str) -> float:
+    row = query_one(SALDO_DISPONIBLE_RIGHTSHOLDER, {"tipo": tipo, "rightsholder_id": rightsholder_id})
+    return float((row or {}).get("saldo_disponible") or 0)
+
+
+def _solicitar_retiro(tipo: str, rightsholder_id: str, monto: float) -> dict:
+    if monto <= 0:
+        raise HTTPException(status_code=422, detail="El monto a retirar debe ser mayor que 0")
+    saldo = _saldo_disponible(tipo, rightsholder_id)
+    if monto > saldo:
+        raise HTTPException(
+            status_code=422,
+            detail=f"El monto solicitado supera el saldo disponible ({round(saldo, 2)})",
+        )
+    retiro_id = str(uuid.uuid4())
+    get_client().insert(
+        "FACT_RETIRO_REGALIA",
+        [(retiro_id, tipo, rightsholder_id, round(monto, 2), "pendiente")],
+        column_names=["retiro_id", "tipo_rightsholder", "rightsholder_id", "monto", "estado"],
+    )
+    return {"status": "ok", "retiro_id": retiro_id, "monto": round(monto, 2), "estado": "pendiente"}
+
+
+@router.get("/artista/saldo")
+def saldo_artista(user: dict = Depends(get_current_user)):
+    from paquetes.creadores.queries import CUENTA_ACTUAL_POR_USUARIO
+    cuenta = query_one(CUENTA_ACTUAL_POR_USUARIO, {"usuario_id": user["record"]["id"]})
+    if not cuenta or cuenta["estado_cuenta"] != "aprobada":
+        raise HTTPException(status_code=403, detail="Se requiere una cuenta de artista aprobada")
+    saldo = _saldo_disponible("artista", str(cuenta["cuenta_artista_id"]))
+    retiros = query_rows(RETIROS_POR_RIGHTSHOLDER, {"tipo": "artista", "rightsholder_id": str(cuenta["cuenta_artista_id"])})
+    return {"saldo_disponible": round(saldo, 2), "retiros": retiros}
+
+
+@router.post("/artista/retiros", status_code=201)
+def solicitar_retiro_artista(body: RetiroBody, user: dict = Depends(get_current_user)):
+    from paquetes.creadores.queries import CUENTA_ACTUAL_POR_USUARIO
+    cuenta = query_one(CUENTA_ACTUAL_POR_USUARIO, {"usuario_id": user["record"]["id"]})
+    if not cuenta or cuenta["estado_cuenta"] != "aprobada":
+        raise HTTPException(status_code=403, detail="Se requiere una cuenta de artista aprobada")
+    return _solicitar_retiro("artista", str(cuenta["cuenta_artista_id"]), body.monto)
+
+
+@router.get("/sello/saldo")
+def saldo_sello(cuenta: dict = Depends(require_cuenta_sello)):
+    saldo = _saldo_disponible("sello", str(cuenta["sello_id"]))
+    retiros = query_rows(RETIROS_POR_RIGHTSHOLDER, {"tipo": "sello", "rightsholder_id": str(cuenta["sello_id"])})
+    return {"saldo_disponible": round(saldo, 2), "retiros": retiros}
+
+
+@router.post("/sello/retiros", status_code=201)
+def solicitar_retiro_sello(body: RetiroBody, cuenta: dict = Depends(require_cuenta_sello)):
+    return _solicitar_retiro("sello", str(cuenta["sello_id"]), body.monto)
+
+
+@router.get("/admin/retiros")
+def listar_retiros_admin(estado: str | None = None, admin: dict = Depends(require_admin)):
+    where = "WHERE estado = {estado:String}" if estado else ""
+    params = {"estado": estado} if estado else {}
+    return {"data": query_rows(retiros_admin_sql(where), params)}
+
+
+def _retiro_o_404(retiro_id: str) -> dict:
+    retiro = query_one(RETIRO_POR_ID, {"retiro_id": retiro_id})
+    if not retiro:
+        raise HTTPException(status_code=404, detail="Retiro no encontrado")
+    if retiro["estado"] != "pendiente":
+        raise HTTPException(status_code=422, detail=f"El retiro ya está en estado '{retiro['estado']}'")
+    return retiro
+
+
+@router.post("/admin/retiros/{retiro_id}/procesar")
+def procesar_retiro(retiro_id: str, admin: dict = Depends(require_admin)):
+    _retiro_o_404(retiro_id)
+    execute(
+        "ALTER TABLE FACT_RETIRO_REGALIA UPDATE estado = 'procesado', fecha_procesado = now() "
+        "WHERE retiro_id = {id:String}",
+        {"id": retiro_id},
+    )
+    audit.record(
+        usuario_id=admin["record"]["id"], accion="procesar_retiro_regalia",
+        tabla_afectada="FACT_RETIRO_REGALIA", antes=None, despues={"retiro_id": retiro_id, "estado": "procesado"},
+    )
+    return {"status": "ok", "retiro_id": retiro_id, "estado": "procesado"}
+
+
+@router.post("/admin/retiros/{retiro_id}/rechazar")
+def rechazar_retiro(retiro_id: str, admin: dict = Depends(require_admin)):
+    _retiro_o_404(retiro_id)
+    execute(
+        "ALTER TABLE FACT_RETIRO_REGALIA UPDATE estado = 'rechazado', fecha_procesado = now() "
+        "WHERE retiro_id = {id:String}",
+        {"id": retiro_id},
+    )
+    audit.record(
+        usuario_id=admin["record"]["id"], accion="rechazar_retiro_regalia",
+        tabla_afectada="FACT_RETIRO_REGALIA", antes=None, despues={"retiro_id": retiro_id, "estado": "rechazado"},
+    )
+    return {"status": "ok", "retiro_id": retiro_id, "estado": "rechazado"}

@@ -19,6 +19,12 @@ def require_active_subscription(plan_minimo: str = "free"):
         design.md del change `2026-07-11-regalias-publicidad`, Decisión 7.
     """
     async def _dep(user: dict = Depends(get_current_user)) -> dict:
+        # Lead Data Engineer/CTO (admin) tiene acceso completo a la plataforma
+        # sin necesidad de un plan — no aplica el concepto de suscripción,
+        # mismo bypass ya usado por `require_b2b_panel_access` (analitica).
+        if user.get("record", {}).get("role") == "admin":
+            return user
+
         user_id = user["record"]["id"]
         token = user["token"]
         activas = await pb_client.list_activas(token, user_id)

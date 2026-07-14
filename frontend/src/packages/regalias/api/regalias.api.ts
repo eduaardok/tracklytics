@@ -1,7 +1,7 @@
 import { apiClient, type ApiResponse } from '@shared/lib/api-client'
 import type {
   Contrato, ContratoBody, CuentaSello, GananciasResponse,
-  LiquidarBody, LiquidarResultado, Productor,
+  LiquidarBody, LiquidarResultado, Productor, Retiro, SaldoResponse,
 } from '../types'
 
 export const regaliasApi = {
@@ -34,4 +34,34 @@ export const regaliasApi = {
 
   misGananciasSello: () =>
     apiClient.get<GananciasResponse>('/regalias/sello/mis-ganancias'),
+
+  // ── Retiro de ganancias (modelo-financiero-simulacion) ─────────────────────
+  saldoArtista: () =>
+    apiClient.get<SaldoResponse>('/regalias/artista/saldo'),
+
+  solicitarRetiroArtista: (monto: number) =>
+    apiClient.post<{ status: string; retiro_id: string; monto: number; estado: string }>(
+      '/regalias/artista/retiros', { monto },
+    ),
+
+  saldoSello: () =>
+    apiClient.get<SaldoResponse>('/regalias/sello/saldo'),
+
+  solicitarRetiroSello: (monto: number) =>
+    apiClient.post<{ status: string; retiro_id: string; monto: number; estado: string }>(
+      '/regalias/sello/retiros', { monto },
+    ),
+
+  retirosAdmin: (estado?: string) =>
+    apiClient.get<ApiResponse<Retiro>>(`/regalias/admin/retiros${estado ? `?estado=${estado}` : ''}`),
+
+  procesarRetiro: (retiroId: string) =>
+    apiClient.post<{ status: string; retiro_id: string; estado: string }>(
+      `/regalias/admin/retiros/${retiroId}/procesar`, undefined,
+    ),
+
+  rechazarRetiro: (retiroId: string) =>
+    apiClient.post<{ status: string; retiro_id: string; estado: string }>(
+      `/regalias/admin/retiros/${retiroId}/rechazar`, undefined,
+    ),
 }

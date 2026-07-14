@@ -122,6 +122,43 @@ export type ReporteDiario = {
   nota:           string
 }
 
+// ── Churn mensual (monetizacion-retencion-mejoras, solo staff/admin) ───────────
+export type ChurnMes = {
+  mes:               string
+  cancelaciones:     number
+  activas_al_inicio: number
+  tasa_churn:        number | null
+  por_motivo?:       Record<string, number>
+}
+
+export type ChurnMensual = {
+  data: ChurnMes[]
+  nota: string
+}
+
+// ── Funnel de conversión free → premium (monetizacion-retencion-mejoras) ───────
+export type FunnelConversion = {
+  free_activos:     number
+  vieron_anuncio:   number
+  se_suscribieron:  number
+}
+
+// ── P&L consolidado (monetizacion-retencion-mejoras) ────────────────────────────
+export type PnlConsolidado = {
+  ingreso_suscripciones: number
+  ingreso_publicitario:  number
+  regalias_pagadas:      number
+  margen_neto:           number
+}
+
+// ── MRR/ARR (modelo-financiero-simulacion) ──────────────────────────────────────
+export type MrrArr = {
+  mrr: number
+  arr: number
+  tendencia_mensual: Array<{ mes: string; ingreso: number }>
+  nota: string
+}
+
 // ── Dashboard ─────────────────────────────────────────────────────────────────
 export type DashboardData = {
   totals: { tracks: number; artists: number; genres: number }

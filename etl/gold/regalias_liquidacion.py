@@ -5,10 +5,10 @@ Misma lógica que `POST /app/v1/regalias/admin/liquidar` (duplicada a
 propósito — ver Decisión 5, este script corre en el contenedor `airflow`, sin
 acceso al paquete `api`); ambas leen y escriben las mismas tablas, así que un
 operador puede disparar la liquidación manualmente por API o dejar que este
-DAG la corra semanalmente sin que se pisen entre sí (los períodos no se
-vuelven a liquidar dos veces solo si se llaman con el mismo rango exacto —
-no hay deduplicación automática entre ambos caminos, documentado como
-limitación conocida)."""
+DAG la corra semanalmente sin que se pisen entre sí. Ambos caminos verifican
+si el rango de fechas exacto ya fue liquidado antes de insertar
+(modelo-financiero-simulacion, design.md Decisión 4) — llamar dos veces con
+el mismo rango ya no duplica filas."""
 
 import uuid
 from datetime import date, datetime
@@ -32,6 +32,15 @@ def run_liquidacion_regalias(**context) -> None:
 
     periodo_inicio = data_interval.date() if hasattr(data_interval, "date") else data_interval
     periodo_fin    = data_interval_end.date() if hasattr(data_interval_end, "date") else data_interval_end
+
+    ya_liquidado = ch.query(
+        "SELECT count() FROM FACT_LIQUIDACION_REGALIA WHERE periodo_inicio = {i:Date} AND periodo_fin = {f:Date}",
+        parameters={"i": periodo_inicio, "f": periodo_fin},
+    ).result_rows[0][0]
+    if ya_liquidado:
+        print(f"[regalias_liquidacion] Período {periodo_inicio}—{periodo_fin}: ya liquidado. Saltando.")
+        return
+
     inicio_dt = datetime.combine(periodo_inicio, datetime.min.time())
     fin_dt    = datetime.combine(periodo_fin, datetime.min.time())
 

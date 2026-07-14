@@ -79,3 +79,43 @@ JOIN FACT_TRACKS t ON t.fact_id = l.fact_id_track
 WHERE l.tipo_rightsholder = 'sello' AND l.rightsholder_id = {rightsholder_id:String}
 ORDER BY l.periodo_inicio DESC
 """
+
+# ── Idempotencia de liquidación (modelo-financiero-simulacion) ───────────────
+# Un rango de fechas exacto ya liquidado no debe volver a generar filas —
+# ver design.md, Decisión 4.
+LIQUIDACION_YA_EXISTE_PERIODO = """
+SELECT count() AS n FROM FACT_LIQUIDACION_REGALIA
+WHERE periodo_inicio = {inicio:Date} AND periodo_fin = {fin:Date}
+"""
+
+# ── Retiro de ganancias (modelo-financiero-simulacion) ────────────────────────
+# El saldo disponible se calcula en el momento, nunca se persiste (ver
+# design.md, Decisión 5) — resta 'pendiente' y 'procesado' (no solo
+# 'procesado') para que un retiro pendiente no pueda solicitarse dos veces.
+SALDO_DISPONIBLE_RIGHTSHOLDER = """
+SELECT
+    (SELECT coalesce(sum(monto), 0) FROM FACT_LIQUIDACION_REGALIA
+     WHERE tipo_rightsholder = {tipo:String} AND rightsholder_id = {rightsholder_id:String})
+    -
+    (SELECT coalesce(sum(monto), 0) FROM FACT_RETIRO_REGALIA
+     WHERE tipo_rightsholder = {tipo:String} AND rightsholder_id = {rightsholder_id:String}
+       AND estado IN ('pendiente', 'procesado'))
+    AS saldo_disponible
+"""
+
+RETIROS_POR_RIGHTSHOLDER = """
+SELECT retiro_id, tipo_rightsholder, rightsholder_id, monto, estado, fecha_solicitud, fecha_procesado
+FROM FACT_RETIRO_REGALIA
+WHERE tipo_rightsholder = {tipo:String} AND rightsholder_id = {rightsholder_id:String}
+ORDER BY fecha_solicitud DESC
+"""
+
+def retiros_admin_sql(where: str) -> str:
+    return f"""
+    SELECT retiro_id, tipo_rightsholder, rightsholder_id, monto, estado, fecha_solicitud, fecha_procesado
+    FROM FACT_RETIRO_REGALIA
+    {where}
+    ORDER BY fecha_solicitud DESC
+    """
+
+RETIRO_POR_ID = "SELECT * FROM FACT_RETIRO_REGALIA WHERE retiro_id = {retiro_id:String} LIMIT 1"

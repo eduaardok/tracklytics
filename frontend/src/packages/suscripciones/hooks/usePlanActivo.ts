@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { isAuthenticated } from '@shared/lib/session'
+import { getRole, isAuthenticated } from '@shared/lib/session'
 import { suscripcionesApi } from '../api/suscripciones.api'
 
 export const PLAN_ACTIVO_QUERY_KEY = ['suscripciones', 'activa']
@@ -15,24 +15,32 @@ export const PLAN_ACTIVO_QUERY_KEY = ['suscripciones', 'activa']
 // TrackDetailPage), donde bloquear toda la ruta no aplica.
 export function usePlanActivo() {
   const sinSesion = !isAuthenticated()
+  // admin (Lead Data Engineer/CTO) no tiene ni necesita suscripción — tiene
+  // acceso completo a la plataforma sin pagar (ver suscripciones/deps.py,
+  // `require_active_subscription` bypassa admin del mismo modo). Sin este
+  // check, `tipoPlan` caía en 'free' por defecto (nunca hay un registro de
+  // suscripción para admin), lo que además le mostraba el banner de
+  // publicidad como si fuera un usuario free real.
+  const esAdmin = !sinSesion && getRole() === 'admin'
 
   const { data, isLoading } = useQuery({
     queryKey:  PLAN_ACTIVO_QUERY_KEY,
     queryFn:   () => suscripcionesApi.activa(),
-    enabled:   !sinSesion,
+    enabled:   !sinSesion && !esAdmin,
     staleTime: 30_000,
   })
 
   const activa   = data?.data ?? null
-  const tipoPlan = activa?.tipo_plan ?? 'free'
+  const tipoPlan = esAdmin ? 'admin' : (activa?.tipo_plan ?? 'free')
 
   return {
-    isLoading: sinSesion ? false : isLoading,
+    isLoading: sinSesion || esAdmin ? false : isLoading,
     activa,
     tipoPlan,
     // Mismo criterio que app/catalogo/track.html (getPlanTier() !== 'free'):
     // cualquier plan activo distinto de "free" desbloquea contenido premium,
     // sin distinguir B2C/B2B — el legacy nunca verificó el literal 'premium'.
-    esPremium: !sinSesion && tipoPlan !== 'free',
+    // admin cuenta como premium sin necesitar un plan real.
+    esPremium: esAdmin || (!sinSesion && tipoPlan !== 'free'),
   }
 }

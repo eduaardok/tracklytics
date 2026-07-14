@@ -47,7 +47,7 @@ def run_facturacion_recurrente(**context) -> None:
 
     activas = _suscripciones_activas_de_pago(cfg, pb_token)
     ahora = datetime.now(timezone.utc)
-    renovadas, omitidas_sin_metodo, no_vencidas = 0, 0, 0
+    renovadas, canceladas, omitidas_sin_metodo, no_vencidas = 0, 0, 0, 0
 
     for sus in activas:
         suscripcion_id = sus["id"]
@@ -99,7 +99,27 @@ def run_facturacion_recurrente(**context) -> None:
                 [(invoice_id, usuario_id, transaccion_id, monto, iva, "emitido")],
                 column_names=["invoice_id", "usuario_id", "transaccion_id", "monto", "iva", "estado"],
             )
-        renovadas += 1
+            renovadas += 1
+        else:
+            # Cobro fallido en la renovación (modelo-financiero-simulacion,
+            # design.md Decisión 6): sin reintentos/dunning, una sola pasada
+            # — se cancela de inmediato en vez de dejar acceso pagado
+            # indefinido sin haber cobrado. Mismo criterio que
+            # `suscripciones/router.py::_resolver_trial_vencido` para un
+            # trial que no puede cobrarse.
+            httpx.patch(
+                f"{cfg['pb_url']}/api/collections/suscripciones/records/{suscripcion_id}",
+                json={"estado": "cancelada"},
+                headers={"Authorization": f"Bearer {pb_token}"},
+                timeout=30,
+            ).raise_for_status()
+            ch.insert(
+                "FACT_CANCELACION_SUSCRIPCION",
+                [(str(uuid.uuid4()), suscripcion_id, usuario_id, "precio", 0)],
+                column_names=["cancelacion_id", "suscripcion_id", "usuario_id", "motivo", "voluntaria"],
+            )
+            canceladas += 1
 
-    print(f"[facturacion_recurrente] {renovadas} renovadas, {omitidas_sin_metodo} omitidas (sin método), "
-          f"{no_vencidas} aún no vencidas — de {len(activas)} suscripciones de pago activas.")
+    print(f"[facturacion_recurrente] {renovadas} renovadas, {canceladas} canceladas por cobro fallido, "
+          f"{omitidas_sin_metodo} omitidas (sin método), {no_vencidas} aún no vencidas — "
+          f"de {len(activas)} suscripciones de pago activas.")

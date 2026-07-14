@@ -1,12 +1,95 @@
 import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
+import { apiErrorMessage } from '@shared/lib/api-client'
+import { useToast } from '@shared/context/ToastContext'
 import { regaliasApi } from '../api/regalias.api'
-import type { Ganancia } from '../types'
+import type { Ganancia, Retiro } from '../types'
 import styles from './RegaliasPages.module.css'
 
 function fmtMoney(v: number, moneda = 'USD') {
   return new Intl.NumberFormat('es-ES', { style: 'currency', currency: moneda, maximumFractionDigits: 2 }).format(v)
+}
+
+const ESTADO_LABEL: Record<Retiro['estado'], string> = {
+  pendiente: 'Pendiente', procesado: 'Procesado', rechazado: 'Rechazado',
+}
+
+// Widget de retiro (CU-O75, modelo-financiero-simulacion) — reusado tanto
+// para la pestaña de artista como la de sello, solo cambia qué query/mutation
+// de `regaliasApi` recibe.
+function RetiroWidget({
+  tipo, saldoQueryKey, fetchSaldo, solicitarRetiro,
+}: {
+  tipo: 'artista' | 'sello'
+  saldoQueryKey: string[]
+  fetchSaldo: () => ReturnType<typeof regaliasApi.saldoArtista>
+  solicitarRetiro: (monto: number) => ReturnType<typeof regaliasApi.solicitarRetiroArtista>
+}) {
+  const [monto, setMonto] = useState('')
+  const queryClient = useQueryClient()
+  const toast = useToast()
+
+  const saldo = useQuery({ queryKey: saldoQueryKey, queryFn: fetchSaldo })
+
+  const solicitar = useMutation({
+    mutationFn: () => solicitarRetiro(Number(monto)),
+    onSuccess: () => {
+      setMonto('')
+      queryClient.invalidateQueries({ queryKey: saldoQueryKey })
+      toast.success('Retiro solicitado')
+    },
+    onError: (err) => toast.error(apiErrorMessage(err, 'No se pudo solicitar el retiro.')),
+  })
+
+  const disponible = saldo.data?.saldo_disponible ?? 0
+  const retiros = saldo.data?.retiros ?? []
+
+  return (
+    <div className={styles.totalCard}>
+      <div className={styles.totalLabel}>Saldo disponible para retiro</div>
+      <div className={styles.totalValue}>{saldo.isLoading ? '…' : fmtMoney(disponible)}</div>
+      <form
+        className={styles.form}
+        onSubmit={(e) => {
+          e.preventDefault()
+          if (Number(monto) > 0) solicitar.mutate()
+        }}
+      >
+        <input
+          className={styles.input}
+          type="number"
+          step="0.01"
+          min="0.01"
+          max={disponible}
+          placeholder="Monto a retirar"
+          value={monto}
+          onChange={(e) => setMonto(e.target.value)}
+        />
+        <button
+          type="submit"
+          className={styles.btnPrimary}
+          disabled={solicitar.isPending || !monto || Number(monto) <= 0 || Number(monto) > disponible}
+        >
+          {solicitar.isPending ? 'Solicitando…' : 'Solicitar retiro'}
+        </button>
+      </form>
+      {retiros.length > 0 && (
+        <table className={styles.table} style={{ marginTop: 'var(--space-md)' }}>
+          <thead><tr><th>Fecha</th><th>Monto</th><th>Estado</th></tr></thead>
+          <tbody>
+            {retiros.map((r) => (
+              <tr key={r.retiro_id}>
+                <td>{r.fecha_solicitud}</td>
+                <td>{fmtMoney(r.monto)}</td>
+                <td>{ESTADO_LABEL[r.estado]}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
+  )
 }
 
 function TablaGanancias({ data }: { data: Ganancia[] }) {
@@ -120,6 +203,12 @@ export function MisGananciasPage() {
             <div className={styles.totalLabel}>Total acumulado</div>
             <div className={styles.totalValue}>{fmtMoney(artista.data!.total)}</div>
           </div>
+          <RetiroWidget
+            tipo="artista"
+            saldoQueryKey={['regalias', 'saldo-artista']}
+            fetchSaldo={regaliasApi.saldoArtista}
+            solicitarRetiro={regaliasApi.solicitarRetiroArtista}
+          />
           <TablaGanancias data={artista.data!.data} />
         </>
       ) : (
@@ -131,6 +220,12 @@ export function MisGananciasPage() {
             <div className={styles.totalLabel}>Total acumulado</div>
             <div className={styles.totalValue}>{fmtMoney(sello.data!.total)}</div>
           </div>
+          <RetiroWidget
+            tipo="sello"
+            saldoQueryKey={['regalias', 'saldo-sello']}
+            fetchSaldo={regaliasApi.saldoSello}
+            solicitarRetiro={regaliasApi.solicitarRetiroSello}
+          />
           <TablaGanancias data={sello.data!.data} />
         </>
       )}

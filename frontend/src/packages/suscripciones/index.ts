@@ -5,5 +5,5 @@
 export { PlanesPage } from './pages/PlanesPage'
 export { suscripcionesApi, resolverDestinoPostAuth } from './api/suscripciones.api'
 export { usePlanActivo, PLAN_ACTIVO_QUERY_KEY } from './hooks/usePlanActivo'
-export type { Plan, SuscripcionActiva, ConfirmarSuscripcionBody, TipoActor } from './types'
+export type { Plan, SuscripcionActiva, ConfirmarSuscripcionBody, TipoActor, MotivoCancelacion } from './types'
 export type { PostAuthDestino } from './api/suscripciones.api'

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { ingestaApi, IngestaApiError } from '../api/ingesta.api'
-import type { SyntheticMode, EjecucionEstado } from '../types'
+import type { SyntheticMode, EjecucionEstado, RecalificacionEstado } from '../types'
 import styles from './EtlPage.module.css'
 
 const STAGE_ORDER  = ['extraccion', 'transformacion_staging', 'carga_clickhouse', 'auditoria'] as const
@@ -17,6 +17,17 @@ const POLL_MS   = 5000
 const MAX_TICKS = 120 // 10 min, igual que app/analytics/etl.html
 
 function fmt(n: number) { return n.toLocaleString('es-ES') }
+
+// Regresión encontrada en verificación (la duración de ejecución existía
+// antes y se perdió en un refactor de esta página) — `duration_seconds` ya
+// viaja en la respuesta del backend y en `CargaLog`, solo faltaba
+// mostrarla.
+function fmtDuration(seconds: number) {
+  if (seconds < 60) return `${seconds.toFixed(1)}s`
+  const mins = Math.floor(seconds / 60)
+  const secs = Math.round(seconds % 60)
+  return `${mins}m ${secs}s`
+}
 
 function fmtDate(iso: string) {
   const d = new Date(iso)
@@ -66,6 +77,13 @@ export function EtlPage() {
   const [pollError, setPollError]     = useState<string | null>(null)
   const ticksRef = useRef(0)
 
+  const [recalTriggering, setRecalTriggering] = useState(false)
+  const [recalError, setRecalError]           = useState<string | null>(null)
+  const [recalEjecucionId, setRecalEjecucionId] = useState<string | null>(null)
+  const [recalEstado, setRecalEstado]         = useState<RecalificacionEstado | null>(null)
+  const [recalPollError, setRecalPollError]   = useState<string | null>(null)
+  const recalTicksRef = useRef(0)
+
   const cargas = useQuery({
     queryKey: ['ingesta', 'cargas'],
     queryFn:  () => ingestaApi.cargas(),
@@ -97,6 +115,43 @@ export function EtlPage() {
     return () => clearInterval(interval)
   }, [ejecucionId, queryClient])
 
+  useEffect(() => {
+    if (!recalEjecucionId) return
+    recalTicksRef.current = 0
+
+    async function poll() {
+      try {
+        const res = await ingestaApi.estadoRecalificacion(recalEjecucionId!)
+        setRecalEstado(res)
+        setRecalPollError(null)
+        const terminal = res.estado === 'success' || res.estado === 'failed'
+        if (terminal) clearInterval(interval)
+      } catch {
+        setRecalPollError('No se pudo consultar el estado de la recalificación.')
+      }
+      recalTicksRef.current += 1
+      if (recalTicksRef.current >= MAX_TICKS) clearInterval(interval)
+    }
+
+    poll()
+    const interval = setInterval(poll, POLL_MS)
+    return () => clearInterval(interval)
+  }, [recalEjecucionId])
+
+  async function handleRecalificar() {
+    setRecalError(null)
+    setRecalTriggering(true)
+    setRecalEstado(null)
+    try {
+      const res = await ingestaApi.dispararRecalificacion()
+      setRecalEjecucionId(res.ejecucion_id)
+    } catch (err) {
+      setRecalError(err instanceof IngestaApiError ? err.message : 'No se pudo disparar la recalificación.')
+    } finally {
+      setRecalTriggering(false)
+    }
+  }
+
   async function handleTrigger() {
     setTriggerError(null)
     setTriggering(true)
@@ -127,6 +182,7 @@ export function EtlPage() {
           </span>
           <span className={styles.lastRunMeta}>semana {ultimaCarga.week_number} · {fmtDate(ultimaCarga.run_timestamp)}</span>
           <span className={styles.lastRunMeta}>{fmt(ultimaCarga.records_inserted)} insertados</span>
+          <span className={styles.lastRunMeta}>{fmtDuration(ultimaCarga.duration_seconds)}</span>
           <RejectionBadge pct={ultimaCarga.tasa_rechazo_pct} requiereRevision={ultimaCarga.requiere_revision} />
         </div>
       )}
@@ -185,6 +241,37 @@ export function EtlPage() {
         </>
       )}
 
+      <p className={styles.sectionLabel} style={{ marginTop: 'var(--space-xl)' }}>Recalificar catálogo</p>
+      <div className={styles.panel}>
+        <p className={styles.muted}>
+          Corrige en bloque álbumes/artistas con año o país sin informar y tracks (no reales) cuyo
+          perfil de audio no es coherente con su género — nunca toca el catálogo de origen.
+        </p>
+        <div className={styles.formRow}>
+          <button type="button" className={styles.btnPrimary} disabled={recalTriggering} onClick={handleRecalificar}>
+            {recalTriggering ? 'Disparando…' : 'Recalificar catálogo'}
+          </button>
+        </div>
+        {recalError && <p className={styles.errorText}>{recalError}</p>}
+
+        {recalEjecucionId && (
+          <>
+            <p className={styles.lastRunMeta} style={{ marginTop: 'var(--space-md)' }}>
+              Ejecución {recalEjecucionId} — {recalEstado?.estado ?? 'consultando…'}
+            </p>
+            {recalPollError && <p className={styles.errorText}>{recalPollError}</p>}
+            {recalEstado?.resultado && (
+              <p className={styles.lastRunMeta}>
+                {fmt(recalEstado.resultado.albumes_corregidos)} álbumes ·{' '}
+                {fmt(recalEstado.resultado.artistas_corregidos)} artistas ·{' '}
+                {fmt(recalEstado.resultado.tracks_corregidos)} tracks corregidos ·{' '}
+                {fmtDuration(recalEstado.resultado.duration_seconds)}
+              </p>
+            )}
+          </>
+        )}
+      </div>
+
       <p className={styles.sectionLabel} style={{ marginTop: 'var(--space-xl)' }}>Historial de cargas</p>
       {cargas.isLoading && <div className={styles.panel} style={{ minHeight: 120 }} />}
       {cargas.isError && (
@@ -202,6 +289,7 @@ export function EtlPage() {
                   <th className={styles.thRight}>Leídos</th>
                   <th className={styles.thRight}>Insertados</th>
                   <th className={styles.thRight}>Rechazados</th>
+                  <th className={styles.thRight}>Duración</th>
                   <th className={styles.thRight}>Tasa de rechazo</th>
                 </tr>
               </thead>
@@ -216,6 +304,7 @@ export function EtlPage() {
                     <td className={styles.rowValue}>{fmt(row.records_read)}</td>
                     <td className={styles.rowValue}>{fmt(row.records_inserted)}</td>
                     <td className={styles.rowValue}>{fmt(row.records_rejected)}</td>
+                    <td className={styles.rowValue}>{fmtDuration(row.duration_seconds)}</td>
                     <td className={styles.rowValue}>
                       <RejectionBadge pct={row.tasa_rechazo_pct} requiereRevision={row.requiere_revision} />
                     </td>

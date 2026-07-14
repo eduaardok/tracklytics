@@ -68,7 +68,25 @@ export type LiquidarBody = {
 export type LiquidarResultado = {
   status:              string
   liquidaciones:       number
-  pool_total:          number
-  pool_rightsholders:  number
-  total_streams:       number
+  pool_total?:         number
+  pool_rightsholders?: number
+  total_streams?:      number
+}
+
+// ── Retiro de ganancias (modelo-financiero-simulacion) ──────────────────────
+export type EstadoRetiro = 'pendiente' | 'procesado' | 'rechazado'
+
+export type Retiro = {
+  retiro_id:        string
+  tipo_rightsholder: 'artista' | 'sello'
+  rightsholder_id:  string
+  monto:            number
+  estado:           EstadoRetiro
+  fecha_solicitud:  string
+  fecha_procesado:  string | null
+}
+
+export type SaldoResponse = {
+  saldo_disponible: number
+  retiros:          Retiro[]
 }

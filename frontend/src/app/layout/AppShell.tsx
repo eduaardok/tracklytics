@@ -11,6 +11,12 @@ import { UserMenu } from '@packages/seguridad/components/UserMenu'
 // con Recharts) en su barrel — import directo del componente.
 import { NotificationBell } from '@packages/social/components/NotificationBell'
 import { PlayerBarActions } from '@packages/catalogo'
+// Import directo (no vía el barrel `@packages/publicidad`): ese barrel
+// también exporta PublicidadAdminPage, que no debe entrar al bundle
+// principal — mismo criterio que PlayerBarActions/UserMenu/NotificationBell
+// arriba.
+import { AdBanner } from '@packages/publicidad/components/AdBanner'
+import { usePlanActivo } from '@packages/suscripciones'
 import { PlayerBar } from '@shared/components/PlayerBar'
 import { usePlayer } from '@shared/context/PlayerContext'
 import { getRole } from '@shared/lib/session'
@@ -67,7 +73,16 @@ export function AppShell() {
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
   const [collapsed, setCollapsed] = useState(getSidebarCollapsed)
   const location = useLocation()
-  const navAdmin = navAdminFor(getRole())
+  const role = getRole()
+  const navAdmin = navAdminFor(role)
+  // admin (Lead Data Engineer/CTO) tiene acceso completo sin plan ni pago —
+  // "Mi Plan" y "Facturación" no aplican a esa cuenta, se ocultan en vez de
+  // mostrar un flujo de suscripción/cobro que el backend ahora rechaza.
+  const navPrimary   = role === 'admin' ? NAV_PRIMARY.filter((i) => i.to !== '/suscripciones') : NAV_PRIMARY
+  const navSecondary = role === 'admin' ? NAV_SECONDARY.filter((i) => i.to !== '/facturacion') : NAV_SECONDARY
+  // Banner display (monetizacion-retencion-mejoras): visible solo para
+  // usuarios free, mismo criterio que el paywall de TrackDetailPage.
+  const { tipoPlan } = usePlanActivo()
 
   // Cierra el drawer al navegar y si la ventana crece más allá del breakpoint
   // (ej. rotar una tablet) — evita quedar con el overlay abierto sobre el
@@ -151,11 +166,11 @@ export function AppShell() {
           data-print-hide="true"
         >
           <div className={styles.navGroups}>
-            {NAV_PRIMARY.map(renderNavItem)}
+            {navPrimary.map(renderNavItem)}
 
             <div className={styles.divider} role="separator" />
 
-            {NAV_SECONDARY.map(renderNavItem)}
+            {navSecondary.map(renderNavItem)}
 
             {navAdmin.length > 0 && (
               <>
@@ -163,6 +178,8 @@ export function AppShell() {
                 {navAdmin.map(renderNavItem)}
               </>
             )}
+
+            {tipoPlan === 'free' && <AdBanner collapsed={collapsed} />}
           </div>
 
           <button
@@ -188,8 +205,8 @@ export function AppShell() {
       <MobileNavDrawer
         open={mobileNavOpen}
         onClose={() => setMobileNavOpen(false)}
-        primary={NAV_PRIMARY}
-        secondary={[...NAV_SECONDARY, ...navAdmin]}
+        primary={navPrimary}
+        secondary={[...navSecondary, ...navAdmin]}
         reservePlayerSpace={!!currentTrack}
       />
 

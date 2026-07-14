@@ -1,0 +1,93 @@
+import { useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
+import { analiticaApi } from '../api/analitica.api'
+import styles from './ChurnPage.module.css'
+
+function isoMesesAtras(n: number): string {
+  const d = new Date()
+  d.setDate(1)
+  d.setMonth(d.getMonth() - n)
+  return d.toISOString().slice(0, 10)
+}
+
+function fmtPct(n: number | null): string {
+  return n == null ? '—' : `${(n * 100).toFixed(1)}%`
+}
+
+// CU-O72 (monetizacion-retencion-mejoras): ocupa el placeholder que ya
+// reservaba /analitica/suscripciones para "conversiones y retención por
+// cohorte" — solo staff/admin (`require_staff` en backend).
+export function ChurnPage() {
+  useDocumentTitle('Churn de suscripciones')
+  const [desde, setDesde] = useState(() => isoMesesAtras(5))
+  const [hasta, setHasta] = useState(() => new Date().toISOString().slice(0, 10))
+
+  const churn = useQuery({
+    queryKey: ['analitica', 'churn', desde, hasta],
+    queryFn:  () => analiticaApi.churn(desde, hasta),
+  })
+
+  const meses = churn.data?.data ?? []
+
+  return (
+    <section className={styles.page}>
+      <h1 className={styles.heading}>Churn de suscripciones</h1>
+      <span className={styles.subtitle}>// cancelaciones vs. suscripciones activas por mes</span>
+
+      <div className={styles.filters}>
+        <label className={styles.field}>
+          <span className={styles.fieldLabel}>Desde</span>
+          <input type="date" className={styles.input} value={desde} onChange={(e) => setDesde(e.target.value)} />
+        </label>
+        <label className={styles.field}>
+          <span className={styles.fieldLabel}>Hasta</span>
+          <input type="date" className={styles.input} value={hasta} onChange={(e) => setHasta(e.target.value)} />
+        </label>
+      </div>
+
+      {churn.isLoading && <div className={styles.panel} style={{ minHeight: 160 }} />}
+
+      {churn.isError && (
+        <div className={styles.panel}>
+          <p className={styles.panelError}>No se pudo cargar la tasa de churn.</p>
+        </div>
+      )}
+
+      {!churn.isLoading && !churn.isError && meses.length === 0 && (
+        <div className={styles.prompt}>
+          <p className={styles.promptText}>Sin datos para el rango seleccionado.</p>
+        </div>
+      )}
+
+      {meses.length > 0 && (
+        <div className={styles.panel}>
+          <div className={styles.tableScroll}>
+            <table className={styles.table}>
+              <thead>
+                <tr>
+                  <th className={styles.th}>Mes</th>
+                  <th className={styles.th}>Cancelaciones</th>
+                  <th className={styles.th}>Activas al inicio</th>
+                  <th className={styles.th}>Tasa de churn</th>
+                </tr>
+              </thead>
+              <tbody>
+                {meses.map((m) => (
+                  <tr key={m.mes}>
+                    <td className={styles.rowLabel}>{m.mes}</td>
+                    <td className={styles.rowValue}>{m.cancelaciones}</td>
+                    <td className={styles.rowValue}>{m.activas_al_inicio}</td>
+                    <td className={styles.rowValue}>{fmtPct(m.tasa_churn)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {churn.data?.nota && <p className={styles.nota}>{churn.data.nota}</p>}
+    </section>
+  )
+}

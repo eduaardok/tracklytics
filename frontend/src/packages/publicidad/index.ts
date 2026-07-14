@@ -4,5 +4,8 @@
 
 export { PublicidadAdminPage } from './pages/PublicidadAdminPage'
 export { AdProvider, useAd } from './context/AdContext'
+export { AdBanner } from './components/AdBanner'
 export { publicidadApi } from './api/publicidad.api'
-export type { Anunciante, Campana, CampanaBody, ImpresionAsignada, IngresoCampana } from './types'
+export type {
+  Anunciante, Campana, CampanaBody, ImpresionAsignada, ImpresionDisplayAsignada, IngresoCampana, TipoAnuncio,
+} from './types'

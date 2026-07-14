@@ -5,6 +5,8 @@ export type Anunciante = {
   fecha_registro: string
 }
 
+export type TipoAnuncio = 'audio' | 'display'
+
 export type Campana = {
   campana_id:        number
   anunciante_id:     number
@@ -14,6 +16,8 @@ export type Campana = {
   fecha_inicio:      string
   fecha_fin:         string | null
   activa:            number
+  tipo_anuncio:      TipoAnuncio
+  url_destino:       string
 }
 
 export type CampanaBody = {
@@ -23,10 +27,17 @@ export type CampanaBody = {
   presupuesto_total: number
   fecha_inicio:      string
   fecha_fin?:        string | null
+  tipo_anuncio?:     TipoAnuncio
+  url_destino?:      string
 }
 
 export type ImpresionAsignada = {
   campana: { campana_id: number; cpm: number } | null
+  impresion_id?: string
+}
+
+export type ImpresionDisplayAsignada = {
+  campana: { campana_id: number; cpm: number; url_destino: string } | null
   impresion_id?: string
 }
 

@@ -347,3 +347,66 @@ JOIN {_DB}.DIM_COMPONENTE_INFRAESTRUCTURA dci ON fd.componente_id = dci.componen
 GROUP BY semana, componente
 ORDER BY semana, componente
 """
+
+# ── monetizacion-retencion-mejoras: churn, funnel de conversión, P&L ──────────
+# `suscripcion_id`/`usuario_id` de estas tablas son IDs de PocketBase, sin
+# JOIN SQL posible con ClickHouse — el cruce con altas/bajas de suscripción
+# se resuelve en Python (router.py), no aquí (ver design.md, decisión 5).
+
+CANCELACIONES_POR_MES = f"""
+SELECT toStartOfMonth(fecha) AS mes, count() AS cancelaciones
+FROM {_DB}.FACT_CANCELACION_SUSCRIPCION
+WHERE fecha >= {{desde:DateTime}} AND fecha < {{hasta:DateTime}}
+GROUP BY mes ORDER BY mes
+"""
+
+CANCELACIONES_POR_MES_Y_MOTIVO = f"""
+SELECT toStartOfMonth(fecha) AS mes, motivo, count() AS cancelaciones
+FROM {_DB}.FACT_CANCELACION_SUSCRIPCION
+WHERE fecha >= {{desde:DateTime}} AND fecha < {{hasta:DateTime}}
+GROUP BY mes, motivo ORDER BY mes, motivo
+"""
+
+BAJAS_ANTES_DE = f"""
+SELECT count() AS n FROM {_DB}.FACT_CANCELACION_SUSCRIPCION WHERE fecha < {{fecha:DateTime}}
+"""
+
+# Funnel: usuarios distintos con al menos una impresión (audio o display, sin
+# filtrar por tipo — RF: "vio al menos un anuncio") en el rango.
+USUARIOS_CON_IMPRESION_EN_RANGO = f"""
+SELECT count(DISTINCT usuario_id) AS n
+FROM {_DB}.FACT_IMPRESION_ANUNCIO
+WHERE fecha >= {{desde:DateTime}} AND fecha < {{hasta:DateTime}}
+"""
+
+# P&L: ingreso por suscripciones exitosas, ingreso publicitario reconocido y
+# regalías pagadas en el rango — cada término ya existe en su capability
+# dueña (facturacion/publicidad/regalias), aquí solo se agregan por fecha.
+INGRESO_SUSCRIPCIONES_EN_RANGO = f"""
+SELECT coalesce(sum(monto), 0) AS total
+FROM {_DB}.FACT_TRANSACCION_PAGO
+WHERE estado = 'exitosa' AND fecha >= {{desde:DateTime}} AND fecha < {{hasta:DateTime}}
+"""
+
+INGRESO_PUBLICITARIO_EN_RANGO = f"""
+SELECT coalesce(sum(monto), 0) AS total
+FROM {_DB}.FACT_INGRESO_PUBLICITARIO
+WHERE fecha >= {{desde:DateTime}} AND fecha < {{hasta:DateTime}}
+"""
+
+REGALIAS_PAGADAS_EN_RANGO = f"""
+SELECT coalesce(sum(monto), 0) AS total
+FROM {_DB}.FACT_LIQUIDACION_REGALIA
+WHERE fecha_calculo >= {{desde:DateTime}} AND fecha_calculo < {{hasta:DateTime}}
+"""
+
+# MRR/ARR (modelo-financiero-simulacion): MRR real (suscripciones activas en
+# PocketBase) se resuelve en Python vía pb_client — esta query solo aporta la
+# tendencia histórica aproximada (ingreso cobrado por mes, no MRR
+# reconstruido punto-en-el-tiempo, ver design.md decisión 7).
+INGRESO_MENSUAL_RECURRENTE_HISTORICO = f"""
+SELECT toStartOfMonth(fecha) AS mes, sum(monto) AS ingreso
+FROM {_DB}.FACT_TRANSACCION_PAGO
+WHERE estado = 'exitosa' AND fecha >= {{desde:DateTime}} AND fecha < {{hasta:DateTime}}
+GROUP BY mes ORDER BY mes
+"""

@@ -7,17 +7,22 @@ ANUNCIANTES_LIST = "SELECT anunciante_id, nombre, sector, fecha_registro FROM DI
 CAMPANA_ID_MAX = "SELECT max(campana_id) AS n FROM DIM_CAMPANA_PUBLICITARIA"
 
 CAMPANAS_LIST = """
-SELECT campana_id, anunciante_id, nombre, cpm, presupuesto_total, fecha_inicio, fecha_fin, activa
+SELECT campana_id, anunciante_id, nombre, cpm, presupuesto_total, fecha_inicio, fecha_fin, activa,
+       tipo_anuncio, url_destino
 FROM DIM_CAMPANA_PUBLICITARIA ORDER BY fecha_inicio DESC
 """
 
-# Elegible = activa, y hoy cae dentro de [fecha_inicio, fecha_fin] (fecha_fin
-# nula = indefinida). `today()` en vez de un parámetro: siempre se evalúa
-# contra el momento real del request (CU-O67, RF: "campaña fuera de vigencia
-# no es elegible").
-CAMPANAS_ELEGIBLES = """
-SELECT campana_id, cpm FROM DIM_CAMPANA_PUBLICITARIA
-WHERE activa = 1 AND fecha_inicio <= today() AND (fecha_fin IS NULL OR fecha_fin >= today())
+# Elegible = activa, del tipo de anuncio pedido, y hoy cae dentro de
+# [fecha_inicio, fecha_fin] (fecha_fin nula = indefinida). `today()` en vez de
+# un parámetro: siempre se evalúa contra el momento real del request (CU-O67,
+# RF: "campaña fuera de vigencia no es elegible"). Parametrizada por
+# `tipo_anuncio` (monetizacion-retencion-mejoras) — el mismo trigger de audio
+# y el nuevo de display comparten esta query, solo cambia el tipo (bindeado,
+# no interpolado, igual que el resto de queries de este paquete).
+CAMPANAS_ELEGIBLES_POR_TIPO = """
+SELECT campana_id, cpm, url_destino FROM DIM_CAMPANA_PUBLICITARIA
+WHERE activa = 1 AND tipo_anuncio = {tipo:String}
+  AND fecha_inicio <= today() AND (fecha_fin IS NULL OR fecha_fin >= today())
 ORDER BY campana_id
 """
 

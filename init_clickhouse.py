@@ -606,6 +606,19 @@ DDL_STATEMENTS = [
     ORDER BY sello_id
     """,
 
+    # Fila única (empresa_id = 1) — identidad de la empresa emisora que
+    # aparece en el encabezado de cada factura (`facturacion`, CU-O81), no un
+    # catálogo de N filas como el resto de las dimensiones de este archivo.
+    f"""
+    CREATE TABLE IF NOT EXISTS {DB}.DIM_EMPRESA (
+        empresa_id   UInt8,
+        razon_social String,
+        ruc          String,
+        direccion    String
+    ) ENGINE = MergeTree()
+    ORDER BY empresa_id
+    """,
+
     f"""
     CREATE TABLE IF NOT EXISTS {DB}.DIM_LICENCIA (
         licencia_id  UInt32,
@@ -967,6 +980,50 @@ DDL_STATEMENTS = [
     ) ENGINE = MergeTree()
     ORDER BY (campana_id, fecha)
     """,
+
+    # ── monetizacion-retencion-mejoras: publicidad display + churn con motivo ──
+    # `tipo_anuncio` distingue el trigger de audio (entre canciones) del de
+    # display (banner al cargar catálogo/home) — una campaña es de un solo
+    # tipo, así se contrata en la industria real (ver design.md, decisión 1).
+    # `DEFAULT 'audio'` deja las campañas ya existentes como audio, sin romper
+    # el trigger actual.
+    f"ALTER TABLE {DB}.DIM_CAMPANA_PUBLICITARIA ADD COLUMN IF NOT EXISTS tipo_anuncio Enum8('audio'=1, 'display'=2) DEFAULT 'audio'",
+    f"ALTER TABLE {DB}.DIM_CAMPANA_PUBLICITARIA ADD COLUMN IF NOT EXISTS url_destino String DEFAULT ''",
+    f"ALTER TABLE {DB}.FACT_IMPRESION_ANUNCIO ADD COLUMN IF NOT EXISTS click UInt8 DEFAULT 0",
+
+    # Hecho de negocio de la cancelación de una suscripción (motivo, si fue
+    # voluntaria) — escrito síncronamente desde FastAPI en el mismo request
+    # que cancela la suscripción en PocketBase, mismo patrón que
+    # FACT_IMPRESION_ANUNCIO/FACT_INGRESO_PUBLICITARIO (ver design.md,
+    # decisión 4). `suscripcion_id`/`usuario_id` son String: IDs de
+    # PocketBase, no hay JOIN SQL posible con ClickHouse.
+    f"""
+    CREATE TABLE IF NOT EXISTS {DB}.FACT_CANCELACION_SUSCRIPCION (
+        cancelacion_id  String,
+        suscripcion_id  String,
+        usuario_id      String,
+        motivo          Enum8('precio'=1, 'no_uso'=2, 'competencia'=3, 'otro'=4),
+        voluntaria      UInt8 DEFAULT 1,
+        fecha           DateTime DEFAULT now()
+    ) ENGINE = MergeTree()
+    ORDER BY (usuario_id, fecha)
+    """,
+
+    # ── modelo-financiero-simulacion: retiro de ganancias, saldo calculado en
+    # vivo (no persistido) restando 'pendiente'+'procesado' de lo liquidado —
+    # ver design.md, Decisión 5.
+    f"""
+    CREATE TABLE IF NOT EXISTS {DB}.FACT_RETIRO_REGALIA (
+        retiro_id        String,
+        tipo_rightsholder Enum8('artista'=1, 'sello'=2),
+        rightsholder_id  String,
+        monto            Float32,
+        estado           Enum8('pendiente'=1, 'procesado'=2, 'rechazado'=3) DEFAULT 'pendiente',
+        fecha_solicitud  DateTime DEFAULT now(),
+        fecha_procesado  Nullable(DateTime)
+    ) ENGINE = MergeTree()
+    ORDER BY (rightsholder_id, fecha_solicitud)
+    """,
 ]
 
 # ── Runner ────────────────────────────────────────────────────────────────────
@@ -1163,6 +1220,21 @@ def main() -> None:
             print("✓ DIM_COMPONENTE_INFRAESTRUCTURA sembrada (4 filas).")
     except Exception as exc:
         print(f"ERROR sembrando DIM_COMPONENTE_INFRAESTRUCTURA: {exc}")
+
+    # DIM_EMPRESA (capability `facturacion`, CU-O81): fila única con los
+    # valores que hoy estaban fijos en el encabezado de cada factura — sembrada
+    # como default inicial para que una instalación nueva no quede vacía.
+    try:
+        count = client.query(f"SELECT count() FROM {DB}.DIM_EMPRESA").result_rows[0][0]
+        if count == 0:
+            client.insert(
+                f"{DB}.DIM_EMPRESA",
+                [(1, "Tracklytics S.A.", "0000000000001", "Quito, Ecuador")],
+                column_names=["empresa_id", "razon_social", "ruc", "direccion"],
+            )
+            print("✓ DIM_EMPRESA sembrada (1 fila).")
+    except Exception as exc:
+        print(f"ERROR sembrando DIM_EMPRESA: {exc}")
 
 
 if __name__ == "__main__":

@@ -17,8 +17,9 @@ const DIMMED_ACT    = `${styles.navItem} ${styles.navActive}`
 // completar-modelo-base: "Adquisición" y "Disponibilidad" salieron de esta
 // lista — ya no son placeholders (FACT_ADQUISICION/FACT_DISPONIBILIDAD
 // existen), pasan a la nav real de arriba con el mismo gating que el resto.
+// monetizacion-retencion-mejoras: "Suscripciones" también sale — pasa a ser
+// el dashboard de churn real (admin-only), no un placeholder.
 const COMING_SOON = [
-  { label: 'Suscripciones',  to: '/analitica/suscripciones'  },
   { label: 'Partners',       to: '/analitica/partners'       },
   { label: 'Ingestas',       to: '/analitica/ingestas'       },
 ] as const
@@ -102,16 +103,43 @@ export function AnalyticaShell() {
           >
             Disponibilidad
           </NavLink>
-          {/* Backend exige `require_staff` (role=admin) en /reporte-diario — se
-              oculta para el resto en vez de mostrar un link que siempre rebota,
-              mismo criterio que el chequeo de rol del legacy. */}
+          {/* Backend exige `require_staff` (role=admin) en /reporte-diario,
+              /churn, /funnel-conversion, /pnl y /mrr-arr — se ocultan para el
+              resto en vez de mostrar un link que siempre rebota, mismo
+              criterio que el chequeo de rol del legacy. */}
           {getRole() === 'admin' && (
-            <NavLink
-              to="/analitica/reporte-diario"
-              className={({ isActive }) => isActive ? ACTIVE_CLS : INACTIVE_CLS}
-            >
-              Reporte diario
-            </NavLink>
+            <>
+              <NavLink
+                to="/analitica/reporte-diario"
+                className={({ isActive }) => isActive ? ACTIVE_CLS : INACTIVE_CLS}
+              >
+                Reporte diario
+              </NavLink>
+              <NavLink
+                to="/analitica/suscripciones"
+                className={({ isActive }) => isActive ? ACTIVE_CLS : INACTIVE_CLS}
+              >
+                Churn de suscripciones
+              </NavLink>
+              <NavLink
+                to="/analitica/funnel-conversion"
+                className={({ isActive }) => isActive ? ACTIVE_CLS : INACTIVE_CLS}
+              >
+                Funnel de conversión
+              </NavLink>
+              <NavLink
+                to="/analitica/pnl"
+                className={({ isActive }) => isActive ? ACTIVE_CLS : INACTIVE_CLS}
+              >
+                P&amp;L consolidado
+              </NavLink>
+              <NavLink
+                to="/analitica/mrr-arr"
+                className={({ isActive }) => isActive ? ACTIVE_CLS : INACTIVE_CLS}
+              >
+                MRR / ARR
+              </NavLink>
+            </>
           )}
 
           <div className={styles.divider} role="separator" />

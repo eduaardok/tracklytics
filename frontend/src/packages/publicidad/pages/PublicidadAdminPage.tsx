@@ -4,7 +4,7 @@ import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { apiErrorMessage } from '@shared/lib/api-client'
 import { useToast } from '@shared/context/ToastContext'
 import { publicidadApi } from '../api/publicidad.api'
-import type { Anunciante, Campana, IngresoCampana } from '../types'
+import type { Anunciante, Campana, IngresoCampana, TipoAnuncio } from '../types'
 import styles from './PublicidadAdminPage.module.css'
 
 // CU-O66/CU-O68: admin registra anunciantes y campañas con CPM real, y
@@ -23,6 +23,8 @@ export function PublicidadAdminPage() {
   const [cpm, setCpm] = useState('')
   const [presupuesto, setPresupuesto] = useState('')
   const [fechaInicio, setFechaInicio] = useState(() => new Date().toISOString().slice(0, 10))
+  const [tipoAnuncio, setTipoAnuncio] = useState<TipoAnuncio>('audio')
+  const [urlDestino, setUrlDestino] = useState('')
 
   const anunciantes = useQuery({ queryKey: ['publicidad', 'anunciantes'], queryFn: () => publicidadApi.anunciantes() })
   const campanas    = useQuery({ queryKey: ['publicidad', 'campanas'],    queryFn: () => publicidadApi.campanas() })
@@ -42,9 +44,10 @@ export function PublicidadAdminPage() {
     mutationFn: () => publicidadApi.crearCampana({
       anunciante_id: Number(anuncianteId), nombre: nombreCampana, cpm: Number(cpm),
       presupuesto_total: Number(presupuesto), fecha_inicio: fechaInicio,
+      tipo_anuncio: tipoAnuncio, url_destino: urlDestino,
     }),
     onSuccess: () => {
-      setNombreCampana(''); setCpm(''); setPresupuesto('')
+      setNombreCampana(''); setCpm(''); setPresupuesto(''); setUrlDestino('')
       queryClient.invalidateQueries({ queryKey: ['publicidad', 'campanas'] })
       toast.success('Campaña creada')
     },
@@ -90,7 +93,8 @@ export function PublicidadAdminPage() {
       <p className={styles.sectionLabel} style={{ marginTop: 'var(--space-xl)' }}>Nueva campaña</p>
       <form className={styles.form} onSubmit={(e) => {
         e.preventDefault()
-        if (anuncianteId && nombreCampana.trim() && cpm && presupuesto) crearCampana.mutate()
+        const urlOk = tipoAnuncio === 'audio' || urlDestino.trim().length > 0
+        if (anuncianteId && nombreCampana.trim() && cpm && presupuesto && urlOk) crearCampana.mutate()
       }}>
         <div className={styles.field}>
           <label className={styles.fieldLabel} htmlFor="camp-anunciante">Anunciante</label>
@@ -104,6 +108,13 @@ export function PublicidadAdminPage() {
           <input id="camp-nombre" className={styles.input} value={nombreCampana} onChange={(e) => setNombreCampana(e.target.value)} placeholder="Verano 2026" />
         </div>
         <div className={styles.field}>
+          <label className={styles.fieldLabel} htmlFor="camp-tipo">Tipo de anuncio</label>
+          <select id="camp-tipo" className={styles.select} value={tipoAnuncio} onChange={(e) => setTipoAnuncio(e.target.value as TipoAnuncio)}>
+            <option value="audio">Audio (entre canciones)</option>
+            <option value="display">Display (banner)</option>
+          </select>
+        </div>
+        <div className={styles.field}>
           <label className={styles.fieldLabel} htmlFor="camp-cpm">CPM (USD)</label>
           <input id="camp-cpm" className={styles.input} type="number" step="0.01" min="0.01" value={cpm} onChange={(e) => setCpm(e.target.value)} placeholder="8.00" />
         </div>
@@ -115,6 +126,12 @@ export function PublicidadAdminPage() {
           <label className={styles.fieldLabel} htmlFor="camp-fecha">Fecha de inicio</label>
           <input id="camp-fecha" className={styles.input} type="date" value={fechaInicio} onChange={(e) => setFechaInicio(e.target.value)} />
         </div>
+        {tipoAnuncio === 'display' && (
+          <div className={styles.field}>
+            <label className={styles.fieldLabel} htmlFor="camp-url">URL de destino</label>
+            <input id="camp-url" className={styles.input} type="url" value={urlDestino} onChange={(e) => setUrlDestino(e.target.value)} placeholder="https://anunciante.com/promo" />
+          </div>
+        )}
         <button type="submit" className={styles.btnPrimary} disabled={crearCampana.isPending}>
           {crearCampana.isPending ? 'Creando…' : 'Crear campaña'}
         </button>
@@ -122,13 +139,13 @@ export function PublicidadAdminPage() {
 
       <div className={styles.tablePanel}>
         <table className={styles.table}>
-          <thead><tr><th>ID</th><th>Nombre</th><th>CPM</th><th>Inicio</th><th>Fin</th><th>Activa</th></tr></thead>
+          <thead><tr><th>ID</th><th>Nombre</th><th>Tipo</th><th>CPM</th><th>Inicio</th><th>Fin</th><th>Activa</th></tr></thead>
           <tbody>
             {campanasData.length === 0 ? (
-              <tr><td colSpan={6} className={styles.emptyState}>Sin campañas todavía.</td></tr>
+              <tr><td colSpan={7} className={styles.emptyState}>Sin campañas todavía.</td></tr>
             ) : campanasData.map((c) => (
               <tr key={c.campana_id}>
-                <td>{c.campana_id}</td><td>{c.nombre}</td><td>${c.cpm.toFixed(2)}</td>
+                <td>{c.campana_id}</td><td>{c.nombre}</td><td>{c.tipo_anuncio === 'display' ? 'Display' : 'Audio'}</td><td>${c.cpm.toFixed(2)}</td>
                 <td>{c.fecha_inicio}</td><td>{c.fecha_fin ?? 'indefinida'}</td><td>{c.activa ? 'Sí' : 'No'}</td>
               </tr>
             ))}

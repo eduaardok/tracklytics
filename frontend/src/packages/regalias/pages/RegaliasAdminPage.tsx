@@ -247,10 +247,80 @@ export function RegaliasAdminPage() {
       </form>
       {liquidar.isSuccess && (
         <p className={styles.bannerOk}>
-          {liquidar.data.liquidaciones} liquidaciones — pool total {fmtMoney(liquidar.data.pool_total)},
-          {' '}pool rightsholders {fmtMoney(liquidar.data.pool_rightsholders)}, {liquidar.data.total_streams} streams del período.
+          {liquidar.data.status === 'ya_liquidado'
+            ? 'Ese período exacto ya estaba liquidado — no se generaron duplicados.'
+            : `${liquidar.data.liquidaciones} liquidaciones — pool total ${fmtMoney(liquidar.data.pool_total ?? 0)}, `
+              + `pool rightsholders ${fmtMoney(liquidar.data.pool_rightsholders ?? 0)}, ${liquidar.data.total_streams ?? 0} streams del período.`}
         </p>
       )}
+
+      <p className={styles.sectionLabel} style={{ marginTop: 'var(--space-xl)' }}>Solicitudes de retiro</p>
+      <RetirosAdminTable />
     </section>
+  )
+}
+
+// CU-O76 (modelo-financiero-simulacion) — panel de aprobación/rechazo de
+// retiros solicitados por artista/sello.
+function RetirosAdminTable() {
+  const queryClient = useQueryClient()
+  const toast = useToast()
+
+  const retiros = useQuery({ queryKey: ['regalias', 'admin', 'retiros'], queryFn: () => regaliasApi.retirosAdmin() })
+
+  const procesar = useMutation({
+    mutationFn: (retiroId: string) => regaliasApi.procesarRetiro(retiroId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['regalias', 'admin', 'retiros'] })
+      toast.success('Retiro procesado')
+    },
+    onError: (err) => toast.error(apiErrorMessage(err, 'No se pudo procesar el retiro.')),
+  })
+
+  const rechazar = useMutation({
+    mutationFn: (retiroId: string) => regaliasApi.rechazarRetiro(retiroId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['regalias', 'admin', 'retiros'] })
+      toast.success('Retiro rechazado')
+    },
+    onError: (err) => toast.error(apiErrorMessage(err, 'No se pudo rechazar el retiro.')),
+  })
+
+  const data = retiros.data?.data ?? []
+
+  return (
+    <div className={styles.tablePanel}>
+      <table className={styles.table}>
+        <thead>
+          <tr><th>Tipo</th><th>Rightsholder</th><th>Monto</th><th>Estado</th><th>Solicitado</th><th></th></tr>
+        </thead>
+        <tbody>
+          {data.length === 0 ? (
+            <tr><td colSpan={6} className={styles.emptyState}>Sin solicitudes de retiro todavía.</td></tr>
+          ) : data.map((r) => (
+            <tr key={r.retiro_id}>
+              <td>{r.tipo_rightsholder}</td>
+              <td>{r.rightsholder_id.slice(0, 8)}…</td>
+              <td>{fmtMoney(r.monto)}</td>
+              <td>{r.estado}</td>
+              <td>{r.fecha_solicitud}</td>
+              <td>
+                {r.estado === 'pendiente' && (
+                  <>
+                    <button type="button" className={styles.btnPrimary} disabled={procesar.isPending} onClick={() => procesar.mutate(r.retiro_id)}>
+                      Procesar
+                    </button>
+                    {' '}
+                    <button type="button" className={styles.btnPrimary} disabled={rechazar.isPending} onClick={() => rechazar.mutate(r.retiro_id)}>
+                      Rechazar
+                    </button>
+                  </>
+                )}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   )
 }

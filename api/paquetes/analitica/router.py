@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Query
 
@@ -9,15 +9,41 @@ from paquetes.analitica.queries import (
     ADQUISICION_POR_CANAL,
     ARTIST_AUDIO_STATS_V1, ARTIST_PREDOMINANT_GENRE, ARTIST_STATS,
     ARTISTAS_SEARCH_V1, ARTISTS_SEARCH, ARTISTS_SEARCH_TOTAL,
+    BAJAS_ANTES_DE,
+    CANCELACIONES_POR_MES, CANCELACIONES_POR_MES_Y_MOTIVO,
     DASHBOARD_AUDIO_AVG, DASHBOARD_EXPLICIT_DIST, DASHBOARD_KPIS, DASHBOARD_LAST_ETL,
     DASHBOARD_TOP_ARTISTS, DASHBOARD_TOP_GENRES,
     DASHBOARD_TOTAL_ARTISTS, DASHBOARD_TOTAL_GENRES, DASHBOARD_TOTAL_TRACKS,
     DISPONIBILIDAD_POR_COMPONENTE,
     ENGAGEMENT_BY_ARTIST, ENGAGEMENT_BY_FACT,
     GENRE_AUDIO_PROFILE, GENRE_AUDIO_PROFILE_V1, GENRES_TOTAL, GENRES_TRENDS,
+    INGRESO_MENSUAL_RECURRENTE_HISTORICO, INGRESO_PUBLICITARIO_EN_RANGO, INGRESO_SUSCRIPCIONES_EN_RANGO,
+    REGALIAS_PAGADAS_EN_RANGO,
     REPORTE_DIARIO_ENGAGEMENT, REPORTE_DIARIO_INGESTAS,
     TENDENCIAS_LOAD_WEEK, TRACK_POPULARITY, TRENDS_WEEKLY,
+    USUARIOS_CON_IMPRESION_EN_RANGO,
 )
+from paquetes.suscripciones import pb_client
+
+# Planes de pago, B2C y B2B (monetizacion-retencion-mejoras) — mismos ids que
+# `paquetes.suscripciones.planes.PLANES` con precio > 0; "free" queda fuera
+# porque no es un plan pago que pueda hacer churn.
+PLANES_DE_PAGO = ("premium", "estudiante", "basico", "pro", "enterprise")
+# Subconjunto B2C de conversión (funnel free → premium) — los tiers B2B no
+# participan del funnel de conversión free→premium.
+PLANES_PAGO_B2C = ("premium", "estudiante")
+
+
+def _meses_entre(desde: date, hasta: date) -> list[date]:
+    """Lista de meses (día 1) entre `desde` y `hasta`, ambos inclusive por mes."""
+    meses = []
+    cursor = date(desde.year, desde.month, 1)
+    fin = date(hasta.year, hasta.month, 1)
+    while cursor <= fin:
+        meses.append(cursor)
+        year, month = (cursor.year + 1, 1) if cursor.month == 12 else (cursor.year, cursor.month + 1)
+        cursor = date(year, month, 1)
+    return meses
 
 router = APIRouter(tags=["Analytics"], dependencies=[Depends(require_b2b_panel_access)])
 
@@ -270,5 +296,145 @@ def v1_reporte_diario(fecha: date | None = Query(None)):
             "Pendiente táctico: métricas de suscripciones (altas, bajas, churn) "
             "y adquisiciones no se incluyen aún — requieren el ETL de suscripciones "
             "PocketBase → ClickHouse, previsto para la capa táctica."
+        ),
+    }
+
+
+@v1_router.get("/churn", dependencies=[Depends(require_staff)])
+async def v1_churn(
+    desde: date = Query(...),
+    hasta: date = Query(...),
+    por_motivo: bool = Query(False),
+):
+    """Tasa de churn mensual (monetizacion-retencion-mejoras, Lead Data
+    Engineer/CTO). `activas_al_inicio(mes)` se aproxima como altas antes del
+    mes (PocketBase) menos bajas antes del mes (FACT_CANCELACION_SUSCRIPCION)
+    — exacto desde el despliegue de esta métrica en adelante, ver design.md
+    decisión 5."""
+    if desde > hasta:
+        raise HTTPException(status_code=422, detail="desde no puede ser mayor que hasta")
+
+    meses = _meses_entre(desde, hasta)
+    rango_desde = datetime.combine(meses[0], datetime.min.time())
+    rango_hasta = datetime.combine(hasta, datetime.min.time()) + timedelta(days=1)
+
+    if por_motivo:
+        filas = query_rows(CANCELACIONES_POR_MES_Y_MOTIVO, {"desde": rango_desde, "hasta": rango_hasta})
+        cancelaciones_por_mes: dict[str, dict[str, int]] = {}
+        for fila in filas:
+            clave = fila["mes"].isoformat() if hasattr(fila["mes"], "isoformat") else str(fila["mes"])
+            cancelaciones_por_mes.setdefault(clave, {})[fila["motivo"]] = fila["cancelaciones"]
+    else:
+        filas = query_rows(CANCELACIONES_POR_MES, {"desde": rango_desde, "hasta": rango_hasta})
+        cancelaciones_totales: dict[str, int] = {
+            (f["mes"].isoformat() if hasattr(f["mes"], "isoformat") else str(f["mes"])): f["cancelaciones"]
+            for f in filas
+        }
+
+    resultado = []
+    for mes in meses:
+        inicio_mes = datetime.combine(mes, datetime.min.time())
+        altas = await pb_client.contar_altas_antes_de(inicio_mes, PLANES_DE_PAGO)
+        bajas = (query_one(BAJAS_ANTES_DE, {"fecha": inicio_mes}) or {}).get("n", 0)
+        activas_al_inicio = max(altas - bajas, 0)
+
+        clave = mes.isoformat()
+        if por_motivo:
+            por_motivo_mes = cancelaciones_por_mes.get(clave, {})
+            cancelaciones_mes = sum(por_motivo_mes.values())
+        else:
+            cancelaciones_mes = cancelaciones_totales.get(clave, 0)
+
+        tasa = round(cancelaciones_mes / activas_al_inicio, 4) if activas_al_inicio else None
+
+        fila_resultado = {
+            "mes":               clave,
+            "cancelaciones":     cancelaciones_mes,
+            "activas_al_inicio": activas_al_inicio,
+            "tasa_churn":        tasa,
+        }
+        if por_motivo:
+            fila_resultado["por_motivo"] = por_motivo_mes
+        resultado.append(fila_resultado)
+
+    return {
+        "data": resultado,
+        "nota": (
+            "La tasa de churn es precisa desde el despliegue de esta métrica en "
+            "adelante; meses anteriores pueden sobreestimar activas_al_inicio "
+            "porque las cancelaciones previas a este cambio no quedaron "
+            "registradas con fecha."
+        ),
+    }
+
+
+def _rango_dt(desde: date, hasta: date) -> tuple[datetime, datetime]:
+    if desde > hasta:
+        raise HTTPException(status_code=422, detail="desde no puede ser mayor que hasta")
+    return datetime.combine(desde, datetime.min.time()), datetime.combine(hasta, datetime.min.time()) + timedelta(days=1)
+
+
+@v1_router.get("/funnel-conversion", dependencies=[Depends(require_staff)])
+async def v1_funnel_conversion(desde: date = Query(...), hasta: date = Query(...)):
+    """Funnel free → vio anuncio → se suscribió (monetizacion-retencion-
+    mejoras, Lead Data Engineer/CTO). `vieron_anuncio` cubre audio y display
+    sin distinguir tipo (RF: "vio al menos un anuncio")."""
+    rango_desde, rango_hasta = _rango_dt(desde, hasta)
+
+    free_activos = await pb_client.contar_activas("free")
+    vieron_anuncio = (
+        query_one(USUARIOS_CON_IMPRESION_EN_RANGO, {"desde": rango_desde, "hasta": rango_hasta}) or {}
+    ).get("n", 0)
+    se_suscribieron = await pb_client.contar_altas_en_rango(rango_desde, rango_hasta, PLANES_PAGO_B2C)
+
+    return {
+        "free_activos":    free_activos,
+        "vieron_anuncio":  vieron_anuncio,
+        "se_suscribieron": se_suscribieron,
+    }
+
+
+@v1_router.get("/pnl", dependencies=[Depends(require_staff)])
+def v1_pnl(desde: date = Query(...), hasta: date = Query(...)):
+    """P&L consolidado (monetizacion-retencion-mejoras, Lead Data Engineer/
+    CTO): ingreso por suscripciones + ingreso publicitario − regalías
+    pagadas = margen neto, agregado sobre tablas ya existentes de
+    facturacion/publicidad/regalias."""
+    rango_desde, rango_hasta = _rango_dt(desde, hasta)
+    params = {"desde": rango_desde, "hasta": rango_hasta}
+
+    ingreso_suscripciones = float((query_one(INGRESO_SUSCRIPCIONES_EN_RANGO, params) or {}).get("total") or 0)
+    ingreso_publicitario  = float((query_one(INGRESO_PUBLICITARIO_EN_RANGO,  params) or {}).get("total") or 0)
+    regalias_pagadas      = float((query_one(REGALIAS_PAGADAS_EN_RANGO,      params) or {}).get("total") or 0)
+
+    return {
+        "ingreso_suscripciones": round(ingreso_suscripciones, 2),
+        "ingreso_publicitario":  round(ingreso_publicitario, 2),
+        "regalias_pagadas":      round(regalias_pagadas, 2),
+        "margen_neto":           round(ingreso_suscripciones + ingreso_publicitario - regalias_pagadas, 2),
+    }
+
+
+@v1_router.get("/mrr-arr", dependencies=[Depends(require_staff)])
+async def v1_mrr_arr(desde: date = Query(...), hasta: date = Query(...)):
+    """MRR/ARR (modelo-financiero-simulacion, Lead Data Engineer/CTO): MRR es
+    el ingreso mensual recurrente actual (suma de `monto` de suscripciones de
+    pago activas en PocketBase, fuente de verdad en tiempo real — no un
+    agregado histórico de ClickHouse). ARR = MRR × 12. La tendencia por mes
+    es una aproximación (ingreso cobrado, no MRR reconstruido
+    punto-en-el-tiempo, ver design.md decisión 7)."""
+    rango_desde, rango_hasta = _rango_dt(desde, hasta)
+
+    mrr = await pb_client.sumar_montos_activos(PLANES_DE_PAGO)
+    tendencia = query_rows(INGRESO_MENSUAL_RECURRENTE_HISTORICO, {"desde": rango_desde, "hasta": rango_hasta})
+
+    return {
+        "mrr": round(mrr, 2),
+        "arr": round(mrr * 12, 2),
+        "tendencia_mensual": tendencia,
+        "nota": (
+            "MRR es el ingreso recurrente activo en este momento (suscripciones de pago activas). "
+            "La tendencia mensual aproxima el ingreso recurrente con lo efectivamente cobrado cada "
+            "mes, no una reconstrucción de MRR punto-en-el-tiempo."
         ),
     }

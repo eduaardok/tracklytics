@@ -1,5 +1,7 @@
 import { apiClient, type ApiResponse } from '@shared/lib/api-client'
-import type { Anunciante, Campana, CampanaBody, ImpresionAsignada, IngresoCampana } from '../types'
+import type {
+  Anunciante, Campana, CampanaBody, ImpresionAsignada, ImpresionDisplayAsignada, IngresoCampana,
+} from '../types'
 
 export const publicidadApi = {
   anunciantes: () =>
@@ -23,6 +25,16 @@ export const publicidadApi = {
   completarImpresion: (impresionId: string) =>
     apiClient.post<{ status: string; monto?: number; ya_reconocido?: boolean }>(
       `/publicidad/impresion/${impresionId}/completar`, undefined,
+    ),
+
+  // Se llama al cargar home/catálogo — independiente del reproductor. El
+  // backend decide si corresponde banner según el plan real del usuario.
+  impresionDisplay: () =>
+    apiClient.post<ImpresionDisplayAsignada>('/publicidad/impresion-display', undefined),
+
+  registrarClick: (impresionId: string) =>
+    apiClient.post<{ status: string; monto?: number; ya_reconocido?: boolean }>(
+      `/publicidad/impresion/${impresionId}/click`, undefined,
     ),
 
   ingresos: (campanaId?: number) =>

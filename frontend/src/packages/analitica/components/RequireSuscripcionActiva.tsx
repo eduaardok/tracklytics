@@ -36,8 +36,12 @@ export function RequireSuscripcionActiva({ children }: Props) {
   if (status === 401) return <Navigate to="/login" replace />
 
   // 403: sesión válida pero sin acceso (rol sin permiso, o analyst sin
-  // suscripción activa) -> pantalla de upsell/onboarding.
-  if (status === 403) return <Navigate to="/analitica/suscripciones" replace />
+  // suscripción activa) -> pantalla de upsell/onboarding real (selección de
+  // plan). Antes apuntaba a /analitica/suscripciones, pero esa ruta pasó a
+  // ser el dashboard de churn (monetizacion-retencion-mejoras, admin-only,
+  // require_staff) — redirigir ahí a un analyst sin suscripción lo dejaba
+  // rebotando contra una página que tampoco puede ver.
+  if (status === 403) return <Navigate to="/suscripciones" replace />
 
   // Cualquier otro caso (200, o un error de red que no resolvió `status`)
   // deja pasar — un fallo de infraestructura no debe bloquear el acceso,

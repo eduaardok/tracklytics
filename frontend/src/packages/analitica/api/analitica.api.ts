@@ -8,6 +8,7 @@ import type {
   GenreAudioProfile, ArtistasComparacion, ArtistaBenchmark,
   TendenciaSemana, ReporteDiario,
   AdquisicionCanal, DisponibilidadComponente,
+  ChurnMensual, FunnelConversion, PnlConsolidado, MrrArr,
 } from '../types'
 
 // /dashboard/executive lives on the legacy router with no /app/v1 prefix.
@@ -96,4 +97,21 @@ export const analiticaApi = {
   // ── Disponibilidad de infraestructura por componente (CU-O55) ──────────────
   disponibilidad: () =>
     apiClient.get<{ data: DisponibilidadComponente[] }>('/analitica/disponibilidad'),
+
+  // ── Churn mensual, funnel de conversión y P&L (monetizacion-retencion-
+  // mejoras, solo staff/admin — `require_staff` en backend) ──────────────────
+  churn: (desde: string, hasta: string, porMotivo = false) =>
+    apiClient.get<ChurnMensual>(
+      `/analitica/churn?desde=${desde}&hasta=${hasta}${porMotivo ? '&por_motivo=true' : ''}`,
+    ),
+
+  funnelConversion: (desde: string, hasta: string) =>
+    apiClient.get<FunnelConversion>(`/analitica/funnel-conversion?desde=${desde}&hasta=${hasta}`),
+
+  pnl: (desde: string, hasta: string) =>
+    apiClient.get<PnlConsolidado>(`/analitica/pnl?desde=${desde}&hasta=${hasta}`),
+
+  // ── MRR/ARR (modelo-financiero-simulacion, solo staff/admin) ────────────────
+  mrrArr: (desde: string, hasta: string) =>
+    apiClient.get<MrrArr>(`/analitica/mrr-arr?desde=${desde}&hasta=${hasta}`),
 }
