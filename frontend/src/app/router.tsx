@@ -93,6 +93,7 @@ const TicketsAdminPage         = lazyNamed(() => import('@packages/experiencia/p
 const RegaliasAdminPage   = lazyNamed(() => import('@packages/regalias/pages/RegaliasAdminPage'), 'RegaliasAdminPage')
 const PublicidadAdminPage = lazyNamed(() => import('@packages/publicidad/pages/PublicidadAdminPage'), 'PublicidadAdminPage')
 const SimulacionPage      = lazyNamed(() => import('@packages/simulacion/pages/SimulacionPage'), 'SimulacionPage')
+const FinanzasAdminPage   = lazyNamed(() => import('@packages/finanzas/pages/FinanzasAdminPage'), 'FinanzasAdminPage')
 
 export const router = createBrowserRouter([
   { path: '/login',      element: <LoginPage /> },
@@ -201,6 +202,7 @@ export const router = createBrowserRouter([
       { path: 'regalias',    element: <RegaliasAdminPage /> },
       { path: 'publicidad',  element: <PublicidadAdminPage /> },
       { path: 'simulacion',  element: <SimulacionPage /> },
+      { path: 'finanzas',    element: <FinanzasAdminPage /> },
       // `partners` e `ingesta` viven aquí, no en árboles propios: son
       // herramientas de back-office 100% admin-only (partners: la consola de
       // verificación, no la API en sí — ver packages/partners/README.md;

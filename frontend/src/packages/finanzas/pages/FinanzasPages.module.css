@@ -1,0 +1,416 @@
+/* ── Shell (mismo lenguaje visual que DistribucionPages.module.css) ── */
+.page {}
+
+.heading {
+  font-family: var(--font-sans);
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--color-ink);
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+  text-wrap: balance;
+  margin-bottom: var(--space-xs);
+}
+
+.subtitle {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  color: var(--color-muted);
+  min-height: 1em;
+  margin-bottom: var(--space-xl);
+}
+
+.sectionLabel {
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--color-muted);
+  margin-bottom: var(--space-sm);
+}
+
+/* ── Tabs ── */
+.tabBar {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid var(--color-border);
+  margin-bottom: var(--space-xl);
+  overflow-x: auto;
+}
+
+.tab {
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--color-muted);
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: 10px 4px;
+  margin-right: var(--space-lg);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color var(--duration-fast) var(--ease-standard), border-color var(--duration-fast) var(--ease-standard);
+}
+.tab:hover { color: var(--color-ink); }
+.tab--active { color: var(--color-ink); border-bottom-color: var(--color-primary); }
+
+/* ── Formularios ── */
+.form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: var(--space-sm);
+  padding: var(--space-md);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  margin-bottom: var(--space-lg);
+  align-items: end;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  min-width: 0;
+}
+
+.fieldLabel {
+  font-family: var(--font-sans);
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--color-muted);
+}
+
+.input,
+.select,
+.textarea {
+  width: 100%;
+  background: var(--color-bg);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  padding: 8px 12px;
+  height: 36px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  outline: none;
+  min-width: 0;
+  transition: border-color var(--duration-standard) var(--ease-standard);
+}
+
+.textarea { height: auto; min-height: 36px; resize: vertical; padding-top: 8px; }
+
+.select {
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16' fill='none'%3E%3Cpath d='M4 6l4 4 4-4' stroke='%2358586a' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  padding-right: 32px;
+}
+
+.input::placeholder, .textarea::placeholder { color: var(--color-muted); }
+.input:hover, .select:hover, .textarea:hover { border-color: oklch(0.30 0.012 285); }
+.input:focus, .select:focus, .textarea:focus { border-color: var(--color-primary); }
+
+/* ── Botones ── */
+.btnPrimary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-xs);
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--color-ink);
+  background: var(--color-primary);
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: 6px 14px;
+  height: 36px;
+  cursor: pointer;
+  white-space: nowrap;
+  letter-spacing: 0.01em;
+  transition: background-color var(--duration-standard) var(--ease-standard), opacity var(--duration-fast) var(--ease-standard);
+}
+.btnPrimary:hover:not(:disabled) { background: oklch(0.54 0.16 290); }
+.btnPrimary:focus-visible { outline: none; box-shadow: 0 0 0 2px oklch(0.48 0.15 290 / 0.5); }
+.btnPrimary:disabled { opacity: 0.38; cursor: not-allowed; }
+
+.btnGhost {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-xs);
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--color-ink);
+  background: transparent;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 6px 12px;
+  height: 32px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: border-color var(--duration-fast) var(--ease-standard), background-color var(--duration-fast) var(--ease-standard);
+}
+.btnGhost:hover:not(:disabled) { background: var(--color-surface-raised); }
+.btnGhost:focus-visible { outline: none; box-shadow: 0 0 0 2px oklch(0.48 0.15 290 / 0.5); }
+.btnGhost:disabled { opacity: 0.38; cursor: not-allowed; }
+
+.btnGhostDanger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--color-muted);
+  background: transparent;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 6px 12px;
+  height: 30px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color var(--duration-fast) var(--ease-standard), border-color var(--duration-fast) var(--ease-standard);
+}
+.btnGhostDanger:hover:not(:disabled) { color: var(--color-error); border-color: oklch(0.65 0.22 25 / 0.4); }
+.btnGhostDanger:focus-visible { outline: none; box-shadow: 0 0 0 2px oklch(0.65 0.22 25 / 0.4); }
+.btnGhostDanger:disabled { opacity: 0.38; cursor: not-allowed; }
+
+/* ── Tabla ── */
+.tablePanel {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  overflow-x: auto;
+  margin-bottom: var(--space-xl);
+}
+
+.table { width: 100%; border-collapse: collapse; }
+
+.table th {
+  text-align: left;
+  font-family: var(--font-sans);
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--color-muted);
+  padding: 10px var(--space-md);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.table td {
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  color: var(--color-ink);
+  padding: 10px var(--space-md);
+  vertical-align: middle;
+}
+
+.table tbody tr + tr td { border-top: 1px solid var(--color-border); }
+.table tbody tr:hover { background: var(--color-surface-raised); }
+
+.tableActions { display: flex; gap: 6px; justify-content: flex-end; }
+
+/* ── Badges ── */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--font-sans);
+  font-size: 0.6875rem;
+  font-weight: 500;
+  padding: 3px 9px;
+  border-radius: var(--radius-pill);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.badgeOk       { background: oklch(0.70 0.14 195 / 0.15); color: var(--color-accent); }
+.badgeError    { background: oklch(0.65 0.22 25 / 0.12);  color: var(--color-error); }
+.badgePending  { background: oklch(0.78 0.18 70 / 0.14);  color: var(--color-warning); }
+.badgeNeutral  { background: oklch(0.58 0.010 285 / 0.14); color: var(--color-muted); }
+
+/* ── Empty state / banners / skeleton ── */
+.emptyState {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: var(--space-xs);
+  padding: var(--space-xl) var(--space-lg);
+  color: var(--color-muted);
+}
+
+.bannerError {
+  padding: 10px var(--space-md);
+  background: oklch(0.65 0.22 25 / 0.08);
+  border: 1px solid oklch(0.65 0.22 25 / 0.25);
+  border-radius: var(--radius-md);
+  color: var(--color-error);
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  margin-bottom: var(--space-md);
+}
+
+.bannerOk {
+  padding: 10px var(--space-md);
+  background: oklch(0.70 0.14 195 / 0.10);
+  border: 1px solid oklch(0.70 0.14 195 / 0.3);
+  border-radius: var(--radius-md);
+  color: var(--color-accent);
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  margin-bottom: var(--space-md);
+}
+
+/* ── Dashboard: grid de KPI + charts ── */
+.dashboardGrid {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: var(--space-md);
+  margin-bottom: var(--space-xl);
+}
+
+.chartPanel, .kpiPanel, .gaugePanel {
+  padding: var(--space-md);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.panelTitle {
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--color-muted);
+  margin-bottom: var(--space-sm);
+}
+
+.kpiPanel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  justify-content: center;
+}
+
+.kpiGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: var(--space-md);
+  margin-bottom: var(--space-xl);
+}
+
+.kpiRow { display: flex; flex-direction: column; }
+
+.kpiValue {
+  font-family: var(--font-sans);
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: var(--color-ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.kpiValueSm {
+  font-family: var(--font-sans);
+  font-size: 1.375rem;
+  font-weight: 700;
+  color: var(--color-ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.kpiLabel {
+  font-family: var(--font-sans);
+  font-size: 0.75rem;
+  color: var(--color-muted);
+}
+
+.kpiDelta {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  font-weight: 600;
+  margin-left: 6px;
+}
+.kpiDeltaUp   { color: var(--color-accent); }
+.kpiDeltaDown { color: var(--color-error); }
+
+.gaugePanel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-sm);
+}
+
+/* ── Grid de gauges (presupuesto de campañas) ── */
+.gaugeGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: var(--space-md);
+  margin-bottom: var(--space-xl);
+}
+
+.campaignCard {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-md);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  text-align: center;
+}
+
+.campaignName {
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--color-ink);
+}
+
+.campaignMeta {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  color: var(--color-muted);
+}
+
+/* ── Alertas ──
+   Mismo lenguaje que .badge (tinte de fondo, no borde de acento): un borde
+   lateral de color es la señal más reconocible de UI generada por IA sin
+   criterio propio — el punto de estado + tinte sutil ya comunica severidad
+   sin ese cliché, y reutiliza los mismos tokens que badgeError/badgePending. */
+.alertList { display: flex; flex-direction: column; gap: var(--space-sm); margin-bottom: var(--space-xl); }
+
+.alertRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: 10px var(--space-md);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+.alertRow--error   { background: oklch(0.65 0.22 25 / 0.06); }
+.alertRow--warning { background: oklch(0.78 0.18 70 / 0.07); }
+
+.alertDot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.alertDot--error   { background: var(--color-error); }
+.alertDot--warning { background: var(--color-warning); }
+
+.alertText {
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  color: var(--color-ink);
+  flex: 1;
+}
+
+@media (max-width: 700px) {
+  .dashboardGrid { grid-template-columns: 1fr; }
+}

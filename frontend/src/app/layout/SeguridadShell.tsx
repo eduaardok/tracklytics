@@ -64,6 +64,9 @@ export function SeguridadShell() {
           <NavLink to="/seguridad/simulacion" className={({ isActive }) => isActive ? ACTIVE_CLS : INACTIVE_CLS}>
             Simulación
           </NavLink>
+          <NavLink to="/seguridad/finanzas" className={({ isActive }) => isActive ? ACTIVE_CLS : INACTIVE_CLS}>
+            Finanzas
+          </NavLink>
           <NavLink to="/seguridad/partners" end className={({ isActive }) => isActive ? ACTIVE_CLS : INACTIVE_CLS}>
             Partners
           </NavLink>
