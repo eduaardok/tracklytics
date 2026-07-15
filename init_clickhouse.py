@@ -1058,6 +1058,58 @@ DDL_STATEMENTS = [
     ) ENGINE = MergeTree()
     ORDER BY (rightsholder_id, fecha_solicitud)
     """,
+
+    # ── Capability `finanzas` (mejoras-financieras-empresariales): gasto
+    # operativo y reembolso son los dos hechos que faltaban para calcular
+    # utilidad real (ver design.md, Decisión 2) — igual que gastos/reembolsos
+    # de cualquier plataforma real, se agregan junto al resto de tablas FACT
+    # de negocio. Soft-delete/estado únicamente, nunca DELETE físico (mismo
+    # patrón que DIM_CUENTA_ARTISTA/FACT_RETIRO_REGALIA vía ALTER UPDATE).
+    #
+    # Desviación de tasks.md 1.1 (que pedía `ORDER BY (fecha)`): ClickHouse
+    # rechaza `ALTER TABLE ... UPDATE` sobre una columna que forma parte de
+    # la clave de ordenamiento (`CANNOT_UPDATE_COLUMN`), y `fecha` es
+    # editable (spec.md, "Registro y anulación de gastos operativos" permite
+    # editar concepto/categoria/monto/fecha/descripcion). Se usa `gasto_id`
+    # como clave en su lugar — estable durante todo el ciclo de vida del
+    # gasto, a diferencia de `fecha` — descubierto al ejecutar las pruebas
+    # de `editar_gasto` (ver resumen final).
+    f"""
+    CREATE TABLE IF NOT EXISTS {DB}.FACT_GASTO_OPERATIVO (
+        gasto_id        String,
+        concepto        String,
+        categoria       Enum8(
+            'infraestructura'=1, 'marketing'=2, 'nomina'=3, 'licencias'=4,
+            'servicios'=5, 'soporte'=6, 'legal'=7, 'otros'=8
+        ),
+        monto           Float32,
+        fecha           Date,
+        descripcion     String DEFAULT '',
+        estado          Enum8('activo'=1, 'anulado'=2) DEFAULT 'activo',
+        responsable_id  String,
+        fecha_registro  DateTime DEFAULT now()
+    ) ENGINE = MergeTree()
+    ORDER BY (gasto_id)
+    """,
+
+    # Un reembolso referencia una transacción de `facturacion`
+    # (FACT_TRANSACCION_PAGO) — el monto disponible a reembolsar se calcula
+    # on-read (pagado - reembolsado ya 'procesado'), mismo patrón que
+    # SALDO_DISPONIBLE_RIGHTSHOLDER de `regalias`. Historial inmutable: un
+    # reembolso rechazado/cancelado nunca se borra, solo cambia `estado`.
+    f"""
+    CREATE TABLE IF NOT EXISTS {DB}.FACT_REEMBOLSO (
+        reembolso_id    String,
+        transaccion_id  UUID,
+        monto           Float32,
+        tipo            Enum8('total'=1, 'parcial'=2),
+        motivo          String,
+        fecha           DateTime DEFAULT now(),
+        responsable_id  String,
+        estado          Enum8('procesado'=1, 'rechazado'=2, 'cancelado'=3) DEFAULT 'procesado'
+    ) ENGINE = MergeTree()
+    ORDER BY (transaccion_id, fecha)
+    """,
 ]
 
 # ── Runner ────────────────────────────────────────────────────────────────────

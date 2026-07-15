@@ -13,6 +13,7 @@ from paquetes.creadores.router import router as creadores_router
 from paquetes.distribucion.router import router as distribucion_router
 from paquetes.experiencia.router import router as experiencia_router
 from paquetes.facturacion.router import router as facturacion_router
+from paquetes.finanzas.router import router as finanzas_router
 from paquetes.gestion_datos.router import router as gestion_router
 from paquetes.gestion_datos.router import v1_router as gestion_v1_router
 from paquetes.partners.logging_mw import partner_call_logger
@@ -90,3 +91,4 @@ app.include_router(experiencia_router)
 app.include_router(regalias_router)
 app.include_router(publicidad_router)
 app.include_router(simulacion_router)
+app.include_router(finanzas_router)

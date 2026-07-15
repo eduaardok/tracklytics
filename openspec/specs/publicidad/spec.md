@@ -34,6 +34,7 @@ rightsholders — igual que en el modelo real de la industria.
 | Operativo | Usuario B2C (free) | Publicidad | CU-O67 Recibir un anuncio entre canciones | Como Usuario B2C del plan free, quiero que se me muestre un anuncio entre canciones, para poder seguir escuchando música sin pagar |
 | Operativo | Lead Data Engineer / CTO | Publicidad | CU-O68 Consultar ingreso publicitario | Como Lead Data Engineer/CTO, quiero consultar el ingreso publicitario real por campaña y período, para medir el desempeño comercial de publicidad |
 | Operativo | Usuario B2C (free) | Publicidad | CU-O69 Recibir un anuncio display en pantalla | Como Usuario B2C del plan free, quiero ver un banner display al cargar catálogo u home, para que Tracklytics se financie también sin depender solo de anuncios de audio |
+| Operativo | Lead Data Engineer / CTO | Publicidad | CU-O91 Pausar campaña automáticamente por presupuesto agotado | Como Lead Data Engineer/CTO, quiero que una campaña se pause sola al agotar su presupuesto, para no seguir generando ingreso publicitario por encima de lo contratado con el anunciante |
 
 ## Requirements
 
@@ -150,6 +151,25 @@ agregado por campaña y por rango de fechas.
 - **WHEN** un usuario con rol `admin` solicita el ingreso publicitario de una campaña en un rango de fechas
 - **THEN** el sistema retorna el monto total real reconocido en ese rango
 
+### Requirement: Pausa automática de campaña por presupuesto agotado
+El sistema SHALL, al evaluar el consumo de presupuesto de una campaña (capability
+`finanzas`) y determinar que el ingreso acumulado alcanzó o superó su `presupuesto_total`,
+marcar la campaña como inactiva (`activa=0`) en `DIM_CAMPANA_PUBLICITARIA` si aún estaba
+activa, y auditar la operación. Una campaña pausada por presupuesto agotado SHALL dejar
+de ser elegible para nuevas impresiones, igual que una campaña pausada manualmente.
+
+#### Scenario: Campaña activa alcanza el 100% de consumo y se pausa
+- **WHEN** el consumo de presupuesto de una campaña `activa=1` alcanza o supera el 100% de su `presupuesto_total`
+- **THEN** el sistema actualiza `activa=0` para esa campaña y registra la auditoría de la pausa automática
+
+#### Scenario: Campaña ya pausada no se vuelve a auditar
+- **WHEN** se evalúa el consumo de una campaña que ya tiene `activa=0`
+- **THEN** el sistema no aplica ninguna actualización ni registra una nueva auditoría de pausa
+
+#### Scenario: Campaña pausada por presupuesto no es elegible para nuevas impresiones
+- **WHEN** una campaña fue pausada automáticamente por presupuesto agotado
+- **THEN** el sistema no la selecciona como elegible para mostrar un nuevo anuncio, igual que cualquier otra campaña inactiva
+
 ## Entradas
 
 - Nombre del anunciante, nombre/CPM/vigencia/tipo de anuncio/URL de destino de la campaña (administración).
@@ -172,6 +192,7 @@ agregado por campaña y por rango de fechas.
 - **Capability `seguridad`**: token de sesión autenticado, gating de `admin`.
 - **Capability `regalias`**: consumidor de `FACT_INGRESO_PUBLICITARIO` para el pool de liquidación.
 - **Capability `analitica`**: consumidor de `FACT_IMPRESION_ANUNCIO` para el funnel de conversión free → premium.
+- **Capability `finanzas`**: evalúa el consumo de presupuesto de cada campaña y dispara la pausa automática (`activa=0`) al agotarse.
 
 ## Fuera de alcance
 
