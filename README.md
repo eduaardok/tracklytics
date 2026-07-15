@@ -375,9 +375,13 @@ publicidad − regalías pagadas) y "cuál es la utilidad real" de la plataforma
 - **Dashboard, indicadores (ARPU, % de ingreso a regalías/gastos, crecimiento vs. periodo
   anterior), alertas administrativas y reporte por periodo**: todos componen `v1_pnl` restando
   gastos y reembolsos, sin reimplementar su cálculo.
+- **Panel admin en React** (`/seguridad/finanzas`, 8 pestañas), con foco en gráficos no
+  convencionales: anillo de progreso para margen/consumo de presupuesto (incluida una grilla de un
+  gauge por campaña), treemap de gasto por categoría, dispersión monto×fecha de reembolsos para
+  detectar outliers, y radar de proporciones para los indicadores del periodo.
 
-Fuera de alcance de esta entrega (documentado, no pendiente por descuido): frontend propio del
-panel de finanzas y exportación PDF/Excel del reporte — ver `docs/BITACORA_S11.md` (Bloque 7).
+Fuera de alcance de esta entrega (documentado, no pendiente por descuido): exportación PDF/Excel
+del reporte — ver `docs/BITACORA_S11.md` (Bloque 7).
 
 ---
 
@@ -427,7 +431,7 @@ tracklytics/
 ├── frontend/                    # React + Vite + TypeScript — único frontend, containerizado (servicio `frontend-react`, puerto 8082)
 │   ├── src/
 │   │   ├── app/                 # router.tsx, layout/ (AppShell, AnalyticaShell, SeguridadShell)
-│   │   ├── packages/            # Un paquete por capability con UI propia (`finanzas` aún sin frontend — ver docs/BITACORA_S11.md Bloque 7), misma organización que `api/paquetes/`
+│   │   ├── packages/            # Un paquete por capability con UI propia, misma organización que `api/paquetes/`
 │   │   └── shared/              # design-system (tokens), components, context (PlayerContext), lib (api-client, session)
 │   ├── Dockerfile               # Build multi-stage: Vite compila, Nginx sirve estático + proxea al backend
 │   ├── vite.config.ts
@@ -724,8 +728,18 @@ en `docs/BITACORA_S11.md`):
   contra `FACT_TRANSACCION_PAGO`, cuentas por cobrar/pagar, tracking de presupuesto de campañas
   con alerta 80%/100% y pausa automática, indicadores empresariales, alertas administrativas y
   dashboard/reporte financiero consolidado — compuesto sobre `v1_pnl` y el resto del dato ya
-  existente, sin duplicar lógica. Primera suite de pytest del proyecto (26/26). Frontend propio y
-  exportación PDF/Excel quedaron fuera de esta entrega (documentado, no pendiente por descuido).
+  existente, sin duplicar lógica. Primera suite de pytest del proyecto (26/26). Exportación
+  PDF/Excel quedó fuera de esta entrega (documentado, no pendiente por descuido).
+- **Panel admin de `finanzas` (React)**, en una segunda pasada la misma semana: 8 vistas
+  (`/seguridad/finanzas`) — dashboard, gastos, reembolsos, cuentas por cobrar/pagar, presupuesto
+  de campañas, indicadores, alertas, reporte — con foco explícito en gráficos no convencionales en
+  vez del bar/donut por defecto del resto del proyecto: un anillo de progreso (`RadialGauge`) para
+  margen/% de presupuesto consumido (incluida una grilla de un gauge por campaña), un treemap para
+  gasto por categoría, una dispersión monto×fecha para detectar reembolsos elevados como outliers,
+  y un radar de proporciones (%) para los indicadores del periodo. Verificado con Playwright real
+  contra el stack levantado (`docker compose` + `npm run dev`), sesión admin real creada con
+  `pb_client.crear_usuario(rol="admin")`: las 8 pestañas cargan sin errores de consola, y un ciclo
+  completo de alta de gasto (formulario → tabla) confirmado end-to-end.
 
 ---
 

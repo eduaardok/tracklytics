@@ -647,10 +647,11 @@ Paquete nuevo `api/paquetes/finanzas/` (mismo patrón que `facturacion`/`publici
   `ALTER TABLE ... UPDATE` sobre columnas del sort key, y `fecha` debe poder editarse.
 
 ### Fuera de alcance de este change (documentado, no pendiente por descuido)
-Frontend del panel de finanzas (tasks.md sección 10) y exportación PDF/Excel del reporte
-(sección 12) quedaron sin implementar — ambas explícitamente marcadas como opcionales/fuera del
-camino crítico en la propuesta original, deprioritizadas frente al backend con las 9 secciones
-restantes ya completas y verificadas sin fricción.
+Frontend del panel de finanzas (tasks.md sección 10, implementado en una segunda pasada más abajo)
+y exportación PDF/Excel del reporte (sección 12) quedaron sin implementar en el change original —
+ambas explícitamente marcadas como opcionales/fuera del camino crítico en la propuesta,
+deprioritizadas frente al backend con las 9 secciones restantes ya completas y verificadas sin
+fricción.
 
 Verificado con `docker compose` real: primer suite de pytest del proyecto
 (`api/tests/test_finanzas.py`, 26/26 casos, cubriendo validaciones de reembolso, cálculo de
@@ -671,3 +672,57 @@ entradas en `FACT_AUDIT_LOG` quedaron escritas.
 | `openspec/specs/finanzas/spec.md` | Nuevo — capability 15 |
 | `openspec/specs/publicidad/spec.md` | Sincronizado — pausa automática por presupuesto agotado |
 | `openspec/changes/archive/2026-07-15-mejoras-financieras-empresariales/` | Archivado |
+
+### Segunda pasada — frontend del panel de finanzas (15 jul 2026, mismo día)
+
+El frontend que quedó deprioritizado en el change original se implementó en una sesión
+independiente, con foco explícito del usuario en gráficos no convencionales (nada de bar/donut
+por defecto) y verificación real con Playwright — no solo `tsc`/`npm run build`.
+
+Nuevo paquete `frontend/src/packages/finanzas/` (mismo patrón de aislamiento que el resto:
+`types.ts`, `api/finanzas.api.ts`, `index.ts`, `pages/`, `components/`), 8 pestañas en
+`FinanzasAdminPage.tsx` (`/seguridad/finanzas`, lazy-loaded por traer Recharts, mismo patrón que
+`DistribucionAdminPage`/`RegaliasAdminPage`): Dashboard, Gastos operativos, Reembolsos, Cuentas por
+cobrar/pagar, Presupuesto de campañas, Indicadores, Alertas, Reporte.
+
+Cuatro componentes de chart nuevos, deliberadamente distintos del trío `MiniBarChart`/
+`MiniLineChart`/`MiniDonutChart` que domina el resto del proyecto (`shared/components/charts/`) —
+cada uno elegido porque encaja semánticamente con el dato, no por novedad:
+- **`RadialGauge`** (anillo de progreso 0-100%): margen de plataforma (Dashboard/Reporte), % de lo
+  por cobrar que está vencido (Cuentas), y una grilla de un gauge por campaña — colores
+  neutro/warning/error según `alerta_80`/`alerta_agotado` — en Presupuesto de campañas.
+- **`CategoriaTreemap`**: gasto operativo por categoría (Gastos, Reporte) — área en vez de
+  longitud/ángulo, con nombre y monto dentro del propio bloque cuando hay espacio. Paleta
+  categórica de 8 colores extendida desde `CHART_COLORS` (misma banda L/C validada, hue rotado en
+  pasos de 45°) porque la paleta de 3 tonos del proyecto no alcanza para 8 categorías fijas.
+- **`ReembolsosScatter`**: dispersión monto×fecha de reembolsos procesados, con los que superan
+  `REEMBOLSO_MONTO_ALTO_USD` marcados en ámbar — pensado para que un reembolso elevado salte a la
+  vista como outlier en vez de perderse en un total diario agregado.
+- **`IndicadoresRadar`**: única serie con las 3 proporciones del periodo, todas en el mismo eje
+  (%) — a diferencia de `AudioRadarChart` (analítica), que compara 6 rasgos ya normalizados entre
+  dos entidades, aquí se dejó fuera del radar cualquier métrica en dinero (ARPU, ingreso promedio
+  por anunciante) para no mezclar unidades distintas en un mismo eje.
+
+**Hallazgo del hook de diseño (`impeccable`) corregido en el camino**: el primer borrador de la
+lista de alertas usaba un borde lateral de color por severidad (`border-left: 3px solid`) — el
+hook lo marcó como el tell más reconocible de una UI generada sin criterio propio. Se reemplazó
+por un punto de estado + tinte de fondo sutil, reutilizando los mismos tokens que ya usan
+`badgeError`/`badgePending` en vez de inventar un lenguaje visual nuevo.
+
+Verificado con Playwright real (no simulado): cuenta admin de prueba creada con
+`pb_client.crear_usuario(rol="admin")` (`api/paquetes/seguridad/pb_client.py`, no
+`suscripciones/pb_client.py` como en sesiones previas — ese módulo no tiene esa función), sesión
+sembrada en `localStorage` con el token real, `npm run dev` contra el stack Docker ya levantado.
+Las 8 pestañas cargaron con datos reales y cero errores de consola/página; la grilla de
+presupuesto de campañas mostró en vivo campañas ya pausadas automáticamente por el backend
+(`activa=false` + badge "Presupuesto agotado"); un ciclo completo de alta de gasto (formulario →
+`POST /finanzas/gastos` → fila nueva visible en la tabla) confirmado end-to-end. `npx tsc --noEmit`
+y `npm run build`: sin errores nuevos (los 3 ya documentados de `EngagementPage.tsx` siguen
+igual), `FinanzasAdminPage` queda en su propio chunk de build (no se coló en el bundle principal).
+
+| Artefacto | Estado |
+|---|---|
+| `frontend/src/packages/finanzas/` | Nuevo paquete — 8 pestañas, `types.ts`, `api/finanzas.api.ts` |
+| `frontend/src/packages/finanzas/components/charts/{RadialGauge,CategoriaTreemap,ReembolsosScatter,IndicadoresRadar}.tsx` | Nuevo — 4 charts no convencionales |
+| `frontend/src/app/router.tsx` | Ampliado — ruta `/seguridad/finanzas` (lazy) |
+| `frontend/src/app/layout/SeguridadShell.tsx` | Ampliado — link "Finanzas" en el sidebar |
