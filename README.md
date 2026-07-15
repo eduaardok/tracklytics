@@ -10,29 +10,31 @@
 [![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?style=for-the-badge&logo=docker&logoColor=white)](https://docker.com)
 [![PocketBase](https://img.shields.io/badge/PocketBase-Auth-B8DBE4?style=for-the-badge&logo=pocketbase&logoColor=black)](https://pocketbase.io)
 
-![Records](https://img.shields.io/badge/Registros-900.000+-8B5CF6?style=for-the-badge)
-![Tables](https://img.shields.io/badge/Tablas_ClickHouse-61-8B5CF6?style=for-the-badge)
-![Capabilities](https://img.shields.io/badge/Capabilities_OpenSpec-13-8B5CF6?style=for-the-badge)
+![Records](https://img.shields.io/badge/Registros-1.1M+-8B5CF6?style=for-the-badge)
+![Tables](https://img.shields.io/badge/Tablas_ClickHouse-68-8B5CF6?style=for-the-badge)
+![Capabilities](https://img.shields.io/badge/Capabilities_OpenSpec-15-8B5CF6?style=for-the-badge)
 ![Progress](https://img.shields.io/badge/Avance-modelo%20de%20negocio%20completo-22c55e?style=for-the-badge)
 
 > Plataforma de analítica musical e inteligencia de negocio sobre datos de Spotify,
 > construida con ClickHouse, Airflow, FastAPI y un frontend React + TypeScript.
 > Incluye una app musical tipo Spotify completa (catálogo, biblioteca, reproducción real,
-> suscripciones, pagos, creadores, social, distribución, regalías, publicidad) con sistema de
-> roles, dashboards administrativos por capability y 13 capabilities especificadas con Spec
-> Driven Development (OpenSpec).
+> suscripciones, pagos, creadores, social, distribución, regalías, publicidad, finanzas) con
+> sistema de roles, dashboards administrativos por capability y 15 capabilities especificadas
+> con Spec Driven Development (OpenSpec), todas implementadas y archivadas.
 
 Tracklytics procesa un dataset base de 113.550 registros reales de Spotify más datos
-sintéticos semanales acumulados (913.551 registros confirmados hoy en `FACT_TRACKS`, tras
-corregir un incidente de duplicación — ver `docs/decisiones-refactorizacion.md` §20), los
-almacena en un modelo dimensional columnar en ClickHouse (61 tablas físicas), orquesta las
-cargas con Apache Airflow (4 DAGs independientes: catálogo, playlists, modelo de negocio y
-finanzas periódicas) y los expone mediante una API REST (FastAPI), un frontend React
-containerizado (único frontend del proyecto) con dashboards analíticos y administrativos
-interactivos (Recharts), reproducción de audio real (YouTube) con fallback simulado y watchdog
-anti-silencio, portadas reales (iTunes + Deezer, con cache persistente), liquidación real de
-regalías, publicidad con reconocimiento de ingreso en tiempo real, y una API de catálogo para
-partners externos.
+sintéticos semanales acumulados (1.113.555 registros confirmados hoy en `FACT_TRACKS`, semanas
+1-11 cargadas, tras corregir un incidente de duplicación — ver
+`docs/decisiones-refactorizacion.md` §20), los almacena en un modelo dimensional columnar en
+ClickHouse (68 tablas físicas), orquesta las cargas con Apache Airflow (7 DAGs: catálogo,
+recarga de portadas independiente, recalificación administrativa en bloque, engagement de
+referencia, playlists, modelo de negocio y finanzas periódicas) y los expone mediante una API
+REST (FastAPI), un frontend React containerizado (único frontend del proyecto) con dashboards
+analíticos y administrativos interactivos (Recharts), reproducción de audio real (YouTube) con
+fallback simulado y watchdog anti-silencio, portadas reales (iTunes + Deezer, con cache
+persistente), liquidación real de regalías, publicidad con reconocimiento de ingreso en tiempo
+real, un panel financiero consolidado (gastos, reembolsos, cuentas por cobrar/pagar, presupuesto
+de campañas), y una API de catálogo para partners externos.
 
 ---
 
@@ -42,9 +44,9 @@ partners externos.
 |---|---|
 | Fuente de datos | PocketBase — dataset base `spotify_tracks` (113.550 registros) + 5 colecciones más: `users`, `playlists`, `playlist_tracks`, `suscripciones`, `partners` |
 | Staging | Parquet (vía PyArrow) |
-| Base de datos | ClickHouse 24.3 (MergeTree) — 61 tablas físicas en esquema estrella (verificado con `system.tables`), incluyendo capabilities transaccionales (`seguridad`, `facturacion`) implementadas en columnar por decisión pedagógica deliberada del docente |
+| Base de datos | ClickHouse 24.3 (MergeTree) — 68 tablas físicas en esquema estrella (verificado con `system.tables`), incluyendo capabilities transaccionales (`seguridad`, `facturacion`, `finanzas`) implementadas en columnar por decisión pedagógica deliberada del docente |
 | Orquestación ETL | Apache Airflow 2.9 — DAG principal (`tracklytics_etl`) + 3 DAGs independientes (`playlists_sync`, `modelo_negocio_sync`, `finanzas_periodicas`) |
-| API REST | FastAPI + Uvicorn (Python 3.11) — 13 paquetes (uno por capability), incluye API de partners autenticada por API key |
+| API REST | FastAPI + Uvicorn (Python 3.11) — 15 paquetes (uno por capability), incluye API de partners autenticada por API key |
 | Frontend | React 18 + TypeScript + Vite — único frontend del proyecto (`frontend/`), containerizado (servicio `frontend-react`, build multi-stage Vite+Nginx); el frontend legado vanilla HTML/CSS/JS (`app/`) se retiró por completo del repo en S10 |
 | Visualización | Recharts (dashboards de `analitica` y dashboards administrativos por capability, componentes nativos de React sobre los tokens de diseño) |
 | Audio real | YouTube IFrame Player API (búsqueda por texto desde el cliente, sin API key) con reproducción simulada (Web Audio API nativa) como fallback cuando no hay resultado, conexión, o cuando YouTube se queda en silencio sin disparar error (watchdog de 4.5s tras `onReady`) |
@@ -110,7 +112,7 @@ Docker Compose levanta automáticamente todos los servicios en el orden correcto
 1. **PocketBase** y **ClickHouse** arrancan primero.
 2. **pb-init** crea las colecciones necesarias en PocketBase y carga los 113.550 registros
    desde el CSV (tarda ~5 min).
-3. **init-db** crea el schema dimensional en ClickHouse (61 tablas).
+3. **init-db** crea el schema dimensional en ClickHouse (68 tablas).
 4. **Airflow**, **API** y el **frontend React** (`frontend-react`, puerto 8082, único frontend)
    quedan disponibles.
 
@@ -213,32 +215,37 @@ API key por header (`X-API-Key`), resuelta contra la colección `partners`, segm
 
 ---
 
-## Capabilities (13, todas especificadas con OpenSpec y archivadas)
+## Capabilities (15, todas especificadas con OpenSpec y archivadas)
 
 | Capability | Casos de uso | Tablas ClickHouse nuevas |
 |---|---|---|
 | `catalogo` | Navegación, búsqueda (con filtros avanzados de popularidad/tempo/energy), detalle de track/artista/álbum, favoritos, playlists (colaborativas, con reorder) | *(existente)* |
-| `suscripciones` | Planes B2C/B2B, confirmar, consultar activa, cancelar | *(existente)* |
-| `analitica` | Dashboards ejecutivos, perfil de audio por género, comparación/benchmark de artistas, tendencias, reporte diario | *(existente)* |
+| `suscripciones` | Planes B2C/B2B, confirmar, consultar activa, cancelar, trial de 7 días, plan estudiante, churn con motivo | *(existente)* + `FACT_CANCELACION_SUSCRIPCION` |
+| `analitica` | Dashboards ejecutivos, perfil de audio por género, comparación/benchmark de artistas, tendencias, reporte diario, churn/funnel/P&L, MRR/ARR | *(existente)* |
 | `partners` | API de catálogo para integradores externos, autenticada por API key | *(existente)* |
-| `ingesta` (paquete `gestion_datos`) | Disparo/monitoreo de ETL, CRUD dimensional, calidad de datos | *(existente)* |
+| `ingesta` (paquete `gestion_datos`) | Disparo/monitoreo de ETL, CRUD dimensional, calidad de datos, recalificación administrativa en bloque | *(existente)* |
 | `seguridad` | Usuarios, sesiones activas multi-dispositivo (consulta y cierre remoto), permisos granulares, auditoría, errores de sistema, dashboard administrativo | 6 |
-| `facturacion` | Métodos de pago, transacciones (simuladas), invoices, dashboard administrativo | 3 |
+| `facturacion` | Métodos de pago, transacciones (simuladas), invoices, información de empresa editable, dashboard administrativo | 4 |
 | `creadores` | Cuenta de artista, subida de tracks con staging y revisión admin, dashboard administrativo | 4 |
 | `social` | Seguir artistas, comentarios, compartir, feed de actividad de artistas seguidos, dashboard administrativo | 4 |
-| `distribucion` | Sellos discográficos, licencias, restricción geográfica de reproducción, dashboard administrativo | 7 |
+| `distribucion` | Sellos discográficos, licencias (con flujo de solicitud por sello), restricción geográfica de reproducción, dashboard administrativo | 8 |
 | `experiencia` | Telemetría de reproducción, recomendaciones, tickets de soporte, A/B testing, reflejo de playlists, plan familiar, portadas y audio real, dashboard administrativo | 6 |
-| `regalias` | Productores, contratos de reparto por track, cuentas de sello, liquidación real por período, consulta de ganancias propias (artista/sello) | 5 |
-| `publicidad` | Anunciantes, campañas con CPM, impresión de anuncio a usuarios free, reconocimiento de ingreso publicitario en tiempo real | 4 |
+| `regalias` | Productores, contratos de reparto por track, cuentas de sello, liquidación real por período, retiro de ganancias, consulta de ganancias propias (artista/sello) | 6 |
+| `publicidad` | Anunciantes, campañas con CPM (audio y display), impresión de anuncio a usuarios free, reconocimiento de ingreso publicitario en tiempo real, pausa automática por presupuesto agotado | 4 |
+| `simulacion` | Panel admin-only: genera streams + suscripciones + impresiones publicitarias en conjunto y liquida el período resultante, para demostrar el flujo de dinero de punta a punta sin operar la app manualmente a escala | *(sin tabla propia — escribe en tablas de otras capabilities)* |
+| `finanzas` | Gastos operativos, reembolsos validados, cuentas por cobrar/pagar, tracking de presupuesto de campañas + alertas, indicadores empresariales, dashboard y reporte financiero consolidado | 2 |
 
 Las 5 primeras forman el "módulo operativo" original (S7-S8); las 6 siguientes son la
 refactorización hacia sistema completo (detalle de cada decisión en
 `docs/decisiones-refactorizacion.md`); `regalias` y `publicidad` cierran el modelo de negocio de
 streaming real (S10) — ver la sección [Regalías y publicidad](#regalías-y-publicidad-modelo-de-negocio-real)
-más abajo. `seguridad` y `facturacion` viven en ClickHouse a pesar de ser dominios
-transaccionales por naturaleza — decisión pedagógica deliberada del docente, no un error de
-arquitectura, para que el equipo documente las fricciones reales de una base columnar fuera de
-su caso de uso ideal.
+más abajo; `simulacion` (S11) demuestra ese modelo de dinero a escala sin operar la app
+manualmente; `finanzas` (S11) cierra el panel de salud financiera — costo operativo, reembolsos,
+cuentas por cobrar/pagar y control de presupuesto publicitario — compuesto sobre el dato que las
+demás capabilities ya generaban, sin duplicar su lógica. `seguridad` y `facturacion` viven en
+ClickHouse a pesar de ser dominios transaccionales por naturaleza — decisión pedagógica
+deliberada del docente, no un error de arquitectura, para que el equipo documente las fricciones
+reales de una base columnar fuera de su caso de uso ideal.
 
 ---
 
@@ -348,6 +355,32 @@ elegible para cualquier usuario free), y gestión de composición/editorial sepa
 
 ---
 
+## Finanzas (panel de salud financiera, S11)
+
+Cierra el hueco que quedaba entre "cuánto entra" (`v1_pnl` de `analitica`: suscripciones +
+publicidad − regalías pagadas) y "cuál es la utilidad real" de la plataforma. Todo admin-only,
+13 endpoints bajo `/app/v1/finanzas`, auditado (`audit.record`) en cada mutación.
+
+- **Gastos operativos**: CRUD con soft-delete (`FACT_GASTO_OPERATIVO`) por categoría
+  (infraestructura, marketing, nómina, licencias, servicios, soporte, legal, otros); un gasto
+  anulado se excluye de todo cálculo financiero derivado.
+- **Reembolsos**: vinculados a `FACT_TRANSACCION_PAGO` (`FACT_REEMBOLSO`), con validación de que
+  el monto no exceda lo pagado menos reembolsos previos y de que la transacción esté `exitosa`
+  — rechazo antes de insertar, no una fila con estado `rechazado`.
+- **Cuentas por cobrar y por pagar**: resumen on-read (sin tabla de estado nueva) sobre
+  `FACT_INVOICE`, `FACT_LIQUIDACION_REGALIA` y `FACT_RETIRO_REGALIA`.
+- **Presupuesto de campañas**: consumo calculado on-read sobre `FACT_INGRESO_PUBLICITARIO` por
+  campaña, con alerta al 80%/100% y pausa automática (`DIM_CAMPANA_PUBLICITARIA.activa=0`) al
+  agotarse — ver también [Regalías y publicidad](#regalías-y-publicidad-modelo-de-negocio-real).
+- **Dashboard, indicadores (ARPU, % de ingreso a regalías/gastos, crecimiento vs. periodo
+  anterior), alertas administrativas y reporte por periodo**: todos componen `v1_pnl` restando
+  gastos y reembolsos, sin reimplementar su cálculo.
+
+Fuera de alcance de esta entrega (documentado, no pendiente por descuido): frontend propio del
+panel de finanzas y exportación PDF/Excel del reporte — ver `docs/BITACORA_S11.md` (Bloque 7).
+
+---
+
 ## Dashboards administrativos (RT-04)
 
 Las 6 capabilities de negocio que no tenían panel visual propio ahora exponen un endpoint
@@ -374,25 +407,27 @@ tracklytics/
 ├── api/
 │   ├── main.py                  # App FastAPI — include routers
 │   ├── core/                    # config.py, database.py, cache.py, deps.py
-│   └── paquetes/                # Un paquete por capability (13):
+│   └── paquetes/                # Un paquete por capability (15):
 │       ├── catalogo/            # Tracks, artistas, álbumes, géneros, búsqueda avanzada
 │       ├── biblioteca/          # Favoritos, historial, playlists (colaborativas, reorder — proxy a PocketBase)
-│       ├── suscripciones/       # Planes, confirmar, activa, cancelar
-│       ├── analitica/           # Dashboards + deps.py (gating B2B)
-│       ├── gestion_datos/       # ETL, CRUD dimensiones, calidad de datos (capability `ingesta`)
+│       ├── suscripciones/       # Planes, confirmar, activa, cancelar, trial, plan estudiante, churn
+│       ├── analitica/           # Dashboards + deps.py (gating B2B), churn/funnel/P&L, MRR/ARR
+│       ├── gestion_datos/       # ETL, CRUD dimensiones, calidad de datos, recalificación (capability `ingesta`)
 │       ├── partners/            # API key auth, tiers, logging
 │       ├── seguridad/           # Auth, sesiones, permisos, auditoría, errores, dashboard admin
-│       ├── facturacion/         # Métodos de pago, transacciones, invoices, dashboard admin
+│       ├── facturacion/         # Métodos de pago, transacciones, invoices, info de empresa, dashboard admin
 │       ├── creadores/           # Cuenta de artista, subida de tracks, dashboard admin
 │       ├── social/              # Seguimiento, comentarios, compartir, feed, dashboard admin
-│       ├── distribucion/        # Sellos, licencias, restricción geográfica, dashboard admin
+│       ├── distribucion/        # Sellos, licencias (+ solicitud por sello), restricción geográfica, dashboard admin
 │       ├── experiencia/         # Telemetría, recomendaciones, tickets, portadas, dashboard admin
-│       ├── regalias/            # Productores, contratos, cuentas de sello, liquidación, ganancias
-│       └── publicidad/          # Anunciantes, campañas, impresión de anuncio, ingreso publicitario
+│       ├── regalias/            # Productores, contratos, cuentas de sello, liquidación, retiro, ganancias
+│       ├── publicidad/          # Anunciantes, campañas, impresión de anuncio, ingreso publicitario, pausa por presupuesto
+│       ├── simulacion/          # Generación conjunta de actividad (streams+suscripciones+ads) + liquidación
+│       └── finanzas/            # Gastos, reembolsos, cuentas por cobrar/pagar, presupuesto de campañas, dashboard financiero
 ├── frontend/                    # React + Vite + TypeScript — único frontend, containerizado (servicio `frontend-react`, puerto 8082)
 │   ├── src/
 │   │   ├── app/                 # router.tsx, layout/ (AppShell, AnalyticaShell, SeguridadShell)
-│   │   ├── packages/            # Un paquete por capability (13), misma organización que `api/paquetes/`
+│   │   ├── packages/            # Un paquete por capability con UI propia (`finanzas` aún sin frontend — ver docs/BITACORA_S11.md Bloque 7), misma organización que `api/paquetes/`
 │   │   └── shared/              # design-system (tokens), components, context (PlayerContext), lib (api-client, session)
 │   ├── Dockerfile               # Build multi-stage: Vite compila, Nginx sirve estático + proxea al backend
 │   ├── vite.config.ts
@@ -400,22 +435,24 @@ tracklytics/
 ├── dataset/
 │   └── spotify.csv              # Dataset fuente (113.550 registros)
 ├── docs/
-│   ├── BITACORA_S6.md … BITACORA_S9.md   # Bitácoras semanales
+│   ├── BITACORA_S6.md … BITACORA_S11.md  # Bitácoras semanales
 │   ├── decisiones-refactorizacion.md     # Log completo de decisiones de esta refactorización
 │   ├── negocio/                          # Documentación de negocio por capability (sin mecanismos de simulación académica)
 │   └── PENDIENTES.md                     # Pendientes vigentes y deuda técnica
 ├── etl/
-│   ├── bronze/ silver/ gold/    # Extracción, limpieza, carga dimensional + sintéticos + portadas + playlists_sync + modelo_negocio_sync
+│   ├── bronze/ silver/ gold/    # Extracción, limpieza, carga dimensional + sintéticos + portadas + recalificación + playlists_sync + modelo_negocio_sync
 │   ├── utils/                   # clickhouse_client.py, pocketbase_client.py
 │   └── dags/
-│       ├── tracklytics_etl.py         # bronze → silver → gold → portada → synthetic → log (DAG principal)
+│       ├── tracklytics_etl.py         # bronze → silver → gold → synthetic → log (DAG principal; portadas ya no bloquea, ver Fase 7 de la S11)
+│       ├── reload_portadas_dag.py     # Resolución de portadas (iTunes+Deezer), independiente del camino crítico
+│       ├── recalificacion_dag.py      # Corrección en bloque de año/país/perfil de audio ya cargados (`schedule_interval=None`)
 │       ├── engagement_dag.py          # Eventos de engagement de referencia (independiente)
 │       ├── playlists_sync_dag.py      # Reflejo analítico de playlists (PocketBase → ClickHouse, independiente)
 │       ├── modelo_negocio_sync_dag.py # FACT_ADQUISICION/FACT_DISPONIBILIDAD (independiente, seed por semana)
 │       └── finanzas_periodicas_dag.py # Renovación de suscripciones + liquidación de regalías (semanal, cron real)
 ├── openspec/                    # Spec Driven Development
 │   ├── config.yaml              # Constitución del proyecto (stack, reglas RT-01..RT-06)
-│   ├── specs/                   # Specs archivadas (13 de 13 capabilities); el último change operativo de S10 vive en changes/ hasta su archivado
+│   ├── specs/                   # Specs archivadas — 15 de 15 capabilities
 │   └── changes/archive/         # Changes implementados y archivados (design.md/tasks.md por capability)
 ├── docker-compose.yml
 └── .env                         # Variables de entorno (no versionado)
@@ -425,9 +462,12 @@ tracklytics/
 
 ## Modelo de datos
 
-**61 tablas físicas en ClickHouse** (verificado contra `system.tables`: 52 al cierre de S9 — 17
+**68 tablas físicas en ClickHouse** (verificado contra `system.tables`: 52 al cierre de S9 — 17
 preexistentes al inicio de la refactorización + 30 de las 6 capabilities nuevas + 5 del cambio
-`completar-modelo-base` — más 9 de `regalias`/`publicidad`, cerradas en S10). El inventario
+`completar-modelo-base` — más 9 de `regalias`/`publicidad` cerradas en S10; el resto se agregó
+durante S11: entre otras, `FACT_CANCELACION_SUSCRIPCION`, `FACT_RETIRO_REGALIA`, `DIM_EMPRESA`,
+`SOLICITUD_LICENCIA`, `FACT_GASTO_OPERATIVO` y `FACT_REEMBOLSO` — `simulacion` no agrega tabla
+propia, escribe en tablas de otras capabilities). El inventario
 original de **58 "tablas" del modelo dimensional del proyecto**
 (`openspec/config.yaml`, sección "Modelo de datos de negocio": 15 técnicas + 13 de negocio + 30
 de las 6 capabilities) se reconcilió tabla por tabla contra `system.tables`: de las 13 de negocio
@@ -447,7 +487,7 @@ PocketBase ──► Bronze (Parquet crudo) ──► Silver (STG_RAW_TRACKS) �
                                                                      etl/gold/portada.py
                                                               (imagen_url en DIM_ARTISTS/DIM_ALBUMS)
 
-FACT_TRACKS (913.551 filas: 113.550 reales + sintéticos + subidos por artistas)
+FACT_TRACKS (1.113.555 filas: 113.550 reales + sintéticos (semanas 1-11) + subidos por artistas)
    source_type Enum8 — 'real' | 'synthetic' | 'user_uploaded'
    ORDER BY (genre_id, artist_id)
    FK lógicas → DIM_GENRES, DIM_ARTISTS, DIM_ALBUMS, DIM_DATE, DIM_MUSICAL_KEY,
@@ -506,25 +546,32 @@ capability para el razonamiento).
 
 El DAG principal (`tracklytics_etl`) ejecuta las tasks en secuencia:
 ```
-task_bronze → task_silver → task_gold → task_portada → task_synthetic → task_log
+task_bronze → task_silver → task_gold → task_synthetic → task_log
 ```
 
-`task_portada` (capability `experiencia`) resuelve portadas reales de artistas/álbumes del
-catálogo base — orden de intento distinto por entidad (iTunes primero para artistas, Deezer
-primero para álbumes, ambas API sin credencial) — y persiste el resultado en
-`etl/gold/portadas_cache.json`, que sobrevive a `docker compose down -v` o a una recarga que
-reduzca `FACT_TRACKS` a los ~113k registros originales. Procesa 50 artistas + 50 álbumes por
-corrida (resolución incremental, respeta el rate limit real de las APIs públicas). Cobertura
-actual: ~10.6% de artistas y ~1.6% de álbumes con portada resuelta — limitada por el rate limit
-real de ambas APIs bajo uso sostenido, no por errores de implementación (ver
-`docs/decisiones-refactorizacion.md`, secciones 24-25).
+Portadas ya no bloquea este camino: `task_portada` corría entre `task_gold` y `task_synthetic`
+hasta S11, alargando cada carga semanal 3-6 minutos por resolución externa (iTunes/Deezer); se
+sacó a un DAG independiente (`reload_portadas`, ver tabla abajo) y la duración de una carga
+completa bajó a ~65 segundos.
 
-Cuatro DAGs adicionales, independientes de `tracklytics_etl` porque cada uno cubre un dominio de
-negocio ajeno al catálogo; los tres primeros son de disparo manual/API
-(`schedule_interval=None`), el cuarto corre en cron real:
+`reload_portadas` resuelve portadas reales de artistas/álbumes del catálogo base — orden de
+intento distinto por entidad (iTunes primero para artistas, Deezer primero para álbumes, ambas
+API sin credencial) — y persiste el resultado en `etl/gold/portadas_cache.json`, que sobrevive a
+`docker compose down -v` o a una recarga que reduzca `FACT_TRACKS` a los ~113k registros
+originales. Procesa 50 artistas + 50 álbumes por corrida (resolución incremental, respeta el
+rate limit real de las APIs públicas). Cobertura actual: ~10.6% de artistas y ~1.6% de álbumes
+con portada resuelta — limitada por el rate limit real de ambas APIs bajo uso sostenido, no por
+errores de implementación (ver `docs/decisiones-refactorizacion.md`, secciones 24-25).
+
+Seis DAGs adicionales, independientes de `tracklytics_etl` porque cada uno cubre un dominio de
+negocio ajeno al catálogo (o, en el caso de `reload_portadas`, porque bloqueaba el camino
+crítico sin necesidad); todos son de disparo manual/API (`schedule_interval=None`) excepto
+`finanzas_periodicas`, que corre en cron real:
 
 | DAG | Genera | Nota |
 |---|---|---|
+| `reload_portadas` | Resolución de portadas reales (iTunes → Deezer) | Sacado de `tracklytics_etl` en S11 — ver nota arriba |
+| `recalificacion` | Corrección en bloque de año/país/perfil de audio ya cargados, sin tocar `source_type='real'` | S11 — un `ALTER TABLE ... UPDATE` por valor distinto, no por fila |
 | `engagement_referencia` | Eventos de engagement sintéticos correlacionados con popularidad | Un `Param week_number` por corrida |
 | `playlists_sync` | `BRIDGE_TRACK_PLAYLIST_USUARIO` (reflejo de playlists, PocketBase → ClickHouse) | Full refresh en cada corrida; también invocable on-demand desde `/experiencia/playlists/sincronizar` |
 | `modelo_negocio_sync` | `FACT_ADQUISICION`/`FACT_DISPONIBILIDAD` | Un `Param week_number` por corrida, idempotente vía `ETL_BATCH_CONTROL` |
@@ -553,10 +600,10 @@ código.
    `openspec/changes/archive/YYYY-MM-DD-<capability>/`, con su spec sincronizada en
    `openspec/specs/<capability>/spec.md`.
 
-**Las 13 capabilities están implementadas, verificadas end-to-end y archivadas en
-`openspec/specs/`.** Un cambio operativo adicional de S10 (dashboards, sesiones, búsqueda
-avanzada, feed social, playlists colaborativas) sigue como propuesta activa en
-`openspec/changes/`, pendiente de `/opsx:archive`:
+**Las 15 capabilities están implementadas, verificadas end-to-end y archivadas en
+`openspec/specs/`.** No hay ningún change operativo pendiente de archivar —
+`openspec/changes/` solo contiene `archive/` (23 changes archivados a la fecha; `openspec
+validate --specs` en verde para las 15 capabilities).
 
 | Capability | Cerrada | Archivada en `openspec/specs/` |
 |---|---|---|
@@ -573,6 +620,8 @@ avanzada, feed social, playlists colaborativas) sigue como propuesta activa en
 | `experiencia` | S9 (refactor) | ✅ |
 | `regalias` | S10 | ✅ |
 | `publicidad` | S10 | ✅ |
+| `simulacion` | S11 | ✅ |
+| `finanzas` | S11 | ✅ |
 
 ---
 
@@ -590,6 +639,7 @@ avanzada, feed social, playlists colaborativas) sigue como propuesta activa en
 | S8 | Implementación de `analitica`/`ingesta`/`partners` + correcciones UX | Cierre del módulo operativo original — ver `docs/BITACORA_S8.md` |
 | S9 | QA/rendimiento del módulo operativo **+ refactorización completa hacia sistema completo** | Ver `docs/BITACORA_S9.md` (dos entregas dentro de la misma semana: seek/QA/optimización ClickHouse, y luego las 6 capabilities nuevas + migración a React + pulido final — detalle exhaustivo en `docs/decisiones-refactorizacion.md`) |
 | S10 | Retiro del frontend legado + modelo de negocio real (regalías/publicidad) + cierre de la capa operativa | Frontend único (React); capabilities `regalias`/`publicidad` (9 tablas, DAG `finanzas_periodicas`); 6 dashboards administrativos RT-04; sesiones activas multi-dispositivo; búsqueda avanzada; feed social; playlists colaborativas + reorder — ver resumen abajo |
+| S11 | Cierre del modelo de monetización y de dinero + calidad de datos del catálogo + capability `finanzas` | 6 changes de OpenSpec; capabilities `simulacion` y `finanzas` (2 nuevas, 15 en total); publicidad display, trial + plan estudiante, churn con motivo, funnel/P&L, MRR/ARR, retiro de regalías; flujo de solicitud de licencia por sello; enriquecimiento de catálogo (año/país deterministas, coherencia audio-género, recalificación en bloque); 6 hallazgos de revisión manual de producto corregidos; empresa emisora editable; dashboard/reembolsos/cuentas por cobrar-pagar/presupuesto de campañas en `finanzas` — ver `docs/BITACORA_S11.md` |
 
 Resumen de la segunda entrega de S9 (el refactor):
 - **6 capabilities OpenSpec nuevas** cerradas: `seguridad`, `facturacion`, `creadores`,
@@ -642,6 +692,40 @@ Resumen de S10 (cierre de la capa operativa, 4 días):
   operación) en el resto de paquetes que hablan directo con PocketBase — sin otro caso hoy
   alcanzable por un usuario no-dueño, porque ninguna otra colección tiene todavía una feature
   multi-usuario compartida como los colaboradores de playlist.
+
+Resumen de S11 (cierre del modelo de dinero + calidad de catálogo, 13-15 jul, detalle completo
+en `docs/BITACORA_S11.md`):
+- **Monetización y retención:** publicidad display (además de audio), churn con motivo
+  auditable, trial de 7 días + plan estudiante, funnel de conversión y P&L consolidado en
+  `analitica`; bug real corregido (`admin` podía suscribirse y facturar como B2C).
+- **Modelo financiero cerrado:** liquidación de regalías idempotente, cancelación automática en
+  cobro de renovación fallido, retiro de ganancias (`FACT_RETIRO_REGALIA`), MRR/ARR en vivo.
+- **Capability `simulacion` (14ª):** panel admin-only que genera streams + suscripciones +
+  impresiones publicitarias en la misma ventana de tiempo y liquida el período resultante, para
+  demostrar el flujo de dinero de punta a punta sin operar la app manualmente a escala.
+- **Calidad de datos del catálogo:** año/país deterministas por hash (ya no `0`/`""` sin
+  informar), perfil de audio sintético calculado empíricamente por género (ya no un pool global
+  sin relación con el género), recalificación administrativa en bloque de lo ya cargado, mismo
+  criterio en la subida de tracks por artistas.
+- **6 hallazgos de una revisión manual de producto**, corregidos: exención de anuncios para
+  artistas aprobados, disclosure de fecha de cobro antes de confirmar el trial, disponibilidad de
+  catálogo por país como lista navegable (más un bug real de ClickHouse —
+  `join_use_nulls`— encontrado en el camino), moneda incorrecta fija en facturas (dos vistas),
+  tags de stack técnico reemplazados por mensajes de producto en el login.
+- **Información de empresa editable** (`DIM_EMPRESA`) en el encabezado de facturas, antes
+  hardcodeada.
+- **Sesión autónoma de 10 fases:** cierre de deuda de 3 changes sin archivar, eliminación de IDs
+  crudos en formularios admin, flujo de solicitud de licencia por sello, visibilidad de datos
+  generados por semana, reporte de regalías por contrato, checkout de pago más realista sin
+  persistir datos sensibles, 4 visualizaciones nuevas en el dashboard ejecutivo, `task_portada`
+  sacada del camino crítico del DAG principal (~3-6 min → 65s), carga completa hasta semana 11
+  (1.113.550 registros), constitución del proyecto actualizada.
+- **Capability `finanzas` (15ª, cierre de semana):** gastos operativos, reembolsos validados
+  contra `FACT_TRANSACCION_PAGO`, cuentas por cobrar/pagar, tracking de presupuesto de campañas
+  con alerta 80%/100% y pausa automática, indicadores empresariales, alertas administrativas y
+  dashboard/reporte financiero consolidado — compuesto sobre `v1_pnl` y el resto del dato ya
+  existente, sin duplicar lógica. Primera suite de pytest del proyecto (26/26). Frontend propio y
+  exportación PDF/Excel quedaron fuera de esta entrega (documentado, no pendiente por descuido).
 
 ---
 

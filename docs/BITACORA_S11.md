@@ -1,7 +1,7 @@
 # Bitácora de Desarrollo — Semana 11
 **Proyecto:** Tracklytics v2 — Plataforma de Analítica Musical
 **Semana académica:** 11 de 16
-**Fecha:** 13–14 de julio de 2026
+**Fecha:** 13–15 de julio de 2026
 **Cierre de semana:** cierre del modelo de monetización freemium (publicidad display, churn con
 motivo, trial + plan estudiante, funnel/P&L), corrección de un bug real de control de acceso
 (admin podía suscribirse y facturar), cierre del modelo financiero completo (liquidación
@@ -9,15 +9,23 @@ idempotente, renovación con cancelación en cobro fallido, retiro de regalías,
 capability nueva, `simulacion`, para demostrar el flujo de dinero de punta a punta sin operar la
 app manualmente a escala, el cierre de calidad de datos del catálogo (año/país plausibles,
 coherencia audio-género, recalificación administrativa en bloque, mismo criterio también en la
-subida de tracks por artistas), y una ronda de revisión manual de producto que encuentra y corrige
+subida de tracks por artistas), una ronda de revisión manual de producto que encuentra y corrige
 6 hallazgos reales (exención de ads para artistas, disclosure de cobro del trial, disponibilidad
-por país como lista navegable, moneda incorrecta en facturas, tags de stack técnico en el login).
+por país como lista navegable, moneda incorrecta en facturas, tags de stack técnico en el login),
+y el cierre de la capability `finanzas` (15ª del proyecto): gastos operativos, reembolsos
+validados, cuentas por cobrar/pagar, tracking de presupuesto de campañas con pausa automática,
+indicadores empresariales, alertas administrativas y un dashboard/reporte financiero consolidado
+— todo compuesto sobre el dato transaccional que `facturacion`/`publicidad`/`regalias` ya
+generaban, sin duplicar su lógica.
 
 ---
 
 ## Resumen ejecutivo
 
-La semana 11 se organiza en dos changes de OpenSpec consecutivas. La primera,
+La semana 11 se organiza en cinco changes de OpenSpec consecutivas (más una sesión autónoma
+multi-fase que no introduce capabilities nuevas, solo cierra deuda y ejecuta 10 fases de
+producto/infraestructura — ver Bloque 6) y cierra con una sexta: la capability `finanzas`
+(Bloque 7). La primera,
 `monetizacion-retencion-mejoras`, amplía tres capabilities existentes (`publicidad`,
 `suscripciones`, `analitica`) sin crear ninguna nueva: publicidad display además de audio, motivo
 de cancelación auditable, trial gratuito de 7 días + plan estudiante, y dos vistas nuevas de
@@ -589,3 +597,77 @@ modificado en esta sesión, fuera del alcance pedido). Actualizado para reflejar
 | `docs/CONSTITUCION_TRACKLYTICS.md` | Actualizado — stack real, RT-05/06/07, nuevos patrones |
 | `openspec/changes/archive/{2026-07-09-mejoras-produccion,2026-07-11-dia3-operaciones-avanzadas,2026-07-12-notificaciones-perfiles-recos}/` | Archivados |
 | `openspec/specs/{distribucion,experiencia,facturacion,ingesta,seguridad,suscripciones,catalogo,creadores,social}/spec.md` | Sincronizados |
+
+---
+
+## Bloque 7 — `mejoras-financieras-empresariales` (15 jul 2026)
+
+Sesión autónoma sin pausas de confirmación (autorización explícita del usuario): flujo OpenSpec
+completo de punta a punta (`propose` → `apply` → `verify` → `archive`) para cerrar el último
+hueco del modelo de dinero — hasta ahora `analitica` sabía cuánto entraba (`v1_pnl`:
+suscripciones + publicidad − regalías pagadas) pero nada sabía cuánto costaba operar la
+plataforma, ni existía forma de reembolsar un pago, ni de ver qué facturas/regalías estaban
+pendientes de cobro o pago, ni de controlar cuándo una campaña publicitaria se pasaba de su
+presupuesto contratado.
+
+### Capability nueva: `finanzas` (15ª del proyecto)
+Paquete nuevo `api/paquetes/finanzas/` (mismo patrón que `facturacion`/`publicidad`: `deps.py`,
+`queries.py`, `router.py`), 13 endpoints bajo `/app/v1/finanzas`, admin-only, todos con
+`audit.record` en cada mutación:
+
+- **Gastos operativos** — CRUD con soft-delete (`FACT_GASTO_OPERATIVO`, tabla nueva): crear,
+  listar con filtros de categoría/fecha/estado, editar, anular. Un gasto `anulado` se excluye de
+  todo cálculo aguas abajo.
+- **Reembolsos** — vinculados a `FACT_TRANSACCION_PAGO` (`FACT_REEMBOLSO`, tabla nueva):
+  validación de que el monto no exceda lo pagado menos reembolsos previos `procesado`, y de que
+  la transacción esté `exitosa`. El diseño es procesar-o-rechazar en el mismo request (rechazado
+  = error HTTP, no se inserta fila) — los estados `rechazado`/`cancelado` del enum quedan
+  reservados para un flujo de revisión manual futuro, no implementado en este change.
+- **Cuentas por cobrar y por pagar** — resumen on-read (sin tabla de estado nueva) sobre
+  `FACT_INVOICE`, `FACT_LIQUIDACION_REGALIA` y `FACT_RETIRO_REGALIA`, reutilizando el mismo
+  patrón de saldo disponible ya usado por `regalias`.
+- **Tracking de presupuesto de campañas** — consumo calculado on-read (suma de
+  `FACT_INGRESO_PUBLICITARIO` por campaña, sin columna materializada), con alerta al 80% y al
+  100%; al agotarse, `DIM_CAMPANA_PUBLICITARIA.activa` pasa a `0` automáticamente (reutiliza el
+  campo existente, sin nuevo DAG).
+- **Dashboard financiero, indicadores empresariales, alertas administrativas y reporte por
+  periodo** — todos componen `v1_pnl` (ya existente en `analitica`) restando gastos operativos y
+  reembolsos, sin reimplementar su cálculo. Las alertas (factura vencida, retiro pendiente,
+  campaña por agotarse, gasto mayor a ingreso, caída de ingreso, reembolso elevado) se calculan
+  on-read, solo visibles en panel admin, sin notificaciones externas.
+
+### Desviaciones de diseño encontradas al implementar
+- `FACT_TRANSACCION_PAGO.estado` no tiene valor `cancelada` en el schema real (solo
+  `pendiente`/`exitosa`/`fallida`) — la regla de reembolso quedó como "la transacción debe estar
+  `exitosa`", que ya cubre los otros dos casos.
+- `FACT_INVOICE.estado` solo se escribe como `'emitido'` en todo el código actual (nunca
+  `'pagada'`/`'vencida'`) — "vencida" para cuentas por cobrar se deriva por antigüedad (>30 días
+  desde `fecha_emision`) en vez de depender de un estado que ningún flujo asigna.
+- `FACT_GASTO_OPERATIVO` usa `ORDER BY (gasto_id)` en vez de `(fecha)` — ClickHouse rechaza
+  `ALTER TABLE ... UPDATE` sobre columnas del sort key, y `fecha` debe poder editarse.
+
+### Fuera de alcance de este change (documentado, no pendiente por descuido)
+Frontend del panel de finanzas (tasks.md sección 10) y exportación PDF/Excel del reporte
+(sección 12) quedaron sin implementar — ambas explícitamente marcadas como opcionales/fuera del
+camino crítico en la propuesta original, deprioritizadas frente al backend con las 9 secciones
+restantes ya completas y verificadas sin fricción.
+
+Verificado con `docker compose` real: primer suite de pytest del proyecto
+(`api/tests/test_finanzas.py`, 26/26 casos, cubriendo validaciones de reembolso, cálculo de
+consumo de presupuesto/alertas 80%-100% con pausa automática, y que la utilidad del dashboard
+efectivamente reste gastos y reembolsos), los 13 endpoints confirmados en
+`http://localhost:8000/openapi.json` contra la instancia real, y consultas directas a ClickHouse
+confirmando que las mutaciones (gasto anulado, reembolso procesado, campaña pausada) y sus
+entradas en `FACT_AUDIT_LOG` quedaron escritas.
+
+### Artefactos entregados (Bloque 7)
+
+| Artefacto | Estado |
+|---|---|
+| `init_clickhouse.py` | Ampliado — `FACT_GASTO_OPERATIVO`, `FACT_REEMBOLSO` |
+| `api/paquetes/finanzas/` | Nuevo paquete — 13 endpoints |
+| `api/main.py` | Ampliado — registro de `finanzas_router` |
+| `api/tests/{conftest,test_finanzas}.py` | Nuevo — primera suite de pytest del proyecto |
+| `openspec/specs/finanzas/spec.md` | Nuevo — capability 15 |
+| `openspec/specs/publicidad/spec.md` | Sincronizado — pausa automática por presupuesto agotado |
+| `openspec/changes/archive/2026-07-15-mejoras-financieras-empresariales/` | Archivado |
