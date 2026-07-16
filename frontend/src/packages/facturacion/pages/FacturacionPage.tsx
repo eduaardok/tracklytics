@@ -111,6 +111,14 @@ export function FacturacionPage() {
     enabled:  role !== 'admin',
   })
 
+  // Notificaciones simuladas de factura enviada por correo (CU-O99,
+  // modelo-financiero-completar-huecos) — nunca sale a un proveedor real.
+  const notificaciones = useQuery({
+    queryKey: ['facturacion', 'notificaciones'],
+    queryFn:  () => facturacionApi.notificaciones(),
+    enabled:  role !== 'admin',
+  })
+
   const registrarMetodo = useMutation({
     mutationFn: () =>
       facturacionApi.registrarMetodoPago({
@@ -161,6 +169,7 @@ export function FacturacionPage() {
   const suscripcion               = metodos.data?.suscripcion ?? null
   const transaccionesData         = transacciones.data?.data ?? []
   const invoicesData              = invoices.data?.data ?? []
+  const notificacionesData        = notificaciones.data?.data ?? []
 
   const payLabel = pagar.isPending
     ? procesando === 'validando'
@@ -523,6 +532,41 @@ export function FacturacionPage() {
           </table>
         </div>
       </div>
+
+      {/* ── Notificaciones simuladas de factura enviada por correo (CU-O99) ── */}
+      <p className={styles.sectionLabel} style={{ marginTop: 'var(--space-xl)' }}>
+        Notificaciones enviadas
+      </p>
+      <table className={styles.table}>
+        <thead>
+          <tr>
+            <th>Fecha</th>
+            <th>Destinatario</th>
+            <th>Asunto</th>
+            <th>Estado</th>
+          </tr>
+        </thead>
+        <tbody>
+          {notificaciones.isLoading ? (
+            <SkelRows cols={4} />
+          ) : notificacionesData.length === 0 ? (
+            <tr>
+              <td colSpan={4} className={styles.tableEmpty}>
+                Sin notificaciones enviadas todavía.
+              </td>
+            </tr>
+          ) : (
+            notificacionesData.map((n) => (
+              <tr key={n.notificacion_id} title={n.cuerpo}>
+                <td>{fmtDate(n.fecha_envio)}</td>
+                <td>{n.destinatario}</td>
+                <td>{n.asunto}</td>
+                <td><StatusBadge estado={n.estado} /></td>
+              </tr>
+            ))
+          )}
+        </tbody>
+      </table>
     </section>
   )
 }

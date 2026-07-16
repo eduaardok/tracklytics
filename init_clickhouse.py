@@ -1110,6 +1110,90 @@ DDL_STATEMENTS = [
     ) ENGINE = MergeTree()
     ORDER BY (transaccion_id, fecha)
     """,
+
+    # ── modelo-financiero-completar-huecos: país como configuración real ───────
+    # (moneda/tasa de cambio/IVA/retención fiscal, antes solo pais_id/nombre/
+    # codigo_iso de solo lectura) — columnas aditivas, ver design.md decisión 4.
+    # `tasa_cambio_a_usd` es un valor de referencia simulado (congelado), no
+    # una cotización de forex real.
+    f"ALTER TABLE {DB}.DIM_PAIS ADD COLUMN IF NOT EXISTS moneda_codigo String DEFAULT 'USD'",
+    f"ALTER TABLE {DB}.DIM_PAIS ADD COLUMN IF NOT EXISTS tasa_cambio_a_usd Float32 DEFAULT 1.0",
+    f"ALTER TABLE {DB}.DIM_PAIS ADD COLUMN IF NOT EXISTS iva_tasa Nullable(Float32)",
+    f"ALTER TABLE {DB}.DIM_PAIS ADD COLUMN IF NOT EXISTS retencion_fiscal_pct Nullable(Float32)",
+    f"ALTER TABLE {DB}.DIM_PAIS ADD COLUMN IF NOT EXISTS activo UInt8 DEFAULT 1",
+
+    # Backfill de moneda/tasa para los 15 países ya sembrados en una instalación
+    # existente (el seed condicional de más abajo solo corre si la tabla está
+    # vacía) — tasas de referencia simuladas y congeladas, no forex real
+    # (decisión 4). Idempotente: mismo resultado en cada arranque.
+    f"ALTER TABLE {DB}.DIM_PAIS UPDATE moneda_codigo = 'USD', tasa_cambio_a_usd = 1.0    WHERE pais_id IN (1, 2)",   # Ecuador, EE.UU.
+    f"ALTER TABLE {DB}.DIM_PAIS UPDATE moneda_codigo = 'MXN', tasa_cambio_a_usd = 18.0   WHERE pais_id = 3",         # México
+    f"ALTER TABLE {DB}.DIM_PAIS UPDATE moneda_codigo = 'COP', tasa_cambio_a_usd = 4100.0 WHERE pais_id = 4",         # Colombia
+    f"ALTER TABLE {DB}.DIM_PAIS UPDATE moneda_codigo = 'EUR', tasa_cambio_a_usd = 0.92   WHERE pais_id IN (5, 12, 13)",  # España, Francia, Alemania
+    f"ALTER TABLE {DB}.DIM_PAIS UPDATE moneda_codigo = 'ARS', tasa_cambio_a_usd = 1000.0 WHERE pais_id = 6",         # Argentina
+    f"ALTER TABLE {DB}.DIM_PAIS UPDATE moneda_codigo = 'CLP', tasa_cambio_a_usd = 950.0  WHERE pais_id = 7",         # Chile
+    f"ALTER TABLE {DB}.DIM_PAIS UPDATE moneda_codigo = 'PEN', tasa_cambio_a_usd = 3.75   WHERE pais_id = 8",         # Perú
+    f"ALTER TABLE {DB}.DIM_PAIS UPDATE moneda_codigo = 'BRL', tasa_cambio_a_usd = 5.4    WHERE pais_id = 9",         # Brasil
+    f"ALTER TABLE {DB}.DIM_PAIS UPDATE moneda_codigo = 'GBP', tasa_cambio_a_usd = 0.79   WHERE pais_id = 10",        # Reino Unido
+    f"ALTER TABLE {DB}.DIM_PAIS UPDATE moneda_codigo = 'CAD', tasa_cambio_a_usd = 1.36   WHERE pais_id = 11",        # Canadá
+    f"ALTER TABLE {DB}.DIM_PAIS UPDATE moneda_codigo = 'JPY', tasa_cambio_a_usd = 150.0  WHERE pais_id = 14",        # Japón
+    f"ALTER TABLE {DB}.DIM_PAIS UPDATE moneda_codigo = 'KRW', tasa_cambio_a_usd = 1350.0 WHERE pais_id = 15",        # Corea del Sur
+
+    # IVA global + retención fiscal global (decisiones 3/6) — reemplazan las
+    # constantes fijas `IVA_RATE`/retención inexistente; el default de IVA
+    # conserva el mismo 15% que ya regía como constante, sin cambiar el
+    # comportamiento existente al desplegar.
+    f"ALTER TABLE {DB}.DIM_EMPRESA ADD COLUMN IF NOT EXISTS iva_tasa_global Float32 DEFAULT 15.0",
+    f"ALTER TABLE {DB}.DIM_EMPRESA ADD COLUMN IF NOT EXISTS retencion_fiscal_pct_global Float32 DEFAULT 10.0",
+
+    # País del sello (decisión 3) — el admin lo setea al crear/editar el sello;
+    # DIM_ARTISTS ya tiene `country`, así que el rightsholder "artista" resuelve
+    # su país vía DIM_CUENTA_ARTISTA -> DIM_USUARIO.pais, no necesita columna nueva.
+    f"ALTER TABLE {DB}.DIM_SELLO_DISCOGRAFICO ADD COLUMN IF NOT EXISTS pais String DEFAULT ''",
+
+    # `concepto` distingue el cobro normal de un ajuste de prorrateo por
+    # cambio de plan (decisión 1) — mismo `FACT_TRANSACCION_PAGO`, sin tabla nueva.
+    f"ALTER TABLE {DB}.FACT_TRANSACCION_PAGO ADD COLUMN IF NOT EXISTS concepto Enum8('suscripcion'=1, 'ajuste_prorrateo'=2) DEFAULT 'suscripcion'",
+
+    # Retención fiscal en la liquidación de regalías (decisión 3): `monto`
+    # existente pasa a significar el neto (bruto - retenido) — es lo que ya
+    # consumen saldo/retiro, así que esas queries no cambian, solo el valor.
+    f"ALTER TABLE {DB}.FACT_LIQUIDACION_REGALIA ADD COLUMN IF NOT EXISTS monto_bruto Float32 DEFAULT 0",
+    f"ALTER TABLE {DB}.FACT_LIQUIDACION_REGALIA ADD COLUMN IF NOT EXISTS retencion_pct Float32 DEFAULT 0",
+    f"ALTER TABLE {DB}.FACT_LIQUIDACION_REGALIA ADD COLUMN IF NOT EXISTS monto_retenido Float32 DEFAULT 0",
+
+    # Precios de plan configurables (decisión 5) — desacoplado a propósito de
+    # `_TIER_RANK` (analitica/deps.py): esta tabla solo tiene precio, nunca
+    # nivel de acceso. ReplacingMergeTree(actualizado_en): un PUT de precio
+    # es una fila nueva con timestamp mayor, no un UPDATE in-place.
+    f"""
+    CREATE TABLE IF NOT EXISTS {DB}.DIM_PLAN (
+        plan_id        String,
+        precio_usd     Float32,
+        activo         UInt8 DEFAULT 1,
+        actualizado_en DateTime DEFAULT now()
+    ) ENGINE = ReplacingMergeTree(actualizado_en)
+    ORDER BY plan_id
+    """,
+
+    # Notificación simulada de factura enviada por correo (decisión 8) — tabla
+    # propia en vez de forzar el concepto dentro de FACT_NOTIFICACION (social),
+    # cuyo `tipo` es un Enum8 cerrado de conceptos in-app no relacionados y sin
+    # campos de asunto/cuerpo/destinatario.
+    f"""
+    CREATE TABLE IF NOT EXISTS {DB}.FACT_EMAIL_ENVIADO (
+        notificacion_id String,
+        usuario_id      String,
+        tipo            Enum8('factura'=1),
+        referencia_id   String,
+        destinatario    String,
+        asunto          String,
+        cuerpo          String,
+        estado          Enum8('enviado'=1) DEFAULT 'enviado',
+        fecha_envio     DateTime DEFAULT now()
+    ) ENGINE = MergeTree()
+    ORDER BY (usuario_id, fecha_envio)
+    """,
 ]
 
 # ── Runner ────────────────────────────────────────────────────────────────────
@@ -1321,6 +1405,32 @@ def main() -> None:
             print("✓ DIM_EMPRESA sembrada (1 fila).")
     except Exception as exc:
         print(f"ERROR sembrando DIM_EMPRESA: {exc}")
+
+    # DIM_PLAN (modelo-financiero-completar-huecos, CU-O98): precio efectivo
+    # editable por admin — sembrado con los mismos precios que hoy están
+    # hardcodeados en `api/paquetes/suscripciones/planes.py` (fuente de verdad
+    # para id/tipo_actor/nombre/descripcion/features, que no cambian). Si esta
+    # tabla queda vacía por cualquier motivo, `precio_efectivo()` cae de vuelta
+    # a ese valor hardcodeado (design.md, decisión 5) — este seed es solo el
+    # punto de partida editable, no la única fuente de precio.
+    try:
+        count = client.query(f"SELECT count() FROM {DB}.DIM_PLAN").result_rows[0][0]
+        if count == 0:
+            client.insert(
+                f"{DB}.DIM_PLAN",
+                [
+                    ("free",       0.0),
+                    ("premium",    9.99),
+                    ("estudiante", 4.99),
+                    ("basico",     199.0),
+                    ("pro",        499.0),
+                    ("enterprise", 1499.0),
+                ],
+                column_names=["plan_id", "precio_usd"],
+            )
+            print("✓ DIM_PLAN sembrada (6 filas).")
+    except Exception as exc:
+        print(f"ERROR sembrando DIM_PLAN: {exc}")
 
 
 if __name__ == "__main__":

@@ -17,12 +17,19 @@ export type ApiResponse<T> = {
 export class ApiError extends Error {
   status: number
   detail: string
+  // Cuerpo estructurado del `detail` cuando el backend manda un objeto en vez
+  // de un string (ej. `require_tier`, b2b-tier-access-analitica: `{error:
+  // "tier_insuficiente", tier_requerido, tier_actual}`) — permite a un
+  // consumidor específico (TierInsuficiente.tsx) leer esos campos sin
+  // parsear `.detail` como texto libre.
+  detailBody?: Record<string, unknown>
 
-  constructor(status: number, statusText: string, detail?: string) {
+  constructor(status: number, statusText: string, detail?: string, detailBody?: Record<string, unknown>) {
     super(`API ${status}: ${statusText}`)
     this.name = 'ApiError'
     this.status = status
     this.detail = detail ?? statusText
+    this.detailBody = detailBody
   }
 }
 
@@ -44,15 +51,20 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     // de reintentar con un token que el backend ya rechazó.
     if (res.status === 401) clearSession()
     let detail: string | undefined
+    let detailBody: Record<string, unknown> | undefined
     try {
       const body = await res.clone().json()
       // El 422 de FastAPI manda `detail` como array de objetos de validación,
       // no string — se ignora ese caso y cae al fallback de statusText.
       if (typeof body?.detail === 'string') detail = body.detail
+      else if (body?.detail && typeof body.detail === 'object') {
+        detailBody = body.detail
+        if (typeof body.detail.mensaje === 'string') detail = body.detail.mensaje
+      }
     } catch {
       // Body vacío o no-JSON (ej. 502 de un proxy) — se usa statusText.
     }
-    throw new ApiError(res.status, res.statusText, detail)
+    throw new ApiError(res.status, res.statusText, detail, detailBody)
   }
   return res.json() as Promise<T>
 }

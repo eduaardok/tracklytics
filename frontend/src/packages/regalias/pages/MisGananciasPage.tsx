@@ -106,7 +106,10 @@ function TablaGanancias({ data }: { data: Ganancia[] }) {
     <div className={styles.tablePanel}>
       <table className={styles.table}>
         <thead>
-          <tr><th>Track</th><th>Período</th><th>Streams</th><th>Monto</th></tr>
+          <tr>
+            <th>Track</th><th>Período</th><th>Streams</th>
+            <th>Bruto</th><th>Retención</th><th>Neto</th>
+          </tr>
         </thead>
         <tbody>
           {data.map((g) => (
@@ -114,7 +117,9 @@ function TablaGanancias({ data }: { data: Ganancia[] }) {
               <td>{g.track_name}</td>
               <td>{g.periodo_inicio} — {g.periodo_fin}</td>
               <td>{g.streams_periodo}</td>
-              <td>{fmtMoney(g.monto, g.moneda)}</td>
+              <td>{fmtMoney(g.monto_bruto, g.moneda)}</td>
+              <td>{g.retencion_pct}% ({fmtMoney(g.monto_retenido, g.moneda)})</td>
+              <td><strong>{fmtMoney(g.monto, g.moneda)}</strong></td>
             </tr>
           ))}
         </tbody>

@@ -4,7 +4,9 @@ import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { analiticaApi } from '../api/analitica.api'
 import { ArtistPicker } from '@shared/components/ArtistPicker'
 import { AudioRadarChart, RADAR_COLOR_A, RADAR_COLOR_B } from '../components/AudioRadarChart'
+import { TierUpsell } from '../components/TierUpsell'
 import { artistToAudioValues } from '../lib/audioFeatures'
+import { tierInsuficienteInfo } from '../lib/tierError'
 import type { ArtistAudioStats, ArtistSearchResult } from '../types'
 import styles from './ComparacionPage.module.css'
 
@@ -36,6 +38,7 @@ export function ComparacionPage() {
   })
 
   const data = comparar.data
+  const tierInfo = tierInsuficienteInfo(comparar.error)
 
   return (
     <section className={styles.page}>
@@ -60,9 +63,13 @@ export function ComparacionPage() {
       )}
 
       {artistaA && artistaB && comparar.isError && (
-        <div className={styles.panel}>
-          <p className={styles.panelError}>No se pudo cargar la comparación.</p>
-        </div>
+        tierInfo ? (
+          <TierUpsell tierRequerido={tierInfo.tierRequerido} tierActual={tierInfo.tierActual} />
+        ) : (
+          <div className={styles.panel}>
+            <p className={styles.panelError}>No se pudo cargar la comparación.</p>
+          </div>
+        )
       )}
 
       {data && (

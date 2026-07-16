@@ -5,10 +5,12 @@ from fastapi import APIRouter, Depends, HTTPException, Path, Query
 
 from core.cache import cached
 from core.database import query_one, query_rows
-from paquetes.analitica.deps import require_b2b_panel_access, require_staff
+from paquetes.analitica.deps import require_b2b_panel_access, require_staff, require_tier
+from paquetes.analitica.proyeccion import clasificar_trayectoria, proyectar_serie
 from paquetes.analitica.queries import (
     ADQUISICION_POR_CANAL,
     ARTIST_AUDIO_STATS_V1, ARTIST_PREDOMINANT_GENRE, ARTIST_STATS,
+    ARTIST_WEEKLY_POPULARITY,
     ARTISTAS_SEARCH_V1, ARTISTS_SEARCH, ARTISTS_SEARCH_TOTAL,
     BAJAS_ANTES_DE,
     CANCELACIONES_POR_MES, CANCELACIONES_POR_MES_Y_MOTIVO,
@@ -19,7 +21,8 @@ from paquetes.analitica.queries import (
     DASHBOARD_TOTAL_ARTISTS, DASHBOARD_TOTAL_GENRES, DASHBOARD_TOTAL_TRACKS,
     DISPONIBILIDAD_POR_COMPONENTE,
     ENGAGEMENT_BY_ARTIST, ENGAGEMENT_BY_FACT,
-    GENRE_AUDIO_PROFILE, GENRE_AUDIO_PROFILE_V1, GENRES_TOTAL, GENRES_TRENDS,
+    GENRE_AUDIO_PROFILE, GENRE_AUDIO_PROFILE_V1, GENRE_WEEKLY_POPULARITY,
+    GENRES_TOTAL, GENRES_TRENDS,
     INGRESO_MENSUAL_RECURRENTE_HISTORICO, INGRESO_PUBLICITARIO_EN_RANGO, INGRESO_SUSCRIPCIONES_EN_RANGO,
     REGALIAS_PAGADAS_EN_RANGO,
     REPORTE_DIARIO_ENGAGEMENT, REPORTE_DIARIO_INGESTAS,
@@ -234,21 +237,29 @@ def v1_artistas_search(
     nombre: str = Query(..., min_length=1),
     limit:  int = Query(8,  ge=1, le=100),
 ):
-    """Búsqueda de artistas por nombre parcial, case-insensitive. Cero coincidencias → 200 + []."""
+    """Búsqueda de artistas por nombre parcial, case-insensitive. Cero coincidencias → 200 + [].
+
+    Tier Básico (b2b-tier-access-analitica): su único consumidor real es
+    `EngagementPage.tsx` (buscar un artista para ver su engagement, feature
+    Básico) — las páginas de comparación/benchmark usan el `ArtistPicker`
+    compartido, que golpea un endpoint legacy distinto sin este dependency.
+    Gatearlo a Pro habría bloqueado la búsqueda de un feature Básico sin
+    ganar nada (design.md, decisión 2, corregida tras verificar el consumidor
+    real en el frontend)."""
     rows = query_rows(ARTISTAS_SEARCH_V1, {"pattern": f"%{nombre}%", "limit": limit})
     return {"data": rows, "total": len(rows), "limit": limit}
 
 
-@v1_router.get("/artistas/comparar")
+@v1_router.get("/artistas/comparar", dependencies=[Depends(require_tier("pro"))])
 def v1_artistas_comparar(
     artista_a: int = Query(..., ge=1),
     artista_b: int = Query(..., ge=1),
 ):
-    """RF-ANA-003: comparación lado a lado de dos artistas."""
+    """RF-ANA-003: comparación lado a lado de dos artistas. Tier Pro (b2b-tier-access-analitica)."""
     return {"artista_a": _artist_or_404(artista_a), "artista_b": _artist_or_404(artista_b)}
 
 
-@v1_router.get("/artistas/{artist_id}/benchmark")
+@v1_router.get("/artistas/{artist_id}/benchmark", dependencies=[Depends(require_tier("pro"))])
 def v1_artista_benchmark(artist_id: int = Path(..., ge=1)):
     """RF-ANA-004 / RN-ANA-002: artista vs. promedio simple de su género
     predominante (sin excluir outliers)."""
@@ -284,9 +295,9 @@ def v1_tendencias(
     return {"data": rows}
 
 
-@v1_router.get("/adquisicion")
+@v1_router.get("/adquisicion", dependencies=[Depends(require_tier("pro"))])
 def v1_adquisicion():
-    """CU-O54: usuarios nuevos por canal de marketing y semana."""
+    """CU-O54: usuarios nuevos por canal de marketing y semana. Tier Pro (b2b-tier-access-analitica)."""
     return {"data": query_rows(ADQUISICION_POR_CANAL)}
 
 
@@ -317,10 +328,11 @@ def v1_engagement(
     return {"artist_id": artist_id, **row}
 
 
-@v1_router.get("/desempeno-relativo")
+@v1_router.get("/desempeno-relativo", dependencies=[Depends(require_tier("pro"))])
 def v1_desempeno_relativo(fact_id: int = Query(..., ge=1)):
     """RF-ANA-007 / RN-ANA-001: engagement_score / popularity para un track
-    con al menos una interacción registrada ("Mercado vs. Tracklytics")."""
+    con al menos una interacción registrada ("Mercado vs. Tracklytics").
+    Tier Pro (b2b-tier-access-analitica)."""
     track = query_one(TRACK_POPULARITY, {"fact_id": fact_id})
     if not track:
         raise HTTPException(status_code=404, detail=f"fact_id {fact_id} no encontrado")
@@ -344,6 +356,64 @@ def v1_desempeno_relativo(fact_id: int = Query(..., ge=1)):
         "popularity":        popularity,
         "engagement_score":  engagement["engagement_score"],
         "indice_desempeno":  indice,
+    }
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Paneles predictivos/estratégicos — exclusivos Enterprise (b2b-tier-access-
+# analitica, CU-O92/CU-O93). Proyección estadística simple (regresión lineal,
+# ver proyeccion.py), nunca un modelo de ML — se presenta como "proyección"/
+# "tendencia estimada" al cliente B2B, jamás como predicción de IA.
+# ─────────────────────────────────────────────────────────────────────────────
+
+@v1_router.get("/generos/{genero_id}/proyeccion", dependencies=[Depends(require_tier("enterprise"))])
+def v1_genero_proyeccion(genero_id: int = Path(..., ge=1)):
+    """CU-O92: proyección de tendencia de popularidad de un género, extrapolada
+    sobre su serie semanal histórica."""
+    rows = query_rows(GENRE_WEEKLY_POPULARITY, {"genre_id": genero_id})
+    if not rows:
+        raise HTTPException(status_code=404, detail="Género sin tracks registrados")
+
+    semanas = [r["load_week"] for r in rows]
+    valores = [r["avg_popularity"] for r in rows]
+    resultado = proyectar_serie(semanas, valores)
+    return {"genero_id": genero_id, "serie_historica": rows, **resultado}
+
+
+@v1_router.get("/artistas/{artist_id}/proyeccion", dependencies=[Depends(require_tier("enterprise"))])
+def v1_artista_proyeccion(artist_id: int = Path(..., ge=1)):
+    """CU-O93: proyección de trayectoria de un artista vs. su género
+    predominante — ¿gana o pierde tracción relativa al género?"""
+    rows = query_rows(ARTIST_WEEKLY_POPULARITY, {"artist_id": artist_id})
+    if not rows:
+        raise HTTPException(status_code=404, detail="Artista sin tracks registrados")
+
+    predominant = query_one(ARTIST_PREDOMINANT_GENRE, {"artist_id": artist_id})
+    if not predominant:
+        raise HTTPException(status_code=404, detail="El artista no tiene tracks registrados")
+
+    semanas = [r["load_week"] for r in rows]
+    valores = [r["avg_popularity"] for r in rows]
+    proyeccion_artista = proyectar_serie(semanas, valores)
+
+    genero_rows = query_rows(GENRE_WEEKLY_POPULARITY, {"genre_id": predominant["genre_id"]})
+    genero_semanas = [r["load_week"] for r in genero_rows]
+    genero_valores = [r["avg_popularity"] for r in genero_rows]
+    proyeccion_genero = proyectar_serie(genero_semanas, genero_valores)
+
+    trayectoria = None
+    if proyeccion_artista["suficiente"] and proyeccion_genero["suficiente"]:
+        trayectoria = clasificar_trayectoria(
+            proyeccion_artista["pendiente_semanal"], proyeccion_genero["pendiente_semanal"],
+        )
+
+    return {
+        "artist_id":            artist_id,
+        "genero_id":            predominant["genre_id"],
+        "serie_historica":      rows,
+        "proyeccion_artista":   proyeccion_artista,
+        "proyeccion_genero":    proyeccion_genero,
+        "trayectoria":          trayectoria,
     }
 
 

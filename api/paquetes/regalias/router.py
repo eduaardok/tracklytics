@@ -7,8 +7,11 @@ from pydantic import BaseModel
 from core.database import execute, get_client, query_one, query_rows
 from paquetes.creadores.queries import CUENTA_ACTUAL_POR_ID
 from paquetes.distribucion.queries import SELLO_EXISTE
+from paquetes.distribucion.router import resolver_pais_config
+from paquetes.facturacion.queries import EMPRESA_ACTUAL
 from paquetes.regalias.deps import require_admin, require_cuenta_sello
 from paquetes.regalias.queries import (
+    ARTISTA_PAIS_POR_CUENTA,
     CONTRATO_EXISTE,
     CONTRATOS_LIST,
     CONTRATOS_VIGENTES_EN_PERIODO,
@@ -24,6 +27,7 @@ from paquetes.regalias.queries import (
     RETIRO_POR_ID,
     RETIROS_POR_RIGHTSHOLDER,
     SALDO_DISPONIBLE_RIGHTSHOLDER,
+    SELLO_PAIS_POR_ID,
     STREAMS_POR_TRACK_PERIODO,
     TOTAL_INGRESO_PUBLICITARIO_PERIODO,
     TOTAL_TRANSACCIONES_PERIODO,
@@ -40,6 +44,27 @@ router = APIRouter(prefix="/app/v1/regalias", tags=["Regalias"])
 TASA_RIGHTSHOLDERS = 0.70   # % del pool total que va a rightsholders (el resto es margen de la plataforma)
 PCT_MASTER = 0.80           # % del ingreso de un track que es derecho de master/grabación
 PCT_PUBLISHING = 0.20       # % que es derecho de publishing/composición
+
+
+def _resolver_retencion_pct(tipo: str, rightsholder_id: str) -> float:
+    """Retención fiscal (modelo-financiero-completar-huecos, CU-O96): tasa
+    propia del país del rightsholder si existe, si no la tasa global de
+    plataforma (design.md, decisión 3). `productor` no tiene país registrado
+    hoy — siempre cae a la tasa global."""
+    pais_texto = ""
+    if tipo == "artista":
+        fila = query_one(ARTISTA_PAIS_POR_CUENTA, {"cuenta_artista_id": rightsholder_id})
+        pais_texto = (fila or {}).get("pais") or ""
+    elif tipo == "sello":
+        fila = query_one(SELLO_PAIS_POR_ID, {"sello_id": int(rightsholder_id)})
+        pais_texto = (fila or {}).get("pais") or ""
+
+    pais_config = resolver_pais_config(pais_texto) if pais_texto else None
+    if pais_config and pais_config.get("retencion_fiscal_pct") is not None:
+        return float(pais_config["retencion_fiscal_pct"])
+
+    empresa = query_one(EMPRESA_ACTUAL) or {}
+    return float(empresa.get("retencion_fiscal_pct_global") or 10.0)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -279,12 +304,17 @@ def liquidar_periodo_interno(periodo_inicio: date, periodo_fin: date) -> dict:
             ("productor", contrato.get("productor_id"),
              master_pool * (contrato["pct_master_productor"] / 100)),
         ]
-        for tipo, rightsholder_id, monto in candidatos:
-            if rightsholder_id is None or monto <= 0:
+        for tipo, rightsholder_id, monto_bruto in candidatos:
+            if rightsholder_id is None or monto_bruto <= 0:
                 continue
+            retencion_pct = _resolver_retencion_pct(tipo, str(rightsholder_id))
+            monto_retenido = monto_bruto * (retencion_pct / 100)
+            monto_neto = monto_bruto - monto_retenido
             filas.append((
                 str(uuid.uuid4()), contrato["contrato_id"], fact_id_track, tipo, str(rightsholder_id),
-                periodo_inicio, periodo_fin, track_streams, round(monto, 2), "USD",
+                periodo_inicio, periodo_fin, track_streams,
+                round(monto_bruto, 2), round(retencion_pct, 2), round(monto_retenido, 2), round(monto_neto, 2),
+                "USD",
             ))
 
     if filas:
@@ -292,7 +322,8 @@ def liquidar_periodo_interno(periodo_inicio: date, periodo_fin: date) -> dict:
             "FACT_LIQUIDACION_REGALIA", filas,
             column_names=[
                 "liquidacion_id", "contrato_id", "fact_id_track", "tipo_rightsholder", "rightsholder_id",
-                "periodo_inicio", "periodo_fin", "streams_periodo", "monto", "moneda",
+                "periodo_inicio", "periodo_fin", "streams_periodo",
+                "monto_bruto", "retencion_pct", "monto_retenido", "monto", "moneda",
             ],
         )
     return {"status": "ok", "liquidaciones": len(filas), **resumen}

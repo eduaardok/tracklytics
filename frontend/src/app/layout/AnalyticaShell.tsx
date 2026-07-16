@@ -4,6 +4,12 @@ import { RequireSuscripcionActiva } from '@packages/analitica'
 // Import directo, no vía el barrel `@packages/seguridad` (arrastraría los
 // dashboards con Recharts de ese paquete al chunk de AnalyticaShell).
 import { UserMenu } from '@packages/seguridad/components/UserMenu'
+// `usePlanActivo` (paquete `suscripciones`) es la única forma de saber el
+// tier B2B del cliente en el cliente sin reimplementar la regla de negocio
+// (mismo criterio que el resto del gating: reaccionar al estado real, no
+// adivinar) — se usa solo para decidir si se muestra la sección "Predictivo"
+// de la nav, el gating real sigue viviendo en `require_tier` (backend).
+import { usePlanActivo } from '@packages/suscripciones'
 import { getRole } from '@shared/lib/session'
 import { RouteLoadingFallback } from '@shared/components/RouteLoadingFallback'
 import { ZoneSwitcher } from '@shared/components/ZoneSwitcher'
@@ -28,11 +34,17 @@ const COMING_SOON_PATHS: string[] = COMING_SOON.map(({ to }) => to)
 
 export function AnalyticaShell() {
   const location = useLocation()
+  const { tipoPlan } = usePlanActivo()
   // Los stubs "pronto" (incluido /analitica/suscripciones, destino del
   // redirect) no llaman a ningún endpoint gateado por `require_b2b_panel_access`
   // — nada que proteger ahí, y gatearlos causaría un loop de redirect contra
   // su propio destino.
   const sinGating = COMING_SOON_PATHS.includes(location.pathname)
+  // Sección "Predictivo" (b2b-tier-access-analitica): visible solo para tier
+  // Enterprise o admin (mismo criterio que la sección staff de abajo) — se
+  // oculta para el resto en vez de mostrar un link que siempre rebota con
+  // el estado "disponible desde plan Enterprise".
+  const esEnterprise = tipoPlan === 'enterprise' || getRole() === 'admin'
 
   return (
     <div className={styles.shell}>
@@ -138,6 +150,23 @@ export function AnalyticaShell() {
                 className={({ isActive }) => isActive ? ACTIVE_CLS : INACTIVE_CLS}
               >
                 MRR / ARR
+              </NavLink>
+            </>
+          )}
+
+          {esEnterprise && (
+            <>
+              <NavLink
+                to="/analitica/proyeccion-genero"
+                className={({ isActive }) => isActive ? ACTIVE_CLS : INACTIVE_CLS}
+              >
+                Proyección de género
+              </NavLink>
+              <NavLink
+                to="/analitica/proyeccion-artista"
+                className={({ isActive }) => isActive ? ACTIVE_CLS : INACTIVE_CLS}
+              >
+                Proyección de artista
               </NavLink>
             </>
           )}

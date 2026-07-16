@@ -159,6 +159,36 @@ export type MrrArr = {
   nota: string
 }
 
+// ── Paneles predictivos Enterprise (b2b-tier-access-analitica, CU-O92/CU-O93) ──
+// `tipo: "proyeccion_estadistica"` es deliberado: nunca se presenta como
+// predicción de IA (ver design.md, decisión 3).
+export type ProyeccionSerie =
+  | { suficiente: false; mensaje: string }
+  | {
+      suficiente: true
+      tipo: 'proyeccion_estadistica'
+      pendiente_semanal: number
+      horizonte_semanas: number[]
+      valores_proyectados: number[]
+      alerta: boolean
+    }
+
+export type SemanaHistorica = { load_week: number; track_count: number; avg_popularity: number }
+
+export type ProyeccionGenero = {
+  genero_id: number
+  serie_historica: SemanaHistorica[]
+} & ProyeccionSerie
+
+export type ProyeccionArtista = {
+  artist_id: number
+  genero_id: number
+  serie_historica: SemanaHistorica[]
+  proyeccion_artista: ProyeccionSerie
+  proyeccion_genero: ProyeccionSerie
+  trayectoria: 'ganando_terreno' | 'perdiendo_terreno' | 'estable' | null
+}
+
 // ── Dashboard ─────────────────────────────────────────────────────────────────
 export type DashboardData = {
   totals: { tracks: number; artists: number; genres: number }

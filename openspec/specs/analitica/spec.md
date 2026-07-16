@@ -33,9 +33,9 @@ Esta capability es el corazón del producto B2B: convierte el catálogo musical 
 | Operativo | Lead Data Engineer / CTO | Analítica | CU-O73 Consultar funnel de conversión free → premium | Como Lead Data Engineer/CTO, quiero ver cuántos usuarios free avanzan hasta suscribirse, para medir la efectividad del modelo freemium |
 | Operativo | Lead Data Engineer / CTO | Analítica | CU-O74 Consultar P&L consolidado | Como Lead Data Engineer/CTO, quiero ver el margen neto consolidado del negocio, para evaluar la salud financiera del período |
 | Operativo | Lead Data Engineer / CTO | Analítica | CU-O77 Consultar MRR/ARR | Como Lead Data Engineer/CTO, quiero ver el ingreso mensual recurrente actual y su proyección anual, para medir la salud del negocio de suscripción |
-
+| Operativo | Cliente B2B (tier Enterprise) | Inteligencia de negocio y comparativa | CU-O92 Consultar proyección de tendencia de género | Como Cliente B2B con plan Enterprise, quiero ver una proyección estimada de la tendencia de popularidad de un género, para anticipar hacia dónde se mueve el mercado |
+| Operativo | Cliente B2B (tier Enterprise) | Inteligencia de negocio y comparativa | CU-O93 Consultar proyección de trayectoria de artista vs. género | Como Cliente B2B con plan Enterprise, quiero ver si un artista gana o pierde tracción frente a su género, para decidir dónde enfocar promoción diferencial |
 ## Requirements
-
 ### Requirement: Dashboard ejecutivo de KPIs
 El sistema SHALL mostrar un dashboard con KPIs agregados del catálogo (total tracks, total artistas, total géneros, popularidad promedio, energy promedio, danceability promedio) en una sola pantalla. Las consultas del dashboard ejecutivo SHALL completarse en menos de 3 segundos en condiciones normales (volumen actual ~700k registros en FACT_TRACKS). El total de tracks y la popularidad promedio SHALL incluir todo el catálogo, incluidos los tracks publicados por artistas (`source_type='user_uploaded'`); energy promedio y danceability promedio SHALL excluir esos tracks, ya que sus atributos de audio son valores por defecto sin análisis real, no mediciones.
 
@@ -121,11 +121,43 @@ El sistema SHALL permitir generar un reporte diario que agregue ingestas y engag
 - **THEN** el navegador abre el diálogo de impresión con una vista limpia (sin sidebar ni controles), lista para guardar como PDF
 
 ### Requirement: Acceso a paneles analíticos condicionado a suscripción activa
-El acceso a los paneles analíticos B2B SHALL requerir una suscripción activa (ver capability `suscripciones`); un Cliente B2B sin plan activo no puede consultar estos dashboards.
+El acceso a los paneles analíticos B2B SHALL requerir una suscripción activa (ver capability
+`suscripciones`); un Cliente B2B sin plan activo no puede consultar estos dashboards. Además, el
+acceso SHALL graduarse según el tier de la suscripción activa (`básico < pro < enterprise`): los
+paneles comparativos (comparar artistas, benchmark de artista vs. género, índice de desempeño
+relativo, adquisición por canal) SHALL requerir tier Pro o superior; el resto de paneles operativos
+base (dashboard ejecutivo, perfil de audio por género, tendencias temporales, disponibilidad de
+infraestructura, engagement de un track/artista, y la búsqueda de artista que lo soporta) SHALL
+permanecer accesibles desde tier Básico. Los paneles predictivos/estratégicos (proyección de
+tendencia de género, proyección de trayectoria de artista) SHALL requerir tier Enterprise. Esta
+graduación por tier es independiente del gating de `role == admin` (reporte diario operativo,
+churn, funnel de conversión, P&L, MRR/ARR), que SHALL seguir siendo exclusivo de Data Analyst/BI
+Lead o Lead Data Engineer/CTO sin relación con el tier de ningún Cliente B2B.
 
 #### Scenario: Acceso sin suscripción activa
 - **WHEN** un Cliente B2B sin una suscripción activa intenta acceder a cualquier panel analítico
 - **THEN** el sistema le niega el acceso y lo redirige a la pantalla de suscripción
+
+#### Scenario: Cliente B2B Básico accede a un panel operativo base
+- **WHEN** un Cliente B2B con tier Básico activo consulta el dashboard ejecutivo, el perfil de
+  audio de un género, las tendencias temporales, la disponibilidad de infraestructura, o el
+  engagement de un track/artista
+- **THEN** el sistema muestra el panel solicitado
+
+#### Scenario: Cliente B2B Básico intenta acceder a un panel comparativo
+- **WHEN** un Cliente B2B con tier Básico activo intenta comparar artistas, consultar un
+  benchmark, el índice de desempeño relativo, o la adquisición por canal
+- **THEN** el sistema le niega el acceso indicando que ese panel requiere tier Pro o superior, sin
+  desactivar la suscripción activa del cliente
+
+#### Scenario: Cliente B2B Pro accede a los paneles comparativos
+- **WHEN** un Cliente B2B con tier Pro o Enterprise activo consulta cualquier panel comparativo
+- **THEN** el sistema muestra el panel solicitado
+
+#### Scenario: Cliente B2B Pro intenta acceder a un panel predictivo Enterprise
+- **WHEN** un Cliente B2B con tier Pro (no Enterprise) intenta consultar la proyección de
+  tendencia de un género o la proyección de trayectoria de un artista
+- **THEN** el sistema le niega el acceso indicando que ese panel requiere tier Enterprise
 
 ### Requirement: Legibilidad de los gráficos analíticos
 Todos los gráficos SHALL mantener proporciones legibles, sin miniaturas ilegibles ni gráficos alargados que distorsionen la lectura de los datos.
@@ -135,15 +167,20 @@ Todos los gráficos SHALL mantener proporciones legibles, sin miniaturas ilegibl
 - **THEN** el gráfico mantiene proporciones legibles, sin miniaturas ilegibles ni distorsión de los datos
 
 ### Requirement: Adquisición de usuarios por canal
-El sistema SHALL registrar cada alta de usuario nuevo con su canal de adquisición y región, y SHALL exponer un conteo de usuarios nuevos agrupado por canal y semana a Data Analyst/BI Lead y Lead Data Engineer/CTO.
+El sistema SHALL registrar cada alta de usuario nuevo con su canal de adquisición y región, y
+SHALL exponer un conteo de usuarios nuevos agrupado por canal y semana a Data Analyst/BI Lead y
+Lead Data Engineer/CTO, y a Cliente B2B con tier Pro o superior.
 
 #### Scenario: Consulta de adquisición con datos disponibles
-- **WHEN** un Data Analyst/BI Lead o Lead Data Engineer/CTO con suscripción B2B activa consulta la vista de adquisición
-- **THEN** el sistema devuelve el conteo de usuarios nuevos agrupado por canal de marketing y semana, cubriendo al menos las últimas semanas con datos cargados
+- **WHEN** un Data Analyst/BI Lead, Lead Data Engineer/CTO, o Cliente B2B con tier Pro o superior
+  y suscripción B2B activa consulta la vista de adquisición
+- **THEN** el sistema devuelve el conteo de usuarios nuevos agrupado por canal de marketing y
+  semana, cubriendo al menos las últimas semanas con datos cargados
 
 #### Scenario: Acceso sin suscripción B2B activa
 - **WHEN** un usuario sin suscripción B2B activa intenta acceder a la vista de adquisición
-- **THEN** el sistema deniega el acceso con el mismo mecanismo ya usado en el resto de vistas tácticas de `analitica`
+- **THEN** el sistema deniega el acceso con el mismo mecanismo ya usado en el resto de vistas
+  tácticas de `analitica`
 
 ### Requirement: Disponibilidad de infraestructura por componente
 El sistema SHALL registrar eventos de disponibilidad por componente de infraestructura (ej. API, ClickHouse, PocketBase, Airflow) y SHALL exponer el porcentaje de disponibilidad por componente y semana a Lead Data Engineer/CTO. Este requisito es independiente de la restricción geográfica de reproducción de contenido licenciado (`distribucion`, "Restricción de reproducción por país") — ambos conceptos no deben conflactarse en ningún artefacto ni componente de interfaz.
@@ -215,6 +252,65 @@ reconstrucción de MRR punto-en-el-tiempo.
 - **WHEN** un usuario con rol `admin` solicita el MRR/ARR y no hay ninguna suscripción de pago activa
 - **THEN** el sistema retorna MRR y ARR en cero, sin error
 
+### Requirement: Proyección de tendencia de género (Enterprise)
+El sistema SHALL permitir a un Cliente B2B con tier Enterprise consultar una proyección estimada
+de la evolución de popularidad promedio de un género, calculada mediante una regresión lineal
+simple sobre la serie semanal de popularidad de ese género, extrapolada a las semanas siguientes.
+El sistema SHALL requerir al menos 3 semanas distintas con datos para calcular la proyección; con
+menos datos, SHALL indicar que la proyección no puede calcularse en vez de mostrar un valor
+extrapolado sin base suficiente. La proyección SHALL presentarse como una estimación estadística
+("proyección"/"tendencia estimada"), nunca como una predicción de inteligencia artificial. Cuando
+la proyección indique una caída sostenida (pendiente negativa que representa una baja acumulada
+mayor al 10% del promedio de la serie en el horizonte proyectado), el sistema SHALL señalarlo
+explícitamente como alerta temprana dentro de la misma respuesta.
+
+#### Scenario: Proyección de un género con suficientes semanas de datos
+- **WHEN** un Cliente B2B con tier Enterprise consulta la proyección de un género que tiene al
+  menos 3 semanas distintas de datos de popularidad
+- **THEN** el sistema muestra la proyección estimada de popularidad para las semanas siguientes,
+  identificada explícitamente como estimación estadística
+
+#### Scenario: Proyección de un género con datos insuficientes
+- **WHEN** un Cliente B2B con tier Enterprise consulta la proyección de un género que tiene menos
+  de 3 semanas distintas de datos de popularidad
+- **THEN** el sistema indica que no hay datos suficientes para calcular la proyección, en vez de
+  mostrar un valor extrapolado sin base suficiente
+
+#### Scenario: Género con tendencia sostenida a la baja
+- **WHEN** la proyección de un género resulta en una caída acumulada mayor al 10% del promedio de
+  la serie en el horizonte proyectado
+- **THEN** el sistema incluye una señal de alerta temprana en la respuesta, indicando la tendencia
+  a la baja
+
+### Requirement: Proyección de trayectoria de artista vs. género (Enterprise)
+El sistema SHALL permitir a un Cliente B2B con tier Enterprise consultar una proyección estimada
+de la trayectoria de un artista, comparando la pendiente proyectada de popularidad del artista
+contra la pendiente proyectada de su género predominante, para indicar si el artista está ganando
+o perdiendo tracción relativa a su género. El sistema SHALL requerir al menos 3 semanas distintas
+de datos de popularidad del artista para calcular la proyección; con menos datos, SHALL indicar
+que la proyección no puede calcularse. La proyección SHALL presentarse como una estimación
+estadística, nunca como una predicción de inteligencia artificial. Cuando la trayectoria del
+artista muestre una caída sostenida (mismo criterio de umbral que la proyección de género), el
+sistema SHALL señalarlo explícitamente como alerta temprana dentro de la misma respuesta.
+
+#### Scenario: Proyección de un artista con suficientes semanas de datos
+- **WHEN** un Cliente B2B con tier Enterprise consulta la proyección de un artista que tiene al
+  menos 3 semanas distintas de datos de popularidad
+- **THEN** el sistema muestra la trayectoria estimada del artista ("ganando terreno", "perdiendo
+  terreno" o "estable") respecto a su género predominante, identificada explícitamente como
+  estimación estadística
+
+#### Scenario: Proyección de un artista con datos insuficientes
+- **WHEN** un Cliente B2B con tier Enterprise consulta la proyección de un artista que tiene menos
+  de 3 semanas distintas de datos de popularidad
+- **THEN** el sistema indica que no hay datos suficientes para calcular la proyección
+
+#### Scenario: Artista con caída sostenida frente a su género
+- **WHEN** la proyección de un artista resulta en una caída acumulada mayor al 10% del promedio de
+  su serie en el horizonte proyectado
+- **THEN** el sistema incluye una señal de alerta temprana en la respuesta, indicando la pérdida
+  de tracción
+
 ## Entradas
 
 - Género seleccionado (perfil de audio).
@@ -251,7 +347,7 @@ reconstrucción de MRR punto-en-el-tiempo.
 
 ## Fuera de alcance
 
-- Modelos predictivos de Machine Learning (predicción de tendencias, churn B2B); estos pertenecen al nivel táctico/estratégico (CU-T07, CU-E05), no a esta capability operativa.
+- Modelos predictivos de Machine Learning entrenados (predicción de tendencias, churn B2B) o cualquier servicio de inferencia; las proyecciones de género/artista de esta capability (CU-O92/CU-O93) son extrapolación estadística simple (regresión lineal) sobre datos propios, presentadas al cliente como "proyección"/"tendencia estimada", nunca como predicción de IA.
 - Exportación de reportes a Excel.
 - Exportación a PDF de paneles distintos al reporte diario.
 - Comparación de más de dos artistas simultáneamente.

@@ -26,6 +26,15 @@ from utils.pocketbase_client import get_token
 TASA_EXITO_DEFAULT = 0.9
 IVA_RATE = 0.15
 DIAS_CICLO = 30
+# Dunning (modelo-financiero-completar-huecos, CU-O95): mismo umbral que
+# `api/paquetes/suscripciones/router.py::MAX_INTENTOS_COBRO` — un cobro
+# fallido ya no cancela de inmediato, pasa por hasta 3 intentos antes de
+# degradar (design.md, decisión 2). El camino demostrable en vivo es el
+# endpoint `POST /suscripciones/{id}/procesar-cobro` (esta DAG no tiene
+# garantía de correr exactamente cada 30 días — ver memoria de proyecto,
+# el scheduler de Airflow puede morir en silencio); esta función replica la
+# misma política para cuando sí corre.
+MAX_INTENTOS_COBRO = 3
 
 
 def _suscripciones_activas_de_pago(cfg: dict, token: str) -> list[dict]:
@@ -101,24 +110,45 @@ def run_facturacion_recurrente(**context) -> None:
             )
             renovadas += 1
         else:
-            # Cobro fallido en la renovación (modelo-financiero-simulacion,
-            # design.md Decisión 6): sin reintentos/dunning, una sola pasada
-            # — se cancela de inmediato en vez de dejar acceso pagado
-            # indefinido sin haber cobrado. Mismo criterio que
-            # `suscripciones/router.py::_resolver_trial_vencido` para un
-            # trial que no puede cobrarse.
-            httpx.patch(
-                f"{cfg['pb_url']}/api/collections/suscripciones/records/{suscripcion_id}",
-                json={"estado": "cancelada"},
-                headers={"Authorization": f"Bearer {pb_token}"},
-                timeout=30,
-            ).raise_for_status()
-            ch.insert(
-                "FACT_CANCELACION_SUSCRIPCION",
-                [(str(uuid.uuid4()), suscripcion_id, usuario_id, "precio", 0)],
-                column_names=["cancelacion_id", "suscripcion_id", "usuario_id", "motivo", "voluntaria"],
-            )
-            canceladas += 1
+            # Cobro fallido en la renovación (modelo-financiero-completar-
+            # huecos, CU-O95, design.md Decisión 2): dunning real — pasa a
+            # `pago_pendiente` con contador de intentos en vez de cancelar de
+            # inmediato; solo se cancela/degrada al agotar
+            # MAX_INTENTOS_COBRO. Mismo umbral que
+            # `suscripciones/router.py::procesar_cobro`.
+            intentos = int(sus.get("intentos_fallidos") or 0) + 1
+            if intentos >= MAX_INTENTOS_COBRO:
+                # B2C (tipo_plan free/premium/estudiante) degrada a free;
+                # B2B (basico/pro/enterprise) cancela — mismo criterio que la
+                # API. Este DAG no distingue rol de PocketBase directamente,
+                # así que usa `tipo_plan` (ya disponible en `sus`) como proxy.
+                if sus["tipo_plan"] in ("basico", "pro", "enterprise"):
+                    httpx.patch(
+                        f"{cfg['pb_url']}/api/collections/suscripciones/records/{suscripcion_id}",
+                        json={"estado": "cancelada"},
+                        headers={"Authorization": f"Bearer {pb_token}"},
+                        timeout=30,
+                    ).raise_for_status()
+                    ch.insert(
+                        "FACT_CANCELACION_SUSCRIPCION",
+                        [(str(uuid.uuid4()), suscripcion_id, usuario_id, "precio", 0)],
+                        column_names=["cancelacion_id", "suscripcion_id", "usuario_id", "motivo", "voluntaria"],
+                    )
+                else:
+                    httpx.patch(
+                        f"{cfg['pb_url']}/api/collections/suscripciones/records/{suscripcion_id}",
+                        json={"tipo_plan": "free", "monto": 0, "estado": "activa", "intentos_fallidos": 0},
+                        headers={"Authorization": f"Bearer {pb_token}"},
+                        timeout=30,
+                    ).raise_for_status()
+                canceladas += 1
+            else:
+                httpx.patch(
+                    f"{cfg['pb_url']}/api/collections/suscripciones/records/{suscripcion_id}",
+                    json={"estado": "pago_pendiente", "intentos_fallidos": intentos},
+                    headers={"Authorization": f"Bearer {pb_token}"},
+                    timeout=30,
+                ).raise_for_status()
 
     print(f"[facturacion_recurrente] {renovadas} renovadas, {canceladas} canceladas por cobro fallido, "
           f"{omitidas_sin_metodo} omitidas (sin método), {no_vencidas} aún no vencidas — "

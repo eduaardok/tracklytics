@@ -39,6 +39,7 @@ licencia ese sello, y qué tracks tienen una restricción de reproducción vigen
 | Operativo | Lead Data Engineer / CTO | Distribución | CU-O40 Administrar restricciones de reproducción | Como Lead Data Engineer/CTO, quiero crear o desactivar una restricción de reproducción sobre un track en un país y canal, para reflejar limitaciones de derechos vigentes |
 | Operativo | Usuario B2C | Distribución | CU-O41 Consultar disponibilidad de un track por país | Como Usuario B2C, quiero saber si un track está disponible en mi país antes de reproducirlo, para entender por qué algunos tracks no se reproducen |
 | Operativo | Usuario B2C | Distribución | CU-O80 Explorar disponibilidad del catálogo por país en una lista | Como Usuario B2C, quiero ver una lista filtrable del catálogo con su estado de disponibilidad en mi país, para explorar qué está disponible o bloqueado sin tener que conocer de antemano el nombre de cada track |
+| Operativo | Lead Data Engineer / CTO | Distribución | CU-O97 Configurar moneda, tasa de cambio, IVA y retención fiscal por país | Como Lead Data Engineer/CTO, quiero administrar la moneda, tasa de cambio de referencia, IVA y retención fiscal de cualquier país sin tocar código, para que el negocio pueda operar en nuevos mercados sin depender de un redespliegue |
 ## Requirements
 ### Requirement: Administración de sellos discográficos
 El sistema SHALL permitir a un usuario con rol admin crear y editar sellos discográficos. Esta operación SHALL estar restringida exclusivamente a usuarios con rol admin y SHALL registrarse en `FACT_AUDIT_LOG`.
@@ -209,4 +210,28 @@ El sistema SHALL exponer a un usuario con rol `admin` un panel con métricas ope
 #### Scenario: Usuario sin rol admin intenta consultar el panel de distribución
 - **WHEN** un usuario sin rol `admin` intenta consultar el dashboard de distribución
 - **THEN** el sistema rechaza la operación
+
+### Requirement: Configuración de país (moneda, tasa de cambio, IVA y retención fiscal)
+El sistema SHALL permitir a un usuario con rol `admin` crear, editar y desactivar países del
+catálogo, cada uno con su código de moneda, una tasa de cambio de referencia respecto a USD, y
+opcionalmente su propia tasa de IVA y su propia tasa de retención fiscal, sin requerir cambios de
+código ni redespliegue. Un país sin tasa de IVA o de retención fiscal propia SHALL usar la
+configuración global de la plataforma. La tasa de cambio SHALL tratarse como un valor de
+referencia simulado, no una cotización de mercado en tiempo real.
+
+#### Scenario: Administrador crea un país nuevo con su configuración
+- **WHEN** un usuario con rol `admin` crea un país nuevo con su moneda, tasa de cambio, y
+  opcionalmente su IVA y retención fiscal propios
+- **THEN** el sistema agrega el país al catálogo, disponible inmediatamente para cualquier cálculo
+  de moneda/IVA/retención
+
+#### Scenario: País sin IVA propio usa la tasa global
+- **WHEN** se calcula el IVA de una transacción para un usuario cuyo país no tiene una tasa de
+  IVA propia configurada
+- **THEN** el sistema usa la tasa de IVA global de la plataforma
+
+#### Scenario: Administrador desactiva un país existente
+- **WHEN** un usuario con rol `admin` desactiva un país del catálogo
+- **THEN** ese país deja de estar disponible para selección en flujos nuevos, sin afectar
+  registros históricos que ya lo referencian
 

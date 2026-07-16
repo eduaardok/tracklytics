@@ -7,6 +7,7 @@ import { SellosTab } from '../components/SellosTab'
 import { LicenciasTab } from '../components/LicenciasTab'
 import { RestriccionesTab } from '../components/RestriccionesTab'
 import { SolicitudesLicenciaTab } from '../components/SolicitudesLicenciaTab'
+import { ConfiguracionGlobalTab } from '../components/ConfiguracionGlobalTab'
 import { distribucionApi } from '../api/distribucion.api'
 import styles from './DistribucionPages.module.css'
 
@@ -15,6 +16,7 @@ const TABS = [
   { id: 'licencias',     label: 'Licencias' },
   { id: 'solicitudes',   label: 'Solicitudes de licencia' },
   { id: 'restricciones', label: 'Restricciones' },
+  { id: 'configuracion', label: 'Configuración' },
 ] as const
 
 type TabId = typeof TABS[number]['id']
@@ -67,6 +69,7 @@ export function DistribucionAdminPage() {
       {tab === 'licencias' && <LicenciasTab />}
       {tab === 'solicitudes' && <SolicitudesLicenciaTab />}
       {tab === 'restricciones' && <RestriccionesTab />}
+      {tab === 'configuracion' && <ConfiguracionGlobalTab />}
     </section>
   )
 }

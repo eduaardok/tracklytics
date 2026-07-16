@@ -503,8 +503,18 @@ async def indicadores_financieros(desde: date = Query(...), hasta: date = Query(
 # 7. Alertas financieras administrativas (CU-O89)
 # ─────────────────────────────────────────────────────────────────────────────
 
-def _alertas_financieras(desde: date, hasta: date, admin_id: str) -> list[dict]:
+async def _alertas_financieras(desde: date, hasta: date, admin_id: str) -> list[dict]:
     alertas: list[dict] = []
+
+    # Suscripciones con cobro pendiente de resolución (CU-O95, dunning —
+    # modelo-financiero-completar-huecos): vive en PocketBase, no en
+    # ClickHouse, así que se cuenta vía `pb_client` en vez de una query SQL.
+    pendientes = await pb_client.contar_pago_pendiente()
+    if pendientes > 0:
+        alertas.append({
+            "tipo": "suscripciones_cobro_pendiente",
+            "detalle": f"{pendientes} suscripción(es) con cobro pendiente de resolución (dunning)",
+        })
 
     for row in query_rows(consumo_presupuesto_campana_sql("")):
         evaluado = _evaluar_consumo_campana(row, admin_id)
@@ -570,14 +580,14 @@ def _alertas_financieras(desde: date, hasta: date, admin_id: str) -> list[dict]:
 
 
 @router.get("/alertas")
-def alertas_financieras(
+async def alertas_financieras(
     desde: date | None = Query(None),
     hasta: date | None = Query(None),
     admin: dict = Depends(require_admin),
 ):
     hasta = hasta or date.today()
     desde = desde or (hasta - timedelta(days=DIAS_REGALIAS_PENDIENTES))
-    alertas = _alertas_financieras(desde, hasta, admin["record"]["id"])
+    alertas = await _alertas_financieras(desde, hasta, admin["record"]["id"])
     return {"data": alertas, "desde": desde.isoformat(), "hasta": hasta.isoformat()}
 
 

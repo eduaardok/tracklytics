@@ -1,6 +1,8 @@
 import { useQuery } from '@tanstack/react-query'
 import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { analiticaApi } from '../api/analitica.api'
+import { TierUpsell } from '../components/TierUpsell'
+import { tierInsuficienteInfo } from '../lib/tierError'
 import type { AdquisicionCanal } from '../types'
 import styles from './AdquisicionPage.module.css'
 
@@ -29,6 +31,7 @@ export function AdquisicionPage() {
 
   const data = adquisicion.data?.data ?? []
   const { canales, semanas, porSemana } = pivotByCanal(data)
+  const tierInfo = tierInsuficienteInfo(adquisicion.error)
 
   return (
     <section className={styles.page}>
@@ -40,9 +43,13 @@ export function AdquisicionPage() {
       {adquisicion.isLoading && <div className={styles.panel} style={{ minHeight: 200 }} />}
 
       {adquisicion.isError && (
-        <div className={styles.panel}>
-          <p className={styles.panelError}>No se pudo cargar la adquisición de usuarios.</p>
-        </div>
+        tierInfo ? (
+          <TierUpsell tierRequerido={tierInfo.tierRequerido} tierActual={tierInfo.tierActual} />
+        ) : (
+          <div className={styles.panel}>
+            <p className={styles.panelError}>No se pudo cargar la adquisición de usuarios.</p>
+          </div>
+        )
       )}
 
       {!adquisicion.isLoading && !adquisicion.isError && semanas.length === 0 && (

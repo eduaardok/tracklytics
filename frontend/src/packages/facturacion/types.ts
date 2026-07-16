@@ -101,4 +101,21 @@ export type EmpresaInfo = {
   razon_social: string
   ruc:          string
   direccion:    string
+  // IVA/retención global (modelo-financiero-completar-huecos, CU-O96/CU-O99)
+  // — un país con tasa propia en DIM_PAIS la sobreescribe.
+  iva_tasa_global?: number
+  retencion_fiscal_pct_global?: number
+}
+
+// Notificación simulada de factura enviada por correo (CU-O99) — nunca sale
+// a un proveedor real, solo queda registrada y visible en pantalla.
+export type NotificacionEmail = {
+  notificacion_id: string
+  tipo:            'factura'
+  referencia_id:   string
+  destinatario:    string
+  asunto:          string
+  cuerpo:          string
+  estado:          'enviado'
+  fecha_envio:     string
 }

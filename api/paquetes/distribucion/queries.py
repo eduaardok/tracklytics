@@ -23,13 +23,32 @@ LICENCIA_ID_MAX = "SELECT max(licencia_id) AS n FROM DIM_LICENCIA"
 
 # ── Sellos ──────────────────────────────────────────────────────────────────
 
-SELLO_POR_ID = "SELECT sello_id, nombre FROM DIM_SELLO_DISCOGRAFICO WHERE sello_id = {sello_id:UInt32} LIMIT 1"
+SELLO_POR_ID = "SELECT sello_id, nombre, pais FROM DIM_SELLO_DISCOGRAFICO WHERE sello_id = {sello_id:UInt32} LIMIT 1"
 
-SELLOS_LIST = "SELECT sello_id, nombre FROM DIM_SELLO_DISCOGRAFICO ORDER BY nombre"
+SELLOS_LIST = "SELECT sello_id, nombre, pais FROM DIM_SELLO_DISCOGRAFICO ORDER BY nombre"
 
 # ── Catálogos fijos (soporte de dropdowns en la UI admin) ──────────────────
 
 PAISES_LIST = "SELECT pais_id, nombre, codigo_iso FROM DIM_PAIS ORDER BY nombre"
+
+# ── Configuración de país (modelo-financiero-completar-huecos, CU-O97):
+# moneda/tasa de cambio/IVA/retención fiscal, administrable — ver design.md
+# decisión 4. Incluye países inactivos (el admin necesita verlos para poder
+# reactivarlos); PAISES_LIST arriba sigue siendo el catálogo público/legacy
+# de solo pais_id/nombre/codigo_iso, sin tocar.
+PAISES_CONFIG_LIST = """
+SELECT pais_id, nombre, codigo_iso, moneda_codigo, tasa_cambio_a_usd, iva_tasa,
+       retencion_fiscal_pct, activo
+FROM DIM_PAIS ORDER BY nombre
+"""
+
+PAIS_ID_MAX = "SELECT max(pais_id) AS n FROM DIM_PAIS"
+
+PAIS_CONFIG_POR_ID = """
+SELECT pais_id, nombre, codigo_iso, moneda_codigo, tasa_cambio_a_usd, iva_tasa,
+       retencion_fiscal_pct, activo
+FROM DIM_PAIS WHERE pais_id = {pais_id:UInt16} LIMIT 1
+"""
 
 CANALES_LIST = "SELECT canal_id, nombre FROM DIM_CANAL_DISTRIBUCION ORDER BY canal_id"
 

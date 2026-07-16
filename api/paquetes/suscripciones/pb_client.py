@@ -9,7 +9,17 @@ COLLECTION = "suscripciones"
 
 
 async def list_activas(token: str, user_id: str) -> list[dict]:
-    filtro = f'usuario_o_cliente="{user_id}" && estado="activa"'
+    # `pago_pendiente` (dunning, CU-O95) SHALL contar como "vigente" acá, no
+    # solo `activa` — es la suscripción que `GET /activa` debe seguir
+    # devolviendo mientras el usuario reintenta el cobro (para que el
+    # frontend muestre el banner de dunning en vez de "sin plan activo"), y
+    # la que `require_b2b_panel_access` debe seguir aceptando: el acceso
+    # continúa durante los reintentos, solo se corta al agotar
+    # MAX_INTENTOS_COBRO y degradar (bug real encontrado en verificación:
+    # antes de este fix, `estado="pago_pendiente"` hacía que esta función no
+    # devolviera nada, dejando al usuario sin plan visible ni acceso B2B
+    # desde el primer cobro fallido, no solo al agotar los 3 intentos).
+    filtro = f'usuario_o_cliente="{user_id}" && (estado="activa" || estado="pago_pendiente")'
     async with httpx.AsyncClient(timeout=5) as client:
         resp = await client.get(
             f"{PB_URL}/api/collections/{COLLECTION}/records",
@@ -18,6 +28,23 @@ async def list_activas(token: str, user_id: str) -> list[dict]:
         )
     resp.raise_for_status()
     return resp.json().get("items", [])
+
+
+async def obtener_por_id(token: str, user_id: str, record_id: str) -> dict | None:
+    """Busca una suscripción del usuario por id, sin filtrar por `estado`
+    (a diferencia de `list_activas`) — necesario para dunning (CU-O95): una
+    suscripción en `pago_pendiente` debe poder reintentar el cobro, y
+    `list_activas` no la encontraría."""
+    filtro = f'usuario_o_cliente="{user_id}" && id="{record_id}"'
+    async with httpx.AsyncClient(timeout=5) as client:
+        resp = await client.get(
+            f"{PB_URL}/api/collections/{COLLECTION}/records",
+            params={"filter": filtro, "page": 1, "perPage": 1},
+            headers={"Authorization": f"Bearer {token}"},
+        )
+    resp.raise_for_status()
+    items = resp.json().get("items", [])
+    return items[0] if items else None
 
 
 async def crear(
@@ -57,6 +84,22 @@ async def cancelar(token: str, record_id: str) -> dict:
         resp = await client.patch(
             f"{PB_URL}/api/collections/{COLLECTION}/records/{record_id}",
             json={"estado": "cancelada"},
+            headers={"Authorization": f"Bearer {token}"},
+        )
+    resp.raise_for_status()
+    return resp.json()
+
+
+async def actualizar_campos(token: str, record_id: str, campos: dict) -> dict:
+    """PATCH genérico sobre una suscripción — usado por cambio de plan
+    (modelo-financiero-completar-huecos, CU-O94: actualiza `tipo_plan`/
+    `monto`/`moneda` in-place, conservando `created`) y por dunning (CU-O95:
+    `estado`/`intentos_fallidos`), en vez de cancelar+crear un registro
+    nuevo (design.md, decisión 1)."""
+    async with httpx.AsyncClient(timeout=5) as client:
+        resp = await client.patch(
+            f"{PB_URL}/api/collections/{COLLECTION}/records/{record_id}",
+            json=campos,
             headers={"Authorization": f"Bearer {token}"},
         )
     resp.raise_for_status()
@@ -168,6 +211,13 @@ async def contar_activas(tipo_plan: str) -> int:
     """Cuenta suscripciones actualmente activas de un plan dado — usado como
     denominador de usuarios free activos en el funnel de conversión."""
     return await _admin_count(f'estado="activa" && tipo_plan="{tipo_plan}"')
+
+
+async def contar_pago_pendiente() -> int:
+    """Suscripciones en dunning (CU-O95, modelo-financiero-completar-huecos)
+    — usado por la alerta financiera "cobro pendiente de resolución"
+    (CU-O89, `finanzas`)."""
+    return await _admin_count('estado="pago_pendiente"')
 
 
 async def sumar_montos_activos(tipos_plan: tuple[str, ...]) -> float:

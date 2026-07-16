@@ -17,8 +17,11 @@ from paquetes.distribucion.queries import (
     CANALES_LIST,
     LICENCIA_ID_MAX,
     LICENCIAS_ACTIVAS_TOTAL,
+    PAIS_CONFIG_POR_ID,
     PAIS_EXISTE,
+    PAIS_ID_MAX,
     PAIS_ID_POR_TEXTO,
+    PAISES_CONFIG_LIST,
     PAISES_LIST,
     RESTRICCIONES_DE_TRACK,
     RESTRICCIONES_POR_PAIS,
@@ -67,6 +70,18 @@ def resolver_pais_id(texto_pais: str) -> int | None:
     return row["pais_id"] if row else None
 
 
+def resolver_pais_config(texto_pais: str) -> dict | None:
+    """País declarado (texto libre) -> fila completa de configuración de
+    DIM_PAIS (moneda/tasa de cambio/IVA/retención) — reusado por `facturacion`
+    (IVA, conversión de moneda) y `regalias` (retención fiscal) para no
+    duplicar la resolución texto->país ya existente aquí (RF-DIS-007). `None`
+    si no hay match — el llamador debe caer a la configuración global."""
+    pais_id = resolver_pais_id(texto_pais)
+    if pais_id is None:
+        return None
+    return query_one(PAIS_CONFIG_POR_ID, {"pais_id": pais_id})
+
+
 def restriccion_activa(fact_id_track: int, pais_id: int, canal_id: int = CANAL_STREAMING_ID) -> dict | None:
     return query_one(
         RESTRICCION_ACTIVA_EXISTE,
@@ -94,6 +109,10 @@ def registrar_restriccion_reproduccion(usuario_id: str, fact_id_track: int, pais
 
 class SelloBody(BaseModel):
     nombre: str
+    # País del sello (modelo-financiero-completar-huecos, design.md decisión
+    # 3) — texto libre, mismo criterio que DIM_USUARIO.pais, resuelto contra
+    # DIM_PAIS vía `resolver_pais_id` para la retención fiscal de regalías.
+    pais: str = ""
 
 
 @router.post("/sellos", status_code=201)
@@ -102,13 +121,14 @@ def crear_sello(body: SelloBody, admin: dict = Depends(require_admin)):
         raise HTTPException(status_code=422, detail="El nombre del sello no puede estar vacío")
     nuevo_id = ((query_one(SELLO_ID_MAX) or {}).get("n") or 0) + 1
     get_client().insert(
-        "DIM_SELLO_DISCOGRAFICO", [(nuevo_id, body.nombre)], column_names=["sello_id", "nombre"],
+        "DIM_SELLO_DISCOGRAFICO", [(nuevo_id, body.nombre, body.pais)],
+        column_names=["sello_id", "nombre", "pais"],
     )
     audit.record(
         usuario_id=admin["record"]["id"], accion="crear_sello", tabla_afectada="DIM_SELLO_DISCOGRAFICO",
-        antes=None, despues={"sello_id": nuevo_id, "nombre": body.nombre},
+        antes=None, despues={"sello_id": nuevo_id, "nombre": body.nombre, "pais": body.pais},
     )
-    return {"status": "ok", "sello_id": nuevo_id, "nombre": body.nombre}
+    return {"status": "ok", "sello_id": nuevo_id, "nombre": body.nombre, "pais": body.pais}
 
 
 @router.put("/sellos/{sello_id}")
@@ -119,14 +139,16 @@ def editar_sello(sello_id: int, body: SelloBody, admin: dict = Depends(require_a
     if not body.nombre.strip():
         raise HTTPException(status_code=422, detail="El nombre del sello no puede estar vacío")
     execute(
-        "ALTER TABLE DIM_SELLO_DISCOGRAFICO UPDATE nombre = {nombre:String} WHERE sello_id = {sello_id:UInt32}",
-        {"nombre": body.nombre, "sello_id": sello_id},
+        "ALTER TABLE DIM_SELLO_DISCOGRAFICO UPDATE nombre = {nombre:String}, pais = {pais:String} "
+        "WHERE sello_id = {sello_id:UInt32}",
+        {"nombre": body.nombre, "pais": body.pais, "sello_id": sello_id},
     )
     audit.record(
         usuario_id=admin["record"]["id"], accion="editar_sello", tabla_afectada="DIM_SELLO_DISCOGRAFICO",
-        antes={"sello_id": sello_id, "nombre": sello["nombre"]}, despues={"sello_id": sello_id, "nombre": body.nombre},
+        antes={"sello_id": sello_id, "nombre": sello["nombre"], "pais": sello.get("pais", "")},
+        despues={"sello_id": sello_id, "nombre": body.nombre, "pais": body.pais},
     )
-    return {"status": "ok", "sello_id": sello_id, "nombre": body.nombre}
+    return {"status": "ok", "sello_id": sello_id, "nombre": body.nombre, "pais": body.pais}
 
 
 @router.get("/sellos", dependencies=[Depends(require_admin)])
@@ -150,6 +172,102 @@ def listar_paises():
 @router.get("/paises/publico")
 def listar_paises_publico():
     return {"data": query_rows(PAISES_LIST)}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Configuración de país: moneda, tasa de cambio, IVA y retención fiscal
+# (modelo-financiero-completar-huecos, CU-O97) — extensión de la misma tabla
+# DIM_PAIS ya dueña de este router, no un paquete de configuración nuevo
+# (design.md, decisión 4).
+# ─────────────────────────────────────────────────────────────────────────────
+
+class PaisConfigBody(BaseModel):
+    nombre: str
+    codigo_iso: str
+    moneda_codigo: str = "USD"
+    # Tasa de referencia simulada y congelada respecto a USD — nunca una
+    # cotización de forex real (design.md, decisión 4).
+    tasa_cambio_a_usd: float = 1.0
+    # None = usa la tasa global de la plataforma (DIM_EMPRESA), ver decisión 6.
+    iva_tasa: Optional[float] = None
+    retencion_fiscal_pct: Optional[float] = None
+
+
+@router.get("/admin/paises", dependencies=[Depends(require_admin)])
+def listar_paises_config():
+    return {"data": query_rows(PAISES_CONFIG_LIST)}
+
+
+@router.post("/admin/paises", status_code=201)
+def crear_pais(body: PaisConfigBody, admin: dict = Depends(require_admin)):
+    if not body.nombre.strip() or not body.codigo_iso.strip():
+        raise HTTPException(status_code=422, detail="Nombre y código ISO son obligatorios")
+    nuevo_id = ((query_one(PAIS_ID_MAX) or {}).get("n") or 0) + 1
+    get_client().insert(
+        "DIM_PAIS",
+        [(
+            nuevo_id, body.nombre.strip(), body.codigo_iso.strip().upper(), body.moneda_codigo.strip().upper(),
+            body.tasa_cambio_a_usd, body.iva_tasa, body.retencion_fiscal_pct, 1,
+        )],
+        column_names=[
+            "pais_id", "nombre", "codigo_iso", "moneda_codigo",
+            "tasa_cambio_a_usd", "iva_tasa", "retencion_fiscal_pct", "activo",
+        ],
+    )
+    audit.record(
+        usuario_id=admin["record"]["id"], accion="crear_pais", tabla_afectada="DIM_PAIS",
+        antes=None, despues={"pais_id": nuevo_id, "nombre": body.nombre, "moneda_codigo": body.moneda_codigo},
+    )
+    return {"status": "ok", "pais_id": nuevo_id, **body.model_dump()}
+
+
+@router.put("/admin/paises/{pais_id}")
+def editar_pais(pais_id: int, body: PaisConfigBody, admin: dict = Depends(require_admin)):
+    pais = query_one(PAIS_CONFIG_POR_ID, {"pais_id": pais_id})
+    if not pais:
+        raise HTTPException(status_code=404, detail="País no encontrado")
+    execute(
+        "ALTER TABLE DIM_PAIS UPDATE nombre = {nombre:String}, codigo_iso = {codigo_iso:String}, "
+        "moneda_codigo = {moneda_codigo:String}, tasa_cambio_a_usd = {tasa:Float32}, "
+        "iva_tasa = {iva:Nullable(Float32)}, retencion_fiscal_pct = {ret:Nullable(Float32)} "
+        "WHERE pais_id = {pais_id:UInt16}",
+        {
+            "nombre": body.nombre.strip(), "codigo_iso": body.codigo_iso.strip().upper(),
+            "moneda_codigo": body.moneda_codigo.strip().upper(), "tasa": body.tasa_cambio_a_usd,
+            "iva": body.iva_tasa, "ret": body.retencion_fiscal_pct, "pais_id": pais_id,
+        },
+    )
+    audit.record(
+        usuario_id=admin["record"]["id"], accion="editar_pais", tabla_afectada="DIM_PAIS",
+        antes=pais, despues={"pais_id": pais_id, **body.model_dump()},
+    )
+    return {"status": "ok", "pais_id": pais_id, **body.model_dump()}
+
+
+@router.post("/admin/paises/{pais_id}/desactivar")
+def desactivar_pais(pais_id: int, admin: dict = Depends(require_admin)):
+    pais = query_one(PAIS_CONFIG_POR_ID, {"pais_id": pais_id})
+    if not pais:
+        raise HTTPException(status_code=404, detail="País no encontrado")
+    execute("ALTER TABLE DIM_PAIS UPDATE activo = 0 WHERE pais_id = {pais_id:UInt16}", {"pais_id": pais_id})
+    audit.record(
+        usuario_id=admin["record"]["id"], accion="desactivar_pais", tabla_afectada="DIM_PAIS",
+        antes={"pais_id": pais_id, "activo": 1}, despues={"pais_id": pais_id, "activo": 0},
+    )
+    return {"status": "ok", "pais_id": pais_id, "activo": False}
+
+
+@router.post("/admin/paises/{pais_id}/activar")
+def activar_pais(pais_id: int, admin: dict = Depends(require_admin)):
+    pais = query_one(PAIS_CONFIG_POR_ID, {"pais_id": pais_id})
+    if not pais:
+        raise HTTPException(status_code=404, detail="País no encontrado")
+    execute("ALTER TABLE DIM_PAIS UPDATE activo = 1 WHERE pais_id = {pais_id:UInt16}", {"pais_id": pais_id})
+    audit.record(
+        usuario_id=admin["record"]["id"], accion="activar_pais", tabla_afectada="DIM_PAIS",
+        antes={"pais_id": pais_id, "activo": 0}, despues={"pais_id": pais_id, "activo": 1},
+    )
+    return {"status": "ok", "pais_id": pais_id, "activo": True}
 
 
 @router.get("/canales", dependencies=[Depends(require_admin)])

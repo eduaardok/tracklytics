@@ -4,7 +4,9 @@ import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { analiticaApi } from '../api/analitica.api'
 import { ArtistPicker } from '@shared/components/ArtistPicker'
 import { AudioRadarChart, RADAR_COLOR_A, RADAR_COLOR_B } from '../components/AudioRadarChart'
+import { TierUpsell } from '../components/TierUpsell'
 import { AUDIO_FEATURES, artistToAudioValues, genreToAudioValues } from '../lib/audioFeatures'
+import { tierInsuficienteInfo } from '../lib/tierError'
 import type { ArtistSearchResult } from '../types'
 import styles from './ArtistaBenchmarkPage.module.css'
 
@@ -26,6 +28,7 @@ export function ArtistaBenchmarkPage() {
   })
 
   const data = benchmark.data
+  const tierInfo = tierInsuficienteInfo(benchmark.error)
 
   return (
     <section className={styles.page}>
@@ -49,11 +52,15 @@ export function ArtistaBenchmarkPage() {
       {artista && benchmark.isLoading && <div className={styles.panel} style={{ minHeight: 320 }} />}
 
       {artista && benchmark.isError && (
-        <div className={styles.panel}>
-          <p className={styles.panelError}>
-            No se pudo calcular el benchmark — puede que el artista no tenga tracks registrados.
-          </p>
-        </div>
+        tierInfo ? (
+          <TierUpsell tierRequerido={tierInfo.tierRequerido} tierActual={tierInfo.tierActual} />
+        ) : (
+          <div className={styles.panel}>
+            <p className={styles.panelError}>
+              No se pudo calcular el benchmark — puede que el artista no tenga tracks registrados.
+            </p>
+          </div>
+        )
       )}
 
       {data && (

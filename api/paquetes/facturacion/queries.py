@@ -1,6 +1,8 @@
-# Tasa fija de IVA (design.md, decisión "Cálculo de IVA con tasa fija") — no
-# varía por país pese a que DIM_METODO_PAGO capture país (dato descriptivo,
-# no usado para tarificar en este cambio).
+# Fallback defensivo si DIM_EMPRESA no tuviera fila (nunca debería pasar,
+# se siembra en init_clickhouse.py) — la tasa efectiva real ahora se resuelve
+# en runtime (`iva_tasa_global`/override por país, ver design.md decisión 6,
+# modelo-financiero-completar-huecos). Se conserva el nombre por
+# compatibilidad de import, no se usa directamente en el cálculo.
 IVA_RATE = 0.15
 
 # Tasa de éxito por defecto de la simulación de pago (design.md, "Simulación
@@ -29,7 +31,10 @@ WHERE usuario_id = {usuario_id:String}
 ORDER BY fecha DESC
 """
 
-EMPRESA_ACTUAL = "SELECT razon_social, ruc, direccion FROM DIM_EMPRESA WHERE empresa_id = 1 LIMIT 1"
+EMPRESA_ACTUAL = (
+    "SELECT razon_social, ruc, direccion, iva_tasa_global, retencion_fiscal_pct_global "
+    "FROM DIM_EMPRESA WHERE empresa_id = 1 LIMIT 1"
+)
 
 INVOICES_POR_USUARIO = """
 SELECT i.invoice_id AS invoice_id, i.usuario_id AS usuario_id, i.transaccion_id AS transaccion_id,
@@ -76,3 +81,16 @@ ORDER BY dia
 TRANSACCIONES_ULTIMAS_24H = "SELECT count() AS n FROM FACT_TRANSACCION_PAGO WHERE fecha >= now() - INTERVAL 24 HOUR"
 
 INGRESO_TOTAL_HISTORICO = "SELECT sum(monto) AS total FROM FACT_TRANSACCION_PAGO WHERE estado = 'exitosa'"
+
+# ── IVA configurable / conversión de moneda (modelo-financiero-completar-
+# huecos, CU-O99) — país del usuario ya declarado al registrarse, reusado
+# para resolver IVA/moneda sin pedir un dato nuevo (design.md, decisión 7).
+USUARIO_PAIS = "SELECT pais FROM DIM_USUARIO WHERE usuario_id = {usuario_id:String} LIMIT 1"
+
+# ── Notificaciones simuladas de factura enviada por correo (CU-O99) ─────────
+NOTIFICACIONES_EMAIL_POR_USUARIO = """
+SELECT notificacion_id, tipo, referencia_id, destinatario, asunto, cuerpo, estado, fecha_envio
+FROM FACT_EMAIL_ENVIADO
+WHERE usuario_id = {usuario_id:String}
+ORDER BY fecha_envio DESC
+"""

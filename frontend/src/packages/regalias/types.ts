@@ -50,6 +50,12 @@ export type Ganancia = {
   periodo_inicio:  string
   periodo_fin:     string
   streams_periodo: number
+  // Retención fiscal (modelo-financiero-completar-huecos, CU-O96) — `monto`
+  // sigue siendo el neto (lo disponible para retiro), bruto/retención son
+  // informativos.
+  monto_bruto:     number
+  retencion_pct:   number
+  monto_retenido:  number
   monto:           number
   moneda:          string
   fecha_calculo:   string

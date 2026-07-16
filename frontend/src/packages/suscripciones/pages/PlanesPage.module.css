@@ -150,6 +150,57 @@
   margin-bottom: var(--space-sm);
 }
 
+.planPrecioLocal {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  color: var(--color-muted);
+  margin: -6px 0 var(--space-sm);
+}
+
+.dunningBanner {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-sm);
+  margin: var(--space-sm) 0;
+  padding: var(--space-md);
+  background: oklch(0.78 0.18 70 / 0.1);
+  border: 1px solid oklch(0.78 0.18 70 / 0.35);
+  border-radius: var(--radius-md);
+}
+
+.dunningText {
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+  color: var(--color-warning);
+  margin: 0;
+}
+
+.planFeatures {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 var(--space-md);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.planFeatureItem {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+  color: var(--color-ink);
+}
+
+.planFeatureItem::before {
+  content: '✓';
+  color: var(--color-primary-light);
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
 /* ── Confirm form ── */
 .confirmForm {
   max-width: 420px;

@@ -12,7 +12,10 @@ export function SellosTab() {
   const queryClient = useQueryClient()
   const toast = useToast()
   const [nombre, setNombre] = useState('')
+  const [pais, setPais] = useState('')
   const [editId, setEditId] = useState<number | null>(null)
+  const [editNombre, setEditNombre] = useState('')
+  const [editPais, setEditPais] = useState('')
   const [asignarArtist, setAsignarArtist] = useState<ArtistSearchResult | null>(null)
   const [asignarAlbum, setAsignarAlbum] = useState<AlbumSearchResult | null>(null)
   const [asignarSelloId, setAsignarSelloId] = useState('')
@@ -24,9 +27,10 @@ export function SellosTab() {
   })
 
   const crear = useMutation({
-    mutationFn: () => distribucionApi.crearSello({ nombre }),
+    mutationFn: () => distribucionApi.crearSello({ nombre, pais }),
     onSuccess: () => {
       setNombre('')
+      setPais('')
       queryClient.invalidateQueries({ queryKey: ['distribucion', 'sellos'] })
       toast.success('Sello creado')
     },
@@ -34,7 +38,8 @@ export function SellosTab() {
   })
 
   const editar = useMutation({
-    mutationFn: ({ id, nombre: n }: { id: number; nombre: string }) => distribucionApi.editarSello(id, { nombre: n }),
+    mutationFn: ({ id, nombre: n, pais: p }: { id: number; nombre: string; pais: string }) =>
+      distribucionApi.editarSello(id, { nombre: n, pais: p }),
     onSuccess: () => {
       setEditId(null)
       queryClient.invalidateQueries({ queryKey: ['distribucion', 'sellos'] })
@@ -80,6 +85,18 @@ export function SellosTab() {
             placeholder="Universal Music Group"
           />
         </div>
+        <div className={styles.field}>
+          <label className={styles.fieldLabel} htmlFor="sello-pais">
+            País (opcional — usado para retención fiscal de sus regalías)
+          </label>
+          <input
+            id="sello-pais"
+            className={styles.input}
+            value={pais}
+            onChange={(e) => setPais(e.target.value)}
+            placeholder="Ecuador"
+          />
+        </div>
         <button className={styles.btnPrimary} type="submit" disabled={crear.isPending || !nombre.trim()}>
           {crear.isPending ? 'Creando…' : 'Crear sello'}
         </button>
@@ -99,7 +116,7 @@ export function SellosTab() {
         ) : (
           <table className={styles.table}>
             <thead>
-              <tr><th>ID</th><th>Nombre</th><th></th></tr>
+              <tr><th>ID</th><th>Nombre</th><th>País</th><th></th></tr>
             </thead>
             <tbody>
               {data.map((s) => (
@@ -109,18 +126,46 @@ export function SellosTab() {
                     {editId === s.sello_id ? (
                       <input
                         className={styles.input}
-                        defaultValue={s.nombre}
+                        value={editNombre}
                         autoFocus
+                        onChange={(e) => setEditNombre(e.target.value)}
                         onKeyDown={(e) => {
-                          if (e.key === 'Enter') editar.mutate({ id: s.sello_id, nombre: (e.target as HTMLInputElement).value })
+                          if (e.key === 'Enter') editar.mutate({ id: s.sello_id, nombre: editNombre, pais: editPais })
                           if (e.key === 'Escape') setEditId(null)
                         }}
-                        onBlur={(e) => editar.mutate({ id: s.sello_id, nombre: e.target.value })}
                       />
                     ) : s.nombre}
                   </td>
+                  <td>
+                    {editId === s.sello_id ? (
+                      <input
+                        className={styles.input}
+                        value={editPais}
+                        onChange={(e) => setEditPais(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') editar.mutate({ id: s.sello_id, nombre: editNombre, pais: editPais })
+                          if (e.key === 'Escape') setEditId(null)
+                        }}
+                        placeholder="Ecuador"
+                      />
+                    ) : (s.pais || '—')}
+                  </td>
                   <td className={styles.tableActions}>
-                    <button className={styles.btnGhost} onClick={() => setEditId(s.sello_id)}>Editar</button>
+                    {editId === s.sello_id ? (
+                      <button
+                        className={styles.btnGhost}
+                        onClick={() => editar.mutate({ id: s.sello_id, nombre: editNombre, pais: editPais })}
+                      >
+                        Guardar
+                      </button>
+                    ) : (
+                      <button
+                        className={styles.btnGhost}
+                        onClick={() => { setEditId(s.sello_id); setEditNombre(s.nombre); setEditPais(s.pais ?? '') }}
+                      >
+                        Editar
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))}

@@ -3,12 +3,36 @@ export type EstadoLicencia = 'activa' | 'vencida' | 'suspendida'
 export type Sello = {
   sello_id: number
   nombre:   string
+  // País del sello (modelo-financiero-completar-huecos, CU-O96) — texto
+  // libre, usado para resolver la retención fiscal de sus liquidaciones.
+  pais?:    string
 }
 
 export type Pais = {
   pais_id:    number
   nombre:     string
   codigo_iso: string
+}
+
+// Configuración de país (moneda/tasa de cambio/IVA/retención fiscal) — CU-O97.
+export type PaisConfig = {
+  pais_id:              number
+  nombre:               string
+  codigo_iso:           string
+  moneda_codigo:        string
+  tasa_cambio_a_usd:    number
+  iva_tasa:             number | null
+  retencion_fiscal_pct: number | null
+  activo:               number
+}
+
+export type PaisConfigBody = {
+  nombre:               string
+  codigo_iso:           string
+  moneda_codigo:        string
+  tasa_cambio_a_usd:    number
+  iva_tasa:             number | null
+  retencion_fiscal_pct: number | null
 }
 
 export type CanalDistribucion = {
@@ -47,6 +71,7 @@ export type Restriccion = {
 
 export type SelloBody = {
   nombre: string
+  pais?:  string
 }
 
 export type AsignarSelloBody = {

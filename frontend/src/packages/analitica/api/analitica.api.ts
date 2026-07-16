@@ -9,6 +9,7 @@ import type {
   TendenciaSemana, ReporteDiario,
   AdquisicionCanal, DisponibilidadComponente,
   ChurnMensual, FunnelConversion, PnlConsolidado, MrrArr,
+  ProyeccionGenero, ProyeccionArtista,
 } from '../types'
 
 // /dashboard/executive lives on the legacy router with no /app/v1 prefix.
@@ -59,6 +60,13 @@ export const analiticaApi = {
 
   desempenoRelativo: (factId: number) =>
     apiClient.get<DesempenoRelativo>(`/analitica/desempeno-relativo?fact_id=${factId}`),
+
+  // ── Paneles predictivos Enterprise (CU-O92/CU-O93) ──────────────────────────
+  generoProyeccion: (generoId: number) =>
+    apiClient.get<ProyeccionGenero>(`/analitica/generos/${generoId}/proyeccion`),
+
+  artistaProyeccion: (artistId: number) =>
+    apiClient.get<ProyeccionArtista>(`/analitica/artistas/${artistId}/proyeccion`),
 
   // ── Perfil de audio por género ───────────────────────────────────────────────
   // No existe un endpoint de listado de géneros en `analitica` — se reusa el

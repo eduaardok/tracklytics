@@ -27,13 +27,31 @@ Permitir que un usuario registre un método de pago, pague una suscripción exis
 | Operativo | Usuario B2C / Cliente B2B | Facturación y cobros | CU-O22 Consultar mi historial de transacciones e invoices | Como Usuario B2C, quiero ver mi historial de pagos e invoices, para llevar control de mis cobros |
 | Operativo | Lead Data Engineer / CTO | Facturación y cobros | CU-O23 Auditar el historial de facturación de cualquier usuario | Como Lead Data Engineer/CTO, quiero consultar el historial de facturación de cualquier usuario, para dar soporte y auditar cobros |
 | Operativo | Lead Data Engineer / CTO | Facturación y cobros | CU-O81 Administrar la información de la empresa emisora | Como Lead Data Engineer/CTO, quiero editar la razón social, RUC y dirección de la empresa que aparece en cada factura, para mantenerla correcta sin depender de un cambio de código |
+| Operativo | Usuario B2C / Cliente B2B | Facturación y cobros | CU-O99 Registrar un método de pago con checkout realista y ver mis notificaciones de factura | Como Usuario B2C o Cliente B2B, quiero registrar mi tarjeta simulada con sus datos completos y ver un registro de que mi factura fue enviada por correo, para tener un flujo de pago que se sienta completo y confiable |
 ## Requirements
 ### Requirement: Registro de método de pago
-El sistema SHALL permitir a un usuario autenticado registrar un método de pago simulado (tipo, últimos 4 dígitos, país), asociado únicamente a su propia cuenta.
+El sistema SHALL permitir a un usuario autenticado registrar un método de pago simulado (tipo,
+últimos 4 dígitos, país, nombre del titular, dirección de facturación), asociado únicamente a su
+propia cuenta. El sistema SHALL además aceptar un número de tarjeta simulado completo y una fecha
+de expiración simulada, ambos validados en formato, para derivar los últimos 4 dígitos — ninguno
+de los dos SHALL persistirse completo en ningún almacenamiento.
 
 #### Scenario: Registro exitoso de un método de pago
-- **WHEN** un usuario autenticado envía tipo, últimos 4 dígitos y país válidos para registrar un método de pago
-- **THEN** el sistema registra el método de pago asociado a ese usuario y queda disponible para pagar una suscripción
+- **WHEN** un usuario autenticado envía tipo, país, nombre del titular, dirección y datos válidos
+  para registrar un método de pago
+- **THEN** el sistema registra el método de pago asociado a ese usuario y queda disponible para
+  pagar una suscripción
+
+#### Scenario: Registro exitoso con tarjeta simulada válida
+- **WHEN** un usuario registra un método de pago con un número de tarjeta simulado de formato
+  válido y una fecha de expiración futura
+- **THEN** el sistema registra el método de pago conservando solo los últimos 4 dígitos, sin
+  persistir el número completo ni la expiración
+
+#### Scenario: Rechazo por formato de tarjeta inválido
+- **WHEN** un usuario intenta registrar un método de pago con un número de tarjeta que no cumple
+  el formato esperado
+- **THEN** el sistema rechaza el registro sin persistir ningún dato del método de pago
 
 ### Requirement: Pago de una suscripción existente
 El sistema SHALL permitir simular el pago de una suscripción activa del usuario autenticado usando uno de sus métodos de pago registrados, y SHALL registrar el resultado de la transacción como exitoso o fallido. Esta lógica de cobro SHALL ser reusable: además de invocarse de forma explícita, la capability `suscripciones` la invoca automáticamente al activar un plan de pago, de modo que activar y pagar ocurran en una sola operación desde la perspectiva del usuario.
@@ -148,6 +166,36 @@ El sistema SHALL exponer a un usuario con rol `admin` un panel con métricas ope
 #### Scenario: Usuario sin rol admin intenta consultar el panel de facturación
 - **WHEN** un usuario sin rol `admin` intenta consultar el dashboard de facturación
 - **THEN** el sistema rechaza la operación
+
+### Requirement: IVA configurable con override por país
+El sistema SHALL calcular el IVA de cada invoice usando la tasa de IVA propia del país del usuario
+si está configurada; si no, SHALL usar una tasa de IVA global de la plataforma, editable por un
+usuario con rol `admin` sin requerir cambios de código.
+
+#### Scenario: Cálculo de IVA con tasa global
+- **WHEN** se emite un invoice para un usuario cuyo país no tiene una tasa de IVA propia
+  configurada
+- **THEN** el sistema calcula el IVA usando la tasa de IVA global vigente
+
+#### Scenario: Administrador actualiza la tasa de IVA global
+- **WHEN** un usuario con rol `admin` actualiza la tasa de IVA global de la plataforma
+- **THEN** los invoices emitidos después de ese cambio usan la nueva tasa
+
+### Requirement: Notificación simulada de factura enviada por correo
+El sistema SHALL registrar, al emitir cada invoice, una notificación simulada de correo con
+destinatario, asunto y cuerpo, sin integrar un proveedor de correo real. El usuario dueño de la
+factura, y un administrador para cualquier usuario, SHALL poder consultar el historial de estas
+notificaciones simuladas.
+
+#### Scenario: Se registra la notificación al emitir un invoice
+- **WHEN** el sistema emite un invoice exitosamente
+- **THEN** el sistema registra una notificación simulada de correo asociada a ese invoice, visible
+  en el historial de notificaciones del usuario
+
+#### Scenario: Consultar el historial de notificaciones de factura
+- **WHEN** un usuario autenticado solicita su historial de notificaciones de factura
+- **THEN** el sistema muestra cada notificación simulada con su destinatario, asunto y fecha de
+  envío
 
 ## Entradas
 

@@ -1,7 +1,7 @@
 import { apiClient, type ApiResponse } from '@shared/lib/api-client'
 import type {
   Sello, SelloBody, AsignarSelloBody,
-  Pais, CanalDistribucion, TipoRestriccion,
+  Pais, PaisConfig, PaisConfigBody, CanalDistribucion, TipoRestriccion,
   Licencia, LicenciaBody,
   Restriccion, RestriccionBody,
   Disponibilidad, DashboardDistribucion,
@@ -38,6 +38,22 @@ export const distribucionApi = {
 
   canales: () =>
     apiClient.get<ApiResponse<CanalDistribucion>>('/distribucion/canales'),
+
+  // ── Configuración de país: moneda/tasa de cambio/IVA/retención (CU-O97) ─────
+  paisesConfig: () =>
+    apiClient.get<ApiResponse<PaisConfig>>('/distribucion/admin/paises'),
+
+  crearPais: (body: PaisConfigBody) =>
+    apiClient.post<{ status: string; pais_id: number } & PaisConfigBody>('/distribucion/admin/paises', body),
+
+  editarPais: (paisId: number, body: PaisConfigBody) =>
+    apiClient.put<{ status: string; pais_id: number } & PaisConfigBody>(`/distribucion/admin/paises/${paisId}`, body),
+
+  desactivarPais: (paisId: number) =>
+    apiClient.post<{ status: string; pais_id: number; activo: boolean }>(`/distribucion/admin/paises/${paisId}/desactivar`, undefined),
+
+  activarPais: (paisId: number) =>
+    apiClient.post<{ status: string; pais_id: number; activo: boolean }>(`/distribucion/admin/paises/${paisId}/activar`, undefined),
 
   tiposRestriccion: () =>
     apiClient.get<ApiResponse<TipoRestriccion>>('/distribucion/tipos-restriccion'),

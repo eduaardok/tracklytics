@@ -398,6 +398,11 @@ def main() -> None:
             {"name": "en_prueba",       "type": "bool", "required": False},
             {"name": "fecha_fin_trial", "type": "date", "required": False},
             {"name": "metodo_pago_id",  "type": "text", "required": False},
+            # Dunning (modelo-financiero-completar-huecos): contador de
+            # intentos de cobro fallidos consecutivos — `estado` pasa a
+            # `pago_pendiente` (texto libre, no un enum cerrado en PocketBase)
+            # mientras no se agote en 3 intentos (ver design.md, decisión 2).
+            {"name": "intentos_fallidos", "type": "number", "required": False},
         ],
     }
     try:
@@ -413,6 +418,7 @@ def main() -> None:
     ensure_collection_field(token, "suscripciones", {"name": "en_prueba", "type": "bool", "required": False})
     ensure_collection_field(token, "suscripciones", {"name": "fecha_fin_trial", "type": "date", "required": False})
     ensure_collection_field(token, "suscripciones", {"name": "metodo_pago_id", "type": "text", "required": False})
+    ensure_collection_field(token, "suscripciones", {"name": "intentos_fallidos", "type": "number", "required": False})
 
     try:
         # No se define deleteRule: las suscripciones no se eliminan, solo se

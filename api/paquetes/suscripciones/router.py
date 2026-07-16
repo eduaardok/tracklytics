@@ -5,10 +5,12 @@ from typing import Literal
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
-from core.database import get_client
+from core.database import get_client, query_one, query_rows
 from core.deps import get_current_user
-from paquetes.facturacion.router import metodo_pago_existe, procesar_pago
+from paquetes.facturacion.router import metodo_pago_existe, procesar_pago, resolver_conversion_moneda
+from paquetes.seguridad.deps import require_admin
 from paquetes.suscripciones import pb_client
+from paquetes.suscripciones.queries import PLAN_PRECIO_ACTUAL, PLANES_PRECIOS_TODOS
 from paquetes.suscripciones.planes import (
     PLANES, email_institucional_valido, plan_valido_para_rol, planes_para_rol,
 )
@@ -16,6 +18,26 @@ from paquetes.suscripciones.planes import (
 router = APIRouter(prefix="/app/v1/suscripciones", tags=["Suscripciones"])
 
 MotivoCancelacion = Literal["precio", "no_uso", "competencia", "otro"]
+
+# Dunning (modelo-financiero-completar-huecos, CU-O95, design.md decisión 2):
+# número de intentos de cobro fallidos antes de degradar la suscripción.
+MAX_INTENTOS_COBRO = 3
+
+# Ciclo de facturación fijo para el prorrateo de cambio de plan (CU-O94,
+# design.md decisión 1) — mismo valor que `etl/gold/facturacion_recurrente.py`.
+DIAS_CICLO_FACTURACION = 30
+
+
+def precio_efectivo(plan_id: str) -> float:
+    """Precio configurable por admin (DIM_PLAN, CU-O98) con fallback al
+    precio hardcodeado de `planes.py` si no hay fila (defensivo — nunca deja
+    un plan sin precio). Independiente de `_TIER_RANK` (analitica/deps.py):
+    esto solo cambia cuánto cuesta un plan, nunca qué desbloquea."""
+    fila = query_one(PLAN_PRECIO_ACTUAL, {"plan_id": plan_id})
+    if fila and fila.get("precio_usd") is not None:
+        return float(fila["precio_usd"])
+    return float(PLANES[plan_id]["precio"])
+
 
 # Duración del período de prueba gratuito del plan premium
 # (monetizacion-retencion-mejoras, ver spec.md "Período de prueba gratuito").
@@ -47,12 +69,20 @@ async def listar_planes(user: dict = Depends(get_current_user)):
     aplica `confirmar_suscripcion` al decidir `en_trial`, evaluada acá para no
     duplicarla en el cliente sin visibilidad del historial real."""
     planes = planes_para_rol(_role(user))
+    conversion = resolver_conversion_moneda(user["record"]["id"])
     for plan in planes:
         if plan["id"] == "premium":
             historial_premium = await pb_client.list_historial_por_plan(
                 user["token"], user["record"]["id"], "premium",
             )
             plan["elegible_trial"] = len(historial_premium) == 0
+        # Precio configurable por admin (CU-O98) — nunca el hardcodeado de
+        # `planes.py` directo, aunque sea el mismo valor por defecto.
+        plan["precio"] = precio_efectivo(plan["id"])
+        # Conversión a la moneda local del usuario (CU-O99, design.md
+        # decisión 7) — tasa de referencia simulada, nunca forex real.
+        plan["moneda_local"] = conversion["moneda_codigo"]
+        plan["precio_moneda_local"] = round(plan["precio"] * conversion["tasa_cambio_a_usd"], 2)
     return {"data": planes}
 
 
@@ -92,7 +122,11 @@ async def confirmar_suscripcion(
             detail="Se requiere un email institucional válido para el plan estudiante",
         )
 
-    if plan["precio"] > 0:
+    # Precio efectivo (CU-O98): configurable por admin, no el hardcodeado de
+    # `planes.py` directo (ver `precio_efectivo`).
+    precio = precio_efectivo(body.plan_id)
+
+    if precio > 0:
         if not body.metodo_pago_id:
             raise HTTPException(
                 status_code=422,
@@ -121,17 +155,17 @@ async def confirmar_suscripcion(
     if en_trial:
         fecha_fin_trial = datetime.utcnow() + timedelta(days=DIAS_TRIAL_PREMIUM)
         nueva = await pb_client.crear(
-            token, user_id, body.plan_id, plan["precio"], plan["moneda"],
+            token, user_id, body.plan_id, precio, plan["moneda"],
             en_prueba=True, fecha_fin_trial=fecha_fin_trial, metodo_pago_id=body.metodo_pago_id,
         )
         # No se llama a `procesar_pago` durante el trial — el cobro se
         # difiere hasta que expire (ver `plan_activo` / GET /activa).
         return {"data": nueva, "pago": None}
 
-    nueva = await pb_client.crear(token, user_id, body.plan_id, plan["precio"], plan["moneda"])
+    nueva = await pb_client.crear(token, user_id, body.plan_id, precio, plan["moneda"])
 
     pago = None
-    if plan["precio"] > 0:
+    if precio > 0:
         # Activar un plan de pago cobra en la misma operación — no son dos
         # pasos separados desde la perspectiva del usuario (cambio 2026-07-09).
         pago = procesar_pago(user_id, body.metodo_pago_id, nueva)
@@ -215,3 +249,189 @@ async def cancelar_suscripcion(
         column_names=["cancelacion_id", "suscripcion_id", "usuario_id", "motivo", "voluntaria"],
     )
     return {"data": cancelada}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Cambio de plan con prorrateo (modelo-financiero-completar-huecos, CU-O94)
+# ─────────────────────────────────────────────────────────────────────────────
+
+class CambiarPlanBody(BaseModel):
+    nuevo_plan_id: str
+    # Fallback si la suscripción no tiene `metodo_pago_id` propio — solo las
+    # suscripciones creadas en período de prueba lo guardan hoy
+    # (`confirmar_suscripcion`); un plan de pago normal no lo persiste, así
+    # que un upgrade sobre esa suscripción necesita que el cliente indique
+    # cuál de sus métodos ya registrados usar.
+    metodo_pago_id: str | None = None
+
+
+@router.put("/{suscripcion_id}/plan")
+async def cambiar_plan(
+    suscripcion_id: str,
+    body: CambiarPlanBody,
+    user: dict = Depends(get_current_user),
+):
+    """CU-O94: mueve una suscripción activa a otro plan sin cancelarla,
+    cobrando/acreditando el ajuste prorrateado sobre los días restantes del
+    ciclo de 30 días vigente (design.md, decisión 1)."""
+    role    = _role(user)
+    user_id = user["record"]["id"]
+    token   = user["token"]
+
+    activas = await pb_client.list_activas(token, user_id)
+    activa = next((a for a in activas if a["id"] == suscripcion_id), None)
+    if not activa:
+        raise HTTPException(status_code=404, detail="Suscripción activa no encontrada")
+
+    nuevo_plan = PLANES.get(body.nuevo_plan_id)
+    if not nuevo_plan or not plan_valido_para_rol(body.nuevo_plan_id, role):
+        raise HTTPException(status_code=404, detail="Plan no encontrado o no disponible para este tipo de cuenta")
+    if body.nuevo_plan_id == activa["tipo_plan"]:
+        raise HTTPException(status_code=422, detail="La suscripción ya está en ese plan")
+
+    precio_actual = float(activa.get("monto") or 0)
+    precio_nuevo  = precio_efectivo(body.nuevo_plan_id)
+
+    creado_raw = str(activa.get("created", "")).replace(" ", "T").replace("Z", "+00:00")
+    try:
+        creado = datetime.fromisoformat(creado_raw)
+    except ValueError:
+        creado = datetime.utcnow()
+    dias_transcurridos_ciclo = (datetime.utcnow() - creado.replace(tzinfo=None)).days % DIAS_CICLO_FACTURACION
+    dias_restantes = DIAS_CICLO_FACTURACION - dias_transcurridos_ciclo
+
+    ajuste = round((precio_nuevo - precio_actual) * dias_restantes / DIAS_CICLO_FACTURACION, 2)
+
+    pago_ajuste = None
+    if ajuste > 0:
+        metodo_pago_id = body.metodo_pago_id or activa.get("metodo_pago_id")
+        if not metodo_pago_id or not metodo_pago_existe(user_id, metodo_pago_id):
+            raise HTTPException(
+                status_code=422,
+                detail="Se requiere un método de pago válido registrado para cobrar el ajuste del upgrade",
+            )
+        # Reusa `procesar_pago` con un "suscripcion" temporal solo para el
+        # ajuste (monto=ajuste, no el precio completo del plan nuevo) —
+        # `concepto='ajuste_prorrateo'` lo distingue de un cobro normal.
+        pago_ajuste = procesar_pago(
+            user_id, metodo_pago_id, {"id": suscripcion_id, "monto": ajuste, "moneda": activa["moneda"]},
+            concepto="ajuste_prorrateo",
+        )
+        if pago_ajuste["estado"] != "exitosa":
+            raise HTTPException(
+                status_code=402,
+                detail="El cobro del ajuste prorrateado falló — el plan no se cambió",
+            )
+    elif ajuste < 0:
+        # Downgrade: crédito informativo, sin cobro real (design.md, decisión 1).
+        get_client().insert(
+            "FACT_TRANSACCION_PAGO",
+            [(str(uuid.uuid4()), user_id, activa.get("metodo_pago_id") or "", suscripcion_id,
+              ajuste, activa["moneda"], "exitosa", "ajuste_prorrateo")],
+            column_names=["transaccion_id", "usuario_id", "metodo_pago_id", "suscripcion_id", "monto", "moneda", "estado", "concepto"],
+        )
+
+    actualizada = await pb_client.actualizar_campos(token, suscripcion_id, {
+        "tipo_plan": body.nuevo_plan_id, "monto": precio_nuevo, "moneda": nuevo_plan["moneda"],
+    })
+    return {"data": actualizada, "ajuste": ajuste, "pago_ajuste": pago_ajuste}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Dunning: reintento de cobro fallido (modelo-financiero-completar-huecos, CU-O95)
+# ─────────────────────────────────────────────────────────────────────────────
+
+class ProcesarCobroBody(BaseModel):
+    metodo_pago_id: str | None = None
+    forzar_resultado: Literal["exitosa", "fallida"] | None = None
+
+
+@router.post("/{suscripcion_id}/procesar-cobro")
+async def procesar_cobro(
+    suscripcion_id: str,
+    body: ProcesarCobroBody,
+    user: dict = Depends(get_current_user),
+):
+    """CU-O95: intenta cobrar una suscripción `activa` o `pago_pendiente`.
+    Éxito -> vuelve a `activa` con el contador en cero. Falla -> incrementa
+    `intentos_fallidos`; al llegar a `MAX_INTENTOS_COBRO`, degrada (B2C ->
+    free, B2B -> cancelada) en vez de reintentar indefinidamente (design.md,
+    decisión 2)."""
+    user_id = user["record"]["id"]
+    token   = user["token"]
+
+    sus = await pb_client.obtener_por_id(token, user_id, suscripcion_id)
+    if not sus or sus.get("estado") not in ("activa", "pago_pendiente"):
+        raise HTTPException(status_code=404, detail="Suscripción no encontrada o no elegible para cobro")
+
+    metodo_pago_id = body.metodo_pago_id or sus.get("metodo_pago_id")
+    if not metodo_pago_id or not metodo_pago_existe(user_id, metodo_pago_id):
+        raise HTTPException(status_code=422, detail="Se requiere un método de pago válido para procesar el cobro")
+
+    pago = procesar_pago(user_id, metodo_pago_id, sus, forzar_resultado=body.forzar_resultado)
+
+    if pago["estado"] == "exitosa":
+        actualizada = await pb_client.actualizar_campos(token, suscripcion_id, {
+            "estado": "activa", "intentos_fallidos": 0,
+        })
+        return {"data": actualizada, "pago": pago, "degradado": False}
+
+    intentos = int(sus.get("intentos_fallidos") or 0) + 1
+
+    if intentos >= MAX_INTENTOS_COBRO:
+        role = _role(user)
+        if role == "analyst":
+            # B2B: cancela — suspende acceso a `analitica` vía
+            # `require_b2b_panel_access` (ya valida estado='activa').
+            actualizada = await pb_client.cancelar(token, suscripcion_id)
+            get_client().insert(
+                "FACT_CANCELACION_SUSCRIPCION",
+                [(str(uuid.uuid4()), suscripcion_id, user_id, "precio", 0)],
+                column_names=["cancelacion_id", "suscripcion_id", "usuario_id", "motivo", "voluntaria"],
+            )
+        else:
+            # B2C: degrada a free, mantiene el acceso a la plataforma
+            # (mismo criterio que un downgrade real de Spotify).
+            actualizada = await pb_client.actualizar_campos(token, suscripcion_id, {
+                "tipo_plan": "free", "monto": 0, "estado": "activa", "intentos_fallidos": 0,
+            })
+        return {"data": actualizada, "pago": pago, "degradado": True, "intentos_fallidos": intentos}
+
+    actualizada = await pb_client.actualizar_campos(token, suscripcion_id, {
+        "estado": "pago_pendiente", "intentos_fallidos": intentos,
+    })
+    return {"data": actualizada, "pago": pago, "degradado": False, "intentos_fallidos": intentos}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Precios de plan configurables (modelo-financiero-completar-huecos, CU-O98)
+# ─────────────────────────────────────────────────────────────────────────────
+
+class PrecioPlanBody(BaseModel):
+    precio_usd: float
+
+
+@router.get("/admin/planes")
+def listar_precios_planes(admin: dict = Depends(require_admin)):
+    filas = {f["plan_id"]: f for f in query_rows(PLANES_PRECIOS_TODOS)}
+    return {
+        "data": [
+            {
+                "plan_id": pid, "nombre": p["nombre"], "tipo_actor": p["tipo_actor"],
+                "precio_usd": float(filas[pid]["precio_usd"]) if pid in filas else p["precio"],
+            }
+            for pid, p in PLANES.items()
+        ],
+    }
+
+
+@router.put("/admin/planes/{plan_id}/precio")
+def actualizar_precio_plan(plan_id: str, body: PrecioPlanBody, admin: dict = Depends(require_admin)):
+    if plan_id not in PLANES:
+        raise HTTPException(status_code=404, detail="Plan no encontrado")
+    if body.precio_usd < 0:
+        raise HTTPException(status_code=422, detail="El precio no puede ser negativo")
+    get_client().insert(
+        "DIM_PLAN", [(plan_id, body.precio_usd, 1)], column_names=["plan_id", "precio_usd", "activo"],
+    )
+    return {"status": "ok", "plan_id": plan_id, "precio_usd": body.precio_usd}

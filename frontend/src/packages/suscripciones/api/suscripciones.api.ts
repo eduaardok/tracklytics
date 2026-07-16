@@ -1,7 +1,8 @@
 import { apiClient } from '@shared/lib/api-client'
 import type { ApiResponse } from '@shared/lib/api-client'
 import type {
-  ConfirmarSuscripcionBody, ConfirmarSuscripcionResponse, MotivoCancelacion, Plan, SuscripcionActiva,
+  CambiarPlanResponse, ConfirmarSuscripcionBody, ConfirmarSuscripcionResponse, MotivoCancelacion,
+  Plan, PrecioPlanAdmin, ProcesarCobroResponse, SuscripcionActiva,
 } from '../types'
 
 export const suscripcionesApi = {
@@ -19,6 +20,27 @@ export const suscripcionesApi = {
   cancelar: (suscripcionId: string, motivo?: MotivoCancelacion) =>
     apiClient.post<{ data: SuscripcionActiva }>(
       `/suscripciones/${suscripcionId}/cancelar${motivo ? `?motivo=${motivo}` : ''}`, undefined,
+    ),
+
+  // ── Cambio de plan con prorrateo (modelo-financiero-completar-huecos, CU-O94) ──
+  cambiarPlan: (suscripcionId: string, nuevoPlanId: string, metodoPagoId?: string | null) =>
+    apiClient.put<CambiarPlanResponse>(`/suscripciones/${suscripcionId}/plan`, {
+      nuevo_plan_id: nuevoPlanId, metodo_pago_id: metodoPagoId ?? null,
+    }),
+
+  // ── Dunning: reintento de cobro fallido (CU-O95) ────────────────────────────
+  procesarCobro: (suscripcionId: string, metodoPagoId?: string | null) =>
+    apiClient.post<ProcesarCobroResponse>(`/suscripciones/${suscripcionId}/procesar-cobro`, {
+      metodo_pago_id: metodoPagoId ?? null,
+    }),
+
+  // ── Precios de plan configurables (admin, CU-O98) ───────────────────────────
+  preciosAdmin: () =>
+    apiClient.get<{ data: PrecioPlanAdmin[] }>('/suscripciones/admin/planes'),
+
+  actualizarPrecioPlan: (planId: string, precioUsd: number) =>
+    apiClient.put<{ status: string; plan_id: string; precio_usd: number }>(
+      `/suscripciones/admin/planes/${planId}/precio`, { precio_usd: precioUsd },
     ),
 }
 

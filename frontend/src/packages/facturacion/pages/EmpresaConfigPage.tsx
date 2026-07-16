@@ -72,6 +72,34 @@ export function EmpresaConfigPage() {
               onChange={(e) => setForm((f) => ({ ...f, direccion: e.target.value }))}
             />
           </div>
+          <div className={styles.field}>
+            <label className={styles.fieldLabel} htmlFor="empresa-iva-global">
+              IVA global (%) — un país con tasa propia la sobreescribe
+            </label>
+            <input
+              id="empresa-iva-global"
+              className={styles.input}
+              type="number"
+              step="0.1"
+              min="0"
+              value={form.iva_tasa_global ?? 15}
+              onChange={(e) => setForm((f) => ({ ...f, iva_tasa_global: Number(e.target.value) }))}
+            />
+          </div>
+          <div className={styles.field}>
+            <label className={styles.fieldLabel} htmlFor="empresa-retencion-global">
+              Retención fiscal global (%) — regalías, un país con tasa propia la sobreescribe
+            </label>
+            <input
+              id="empresa-retencion-global"
+              className={styles.input}
+              type="number"
+              step="0.1"
+              min="0"
+              value={form.retencion_fiscal_pct_global ?? 10}
+              onChange={(e) => setForm((f) => ({ ...f, retencion_fiscal_pct_global: Number(e.target.value) }))}
+            />
+          </div>
           <button type="submit" className={styles.btnPrimary} disabled={guardar.isPending}>
             {guardar.isPending ? 'Guardando…' : 'Guardar cambios'}
           </button>

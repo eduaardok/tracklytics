@@ -84,7 +84,8 @@ WHERE fecha >= {inicio:DateTime} AND fecha < {fin:DateTime}
 
 GANANCIAS_ARTISTA = """
 SELECT l.liquidacion_id, l.fact_id_track, t.track_name AS track_name,
-       l.periodo_inicio, l.periodo_fin, l.streams_periodo, l.monto, l.moneda, l.fecha_calculo
+       l.periodo_inicio, l.periodo_fin, l.streams_periodo,
+       l.monto_bruto, l.retencion_pct, l.monto_retenido, l.monto, l.moneda, l.fecha_calculo
 FROM FACT_LIQUIDACION_REGALIA l
 JOIN FACT_TRACKS t ON t.fact_id = l.fact_id_track
 WHERE l.tipo_rightsholder = 'artista' AND l.rightsholder_id = {rightsholder_id:String}
@@ -93,12 +94,26 @@ ORDER BY l.periodo_inicio DESC
 
 GANANCIAS_SELLO = """
 SELECT l.liquidacion_id, l.fact_id_track, t.track_name AS track_name,
-       l.periodo_inicio, l.periodo_fin, l.streams_periodo, l.monto, l.moneda, l.fecha_calculo
+       l.periodo_inicio, l.periodo_fin, l.streams_periodo,
+       l.monto_bruto, l.retencion_pct, l.monto_retenido, l.monto, l.moneda, l.fecha_calculo
 FROM FACT_LIQUIDACION_REGALIA l
 JOIN FACT_TRACKS t ON t.fact_id = l.fact_id_track
 WHERE l.tipo_rightsholder = 'sello' AND l.rightsholder_id = {rightsholder_id:String}
 ORDER BY l.periodo_inicio DESC
 """
+
+# ── Retención fiscal (modelo-financiero-completar-huecos, CU-O96): país del
+# rightsholder para resolver la tasa de retención — artista vía su cuenta
+# (usuario_id -> DIM_USUARIO.pais), sello vía su propio campo `pais` nuevo.
+ARTISTA_PAIS_POR_CUENTA = """
+SELECT u.pais AS pais
+FROM DIM_CUENTA_ARTISTA c
+JOIN DIM_USUARIO u ON u.usuario_id = c.usuario_id
+WHERE c.cuenta_artista_id = {cuenta_artista_id:String}
+LIMIT 1
+"""
+
+SELLO_PAIS_POR_ID = "SELECT pais FROM DIM_SELLO_DISCOGRAFICO WHERE sello_id = {sello_id:UInt32} LIMIT 1"
 
 # ── Idempotencia de liquidación (modelo-financiero-simulacion) ───────────────
 # Un rango de fechas exacto ya liquidado no debe volver a generar filas —

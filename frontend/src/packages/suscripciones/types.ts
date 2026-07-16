@@ -14,6 +14,14 @@ export type Plan = {
   // del usuario, que el frontend no tiene forma de replicar sin duplicar la
   // regla de negocio. `true` cuando confirmar este plan activaría el trial.
   elegible_trial?: boolean
+  // Solo viaja en los planes B2B (basico/pro/enterprise) — catálogo de
+  // features incluidas en ese tier, para que PlanesPage.tsx muestre la
+  // escalera de valor real detrás del precio (b2b-tier-access-analitica).
+  features?: string[]
+  // Conversión a la moneda local del usuario (modelo-financiero-completar-
+  // huecos, CU-O99) — tasa de referencia simulada, nunca forex real.
+  moneda_local?: string
+  precio_moneda_local?: number
 }
 
 // Espejo de `DIAS_TRIAL_PREMIUM` en `api/paquetes/suscripciones/router.py` —
@@ -36,6 +44,30 @@ export type SuscripcionActiva = {
   // Período de prueba gratuito (monetizacion-retencion-mejoras).
   en_prueba?:        boolean
   fecha_fin_trial?:  string | null
+  // Dunning (modelo-financiero-completar-huecos, CU-O95) — `estado` puede
+  // ser 'pago_pendiente' mientras no se agoten los reintentos de cobro.
+  intentos_fallidos?: number
+  metodo_pago_id?:    string
+}
+
+export type CambiarPlanResponse = {
+  data: SuscripcionActiva
+  ajuste: number
+  pago_ajuste: PagoResultado | null
+}
+
+export type ProcesarCobroResponse = {
+  data: SuscripcionActiva
+  pago: PagoResultado
+  degradado: boolean
+  intentos_fallidos?: number
+}
+
+export type PrecioPlanAdmin = {
+  plan_id: string
+  nombre: string
+  tipo_actor: TipoActor
+  precio_usd: number
 }
 
 export type ConfirmarSuscripcionBody = {

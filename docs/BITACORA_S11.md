@@ -726,3 +726,234 @@ igual), `FinanzasAdminPage` queda en su propio chunk de build (no se coló en el
 | `frontend/src/packages/finanzas/components/charts/{RadialGauge,CategoriaTreemap,ReembolsosScatter,IndicadoresRadar}.tsx` | Nuevo — 4 charts no convencionales |
 | `frontend/src/app/router.tsx` | Ampliado — ruta `/seguridad/finanzas` (lazy) |
 | `frontend/src/app/layout/SeguridadShell.tsx` | Ampliado — link "Finanzas" en el sidebar |
+
+## Bloque 8 — `b2b-tier-access-analitica` (16 jul 2026)
+
+**Gap identificado (sesión autónoma, ciclo completo propose → apply → verify → archive)**: los 3
+planes B2B (`api/paquetes/suscripciones/planes.py`) prometían una escalera de valor explícita en su
+propia descripción — Básico "paneles esenciales", Pro "paneles avanzados y comparativas",
+Enterprise "inteligencia de negocio completa, incluyendo reporte diario operativo" — pero el
+gating real (`require_b2b_panel_access`) solo verificaba `role == "analyst"` + suscripción activa,
+sin mirar `tipo_plan`. Los 10 endpoints de `analitica` protegidos por ese dependency eran
+idénticamente accesibles a los 3 tiers, y Enterprise no tenía ningún panel exclusivo pese a costar
+3x más que Pro. La descripción de Enterprise, además, prometía "reporte diario operativo" — un
+panel que en realidad es `require_staff` (admin-only), nunca alcanzable por ningún Cliente B2B sin
+importar cuánto pague; se corrigió esa descripción como parte del mismo change.
+
+### Diseño
+
+Gating por tier modelado como dict estático (`_TIER_RANK = {"basico": 0, "pro": 1, "enterprise":
+2}`) + dependency factory `require_tier(minimo)` en `api/paquetes/analitica/deps.py`, en vez de
+reusar el patrón de permisos granulares de `seguridad` (`FACT_PERMISO_USUARIO`, CU-O17): ese
+patrón existe para permisos asignables por un admin en runtime por usuario individual, mientras que
+el tier B2B es un atributo fijo del plan que el cliente compra, no configurable por admin — usar
+una tabla asignable ahí habría introducido una superficie de inconsistencia sin aportar nada al
+alcance del proyecto. `require_b2b_panel_access` ahora devuelve `tier` junto al `user` (admin recibe
+`"enterprise"` implícito), y `require_tier` lo compara sin round-trip adicional a PocketBase.
+
+Paneles predictivos/estratégicos nuevos (exclusivos Enterprise, CU-O92/CU-O93): proyección de
+tendencia de género y proyección de trayectoria de artista vs. su género predominante, calculadas
+con regresión lineal simple (`numpy.polyfit`, ya en `requirements.txt` — cero dependencias nuevas)
+sobre la serie semanal de popularidad (`load_week`), extrapolada 4 semanas adelante. Mínimo 3
+semanas de datos para proyectar; con menos, `suficiente: false` en vez de un valor sin base. Se
+evaluó un tercer endpoint de "alerta temprana" (paralelo a `AlertasTab.tsx` de `finanzas`, CU-O89) y
+se descartó: la alerta es un derivado directo del mismo cálculo de proyección, así que se embebió
+como campo `alerta` en los dos endpoints existentes en vez de triplicar la consulta. Presentación
+siempre como "proyección estadística estimada", nunca como "predicción de IA" — mismo criterio que
+la regla de framing de datos sintéticos del proyecto.
+
+**Corrección durante la implementación** (verificación real > intuición): el diseño inicial asignó
+`/artistas/search` (v1) a tier Pro, asumiendo que solo alimentaba los paneles comparativos. Al
+revisar el consumidor real en el frontend, resultó ser exclusivamente `EngagementPage.tsx` (buscar
+un artista para ver su engagement, panel Básico) — `ComparacionPage`/`ArtistaBenchmarkPage` usan un
+`ArtistPicker` compartido que golpea un endpoint legacy distinto, sin este dependency. Gatear ese
+endpoint a Pro habría bloqueado un feature Básico sin restringir ningún panel Pro; se corrigió a
+Básico antes de verificar con curl. Documentado en `design.md` como aprendizaje: verificar el
+consumidor real en el frontend antes de asignar tier por similitud de nombre de ruta.
+
+### Auditoría retroactiva de trazabilidad
+
+`openspec/specs/analitica/spec.md` y `openspec/specs/suscripciones/spec.md` ya tenían la tabla de
+5 niveles "de negocio" (nivel empresarial → departamento → paquete → CU → historia de usuario)
+exigida por la convención docente, pero ninguno documentaba explícitamente la cadena técnica CU →
+endpoint → componente frontend — vivía implícita en nombres de rutas e imports. Se completó esa
+cadena para los 14 CU operativos existentes de ambos paquetes en `design.md` del change (sin abrir
+un change aparte, por ser documentación) — no se encontraron CU sin componente frontend real
+asociado, el hueco era puramente de documentación, no de cobertura funcional.
+
+### Verificación real
+
+**curl** contra la API en Docker (`docker compose up -d pocketbase pb-init clickhouse init-db
+init-permissions api frontend-react`): 3 cuentas nuevas (`cliente_basico@demo.tracklytics.com`,
+`cliente_pro@…`, `cliente_enterprise@…`, password `Demo12345!`, creadas vía
+`POST /seguridad/auth/registro` + método de pago + `POST /suscripciones` con el `tipo_plan`
+correspondiente) confirmaron: Básico ve solo paneles base (403 estructurado
+`tier_insuficiente` en comparativos y predictivos), Pro ve paneles base + comparativos (403 en
+predictivos), Enterprise ve todo incluidos los 2 paneles nuevos con datos reales
+(`pendiente_semanal`, `alerta`, `trayectoria`); admin bypassa todo (`tier: "enterprise"` implícito)
+y `require_staff` (`/churn`) sigue rechazando a Enterprise igual que antes. Casos de borde
+verificados directamente sobre `proyeccion.py`: datos insuficientes (`suficiente: false` con <3
+semanas) y alerta temprana (`alerta: true` con pendiente negativa >10% acumulado).
+
+**Playwright** real contra `npm run dev` (puerto 5173, proxy a la API en 8000): `PlanesPage`
+muestra las features por tier (capturas); cuenta Básico en `/analitica/adquisicion` ve la tarjeta
+"disponible desde el plan Pro" con CTA "Ver planes" en vez de un error genérico; cuenta Pro accede
+al panel sin bloqueo y no ve la sección "Predictivo" en la nav; cuenta Enterprise ve la nav
+"Proyección de género"/"Proyección de artista", ambos paneles renderizan el gráfico
+histórico+proyectado (`MiniLineChart`) y, en el caso de artista, el badge de trayectoria
+("Perdiendo terreno frente a su género" para el caso probado). `npm run build`: sin errores.
+
+### Artefactos entregados (Bloque 8)
+
+| Artefacto | Estado |
+|---|---|
+| `api/paquetes/analitica/deps.py` | Ampliado — `_TIER_RANK`, `require_tier` |
+| `api/paquetes/analitica/router.py` | Ampliado — tier por endpoint, 2 endpoints predictivos nuevos |
+| `api/paquetes/analitica/queries.py` | Ampliado — `GENRE_WEEKLY_POPULARITY`, `ARTIST_WEEKLY_POPULARITY` |
+| `api/paquetes/analitica/proyeccion.py` | Nuevo — regresión lineal simple, umbral de alerta |
+| `api/paquetes/suscripciones/planes.py` | Ampliado — `features` por plan B2B, descripción Enterprise corregida |
+| `frontend/src/packages/suscripciones/pages/PlanesPage.tsx` | Ampliado — lista de features por plan |
+| `frontend/src/packages/analitica/components/TierUpsell.tsx` | Nuevo — estado "disponible desde plan X" |
+| `frontend/src/packages/analitica/lib/tierError.ts` | Nuevo — helper de lectura del 403 estructurado |
+| `frontend/src/packages/analitica/pages/{ProyeccionGeneroPage,ProyeccionArtistaPage}.tsx` | Nuevo — paneles predictivos Enterprise |
+| `frontend/src/shared/lib/api-client.ts` | Ampliado — `ApiError.detailBody` para `detail` estructurado |
+| `frontend/src/app/layout/AnalyticaShell.tsx` | Ampliado — sección "Predictivo" (tier Enterprise/admin) |
+| `openspec/specs/analitica/spec.md` | Sincronizado — CU-O92/CU-O93, gating por tier, trazabilidad completada |
+| `openspec/specs/suscripciones/spec.md` | Sincronizado — features por plan (CU-O06) |
+| `openspec/changes/archive/2026-07-16-b2b-tier-access-analitica/` | Archivado |
+
+## Bloque 9 — `modelo-financiero-completar-huecos` (16 jul 2026, mismo día)
+
+**Auditoría del manejo de dinero** (`facturacion`, `regalias`, `publicidad`, `suscripciones`,
+`finanzas`): el modelo ya era sólido (trial, IVA en invoices, pool 70/30 con split 80/20, retiros
+con aprobación, pausa automática por presupuesto, panel de finanzas consolidado), pero faltaban 4
+piezas para operar como un negocio real: cambio de plan, dunning real, retención fiscal a
+rightsholders, y país/moneda/IVA/checkout configurables sin tocar código.
+
+### Qué se implementó
+
+- **Cambio de plan con prorrateo (CU-O94)**: `PUT /suscripciones/{id}/plan` mueve la suscripción
+  in-place (PATCH sobre el mismo registro PocketBase, conserva `created`) a otro `tipo_plan`,
+  cobrando/acreditando el ajuste sobre los días restantes de un ciclo de 30 días.
+  `concepto='ajuste_prorrateo'` nuevo en `FACT_TRANSACCION_PAGO` distingue el ajuste de un cobro
+  normal.
+- **Dunning real (CU-O95)**: nuevo estado `pago_pendiente` + `intentos_fallidos` en la colección
+  `suscripciones`; `POST /suscripciones/{id}/procesar-cobro` intenta el cobro, incrementa el
+  contador si falla, y degrada a los 3 intentos (B2C → free manteniendo acceso; B2B → cancelada,
+  suspende `analitica` vía el `require_b2b_panel_access` ya existente). `finanzas` suma la alerta
+  "suscripciones con cobro pendiente" (CU-O89). El DAG `facturacion_recurrente.py` usa la misma
+  política en vez de cancelar en la primera falla.
+- **Retención fiscal en regalías (CU-O96)**: `FACT_LIQUIDACION_REGALIA` gana
+  `monto_bruto`/`retencion_pct`/`monto_retenido`; `monto` pasa a significar el neto. La tasa se
+  resuelve por país del rightsholder (override en `DIM_PAIS`) o una tasa global en `DIM_EMPRESA`
+  (fallback). Tratada como pasivo por remitir, no como ingreso de la plataforma.
+- **País configurable (CU-O97)**: `DIM_PAIS` gana `moneda_codigo`/`tasa_cambio_a_usd` (congelada,
+  simulada)/`iva_tasa`/`retencion_fiscal_pct`/`activo`, con CRUD admin nuevo en `distribucion`
+  (dueño de la tabla) — antes solo tenía lectura.
+- **Precios de plan configurables (CU-O98)**: nueva tabla `DIM_PLAN`, desacoplada a propósito de
+  `_TIER_RANK` (`analitica/deps.py`, change anterior) — el admin cambia cuánto cuesta un plan,
+  nunca qué desbloquea.
+- **Checkout + notificación simulada (CU-O99)**: `MetodoPagoBody` acepta `numero_tarjeta`/
+  `fecha_expiracion` (validados, nunca persistidos — se descubrió que `FacturacionPage.tsx` ya
+  hacía esto client-side desde un change anterior no documentado en la spec, corregido en esta
+  sesión). Nueva tabla `FACT_EMAIL_ENVIADO` registra cada factura emitida como notificación
+  simulada, visible en una tabla nueva en `FacturacionPage.tsx`.
+
+### Decisiones de diseño
+
+Prorrateo sobre ciclo fijo de 30 días (mismo criterio que `facturacion_recurrente.py`, ya
+documentado como simplificación académica). Dunning con 3 intentos fijos en código, resuelto vía
+endpoint (no hay scheduler real garantizado — memoria de proyecto, Airflow puede morir en
+silencio). Retención/IVA con patrón "global + override por país" (no exigir tasa por los 15
+países sembrados). Configuración de país como extensión de `DIM_PAIS` existente, no una tabla
+paralela ni un paquete de configuración nuevo.
+
+**Corrección real durante la verificación con curl**: el diseño asumía que toda suscripción de
+pago guarda su `metodo_pago_id`, pero `confirmar_suscripcion` solo lo persiste en el camino de
+trial — un plan de pago normal nunca lo guardaba (comportamiento preexistente). Se corrigió
+`PUT /{id}/plan` para aceptar `metodo_pago_id` opcional en el body como fallback, verificado con
+una suscripción real que no lo tenía.
+
+### Auditoría retroactiva de trazabilidad
+
+`facturacion`, `regalias`, `distribucion` y `suscripciones` ya tenían la tabla de 5 niveles "de
+negocio" exigida por convención, pero ninguna documentaba CU → endpoint → componente frontend en
+un solo lugar (mismo hueco ya corregido para `analitica` en el bloque 8). Se completó esa cadena
+en `design.md` del change para los CU de dinero relevantes. Hallazgo adicional: el requirement
+"Registro de método de pago" de `facturacion/spec.md` describía el endpoint como "tipo, últimos 4
+dígitos, país" pero el código ya capturaba `nombre_titular`/`direccion`/`ciudad`/`codigo_postal`
+desde un change anterior nunca sincronizado — corregido en la misma delta spec. También se
+documentó que CU-O63 (liquidar regalías) no tiene ningún componente frontend propio — hueco
+preexistente, fuera del alcance de este change.
+
+### Verificación real
+
+**curl**: ciclo completo de dunning (2 fallos → `pago_pendiente` con contador, 3er fallo →
+degradación B2C a free, reintento exitoso → reset a `activa`), cambio de plan (upgrade con cobro
+real de ajuste, downgrade con crédito sin cobro, rechazo por cobro fallido), país nuevo (Uruguay)
+con moneda/tasa/IVA/retención propios y desactivación, retención fiscal real en una liquidación
+(`liquidar` real sobre datos existentes: sello con país Ecuador y retención propia del 5% vs.
+sello/productor sin país configurado usando la tasa global del 10%, confirmado con
+`toFloat64()` directo en ClickHouse), conversión de moneda para un usuario mexicano (MXN a tasa
+18x), edición de precio de plan admin reflejada de inmediato. Un hallazgo curioso: al ordenar
+liquidaciones por fecha, aparecieron primero registros de años futuros (2027-2028) sembrados por
+`simulacion` — no un bug, solo un recordatorio de que esa capability puebla datos con fechas
+simuladas más allá del presente.
+
+**Playwright** real contra `npm run dev`: `PlanesPage` muestra conversión a MXN y el botón
+"Cambiar a este plan"; `FacturacionPage` muestra las transacciones de ajuste (+300/-300) y la
+notificación de factura simulada; `EmpresaConfigPage` con los campos de IVA/retención global;
+pestaña "Configuración" nueva en `DistribucionAdminPage` con precios de plan y países (incluido
+Uruguay desactivado con sus tasas). Se corrigió en el camino un bug de precisión de punto flotante
+en `fmtPrecio` (mostraba `12.989999771118164` en vez de `12.99`).
+
+### Artefactos entregados (Bloque 9)
+
+| Artefacto | Estado |
+|---|---|
+| `init_clickhouse.py` | Ampliado — columnas nuevas en `DIM_PAIS`/`DIM_EMPRESA`/`DIM_SELLO_DISCOGRAFICO`/`FACT_TRANSACCION_PAGO`/`FACT_LIQUIDACION_REGALIA`, tablas nuevas `DIM_PLAN`/`FACT_EMAIL_ENVIADO` |
+| `pb_init.py` | Ampliado — campo `intentos_fallidos` en `suscripciones` |
+| `api/paquetes/suscripciones/{router.py,pb_client.py,queries.py}` | Ampliado — cambio de plan, dunning, precios configurables |
+| `etl/gold/facturacion_recurrente.py` | Ampliado — dunning en vez de cancelación inmediata |
+| `api/paquetes/regalias/{router.py,queries.py}` | Ampliado — retención fiscal en liquidación |
+| `api/paquetes/distribucion/{router.py,queries.py}` | Ampliado — CRUD de país, país en sellos |
+| `api/paquetes/facturacion/{router.py,queries.py}` | Ampliado — IVA configurable, checkout, notificación simulada |
+| `frontend/src/packages/suscripciones/{pages/PlanesPage.tsx,types.ts,api/suscripciones.api.ts}` | Ampliado — cambio de plan, dunning, moneda local |
+| `frontend/src/packages/facturacion/pages/{FacturacionPage,EmpresaConfigPage}.tsx` | Ampliado — notificaciones, IVA/retención global |
+| `frontend/src/packages/distribucion/components/ConfiguracionGlobalTab.tsx` | Nuevo — países + precios de plan |
+| `frontend/src/packages/regalias/pages/MisGananciasPage.tsx` | Ampliado — bruto/retención/neto |
+| `openspec/specs/{suscripciones,regalias,distribucion,facturacion}/spec.md` | Sincronizados — CU-O94 a CU-O99, corrección retroactiva de método de pago |
+| `openspec/changes/archive/2026-07-16-modelo-financiero-completar-huecos/` | Archivado |
+
+### QA post-cierre (16 jul 2026, mismo día) — bug real encontrado y corregido
+
+Sesión de verificación (no un change nuevo) sobre los bloques 8 y 9 antes de una demo. Dos
+veredictos pedidos:
+
+- **CU-O63 (liquidar regalías) sin UI propia** — el bloque 9 documentó esto como hueco
+  preexistente. **Resultó ser un hallazgo equivocado**: `RegaliasAdminPage.tsx` ya tiene un
+  formulario "Liquidar un período" (fecha desde/hasta + botón), funcional, verificado en vivo con
+  Playwright (genera liquidaciones reales, muestra el resumen de pool/streams). Demo-safe sin
+  ningún cambio.
+- **Fix de `metodo_pago_id` del bloque 9** — verificado con curl de punta a punta (B2C premium
+  nuevo con trial, B2B básico nuevo con cobro inmediato): el fallback agregado en `PUT
+  /suscripciones/{id}/plan` no interfiere con el flujo de pago normal: transacción e invoice se
+  generan igual que antes, el `metodo_pago_id` real queda bien asociado en
+  `FACT_TRANSACCION_PAGO`. Demo-safe.
+
+**Bug real encontrado durante la pasada de humo** (no en los dos puntos pedidos, en el flujo de
+dunning del bloque 9 mismo): `pb_client.list_activas` filtraba estrictamente `estado="activa"` —
+al mover una suscripción a `pago_pendiente` (dunning), esa función dejaba de devolverla por
+completo. Efecto real: `GET /suscripciones/activa` devolvía `null`, así que `PlanesPage.tsx`
+mostraba "Plan Activo: Free" en vez del banner de dunning (el usuario perdía visibilidad total de
+que su cobro había fallado), y `require_b2b_panel_access` le cortaba el acceso a un Cliente B2B
+desde el primer intento fallido en vez de mantenerlo durante los reintentos, como decía el diseño.
+**Corregido**: el filtro de `list_activas` ahora es `(estado="activa" || estado="pago_pendiente")`
+— un único cambio en `api/paquetes/suscripciones/pb_client.py` que arregla ambos síntomas a la
+vez, verificado de nuevo con curl (acceso B2B confirmado durante `pago_pendiente`) y Playwright (el
+banner de dunning ahora se ve correctamente en `PlanesPage.tsx`, con "Plan Activo: Premium" y el
+botón "Reintentar cobro", no "Free").
+
+Cuentas de prueba de la demo restauradas a un estado limpio tras las pruebas: `cliente_basico@...`
+de vuelta a `activa`; `cliente_dunning@...` dejado deliberadamente en `pago_pendiente` (1 de 3
+intentos) para que el banner sea visible al abrir sesión mañana.

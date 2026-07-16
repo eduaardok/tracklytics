@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { analiticaApi } from '../api/analitica.api'
+import { TierUpsell } from '../components/TierUpsell'
+import { tierInsuficienteInfo } from '../lib/tierError'
 import type { ArtistSearchResult, TrackSearchResult, EngagementData, DesempenoRelativo } from '../types'
 import styles from './EngagementPage.module.css'
 
@@ -179,11 +181,12 @@ export function EngagementPage() {
     enabled: !!selection,
   })
 
-  const { data: desempeno, isLoading: desLoading } = useQuery({
+  const { data: desempeno, isLoading: desLoading, error: desError } = useQuery({
     queryKey: ['desempeno', selection?.id],
     queryFn: () => analiticaApi.desempenoRelativo(selection!.id),
     enabled: !!selection && selection.type === 'track',
   })
+  const desempenoTierInfo = tierInsuficienteInfo(desError)
 
   function changeType(type: EntityType) {
     setEntityType(type)
@@ -355,6 +358,8 @@ export function EngagementPage() {
           {selection.type === 'track' && (
             desLoading
               ? <PanelSkeleton rows={3} />
+              : desempenoTierInfo
+              ? <TierUpsell tierRequerido={desempenoTierInfo.tierRequerido} tierActual={desempenoTierInfo.tierActual} />
               : desempeno && <DesempenoPanel data={desempeno} />
           )}
         </>

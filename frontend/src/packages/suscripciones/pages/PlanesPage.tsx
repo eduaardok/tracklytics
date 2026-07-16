@@ -32,7 +32,24 @@ function fmtFecha(iso?: string): string {
 }
 
 function fmtPrecio(precio: number, moneda: string): string {
-  return precio > 0 ? `${precio} ${moneda}/mes` : 'Gratis'
+  // `precio` puede venir de DIM_PLAN (ClickHouse Float32) con ruido de
+  // precisión de punto flotante (ej. 12.989999771118164) — se redondea a 2
+  // decimales para mostrar, mismo criterio que el resto de montos de dinero
+  // del proyecto (ver MiniLineChart, formatTooltipValue).
+  return precio > 0 ? `${precio.toFixed(2)} ${moneda}/mes` : 'Gratis'
+}
+
+// Estimación client-side del ajuste prorrateado (modelo-financiero-completar-
+// huecos, CU-O94) — mismo ciclo de 30 días y misma fórmula que
+// `PUT /suscripciones/{id}/plan` en el backend, que es quien calcula el
+// monto real al confirmar; esto solo evita confirmar "a ciegas".
+const DIAS_CICLO = 30
+
+function estimarAjuste(activa: { created?: string; monto: number }, precioNuevo: number): number {
+  const creado = activa.created ? new Date(activa.created.replace(' ', 'T')) : new Date()
+  const diasTranscurridos = Math.floor((Date.now() - creado.getTime()) / 86_400_000) % DIAS_CICLO
+  const diasRestantes = DIAS_CICLO - diasTranscurridos
+  return Math.round((precioNuevo - activa.monto) * diasRestantes / DIAS_CICLO * 100) / 100
 }
 
 function fmtFechaCobroTrial(): string {
@@ -77,12 +94,14 @@ export function PlanesPage() {
     queryFn:  () => suscripcionesApi.activa(),
     enabled:  role !== 'admin',
   })
-  // Solo se necesita cuando el plan seleccionado es de pago — evita el
-  // roundtrip para planes free (ver `enabled`).
+  // Se necesita tanto para confirmar un plan de pago nuevo como para cobrar
+  // el ajuste de un cambio de plan (CU-O94) o reintentar un cobro fallido
+  // (CU-O95) — se carga siempre que hay sesión no-admin, no solo cuando hay
+  // un plan seleccionado.
   const metodosQuery = useQuery({
     queryKey: ['facturacion', 'metodos-pago'],
     queryFn:  () => facturacionApi.metodosPago(),
-    enabled:  !!selectedPlan && selectedPlan.precio > 0,
+    enabled:  role !== 'admin',
   })
   const metodos: MetodoPago[] = metodosQuery.data?.data ?? []
 
@@ -132,6 +151,49 @@ export function PlanesPage() {
     },
     onError: (err) => toast.error(apiErrorMessage(err, 'No se pudo cancelar la suscripción.')),
   })
+
+  // Cambio de plan con prorrateo (CU-O94, modelo-financiero-completar-huecos).
+  const cambiarPlan = useMutation({
+    mutationFn: ({ suscripcionId, nuevoPlanId, metodoPagoId }: { suscripcionId: string; nuevoPlanId: string; metodoPagoId: string | null }) =>
+      suscripcionesApi.cambiarPlan(suscripcionId, nuevoPlanId, metodoPagoId),
+    onSuccess: (res) => {
+      queryClient.invalidateQueries({ queryKey: PLAN_ACTIVO_QUERY_KEY })
+      if (res.ajuste > 0) toast.success(`Plan cambiado — se cobró un ajuste de ${res.ajuste.toFixed(2)}`)
+      else if (res.ajuste < 0) toast.success(`Plan cambiado — crédito de ${Math.abs(res.ajuste).toFixed(2)} (sin cobro)`)
+      else toast.success('Plan cambiado')
+    },
+    onError: (err) => toast.error(apiErrorMessage(err, 'No se pudo cambiar de plan.')),
+  })
+
+  // Dunning: reintento de cobro fallido (CU-O95).
+  const procesarCobro = useMutation({
+    mutationFn: ({ suscripcionId, metodoPagoId }: { suscripcionId: string; metodoPagoId: string | null }) =>
+      suscripcionesApi.procesarCobro(suscripcionId, metodoPagoId),
+    onSuccess: (res) => {
+      queryClient.invalidateQueries({ queryKey: PLAN_ACTIVO_QUERY_KEY })
+      if (res.pago.estado === 'exitosa') toast.success('Cobro procesado — tu suscripción está activa de nuevo')
+      else if (res.degradado) toast.error('Se agotaron los intentos de cobro — tu plan fue degradado')
+      else toast.error(`El cobro volvió a fallar (intento ${res.intentos_fallidos} de 3)`)
+    },
+    onError: (err) => toast.error(apiErrorMessage(err, 'No se pudo procesar el cobro.')),
+  })
+
+  async function handleCambiarPlan(nuevoPlan: Plan, activaActual: NonNullable<typeof activa>) {
+    const ajusteEstimado = estimarAjuste(activaActual, nuevoPlan.precio)
+    const metodoPagoId = activaActual.metodo_pago_id || metodos[0]?.metodo_pago_id || null
+    const mensaje = ajusteEstimado > 0
+      ? `Cambiar a ${nuevoPlan.nombre} — se cobrará un ajuste estimado de ${ajusteEstimado.toFixed(2)} ${activaActual.moneda} por los días restantes de tu ciclo actual.`
+      : ajusteEstimado < 0
+      ? `Cambiar a ${nuevoPlan.nombre} — recibirás un crédito informativo de ${Math.abs(ajusteEstimado).toFixed(2)} ${activaActual.moneda}, sin cobro.`
+      : `¿Cambiar a ${nuevoPlan.nombre}?`
+    const ok = await confirm(mensaje, { confirmLabel: 'Cambiar de plan' })
+    if (!ok) return
+    if (ajusteEstimado > 0 && !metodoPagoId) {
+      toast.error('Necesitas un método de pago registrado para este upgrade — agrégalo en Facturación.')
+      return
+    }
+    cambiarPlan.mutate({ suscripcionId: activaActual.id, nuevoPlanId: nuevoPlan.id, metodoPagoId })
+  }
 
   const planes = planesQuery.data?.data ?? []
   const activa = activaQuery.data?.data ?? null
@@ -213,6 +275,25 @@ export function PlanesPage() {
               En período de prueba — termina el {fmtFecha(activa.fecha_fin_trial ?? undefined)}
             </p>
           )}
+          {activa.estado === 'pago_pendiente' && (
+            <div className={styles.dunningBanner} role="alert">
+              <p className={styles.dunningText}>
+                ⚠ Tu último cobro falló ({activa.intentos_fallidos ?? 1} de 3 intentos) — tu plan
+                seguirá activo mientras reintentas, pero se degradará si se agotan los intentos.
+              </p>
+              <button
+                type="button"
+                className={styles.btnPrimary}
+                disabled={procesarCobro.isPending}
+                onClick={() => procesarCobro.mutate({
+                  suscripcionId: activa.id,
+                  metodoPagoId: activa.metodo_pago_id || metodos[0]?.metodo_pago_id || null,
+                })}
+              >
+                {procesarCobro.isPending ? 'Reintentando…' : 'Reintentar cobro'}
+              </button>
+            </div>
+          )}
           {activa.tipo_plan !== 'free' && (
             <div className={styles.field}>
               <label className={styles.fieldLabel} htmlFor="motivo-cancelacion">Motivo (si cancelas)</label>
@@ -257,14 +338,30 @@ export function PlanesPage() {
                   {esActual && <span className={styles.currentBadge}>Plan actual</span>}
                 </div>
                 <p className={styles.planDesc}>{p.descripcion}</p>
+                {p.features && p.features.length > 0 && (
+                  <ul className={styles.planFeatures}>
+                    {p.features.map((feature) => (
+                      <li key={feature} className={styles.planFeatureItem}>{feature}</li>
+                    ))}
+                  </ul>
+                )}
                 <div className={styles.planPrecio}>{fmtPrecio(p.precio, p.moneda)}</div>
+                {p.moneda_local && p.moneda_local !== p.moneda && p.precio > 0 && (
+                  <div className={styles.planPrecioLocal}>
+                    ≈ {p.precio_moneda_local?.toFixed(2)} {p.moneda_local}/mes (referencial)
+                  </div>
+                )}
                 <button
                   type="button"
                   className={styles.btnPrimary}
-                  disabled={esActual}
-                  onClick={() => handleSelect(p)}
+                  disabled={esActual || cambiarPlan.isPending}
+                  onClick={() => (activa ? handleCambiarPlan(p, activa) : handleSelect(p))}
                 >
-                  {esActual ? 'Ya tienes este plan' : 'Suscribirme'}
+                  {esActual
+                    ? 'Ya tienes este plan'
+                    : activa
+                    ? (cambiarPlan.isPending ? 'Cambiando…' : 'Cambiar a este plan')
+                    : 'Suscribirme'}
                 </button>
               </div>
             )

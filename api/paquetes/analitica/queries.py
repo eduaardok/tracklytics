@@ -84,6 +84,33 @@ GROUP BY load_week
 ORDER BY load_week
 """
 
+# ── Paneles predictivos Enterprise (b2b-tier-access-analitica) ──────────────
+# Serie semanal de popularidad por género/artista — ni GENRES_TRENDS (snapshot
+# agregado sin dimensión temporal) ni ARTIST_AUDIO_STATS_V1 (agregado de todo
+# el histórico) traen esta serie; se agrupa por `load_week` igual que
+# TENDENCIAS_LOAD_WEEK, filtrando por genre_id/artist_id (design.md, decisión 3).
+GENRE_WEEKLY_POPULARITY = f"""
+SELECT
+    load_week                        AS load_week,
+    count()                          AS track_count,
+    round(avg(popularity), 2)        AS avg_popularity
+FROM {_DB}.FACT_TRACKS
+WHERE genre_id = {{genre_id:Int32}}
+GROUP BY load_week
+ORDER BY load_week
+"""
+
+ARTIST_WEEKLY_POPULARITY = f"""
+SELECT
+    load_week                        AS load_week,
+    count()                          AS track_count,
+    round(avg(popularity), 2)        AS avg_popularity
+FROM {_DB}.FACT_TRACKS
+WHERE artist_id = {{artist_id:Int32}}
+GROUP BY load_week
+ORDER BY load_week
+"""
+
 # raw_score por fact_id: reproduccion x1 + favorito_add x3 (RF-ANA-006).
 # No existe un evento de tipo "playlist_add" en FACT_ENGAGEMENT_USUARIO hoy
 # (ver decisiones de diseño), por lo que ese término del raw_score es 0.

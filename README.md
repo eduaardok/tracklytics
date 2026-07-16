@@ -11,7 +11,7 @@
 [![PocketBase](https://img.shields.io/badge/PocketBase-Auth-B8DBE4?style=for-the-badge&logo=pocketbase&logoColor=black)](https://pocketbase.io)
 
 ![Records](https://img.shields.io/badge/Registros-1.1M+-8B5CF6?style=for-the-badge)
-![Tables](https://img.shields.io/badge/Tablas_ClickHouse-68-8B5CF6?style=for-the-badge)
+![Tables](https://img.shields.io/badge/Tablas_ClickHouse-70-8B5CF6?style=for-the-badge)
 ![Capabilities](https://img.shields.io/badge/Capabilities_OpenSpec-15-8B5CF6?style=for-the-badge)
 ![Progress](https://img.shields.io/badge/Avance-modelo%20de%20negocio%20completo-22c55e?style=for-the-badge)
 
@@ -169,7 +169,9 @@ Los volúmenes se recrean solos. No es necesario ningún paso manual adicional.
 | `/distribucion/disponibilidad` — Consulta de restricción geográfica (licencias/mercado) | Requiere sesión |
 | `/soporte` — Tickets de soporte | Requiere sesión |
 | `/regalias/ganancias` — Ganancias propias (artista o sello) por período | Requiere sesión (cuenta de artista o de sello) |
-| `/analitica/*` — Dashboard, engagement, géneros, comparación, benchmark, tendencias, playlists top, adquisición de usuarios, disponibilidad de infraestructura | `analyst`/`admin` con suscripción B2B activa |
+| `/analitica/*` — Dashboard, engagement, géneros, tendencias, playlists top, disponibilidad de infraestructura | `analyst`/`admin` con suscripción B2B activa (tier Básico o superior) |
+| `/analitica/comparacion`, `/analitica/benchmark`, `/analitica/adquisicion` (índice de desempeño relativo vive en `/analitica/engagement`) | `analyst`/`admin` con tier B2B Pro o superior |
+| `/analitica/proyeccion-genero`, `/analitica/proyeccion-artista` — paneles predictivos (proyección estadística, no ML) | `analyst`/`admin` con tier B2B Enterprise |
 | `/analitica/reporte-diario` | `admin` únicamente |
 | `/seguridad/*` — Permisos, auditoría, errores, dashboards administrativos (auditoria/facturacion/creadores/social/distribucion/soporte, cada uno `GET /admin/dashboard`), moderación, plan familiar, regalías (contratos/liquidación), publicidad (anunciantes/campañas), partners (consola), ingesta (ETL/CRUD/calidad de datos) | `admin` únicamente |
 | `/login`, `/register`, `/acerca-de` | Pública |
@@ -220,17 +222,17 @@ API key por header (`X-API-Key`), resuelta contra la colección `partners`, segm
 | Capability | Casos de uso | Tablas ClickHouse nuevas |
 |---|---|---|
 | `catalogo` | Navegación, búsqueda (con filtros avanzados de popularidad/tempo/energy), detalle de track/artista/álbum, favoritos, playlists (colaborativas, con reorder) | *(existente)* |
-| `suscripciones` | Planes B2C/B2B, confirmar, consultar activa, cancelar, trial de 7 días, plan estudiante, churn con motivo | *(existente)* + `FACT_CANCELACION_SUSCRIPCION` |
-| `analitica` | Dashboards ejecutivos, perfil de audio por género, comparación/benchmark de artistas, tendencias, reporte diario, churn/funnel/P&L, MRR/ARR | *(existente)* |
+| `suscripciones` | Planes B2C/B2B, confirmar, consultar activa, cancelar, trial de 7 días, plan estudiante, churn con motivo, cambio de plan con prorrateo, dunning (cobro fallido con reintentos), precios de plan configurables | *(existente)* + `FACT_CANCELACION_SUSCRIPCION`, `DIM_PLAN` |
+| `analitica` | Dashboards ejecutivos, perfil de audio por género, comparación/benchmark de artistas, tendencias, reporte diario, churn/funnel/P&L, MRR/ARR, acceso graduado por tier B2B (Básico/Pro/Enterprise) y 2 paneles predictivos exclusivos Enterprise (proyección de tendencia de género/artista) | *(existente)* |
 | `partners` | API de catálogo para integradores externos, autenticada por API key | *(existente)* |
 | `ingesta` (paquete `gestion_datos`) | Disparo/monitoreo de ETL, CRUD dimensional, calidad de datos, recalificación administrativa en bloque | *(existente)* |
 | `seguridad` | Usuarios, sesiones activas multi-dispositivo (consulta y cierre remoto), permisos granulares, auditoría, errores de sistema, dashboard administrativo | 6 |
-| `facturacion` | Métodos de pago, transacciones (simuladas), invoices, información de empresa editable, dashboard administrativo | 4 |
+| `facturacion` | Métodos de pago (checkout con tarjeta simulada), transacciones (simuladas), invoices, IVA configurable con override por país, notificación simulada de factura por correo, información de empresa editable, dashboard administrativo | 5 |
 | `creadores` | Cuenta de artista, subida de tracks con staging y revisión admin, dashboard administrativo | 4 |
 | `social` | Seguir artistas, comentarios, compartir, feed de actividad de artistas seguidos, dashboard administrativo | 4 |
-| `distribucion` | Sellos discográficos, licencias (con flujo de solicitud por sello), restricción geográfica de reproducción, dashboard administrativo | 8 |
+| `distribucion` | Sellos discográficos (con país), licencias (con flujo de solicitud por sello), restricción geográfica de reproducción, configuración de país (moneda/tasa de cambio/IVA/retención fiscal), dashboard administrativo | 8 |
 | `experiencia` | Telemetría de reproducción, recomendaciones, tickets de soporte, A/B testing, reflejo de playlists, plan familiar, portadas y audio real, dashboard administrativo | 6 |
-| `regalias` | Productores, contratos de reparto por track, cuentas de sello, liquidación real por período, retiro de ganancias, consulta de ganancias propias (artista/sello) | 6 |
+| `regalias` | Productores, contratos de reparto por track, cuentas de sello, liquidación real por período con retención fiscal (bruto/retenido/neto), retiro de ganancias, consulta de ganancias propias (artista/sello) | 6 |
 | `publicidad` | Anunciantes, campañas con CPM (audio y display), impresión de anuncio a usuarios free, reconocimiento de ingreso publicitario en tiempo real, pausa automática por presupuesto agotado | 4 |
 | `simulacion` | Panel admin-only: genera streams + suscripciones + impresiones publicitarias en conjunto y liquida el período resultante, para demostrar el flujo de dinero de punta a punta sin operar la app manualmente a escala | *(sin tabla propia — escribe en tablas de otras capabilities)* |
 | `finanzas` | Gastos operativos, reembolsos validados, cuentas por cobrar/pagar, tracking de presupuesto de campañas + alertas, indicadores empresariales, dashboard y reporte financiero consolidado | 2 |
@@ -287,10 +289,19 @@ reales de una base columnar fuera de su caso de uso ideal.
 - Sesiones activas propias por dispositivo, con cierre remoto de cualquiera de ellas
   (`seguridad`, sección "Mis sesiones" del perfil)
 
-### Analítica (`analyst`/`admin`, requiere suscripción B2B activa)
-- Dashboard ejecutivo, engagement por artista/track, perfil de audio por género (radar),
-  comparación y benchmark de artistas, tendencias semanales (small multiples), reflejo de
-  playlists más agregadas, reporte diario operativo (admin, exportable a PDF)
+### Analítica (`analyst`/`admin`, requiere suscripción B2B activa, acceso graduado por tier)
+- **Básico**: dashboard ejecutivo, engagement por artista/track, perfil de audio por género
+  (radar), tendencias semanales (small multiples), reflejo de playlists más agregadas,
+  disponibilidad de infraestructura
+- **Pro**: todo lo de Básico + comparación y benchmark de artistas, índice de desempeño relativo
+  (Mercado vs. Tracklytics), adquisición de usuarios por canal
+- **Enterprise**: todo lo de Pro + proyección de tendencia de género y proyección de trayectoria
+  de artista vs. su género — extrapolación estadística simple (regresión lineal) con alerta
+  temprana embebida, nunca presentada como predicción de IA
+- El tier insuficiente muestra un estado "disponible desde el plan X" con CTA de upgrade, no un
+  403 genérico (`TierUpsell.tsx`)
+- Reporte diario operativo (`admin`, exportable a PDF) — independiente del tier B2B, nunca
+  alcanzable por ningún Cliente B2B sin importar el plan
 - Gráficos con Recharts, code-split fuera del bundle principal (no se carga para quien nunca
   visita `/analitica`)
 

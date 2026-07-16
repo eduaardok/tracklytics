@@ -45,9 +45,8 @@ plataforma (ver capability `publicidad`).
 | Operativo | Sello | Regalías | CU-O65 Consultar las ganancias de mi sello | Como Sello, quiero ver las ganancias agregadas de todos mis artistas por período, para reportar el desempeño de mi catálogo |
 | Operativo | Artista / Sello | Regalías | CU-O75 Solicitar retiro de ganancias | Como Artista o Sello, quiero solicitar el retiro de mi saldo disponible, para cobrar lo que ya gané |
 | Operativo | Lead Data Engineer / CTO | Regalías | CU-O76 Procesar o rechazar una solicitud de retiro | Como Lead Data Engineer/CTO, quiero aprobar o rechazar una solicitud de retiro, para controlar la salida de dinero simulada de la plataforma |
-
+| Operativo | Artista / Sello | Regalías | CU-O96 Ver la retención fiscal aplicada a mis liquidaciones | Como Artista o Sello, quiero ver cuánto se retuvo por concepto fiscal en cada liquidación además del monto neto, para entender exactamente cuánto puedo retirar y por qué |
 ## Requirements
-
 ### Requirement: Registro de productores
 El sistema SHALL permitir a un usuario con rol `admin` registrar un productor musical con un
 nombre no vacío, y asignarlo a uno o más tracks existentes del catálogo.
@@ -164,6 +163,36 @@ SHALL devolver ese monto al saldo disponible.
 #### Scenario: Admin rechaza una solicitud de retiro
 - **WHEN** un usuario con rol `admin` rechaza una solicitud de retiro pendiente
 - **THEN** el sistema cambia su estado a "rechazado" y devuelve ese monto al saldo disponible del rightsholder
+
+### Requirement: Retención fiscal en la liquidación de regalías
+El sistema SHALL calcular y registrar una retención fiscal sobre cada monto liquidado a un
+rightsholder (sello, artista o productor), separando el monto bruto calculado, el porcentaje de
+retención aplicado, el monto retenido, y el monto neto efectivamente disponible para el
+rightsholder. La tasa de retención SHALL resolverse según el país del rightsholder si tiene una
+tasa propia configurada; si no, SHALL usar una tasa global de plataforma configurable. El monto
+retenido SHALL tratarse como un pasivo pendiente de remitir a la autoridad fiscal, no como ingreso
+de la plataforma.
+
+#### Scenario: Liquidación con retención por país propio del rightsholder
+- **WHEN** se liquida un período y el país del rightsholder tiene una tasa de retención fiscal
+  propia configurada
+- **THEN** el sistema calcula el monto retenido usando esa tasa propia, y registra por separado
+  el monto bruto, el monto retenido y el monto neto
+
+#### Scenario: Liquidación con retención por tasa global (sin tasa propia del país)
+- **WHEN** se liquida un período y el país del rightsholder no tiene una tasa de retención fiscal
+  propia configurada, o no se puede determinar su país
+- **THEN** el sistema calcula el monto retenido usando la tasa global de plataforma
+
+#### Scenario: El monto neto es el que queda disponible para retiro
+- **WHEN** un rightsholder consulta su saldo disponible o solicita un retiro
+- **THEN** el sistema calcula el saldo disponible sobre el monto neto (bruto menos retención), no
+  sobre el monto bruto
+
+#### Scenario: El monto retenido es visible en las ganancias del rightsholder
+- **WHEN** un artista o sello consulta sus ganancias
+- **THEN** el sistema muestra, además del monto neto, el monto bruto y el monto retenido de cada
+  liquidación
 
 ## Entradas
 

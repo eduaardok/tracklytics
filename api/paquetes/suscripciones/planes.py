@@ -23,16 +23,40 @@ DOMINIO_INSTITUCIONAL_VALIDO = os.getenv("DOMINIO_INSTITUCIONAL_VALIDO", ".edu")
 def email_institucional_valido(email: str) -> bool:
     return DOMINIO_INSTITUCIONAL_VALIDO.lower() in email.strip().lower()
 
+# `features` (b2b-tier-access-analitica): catálogo de producto expuesto tal
+# cual por GET /suscripciones/planes — cada tier lista lo suyo + lo heredado
+# del tier anterior, para que PlanesPage.tsx muestre la escalera completa sin
+# que el cliente tenga que inferir qué "incluye lo de Básico" implica.
 PLANES_B2B = [
     {"id": "basico",     "tipo_actor": "b2b", "nombre": "Básico",
      "precio": 199.0,  "moneda": "USD",
-     "descripcion": "Acceso a paneles analíticos esenciales del catálogo."},
+     "descripcion": "Acceso a paneles analíticos esenciales del catálogo.",
+     "features": [
+         "Dashboard ejecutivo de KPIs del catálogo",
+         "Perfil de audio por género",
+         "Tendencias temporales por semana",
+         "Disponibilidad de infraestructura",
+         "Engagement de un track o artista",
+     ]},
     {"id": "pro",        "tipo_actor": "b2b", "nombre": "Pro",
      "precio": 499.0,  "moneda": "USD",
-     "descripcion": "Acceso a paneles analíticos avanzados y comparativas de artistas."},
+     "descripcion": "Acceso a paneles analíticos avanzados y comparativas de artistas.",
+     "features": [
+         "Todo lo de Básico",
+         "Comparar artistas (A vs. B)",
+         "Benchmark de artista vs. género",
+         "Índice de desempeño relativo (Mercado vs. Tracklytics)",
+         "Adquisición de usuarios por canal",
+     ]},
     {"id": "enterprise", "tipo_actor": "b2b", "nombre": "Enterprise",
      "precio": 1499.0, "moneda": "USD",
-     "descripcion": "Acceso completo a la inteligencia de negocio, incluyendo reporte diario operativo."},
+     "descripcion": "Acceso completo a la inteligencia de negocio, incluyendo paneles predictivos exclusivos.",
+     "features": [
+         "Todo lo de Pro",
+         "Proyección de tendencia de género",
+         "Proyección de trayectoria de artista vs. género",
+         "Alertas tempranas de tendencia a la baja",
+     ]},
 ]
 
 PLANES: dict[str, dict] = {p["id"]: p for p in PLANES_B2C + PLANES_B2B}

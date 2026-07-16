@@ -1,0 +1,110 @@
+.page { /* fills content area */ }
+
+.heading {
+  font-family: var(--font-sans);
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--color-ink);
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+  text-wrap: balance;
+  margin-bottom: var(--space-xs);
+}
+
+.subtitle {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  color: var(--color-muted);
+  min-height: 1em;
+  margin-bottom: var(--space-lg);
+}
+
+.pickerWrap {
+  max-width: 320px;
+  margin-bottom: var(--space-xl);
+}
+
+.panel {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-md);
+}
+
+.panelError {
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  color: var(--color-error);
+}
+
+.prompt {
+  padding: var(--space-2xl) 0 var(--space-xl);
+  text-align: center;
+}
+
+.promptText {
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  color: var(--color-muted);
+}
+
+.trayectoriaBadge {
+  display: inline-flex;
+  align-items: center;
+  font-family: var(--font-sans);
+  font-size: 0.75rem;
+  font-weight: 600;
+  border-radius: var(--radius-pill);
+  padding: 3px 10px;
+  margin-bottom: var(--space-sm);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.trayectoriaGanando   { color: var(--color-success); background: oklch(0.72 0.16 150 / 0.12); }
+.trayectoriaPerdiendo { color: var(--color-error);   background: oklch(0.65 0.22 25 / 0.1); }
+.trayectoriaEstable   { color: var(--color-muted);   background: var(--color-surface-raised); }
+
+.alertBanner {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  margin-top: var(--space-sm);
+  padding: 8px var(--space-md);
+  background: oklch(0.78 0.18 70 / 0.1);
+  border: 1px solid oklch(0.78 0.18 70 / 0.35);
+  border-radius: var(--radius-md);
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+  color: var(--color-warning);
+}
+
+.kv {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  row-gap: 8px;
+  column-gap: var(--space-lg);
+  margin-top: var(--space-md);
+}
+
+.kvLabel {
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+  color: var(--color-muted);
+}
+
+.kvValue {
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  color: var(--color-ink);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.disclosure {
+  font-family: var(--font-sans);
+  font-size: 0.75rem;
+  color: var(--color-muted);
+  margin: var(--space-sm) 0 0;
+}

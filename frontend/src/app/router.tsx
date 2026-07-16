@@ -66,6 +66,8 @@ const ChurnPage               = lazyNamed(() => import('@packages/analitica/page
 const FunnelConversionPage    = lazyNamed(() => import('@packages/analitica/pages/FunnelConversionPage'), 'FunnelConversionPage')
 const PnlPage                 = lazyNamed(() => import('@packages/analitica/pages/PnlPage'), 'PnlPage')
 const MrrArrPage              = lazyNamed(() => import('@packages/analitica/pages/MrrArrPage'), 'MrrArrPage')
+const ProyeccionGeneroPage    = lazyNamed(() => import('@packages/analitica/pages/ProyeccionGeneroPage'), 'ProyeccionGeneroPage')
+const ProyeccionArtistaPage   = lazyNamed(() => import('@packages/analitica/pages/ProyeccionArtistaPage'), 'ProyeccionArtistaPage')
 const TopTracksPlaylistsPage  = lazyNamed(() => import('@packages/experiencia/pages/TopTracksPlaylistsPage'), 'TopTracksPlaylistsPage')
 
 // `ingesta/DataQualityPage` también usa Recharts (donut de distribución por
@@ -180,6 +182,13 @@ export const router = createBrowserRouter([
       // No confundir con `/distribucion/disponibilidad` (restricción geográfica de reproducción).
       { path: 'disponibilidad',         element: <DisponibilidadInfraPage /> },
       { path: 'ingestas',               element: <ComingSoonPage section="Ingestas" description="Histórico de ETL: volumen, duración, tasa de error y comparativa inter-run." /> },
+      // CU-O92/CU-O93 (b2b-tier-access-analitica): paneles predictivos
+      // exclusivos Enterprise. El backend gatea con `require_tier("enterprise")`
+      // (además de `require_b2b_panel_access` del shell) — no necesitan un
+      // `RequireAuth` de rol como reporte-diario/churn (esos son admin-only por
+      // `role`, esto es tier B2B por `tipo_plan`, ver TierUpsell para el 403).
+      { path: 'proyeccion-genero',      element: <ProyeccionGeneroPage /> },
+      { path: 'proyeccion-artista',     element: <ProyeccionArtistaPage /> },
     ],
   },
   {

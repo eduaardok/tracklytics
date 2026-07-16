@@ -1,7 +1,7 @@
 import { apiClient, type ApiResponse } from '@shared/lib/api-client'
 import type {
   MetodoPago, Transaccion, Invoice, InvoiceDetalle,
-  MetodosPagoResponse, DashboardFacturacion, EmpresaInfo,
+  MetodosPagoResponse, DashboardFacturacion, EmpresaInfo, NotificacionEmail,
   RegistrarMetodoPagoBody, PagarSuscripcionBody, PagoResultado,
 } from '../types'
 
@@ -40,4 +40,10 @@ export const facturacionApi = {
 
   actualizarEmpresa: (body: EmpresaInfo) =>
     apiClient.put<{ status: string } & EmpresaInfo>('/facturacion/empresa', body),
+
+  // Notificaciones simuladas de factura enviada por correo (CU-O99).
+  notificaciones: (usuarioId?: string) =>
+    apiClient.get<ApiResponse<NotificacionEmail>>(
+      `/facturacion/notificaciones${usuarioId ? `?usuario_id=${usuarioId}` : ''}`,
+    ),
 }
