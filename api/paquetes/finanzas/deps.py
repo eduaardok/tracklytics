@@ -1,21 +1,15 @@
 from paquetes.analitica.deps import require_staff  # reutilizado, no se duplica
-from paquetes.seguridad.deps import require_admin  # reutilizado, no se duplica
+from paquetes.seguridad.deps import require_rol_admin
 
-# Re-exportado para que paquetes/finanzas/router.py tenga un único punto de
-# import de dependencias propias de esta capability, mismo precedente que
-# `paquetes/facturacion/deps.py`.
-#
-# Decisión de diseño (tasks.md 1.4): `require_staff` vive hoy en
-# `analitica/deps.py`, no en `seguridad/deps.py` (ver design.md, Context).
-# Todos los requirements de `finanzas` (spec.md) son exclusivos de
-# `role=admin` — funcionalmente `require_admin` (seguridad) y `require_staff`
-# (analitica) son equivalentes (ambos exigen `role == "admin"`), así que los
-# endpoints de este router usan `require_admin` como el resto de capabilities
-# administrativas del proyecto (facturacion, regalias, publicidad). Se
-# importa y reexporta `require_staff` en vez de reimplementarlo, únicamente
-# para dejar disponible el mismo punto de entrada que usa `analitica` si en
-# el futuro un endpoint de `finanzas` necesita ese gating específico en vez
-# de `require_admin`.
+# Autorización administrativa segmentada (change roles-gestion-usuarios): todos
+# los requirements de `finanzas` (gastos, reembolsos, cuentas por cobrar/pagar,
+# presupuesto de campañas, dashboard) pertenecen al área financiera. Antes
+# usaban el `require_admin` monolítico; ahora exigen el rol `admin_finanzas`.
+# `superadmin` siempre pasa, así que las cuentas admin previas no pierden
+# acceso. Se conserva `require_staff` reexportado (hoy sin uso en este router)
+# para no romper su punto de entrada, ver design.md Context.
+require_admin = require_rol_admin("admin_finanzas")
+
 __all__ = ["require_admin", "require_staff"]
 
 # Umbral de reembolso elevado (design.md, Decisión 7): monto fijo en vez de

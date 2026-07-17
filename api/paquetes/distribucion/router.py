@@ -9,7 +9,12 @@ from pydantic import BaseModel
 from core.database import execute, get_client, query_one, query_rows
 from core.deps import require_b2c_user
 from paquetes.seguridad import audit
-from paquetes.seguridad.deps import require_admin
+from paquetes.seguridad.deps import require_rol_admin
+
+# Autorización administrativa segmentada (change roles-gestion-usuarios): la
+# gestión de sellos, licencias, restricciones geográficas y disponibilidad de
+# catálogo pertenece al área de contenido. `superadmin` siempre pasa.
+require_admin = require_rol_admin("admin_contenido")
 from paquetes.distribucion.queries import (
     ALBUM_EXISTE,
     ARTISTA_EXISTE,

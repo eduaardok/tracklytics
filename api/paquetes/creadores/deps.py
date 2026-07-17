@@ -3,7 +3,13 @@ from fastapi import Depends, HTTPException
 from core.database import query_one
 from core.deps import get_current_user
 from paquetes.creadores.queries import CUENTA_ACTUAL_POR_USUARIO
-from paquetes.seguridad.deps import require_admin  # reutilizado, no se duplica
+from paquetes.seguridad.deps import require_rol_admin
+
+# Autorización administrativa segmentada (change roles-gestion-usuarios): los
+# endpoints /admin/* de creadores (aprobación de cuentas de artista, revisión
+# de tracks, dashboard A&R) pertenecen al área de contenido. `superadmin`
+# siempre pasa.
+require_admin = require_rol_admin("admin_contenido")
 
 __all__ = ["require_admin", "require_cuenta_artista_aprobada"]
 

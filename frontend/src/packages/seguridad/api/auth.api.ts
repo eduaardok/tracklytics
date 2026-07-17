@@ -91,5 +91,22 @@ export const authApi = {
   cerrarSesionRemota: (sesionId: string) =>
     apiClient.delete<{ status: string }>(`/seguridad/sesiones/${sesionId}`),
 
+  // Recuperación de contraseña simulada (change roles-gestion-usuarios): el
+  // backend responde siempre genérico, sin revelar si el correo existe.
+  recuperarPassword: (email: string) =>
+    apiClient.post<{ status: string; mensaje: string }>('/seguridad/auth/recuperar', { email }),
+
+  restablecerPassword: (token: string, nuevaPassword: string) =>
+    apiClient.post<{ status: string }>('/seguridad/auth/restablecer', {
+      token, nueva_password: nuevaPassword,
+    }),
+
+  // Baja de cuenta propia: irreversible — invalida sesiones y cancela la
+  // suscripción activa. Tras la respuesta, se limpia la sesión local.
+  bajaCuenta: async (): Promise<void> => {
+    await apiClient.post('/seguridad/perfil/baja', {})
+    clearSession()
+  },
+
   miDispositivoId: getDeviceId,
 }

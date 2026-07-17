@@ -10,7 +10,12 @@ from core.deps import get_current_user, require_b2c_user
 from paquetes.biblioteca import pb_playlists
 from paquetes.biblioteca.queries import TRACKS_BY_FACT_IDS
 from paquetes.seguridad import audit
-from paquetes.seguridad.deps import require_admin
+from paquetes.seguridad.deps import require_rol_admin
+
+# Autorización administrativa segmentada (change roles-gestion-usuarios): la
+# moderación de comentarios y el dashboard social pertenecen al área de
+# comunidad. `superadmin` siempre pasa.
+require_admin = require_rol_admin("admin_comunidad")
 from paquetes.social import notificaciones
 from paquetes.social.queries import (
     ACTIVIDAD_SOCIAL_POR_DIA,

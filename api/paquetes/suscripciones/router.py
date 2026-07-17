@@ -8,7 +8,12 @@ from pydantic import BaseModel
 from core.database import get_client, query_one, query_rows
 from core.deps import get_current_user
 from paquetes.facturacion.router import metodo_pago_existe, procesar_pago, resolver_conversion_moneda
-from paquetes.seguridad.deps import require_admin
+from paquetes.seguridad.deps import require_rol_admin
+
+# Autorización administrativa segmentada (change roles-gestion-usuarios): la
+# gestión de planes y sus precios pertenece al área comercial. `superadmin`
+# siempre pasa.
+require_admin = require_rol_admin("admin_comercial")
 from paquetes.suscripciones import pb_client
 from paquetes.suscripciones.queries import PLAN_PRECIO_ACTUAL, PLANES_PRECIOS_TODOS
 from paquetes.suscripciones.planes import (

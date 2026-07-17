@@ -82,6 +82,10 @@ const DataQualityPage     = lazyNamed(() => import('@packages/ingesta/pages/Data
 // Recharts a una pantalla admin-only que antes no lo tenía; mismo motivo que
 // el bloque de arriba, se sacan del bundle principal.
 const AuditoriaPage            = lazyNamed(() => import('@packages/seguridad/pages/AuditoriaPage'), 'AuditoriaPage')
+// Gestión de usuarios (change roles-gestion-usuarios): admin-only, importa
+// `susc_pb`/tanstack — se lazy-carga por consistencia con el resto del árbol
+// de administración, para no arrastrar sus dependencias al bundle principal.
+const UsuariosAdminPage        = lazyNamed(() => import('@packages/seguridad/pages/UsuariosAdminPage'), 'UsuariosAdminPage')
 const AuditoriaFacturacionPage = lazyNamed(() => import('@packages/facturacion/pages/AuditoriaFacturacionPage'), 'AuditoriaFacturacionPage')
 const EmpresaConfigPage = lazyNamed(() => import('@packages/facturacion/pages/EmpresaConfigPage'), 'EmpresaConfigPage')
 const RevisionCreadoresPage    = lazyNamed(() => import('@packages/creadores/pages/RevisionCreadoresPage'), 'RevisionCreadoresPage')
@@ -198,6 +202,7 @@ export const router = createBrowserRouter([
     element: <RequireAuth roles={['admin']}><SeguridadShell /></RequireAuth>,
     children: [
       { index: true,        element: <PermisosPage /> },
+      { path: 'usuarios',   element: <UsuariosAdminPage /> },
       { path: 'permisos',   element: <PermisosPage /> },
       { path: 'auditoria',  element: <AuditoriaPage /> },
       { path: 'errores',    element: <ErroresPage /> },

@@ -1,11 +1,15 @@
 from fastapi import Depends, HTTPException
 
 from core.deps import get_current_user
-from paquetes.seguridad.deps import require_admin  # reutilizado, no se duplica
+from paquetes.seguridad.deps import require_rol_admin
 from paquetes.suscripciones import pb_client
 
-# Re-exportado para que paquetes/facturacion/router.py tenga un único punto de
-# import de dependencias propias de esta capability.
+# Autorización administrativa segmentada (change roles-gestion-usuarios): el
+# dashboard y la edición de datos de empresa de facturación pertenecen al área
+# financiera. `superadmin` siempre pasa. Re-exportado para que
+# facturacion/router.py tenga un único punto de import.
+require_admin = require_rol_admin("admin_finanzas")
+
 __all__ = ["require_admin", "require_suscripcion_activa"]
 
 

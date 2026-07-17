@@ -307,6 +307,30 @@
   font-size: 0.875rem;
 }
 
+/* Recuperación de contraseña (change roles-gestion-usuarios): banner neutro
+   para el mensaje genérico ("si el correo existe…") y la confirmación de
+   restablecimiento — no es un error, no debe pintarse en rojo. */
+.bannerInfo {
+  padding: 10px var(--space-md);
+  background: oklch(0.62 0.19 300 / 0.08);
+  border: 1px solid oklch(0.62 0.19 300 / 0.25);
+  border-radius: var(--radius-md);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+}
+
+.linkButton {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--color-primary);
+  font-family: var(--font-sans);
+  font-size: inherit;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
 /* Mobile: antes el hero desaparecía por completo (`display: none`), dejando
    un formulario desnudo sin ninguna marca — ahora se colapsa a una franja
    compacta (wordmark + tagline) arriba del formulario en vez de perderse. */

@@ -25,6 +25,9 @@ export function SeguridadShell() {
 
       <div className={styles.body}>
         <nav className={styles.sidebar} aria-label="Navegación de seguridad">
+          <NavLink to="/seguridad/usuarios" className={({ isActive }) => isActive ? ACTIVE_CLS : INACTIVE_CLS}>
+            Usuarios
+          </NavLink>
           <NavLink to="/seguridad/permisos" className={({ isActive }) => isActive ? ACTIVE_CLS : INACTIVE_CLS}>
             Permisos
           </NavLink>

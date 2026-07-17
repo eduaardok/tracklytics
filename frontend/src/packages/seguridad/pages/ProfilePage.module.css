@@ -162,6 +162,35 @@
 .btnGhost:hover { color: var(--color-ink); border-color: oklch(0.38 0.012 285); }
 .btnGhost:disabled { opacity: 0.5; cursor: not-allowed; }
 
+/* Zona de peligro (baja de cuenta, change roles-gestion-usuarios): sección
+   delimitada en rojo para separar visualmente la acción irreversible del
+   resto de la configuración de perfil. */
+.dangerZone {
+  margin-top: var(--space-xl);
+  padding: var(--space-lg);
+  border: 1px solid oklch(0.65 0.22 25 / 0.3);
+  border-radius: var(--radius-lg);
+  background: oklch(0.65 0.22 25 / 0.04);
+}
+
+.btnDanger {
+  display: inline-flex;
+  align-items: center;
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--color-error);
+  background: oklch(0.65 0.22 25 / 0.10);
+  border: 1px solid oklch(0.65 0.22 25 / 0.35);
+  border-radius: var(--radius-md);
+  padding: 9px var(--space-md);
+  height: 36px;
+  cursor: pointer;
+  transition: background-color var(--duration-standard) var(--ease-standard);
+}
+.btnDanger:hover { background: oklch(0.65 0.22 25 / 0.2); }
+.btnDanger:disabled { opacity: 0.5; cursor: not-allowed; }
+
 .familiaMiembros {
   display: flex;
   flex-direction: column;

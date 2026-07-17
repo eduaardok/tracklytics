@@ -179,6 +179,139 @@ LEFT JOIN DIM_DISPOSITIVO d ON d.dispositivo_id = s.dispositivo_id
 ORDER BY s.fecha_inicio DESC
 """
 
+# ── Gestión administrativa de usuarios (change roles-gestion-usuarios) ─────────
+# Listado paginado con estado_cuenta, filtrable por rol, estado y rango de
+# fecha de registro. Evoluciona usuarios_listado_sql (que no exponía estado).
+def usuarios_admin_listado_sql(where: str, having: str = "") -> str:
+    # `having` filtra por el estado_cuenta vigente (resuelto por argMax), que no
+    # se puede poner en el WHERE porque agrega sobre las filas del ReplacingMergeTree.
+    return f"""
+    SELECT usuario_id, nombre, email, rol, fecha_registro,
+           argMax(estado_cuenta, actualizado_en) AS estado_cuenta
+    FROM DIM_USUARIO
+    {where}
+    GROUP BY usuario_id, nombre, email, rol, fecha_registro
+    {having}
+    ORDER BY fecha_registro DESC
+    LIMIT {{limit:UInt32}}
+    OFFSET {{offset:UInt32}}
+    """
+
+
+def usuarios_admin_total_sql(where: str, having: str = "") -> str:
+    return f"""
+    SELECT count() AS n FROM (
+        SELECT usuario_id, argMax(estado_cuenta, actualizado_en) AS estado_cuenta
+        FROM DIM_USUARIO
+        {where}
+        GROUP BY usuario_id
+        {having}
+    )
+    """
+
+
+# Base de la vista 360° de un usuario: perfil + estado de cuenta vigente.
+USUARIO_360_BASE = """
+SELECT usuario_id, nombre, email, pais, rol, perfil_publico, fecha_registro,
+       argMax(estado_cuenta, actualizado_en) AS estado_cuenta
+FROM DIM_USUARIO WHERE usuario_id = {usuario_id:String}
+GROUP BY usuario_id, nombre, email, pais, rol, perfil_publico, fecha_registro
+LIMIT 1
+"""
+
+TRANSACCIONES_RECIENTES_USUARIO = """
+SELECT transaccion_id, monto, moneda, estado, suscripcion_id, fecha
+FROM FACT_TRANSACCION_PAGO
+WHERE usuario_id = {usuario_id:String}
+ORDER BY fecha DESC
+LIMIT {limit:UInt32}
+"""
+
+ULTIMO_LOGIN_USUARIO = """
+SELECT max(fecha_inicio) AS ultimo_login
+FROM FACT_SESION WHERE usuario_id = {usuario_id:String}
+"""
+
+# ── Roles administrativos por área (change roles-gestion-usuarios) ─────────────
+# Estado vigente de los roles admin de un usuario: la revocación es un borrado
+# lógico (fila nueva con revocado=1 y `fecha` mayor), así que se resuelve con
+# argMax(revocado, fecha) por (usuario_id, rol_admin) y se filtran los vigentes
+# — mismo criterio que FACT_PERMISO_USUARIO, sin depender de OPTIMIZE FINAL.
+# El alias de la fecha agregada NO puede llamarse `fecha` (igual que
+# PERMISOS_VIGENTES arriba): ClickHouse sustituye alias hacia adelante dentro
+# del mismo SELECT y reescribiría argMax(revocado, fecha) como
+# argMax(revocado, max(fecha)) -> agregación anidada ilegal (Code 184). Se usa
+# un alias distinto (`fecha_ult`) en la subquery.
+ROLES_ADMIN_VIGENTES = """
+SELECT rol_admin
+FROM (
+    SELECT rol_admin, argMax(revocado, fecha) AS revocado
+    FROM BRIDGE_USUARIO_ROL_ADMIN
+    WHERE usuario_id = {usuario_id:String}
+    GROUP BY rol_admin
+)
+WHERE revocado = 0
+ORDER BY rol_admin
+"""
+
+# Igual que arriba pero conservando metadatos, para la vista 360° / listado de
+# roles asignados a un usuario.
+ROLES_ADMIN_VIGENTES_DETALLE = """
+SELECT b.rol_admin AS rol_admin, r.nombre AS nombre, b.asignado_por AS asignado_por, b.fecha_ult AS fecha
+FROM (
+    SELECT rol_admin,
+           argMax(revocado, fecha)     AS revocado,
+           argMax(asignado_por, fecha) AS asignado_por,
+           max(fecha)                  AS fecha_ult
+    FROM BRIDGE_USUARIO_ROL_ADMIN
+    WHERE usuario_id = {usuario_id:String}
+    GROUP BY rol_admin
+) b
+LEFT JOIN DIM_ROL_ADMINISTRATIVO r ON r.rol_admin = b.rol_admin
+WHERE b.revocado = 0
+ORDER BY b.rol_admin
+"""
+
+CATALOGO_ROLES_ADMIN = """
+SELECT rol_admin, nombre, capabilities, descripcion
+FROM DIM_ROL_ADMINISTRATIVO
+WHERE activo = 1
+ORDER BY rol_admin
+"""
+
+ROL_ADMIN_EXISTE = """
+SELECT rol_admin FROM DIM_ROL_ADMINISTRATIVO WHERE rol_admin = {rol_admin:String} AND activo = 1 LIMIT 1
+"""
+
+# Estado de cuenta vigente (activa|suspendido|eliminado): resuelto con argMax
+# sobre actualizado_en por si el ReplacingMergeTree de DIM_USUARIO aún no
+# fusionó partes duplicadas — es un check de seguridad en cada request.
+ESTADO_CUENTA_VIGENTE = """
+SELECT argMax(estado_cuenta, actualizado_en) AS estado_cuenta
+FROM DIM_USUARIO WHERE usuario_id = {usuario_id:String}
+"""
+
+# Intentos de login fallidos de un email en los últimos 15 minutos (lockout):
+# se registran en FACT_AUDIT_LOG con accion='login_fallido' y usuario_id=email
+# (no hay identidad resuelta en un login fallido).
+LOGIN_FALLIDOS_RECIENTES = """
+SELECT count() AS n
+FROM FACT_AUDIT_LOG
+WHERE accion = 'login_fallido'
+  AND usuario_id = {email:String}
+  AND timestamp >= now() - INTERVAL 15 MINUTE
+"""
+
+# ── Recuperación de contraseña (token de un solo uso) ──────────────────────────
+TOKEN_RECUPERACION_VIGENTE = """
+SELECT token, usuario_id, expira_en,
+       argMax(usado, created_at) AS usado
+FROM FACT_TOKEN_RECUPERACION
+WHERE token = {token:String}
+GROUP BY token, usuario_id, expira_en
+LIMIT 1
+"""
+
 SESION_POR_ID = """
 SELECT sesion_id, usuario_id, dispositivo_id, fecha_inicio, fecha_fin
 FROM (

@@ -1194,6 +1194,57 @@ DDL_STATEMENTS = [
     ) ENGINE = MergeTree()
     ORDER BY (usuario_id, fecha_envio)
     """,
+
+    # ── Capability `seguridad`: roles administrativos por área de negocio ───────
+    # (change roles-gestion-usuarios). Catálogo cerrado de roles admin: sustituye
+    # el gating monolítico `role == admin` por seis roles con alcance acotado.
+    # `superadmin` es equivalente al admin general previo; el resto son
+    # subconjuntos. Sembrado en main() (patrón DIM_ESTADO_REVISION).
+    f"""
+    CREATE TABLE IF NOT EXISTS {DB}.DIM_ROL_ADMINISTRATIVO (
+        rol_admin      String,
+        nombre         String,
+        capabilities   Array(String),
+        descripcion    String,
+        activo         UInt8 DEFAULT 1
+    ) ENGINE = ReplacingMergeTree()
+    ORDER BY rol_admin
+    """,
+
+    # BRIDGE_USUARIO_ROL_ADMIN: asignaciones de rol admin a usuarios. La
+    # revocación es un borrado lógico (fila nueva con revocado=1 y `fecha`
+    # mayor); el estado vigente por (usuario_id, rol_admin) se resuelve con
+    # argMax(revocado, fecha) — mismo criterio que FACT_PERMISO_USUARIO, sin
+    # depender de OPTIMIZE FINAL del ReplacingMergeTree.
+    f"""
+    CREATE TABLE IF NOT EXISTS {DB}.BRIDGE_USUARIO_ROL_ADMIN (
+        usuario_id    String,
+        rol_admin     String,
+        asignado_por  String,
+        revocado      UInt8 DEFAULT 0,
+        fecha         DateTime DEFAULT now()
+    ) ENGINE = MergeTree()
+    ORDER BY (usuario_id, rol_admin, fecha)
+    """,
+
+    # FACT_TOKEN_RECUPERACION: tokens de recuperación de contraseña de un solo
+    # uso (simulación, sin envío de correo real). El estado vigente (usado/no)
+    # se resuelve con argMax(usado, created_at) por token.
+    f"""
+    CREATE TABLE IF NOT EXISTS {DB}.FACT_TOKEN_RECUPERACION (
+        token       String,
+        usuario_id  String,
+        expira_en   DateTime,
+        usado       UInt8 DEFAULT 0,
+        created_at  DateTime DEFAULT now()
+    ) ENGINE = MergeTree()
+    ORDER BY (token, created_at)
+    """,
+
+    # estado_cuenta en DIM_USUARIO (activa|suspendido|eliminado): verificado por
+    # get_current_user en cada request; una cuenta suspendida/eliminada se
+    # rechaza con 403 aunque su token de PocketBase siga siendo válido.
+    f"ALTER TABLE {DB}.DIM_USUARIO ADD COLUMN IF NOT EXISTS estado_cuenta String DEFAULT 'activa'",
 ]
 
 # ── Runner ────────────────────────────────────────────────────────────────────
@@ -1431,6 +1482,40 @@ def main() -> None:
             print("✓ DIM_PLAN sembrada (6 filas).")
     except Exception as exc:
         print(f"ERROR sembrando DIM_PLAN: {exc}")
+
+    # DIM_ROL_ADMINISTRATIVO (change roles-gestion-usuarios): catálogo cerrado de
+    # roles admin por área de negocio. `superadmin` abarca todas las capabilities
+    # (equivalente al admin general previo); el resto son subconjuntos. El mapeo
+    # de cada endpoint /admin/* a su rol vive en los routers (require_rol_admin).
+    try:
+        count = client.query(f"SELECT count() FROM {DB}.DIM_ROL_ADMINISTRATIVO").result_rows[0][0]
+        if count == 0:
+            client.insert(
+                f"{DB}.DIM_ROL_ADMINISTRATIVO",
+                [
+                    ("superadmin",     "Superadministrador",
+                     ["*"], "Acceso total a todas las áreas administrativas"),
+                    ("admin_finanzas", "Gerente Financiero / CFO",
+                     ["facturacion", "finanzas", "regalias", "publicidad"],
+                     "Facturación, finanzas, liquidación de regalías e ingresos por publicidad"),
+                    ("admin_contenido", "Gerente de Contenido / A&R",
+                     ["creadores", "distribucion", "catalogo"],
+                     "Aprobación de artistas y tracks, distribución, licencias y takedown de catálogo"),
+                    ("admin_comunidad", "Community Manager",
+                     ["social", "experiencia"],
+                     "Moderación de comentarios, tickets de soporte y planes familiares"),
+                    ("admin_datos", "Lead Data Engineer",
+                     ["gestion_datos", "analitica"],
+                     "Gestión de datos e ingestas, configuración de analítica"),
+                    ("admin_comercial", "Director Comercial",
+                     ["suscripciones", "partners"],
+                     "Planes y precios de suscripción, integraciones de partners"),
+                ],
+                column_names=["rol_admin", "nombre", "capabilities", "descripcion"],
+            )
+            print("✓ DIM_ROL_ADMINISTRATIVO sembrada (6 filas).")
+    except Exception as exc:
+        print(f"ERROR sembrando DIM_ROL_ADMINISTRATIVO: {exc}")
 
 
 if __name__ == "__main__":

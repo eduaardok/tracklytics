@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { getUser } from '@shared/lib/session'
 import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
@@ -46,6 +46,7 @@ function fmtDateTime(iso: string): string {
 export function ProfilePage() {
   useDocumentTitle('Mi perfil')
   const user = getUser()
+  const navigate = useNavigate()
   const queryClient = useQueryClient()
   const toast = useToast()
   const confirm = useConfirm()
@@ -171,6 +172,32 @@ export function ProfilePage() {
     },
     onError: (err) => toast.error(apiErrorMessage(err, 'No se pudo cambiar la visibilidad de tu perfil.')),
   })
+
+  // Baja de cuenta propia (change roles-gestion-usuarios): irreversible —
+  // invalida sesiones, cancela la suscripción activa y bloquea el login
+  // posterior. Tras la respuesta se limpia la sesión local y se redirige.
+  const darDeBaja = useMutation({
+    mutationFn: () => authApi.bajaCuenta(),
+    onSuccess:  () => {
+      toast.success('Tu cuenta ha sido dada de baja')
+      navigate('/login', { replace: true })
+    },
+    onError: (err) => toast.error(apiErrorMessage(err, 'No se pudo dar de baja la cuenta.')),
+  })
+
+  async function handleDarDeBaja() {
+    // Confirmación doble: la primera advierte, la segunda pide confirmación
+    // explícita de una acción irreversible.
+    const paso1 = await confirm('¿Estás seguro de que quieres dar de baja tu cuenta?', {
+      danger: true, confirmLabel: 'Continuar',
+    })
+    if (!paso1) return
+    const paso2 = await confirm(
+      'Esta acción es IRREVERSIBLE: perderás el acceso, se cerrarán tus sesiones y se cancelará tu suscripción. ¿Confirmas la baja definitiva?',
+      { danger: true, confirmLabel: 'Sí, dar de baja' },
+    )
+    if (paso2) darDeBaja.mutate()
+  }
 
   if (!user) return null
 
@@ -445,6 +472,22 @@ export function ProfilePage() {
           )}
         </div>
       )}
+
+      <div className={styles.dangerZone}>
+        <h2 className={styles.sectionTitle}>Dar de baja mi cuenta</h2>
+        <p className={styles.note}>
+          Perderás el acceso, se cerrarán todas tus sesiones y se cancelará tu suscripción activa.
+          Esta acción es irreversible.
+        </p>
+        <button
+          type="button"
+          className={styles.btnDanger}
+          disabled={darDeBaja.isPending}
+          onClick={handleDarDeBaja}
+        >
+          {darDeBaja.isPending ? 'Procesando…' : 'Dar de baja mi cuenta'}
+        </button>
+      </div>
     </section>
   )
 }

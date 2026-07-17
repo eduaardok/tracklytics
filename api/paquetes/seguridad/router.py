@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
@@ -8,28 +8,46 @@ from pydantic import BaseModel
 from core.database import execute, get_client, query_one, query_rows
 from core.deps import get_current_user
 from paquetes.seguridad import audit, pb_client
-from paquetes.seguridad.deps import require_admin
+from paquetes.seguridad.deps import require_admin, require_rol_admin, roles_admin_vigentes
 from paquetes.seguridad.queries import (
     ACCIONES_POR_DIA,
     AUDIT_LOG_RECIENTES,
+    CATALOGO_ROLES_ADMIN,
     DISPOSITIVO_EXISTE,
     ERRORES_RECIENTES,
     ERRORES_ULTIMAS_24H,
+    ESTADO_CUENTA_VIGENTE,
+    LOGIN_FALLIDOS_RECIENTES,
     MI_PERFIL,
     MIS_SESIONES_ABIERTAS,
     PERMISO_VIGENTE_UNO,
     PERMISOS_POR_DEFECTO,
     PERMISOS_VIGENTES,
+    ROL_ADMIN_EXISTE,
+    ROLES_ADMIN_VIGENTES_DETALLE,
     SESION_ABIERTA_POR_DISPOSITIVO,
     SESION_POR_ID,
     SESIONES_ABIERTAS_TOTAL,
+    TOKEN_RECUPERACION_VIGENTE,
+    TRANSACCIONES_RECIENTES_USUARIO,
+    ULTIMO_LOGIN_USUARIO,
+    USUARIO_360_BASE,
     USUARIO_POR_ID,
     USUARIOS_BUSQUEDA,
+    usuarios_admin_listado_sql,
+    usuarios_admin_total_sql,
     usuarios_listado_sql,
     usuarios_listado_total_sql,
 )
+from paquetes.suscripciones import pb_client as susc_pb
 
 router = APIRouter(prefix="/app/v1/seguridad", tags=["Seguridad"])
+
+# Lockout (change roles-gestion-usuarios): 5+ intentos fallidos del mismo email
+# en 15 minutos bloquean temporalmente el login.
+MAX_INTENTOS_LOGIN = 5
+# Vigencia de un token de recuperación de contraseña.
+TOKEN_RECUPERACION_TTL_MIN = 30
 
 ROLES_AUTO_REGISTRABLES = ("user", "analyst")  # admin no es autoasignable (CU-O01)
 
@@ -152,10 +170,40 @@ async def registro(body: RegistroBody):
 
 @router.post("/auth/login")
 async def login(body: LoginBody, request: Request):
-    pb_resp = await pb_client.login(body.email, body.password)
+    # Lockout (change roles-gestion-usuarios): antes de tocar PocketBase, si el
+    # email acumuló >=5 intentos fallidos en los últimos 15 min, se rechaza sin
+    # validar la contraseña. Los fallos se registran en FACT_AUDIT_LOG con
+    # accion='login_fallido' y usuario_id=email (no hay identidad en un fallo).
+    fallidos = (query_one(LOGIN_FALLIDOS_RECIENTES, {"email": body.email}) or {}).get("n", 0)
+    if fallidos >= MAX_INTENTOS_LOGIN:
+        raise HTTPException(
+            status_code=429,
+            detail="Cuenta bloqueada temporalmente, intenta en 15 minutos",
+        )
+
+    try:
+        pb_resp = await pb_client.login(body.email, body.password)
+    except HTTPException as exc:
+        if exc.status_code == 401:
+            audit.record(
+                usuario_id=body.email, accion="login_fallido",
+                tabla_afectada="FACT_SESION", antes=None,
+                despues={"email": body.email},
+            )
+        raise
+
     record = pb_resp["record"]
     usuario_id = record["id"]
     rol = record.get("role", "user")
+
+    # Estado de cuenta (change roles-gestion-usuarios): una cuenta suspendida o
+    # dada de baja no puede iniciar sesión, aunque PocketBase valide sus
+    # credenciales — el estado lo gobierna Tracklytics, no PocketBase.
+    estado = (query_one(ESTADO_CUENTA_VIGENTE, {"usuario_id": usuario_id}) or {}).get("estado_cuenta") or "activa"
+    if estado == "suspendido":
+        raise HTTPException(status_code=403, detail="Cuenta suspendida")
+    if estado == "eliminado":
+        raise HTTPException(status_code=403, detail="Cuenta dada de baja")
 
     # Backfill: usuarios creados antes de que existiera esta capability no
     # tienen fila en DIM_USUARIO/FACT_PERMISO_USUARIO — se completa en su
@@ -445,3 +493,249 @@ def consultar_auditoria(limit: int = Query(50, ge=1, le=500), admin: dict = Depe
 @router.get("/errores")
 def consultar_errores(limit: int = Query(50, ge=1, le=500), admin: dict = Depends(require_admin)):
     return {"data": query_rows(ERRORES_RECIENTES, {"limit": limit})}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 5. Recuperación de contraseña simulada (change roles-gestion-usuarios)
+#    Token de un solo uso, sin envío de correo real (patrón de simulación del
+#    proyecto). El endpoint nunca revela si el correo existe.
+# ─────────────────────────────────────────────────────────────────────────────
+
+class RecuperarBody(BaseModel):
+    email: str
+
+
+class RestablecerBody(BaseModel):
+    token: str
+    nueva_password: str
+
+
+_MENSAJE_RECUPERACION = "Si el email existe, recibirás instrucciones"
+
+
+@router.post("/auth/recuperar")
+async def recuperar_password(body: RecuperarBody):
+    usuario = await pb_client.buscar_por_email(body.email)
+    if usuario:
+        token = str(uuid.uuid4())
+        expira = datetime.now(timezone.utc) + timedelta(minutes=TOKEN_RECUPERACION_TTL_MIN)
+        get_client().insert(
+            "FACT_TOKEN_RECUPERACION",
+            [(token, usuario["id"], expira, 0, datetime.now(timezone.utc))],
+            column_names=["token", "usuario_id", "expira_en", "usado", "created_at"],
+        )
+        audit.record(
+            usuario_id=usuario["id"], accion="solicitar_recuperacion_password",
+            tabla_afectada="FACT_TOKEN_RECUPERACION", antes=None,
+            despues={"email": body.email},
+        )
+    # Respuesta genérica idéntica exista o no el correo — no filtra qué correos
+    # están registrados.
+    return {"status": "ok", "mensaje": _MENSAJE_RECUPERACION}
+
+
+@router.post("/auth/restablecer")
+async def restablecer_password(body: RestablecerBody):
+    if len(body.nueva_password) < 8:
+        raise HTTPException(status_code=422, detail="La nueva contraseña debe tener al menos 8 caracteres")
+
+    fila = query_one(TOKEN_RECUPERACION_VIGENTE, {"token": body.token})
+    if not fila:
+        raise HTTPException(status_code=400, detail="Token inválido")
+    if fila.get("usado"):
+        raise HTTPException(status_code=400, detail="Token ya utilizado")
+    expira = fila["expira_en"]
+    expira = expira if expira.tzinfo else expira.replace(tzinfo=timezone.utc)
+    if expira < datetime.now(timezone.utc):
+        raise HTTPException(status_code=400, detail="Token expirado")
+
+    usuario_id = fila["usuario_id"]
+    await pb_client.admin_cambiar_password(usuario_id, body.nueva_password)
+
+    # Marca el token como usado: fila nueva con usado=1 y created_at mayor —
+    # resuelto por argMax en TOKEN_RECUPERACION_VIGENTE (no se muta la fila).
+    get_client().insert(
+        "FACT_TOKEN_RECUPERACION",
+        [(body.token, usuario_id, fila["expira_en"], 1, datetime.now(timezone.utc))],
+        column_names=["token", "usuario_id", "expira_en", "usado", "created_at"],
+    )
+    audit.record(
+        usuario_id=usuario_id, accion="restablecer_password",
+        tabla_afectada="FACT_TOKEN_RECUPERACION", antes=None,
+        despues={"token_usado": True},
+    )
+    return {"status": "ok"}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 6. Baja de cuenta propia (change roles-gestion-usuarios)
+#    Marca estado_cuenta='eliminado', cierra sesiones y cancela la suscripción
+#    activa. No borra datos históricos de ClickHouse (retención analítica).
+# ─────────────────────────────────────────────────────────────────────────────
+
+@router.post("/perfil/baja")
+async def baja_cuenta(user: dict = Depends(get_current_user)):
+    usuario_id = user["record"]["id"]
+
+    # Cancela la suscripción activa si la tiene (con el token del propio usuario).
+    try:
+        activas = await susc_pb.list_activas(user["token"], usuario_id)
+        for sub in activas:
+            await susc_pb.cancelar(user["token"], sub["id"])
+    except Exception:
+        pass  # la baja no debe fallar si la cancelación de suscripción falla
+
+    # Cierra todas las sesiones abiertas del usuario.
+    for s in query_rows(MIS_SESIONES_ABIERTAS, {"usuario_id": usuario_id}):
+        _cerrar_sesion(s["sesion_id"], usuario_id, s["dispositivo_id"], s["fecha_inicio"])
+
+    execute(
+        "ALTER TABLE DIM_USUARIO UPDATE estado_cuenta = 'eliminado' WHERE usuario_id = {usuario_id:String}",
+        {"usuario_id": usuario_id},
+    )
+    audit.record(
+        usuario_id=usuario_id, accion="baja_cuenta_propia",
+        tabla_afectada="DIM_USUARIO", antes={"estado_cuenta": "activa"},
+        despues={"estado_cuenta": "eliminado"},
+    )
+    return {"status": "ok", "mensaje": "Cuenta dada de baja"}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 7. Gestión administrativa de usuarios (change roles-gestion-usuarios)
+#    Panel transversal exclusivo de `superadmin`: listado, vista 360°, roles
+#    administrativos y suspensión/reactivación de cuentas.
+# ─────────────────────────────────────────────────────────────────────────────
+
+class AsignarRolAdminBody(BaseModel):
+    rol_admin: str
+
+
+@router.get("/admin/roles-admin")
+def catalogo_roles_admin(admin: dict = Depends(require_admin)):
+    """Catálogo cerrado de roles administrativos (DIM_ROL_ADMINISTRATIVO)."""
+    return {"data": query_rows(CATALOGO_ROLES_ADMIN)}
+
+
+@router.get("/admin/usuarios")
+def listar_usuarios_admin(
+    limit:        int = Query(20, ge=1, le=200),
+    page:         int = Query(1, ge=1),
+    rol:          str | None = Query(None),
+    estado:       str | None = Query(None),
+    fecha_desde:  str | None = Query(None),
+    fecha_hasta:  str | None = Query(None),
+    admin: dict = Depends(require_admin),
+):
+    """Listado paginado con estado_cuenta, filtrable por rol, estado de cuenta
+    y rango de fecha de registro. El filtro de estado se aplica sobre el estado
+    vigente (resuelto por argMax dentro del HAVING)."""
+    clauses, params = [], {}
+    if rol:
+        clauses.append("rol = {rol:String}")
+        params["rol"] = rol
+    if fecha_desde:
+        clauses.append("fecha_registro >= {fecha_desde:String}")
+        params["fecha_desde"] = fecha_desde
+    if fecha_hasta:
+        clauses.append("fecha_registro <= {fecha_hasta:String}")
+        params["fecha_hasta"] = fecha_hasta
+    where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
+    having = "HAVING estado_cuenta = {estado:String}" if estado else ""
+    if estado:
+        params["estado"] = estado
+    offset = (page - 1) * limit
+    rows = query_rows(usuarios_admin_listado_sql(where, having), {**params, "limit": limit, "offset": offset})
+    total = query_one(usuarios_admin_total_sql(where, having), params)["n"]
+    return {"data": rows, "total": total, "page": page, "limit": limit}
+
+
+@router.get("/admin/usuarios/{usuario_id}")
+async def usuario_360(usuario_id: str, admin: dict = Depends(require_admin)):
+    """Vista 360°: perfil + estado + roles admin + suscripción activa +
+    transacciones recientes + sesiones activas + permisos vigentes + último
+    login. Consolida DIM_USUARIO, BRIDGE_USUARIO_ROL_ADMIN, FACT_SESION,
+    FACT_TRANSACCION_PAGO y FACT_PERMISO_USUARIO."""
+    base = query_one(USUARIO_360_BASE, {"usuario_id": usuario_id})
+    if not base:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+
+    try:
+        suscripcion = await susc_pb.list_activas_admin(usuario_id)
+    except Exception:
+        suscripcion = []
+
+    ultimo = (query_one(ULTIMO_LOGIN_USUARIO, {"usuario_id": usuario_id}) or {}).get("ultimo_login")
+    return {
+        "perfil":         {**base, "perfil_publico": bool(base["perfil_publico"])},
+        "roles_admin":    query_rows(ROLES_ADMIN_VIGENTES_DETALLE, {"usuario_id": usuario_id}),
+        "suscripcion_activa": suscripcion[0] if suscripcion else None,
+        "transacciones":  query_rows(TRANSACCIONES_RECIENTES_USUARIO, {"usuario_id": usuario_id, "limit": 10}),
+        "sesiones_activas": query_rows(MIS_SESIONES_ABIERTAS, {"usuario_id": usuario_id}),
+        "permisos":       query_rows(PERMISOS_VIGENTES, {"usuario_id": usuario_id}),
+        "ultimo_login":   ultimo,
+    }
+
+
+@router.post("/admin/usuarios/{usuario_id}/rol-admin")
+def asignar_rol_admin(usuario_id: str, body: AsignarRolAdminBody, admin: dict = Depends(require_admin)):
+    if not query_one(USUARIO_POR_ID, {"usuario_id": usuario_id}):
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+    if not query_one(ROL_ADMIN_EXISTE, {"rol_admin": body.rol_admin}):
+        raise HTTPException(status_code=422, detail=f"Rol administrativo desconocido: {body.rol_admin}")
+
+    admin_id = admin["record"]["id"]
+    get_client().insert(
+        "BRIDGE_USUARIO_ROL_ADMIN",
+        [(usuario_id, body.rol_admin, admin_id, 0, datetime.now(timezone.utc))],
+        column_names=["usuario_id", "rol_admin", "asignado_por", "revocado", "fecha"],
+    )
+    audit.record(
+        usuario_id=admin_id, accion="asignar_rol_admin",
+        tabla_afectada="BRIDGE_USUARIO_ROL_ADMIN", antes=None,
+        despues={"usuario_id": usuario_id, "rol_admin": body.rol_admin},
+    )
+    return {"status": "ok"}
+
+
+@router.delete("/admin/usuarios/{usuario_id}/rol-admin/{rol_admin}")
+def revocar_rol_admin(usuario_id: str, rol_admin: str, admin: dict = Depends(require_admin)):
+    admin_id = admin["record"]["id"]
+    # Revocación = borrado lógico (fila nueva con revocado=1 y fecha mayor).
+    get_client().insert(
+        "BRIDGE_USUARIO_ROL_ADMIN",
+        [(usuario_id, rol_admin, admin_id, 1, datetime.now(timezone.utc))],
+        column_names=["usuario_id", "rol_admin", "asignado_por", "revocado", "fecha"],
+    )
+    audit.record(
+        usuario_id=admin_id, accion="revocar_rol_admin",
+        tabla_afectada="BRIDGE_USUARIO_ROL_ADMIN",
+        antes={"usuario_id": usuario_id, "rol_admin": rol_admin}, despues=None,
+    )
+    return {"status": "ok"}
+
+
+def _cambiar_estado_cuenta(usuario_id: str, nuevo_estado: str, admin_id: str, accion: str) -> None:
+    if not query_one(USUARIO_POR_ID, {"usuario_id": usuario_id}):
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+    execute(
+        "ALTER TABLE DIM_USUARIO UPDATE estado_cuenta = {estado:String} WHERE usuario_id = {usuario_id:String}",
+        {"estado": nuevo_estado, "usuario_id": usuario_id},
+    )
+    audit.record(
+        usuario_id=admin_id, accion=accion,
+        tabla_afectada="DIM_USUARIO", antes=None,
+        despues={"usuario_id": usuario_id, "estado_cuenta": nuevo_estado},
+    )
+
+
+@router.post("/admin/usuarios/{usuario_id}/suspender")
+def suspender_usuario(usuario_id: str, admin: dict = Depends(require_admin)):
+    _cambiar_estado_cuenta(usuario_id, "suspendido", admin["record"]["id"], "suspender_cuenta")
+    return {"status": "ok", "estado_cuenta": "suspendido"}
+
+
+@router.post("/admin/usuarios/{usuario_id}/reactivar")
+def reactivar_usuario(usuario_id: str, admin: dict = Depends(require_admin)):
+    _cambiar_estado_cuenta(usuario_id, "activa", admin["record"]["id"], "reactivar_cuenta")
+    return {"status": "ok", "estado_cuenta": "activa"}

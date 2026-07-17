@@ -3,6 +3,7 @@
 // Nunca importar directamente de components/, pages/, o api/ internos.
 
 export { PermisosPage }  from './pages/PermisosPage'
+export { UsuariosAdminPage } from './pages/UsuariosAdminPage'
 export { AuditoriaPage } from './pages/AuditoriaPage'
 export { ErroresPage }   from './pages/ErroresPage'
 export { LoginPage }     from './pages/LoginPage'

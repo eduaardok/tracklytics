@@ -1,16 +1,9 @@
-from fastapi import Depends, HTTPException
+from paquetes.seguridad.deps import require_rol_admin
 
-from core.deps import get_current_user
-
-
-def require_lead_data_engineer(user: dict = Depends(get_current_user)) -> dict:
-    """Gating de toda la capability `ingesta` (Context: "El Lead Data
-    Engineer es el único actor de esta capability"). Mapeado a role=admin,
-    el mismo rol de staff interno usado por el resto del proyecto."""
-    role = user.get("record", {}).get("role", "")
-    if role != "admin":
-        raise HTTPException(
-            status_code=403,
-            detail="La gestión de ingesta es exclusiva de Lead Data Engineer",
-        )
-    return user
+# Autorización administrativa segmentada (change roles-gestion-usuarios): toda
+# la capability de gestión de datos / ingesta es competencia del Lead Data
+# Engineer, mapeado al rol administrativo `admin_datos`. `superadmin` siempre
+# pasa, así que el `admin` monolítico previo (mapeado a superadmin) conserva
+# acceso. Antes exigía `role == "admin"` directo; ahora delega en el catálogo
+# de roles por área.
+require_lead_data_engineer = require_rol_admin("admin_datos")

@@ -1,8 +1,8 @@
 # Módulo Distribución — Documentación de negocio
 
 > Redactado al archivar la capability `distribucion` (2026-07-02), siguiendo la regla de
-> documentación en paralelo con la implementación (`docs/decisiones-refactorizacion.md`,
-> sección 10). Segunda entrega de la serie `docs/negocio/<capability>.md` (después de
+> documentación en paralelo con la implementación. Segunda entrega de la serie
+> `docs/negocio/<capability>.md` (después de
 > `social.md`), pendiente de consolidarse en el documento final de Word al cerrar las seis
 > capabilities nuevas del semestre (Fase 7). Queda `experiencia` como última capability nueva.
 

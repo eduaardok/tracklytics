@@ -163,6 +163,23 @@ async def _get_admin_token() -> str:
     return _admin_token
 
 
+async def list_activas_admin(user_id: str) -> list[dict]:
+    """Como `list_activas` pero con el token de superusuario, para que un
+    `superadmin` pueda ver la suscripción vigente de OTRO usuario en la vista
+    360° de gestión de usuarios (change roles-gestion-usuarios) — el token del
+    propio usuario objetivo no está disponible en una sesión administrativa."""
+    token = await _get_admin_token()
+    filtro = f'usuario_o_cliente="{user_id}" && (estado="activa" || estado="pago_pendiente")'
+    async with httpx.AsyncClient(timeout=10) as client:
+        resp = await client.get(
+            f"{PB_URL}/api/collections/{COLLECTION}/records",
+            params={"filter": filtro, "page": 1, "perPage": 10},
+            headers={"Authorization": f"Bearer {token}"},
+        )
+    resp.raise_for_status()
+    return resp.json().get("items", [])
+
+
 async def _admin_count(filtro: str) -> int:
     token = await _get_admin_token()
     async with httpx.AsyncClient(timeout=10) as client:

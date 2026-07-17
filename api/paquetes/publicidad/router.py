@@ -21,7 +21,12 @@ from paquetes.publicidad.queries import (
     INGRESO_YA_RECONOCIDO,
     ingresos_por_campana_sql,
 )
-from paquetes.seguridad.deps import require_admin
+from paquetes.seguridad.deps import require_rol_admin
+
+# Autorización administrativa segmentada (change roles-gestion-usuarios): los
+# anunciantes, campañas e ingresos por publicidad son una línea de ingresos que
+# pertenece al área financiera. `superadmin` siempre pasa.
+require_admin = require_rol_admin("admin_finanzas")
 from paquetes.suscripciones import pb_client
 
 router = APIRouter(prefix="/app/v1/publicidad", tags=["Publicidad"])

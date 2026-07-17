@@ -1,16 +1,9 @@
 # Módulo Social — Documentación de negocio
 
 > Redactado al archivar la capability `social` (2026-07-02), siguiendo la regla de
-> documentación en paralelo con la implementación (`docs/decisiones-refactorizacion.md`,
-> sección 10). Este archivo es la primera entrega de una serie por capability
-> (`docs/negocio/<capability>.md`) que se consolidará en el documento final de Word al
-> cerrar las seis capabilities nuevas del semestre (Fase 7). Pendiente relacionado: al
-> hacer esa consolidación, `docs/EMPRESA_TRACKLYTICS.md` necesita una revisión — su
-> tabla de estado (sección 11) todavía marca "PS-01: Autenticación y control de acceso"
-> como *Pendiente*, cuando la capability `seguridad` ya lo resolvió; esa y otras
-> inconsistencias del documento (predata el refactor hacia ClickHouse/FastAPI/React)
-> se corrigen en la misma ronda de consolidación, junto con la integración de este
-> archivo y los de `distribucion`/`experiencia`.
+> documentación en paralelo con la implementación. Este archivo es la primera entrega
+> de una serie por capability (`docs/negocio/<capability>.md`) que se consolidará en el
+> documento final de Word al cerrar las seis capabilities nuevas del semestre (Fase 7).
 
 ## Propósito
 

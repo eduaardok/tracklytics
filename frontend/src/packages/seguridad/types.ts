@@ -47,3 +47,49 @@ export type DashboardSeguridad = {
   errores_24h:              number
   sesiones_abiertas_total:  number
 }
+
+// ── Gestión administrativa de usuarios (change roles-gestion-usuarios) ─────────
+
+export type EstadoCuenta = 'activa' | 'suspendido' | 'eliminado'
+
+export type UsuarioAdmin = {
+  usuario_id:     string
+  nombre:         string
+  email:          string
+  rol:            string
+  fecha_registro: string
+  estado_cuenta:  EstadoCuenta
+}
+
+export type RolAdmin = {
+  rol_admin:    string
+  nombre:       string
+  capabilities: string[]
+  descripcion:  string
+}
+
+export type RolAdminAsignado = {
+  rol_admin:    string
+  nombre:       string | null
+  asignado_por: string
+  fecha:        string
+}
+
+export type Usuario360 = {
+  perfil: {
+    usuario_id:     string
+    nombre:         string
+    email:          string
+    pais:           string
+    rol:            string
+    perfil_publico: boolean
+    fecha_registro: string
+    estado_cuenta:  EstadoCuenta
+  }
+  roles_admin:         RolAdminAsignado[]
+  suscripcion_activa:  Record<string, unknown> | null
+  transacciones:       { transaccion_id: string; monto: number; moneda: string; estado: string; suscripcion_id: string; fecha: string }[]
+  sesiones_activas:    { sesion_id: string; dispositivo_id: string; fecha_inicio: string; tipo: string | null; os: string | null }[]
+  permisos:            Permiso[]
+  ultimo_login:        string | null
+}

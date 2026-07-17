@@ -25,8 +25,8 @@
 Tracklytics procesa un dataset base de 113.550 registros reales de Spotify más datos
 sintéticos semanales acumulados (1.113.555 registros confirmados hoy en `FACT_TRACKS`, semanas
 1-11 cargadas, tras corregir un incidente de duplicación — ver
-`docs/decisiones-refactorizacion.md` §20), los almacena en un modelo dimensional columnar en
-ClickHouse (68 tablas físicas), orquesta las cargas con Apache Airflow (7 DAGs: catálogo,
+`docs/BITACORA_S10.md`), los almacena en un modelo dimensional columnar en
+ClickHouse (71 tablas físicas), orquesta las cargas con Apache Airflow (7 DAGs: catálogo,
 recarga de portadas independiente, recalificación administrativa en bloque, engagement de
 referencia, playlists, modelo de negocio y finanzas periódicas) y los expone mediante una API
 REST (FastAPI), un frontend React containerizado (único frontend del proyecto) con dashboards
@@ -44,7 +44,7 @@ de campañas), y una API de catálogo para partners externos.
 |---|---|
 | Fuente de datos | PocketBase — dataset base `spotify_tracks` (113.550 registros) + 5 colecciones más: `users`, `playlists`, `playlist_tracks`, `suscripciones`, `partners` |
 | Staging | Parquet (vía PyArrow) |
-| Base de datos | ClickHouse 24.3 (MergeTree) — 68 tablas físicas en esquema estrella (verificado con `system.tables`), incluyendo capabilities transaccionales (`seguridad`, `facturacion`, `finanzas`) implementadas en columnar por decisión pedagógica deliberada del docente |
+| Base de datos | ClickHouse 24.3 (MergeTree) — 71 tablas físicas en esquema estrella (verificado con `system.tables`), incluyendo capabilities transaccionales (`seguridad`, `facturacion`, `finanzas`) implementadas en columnar por decisión pedagógica deliberada del docente |
 | Orquestación ETL | Apache Airflow 2.9 — DAG principal (`tracklytics_etl`) + 3 DAGs independientes (`playlists_sync`, `modelo_negocio_sync`, `finanzas_periodicas`) |
 | API REST | FastAPI + Uvicorn (Python 3.11) — 15 paquetes (uno por capability), incluye API de partners autenticada por API key |
 | Frontend | React 18 + TypeScript + Vite — único frontend del proyecto (`frontend/`), containerizado (servicio `frontend-react`, build multi-stage Vite+Nginx); el frontend legado vanilla HTML/CSS/JS (`app/`) se retiró por completo del repo en S10 |
@@ -53,7 +53,7 @@ de campañas), y una API de catálogo para partners externos.
 | Portadas reales | iTunes Search API + Deezer Search API (orden de intento distinto por entidad, sin API key en ninguna) — cache persistente en disco (`etl/gold/portadas_cache.json`) sobrevive a `docker compose down -v`; reemplazo visual local si ninguna fuente resuelve |
 | Sistema de diseño | Tokens propios en oklch (`frontend/src/index.css`), definidos una vez y aplicados incrementalmente por capability — ver `PRODUCT.md` |
 | Servidor web | Nginx (reverse proxy del único frontend, `frontend-react`) |
-| Auth | PocketBase JWT (roles: `user` / `analyst` / `admin`) |
+| Auth | PocketBase JWT (roles: `user` / `analyst` / `admin`) + roles administrativos especializados (`superadmin`, `admin_finanzas`, `admin_contenido`, `admin_comunidad`, `admin_datos`, `admin_comercial`) gestionados en ClickHouse |
 | Contenedores | Docker + Docker Compose (6 servicios de larga duración: PocketBase, ClickHouse, Airflow, API, frontend React, más los jobs de init) |
 
 ---
@@ -112,7 +112,7 @@ Docker Compose levanta automáticamente todos los servicios en el orden correcto
 1. **PocketBase** y **ClickHouse** arrancan primero.
 2. **pb-init** crea las colecciones necesarias en PocketBase y carga los 113.550 registros
    desde el CSV (tarda ~5 min).
-3. **init-db** crea el schema dimensional en ClickHouse (68 tablas).
+3. **init-db** crea el schema dimensional en ClickHouse (71 tablas).
 4. **Airflow**, **API** y el **frontend React** (`frontend-react`, puerto 8082, único frontend)
    quedan disponibles.
 
@@ -178,7 +178,7 @@ Los volúmenes se recrean solos. No es necesario ningún paso manual adicional.
 
 > `/analitica/disponibilidad` (uptime de infraestructura) y `/distribucion/disponibilidad`
 > (restricción geográfica de reproducción) son vistas distintas con nombres parecidos —
-> conceptos de negocio no relacionados, ver `docs/decisiones-refactorizacion.md`.
+> conceptos de negocio no relacionados, ver los `design.md` archivados en `openspec/changes/archive/`.
 
 ### Backend y servicios
 
@@ -238,8 +238,8 @@ API key por header (`X-API-Key`), resuelta contra la colección `partners`, segm
 | `finanzas` | Gastos operativos, reembolsos validados, cuentas por cobrar/pagar, tracking de presupuesto de campañas + alertas, indicadores empresariales, dashboard y reporte financiero consolidado | 2 |
 
 Las 5 primeras forman el "módulo operativo" original (S7-S8); las 6 siguientes son la
-refactorización hacia sistema completo (detalle de cada decisión en
-`docs/decisiones-refactorizacion.md`); `regalias` y `publicidad` cierran el modelo de negocio de
+refactorización hacia sistema completo (detalle de cada decisión en los `design.md`
+archivados en `openspec/changes/archive/`); `regalias` y `publicidad` cierran el modelo de negocio de
 streaming real (S10) — ver la sección [Regalías y publicidad](#regalías-y-publicidad-modelo-de-negocio-real)
 más abajo; `simulacion` (S11) demuestra ese modelo de dinero a escala sin operar la app
 manualmente; `finanzas` (S11) cierra el panel de salud financiera — costo operativo, reembolsos,
@@ -429,7 +429,7 @@ tracklytics/
 │       ├── analitica/           # Dashboards + deps.py (gating B2B), churn/funnel/P&L, MRR/ARR
 │       ├── gestion_datos/       # ETL, CRUD dimensiones, calidad de datos, recalificación (capability `ingesta`)
 │       ├── partners/            # API key auth, tiers, logging
-│       ├── seguridad/           # Auth, sesiones, permisos, auditoría, errores, dashboard admin
+│       ├── seguridad/           # Auth, sesiones, permisos, roles administrativos por área, gestión de usuarios (vista 360°, suspender/reactivar), lockout, recuperación de contraseña, baja de cuenta, auditoría, errores, dashboard admin
 │       ├── facturacion/         # Métodos de pago, transacciones, invoices, info de empresa, dashboard admin
 │       ├── creadores/           # Cuenta de artista, subida de tracks, dashboard admin
 │       ├── social/              # Seguimiento, comentarios, compartir, feed, dashboard admin
@@ -450,8 +450,9 @@ tracklytics/
 ├── dataset/
 │   └── spotify.csv              # Dataset fuente (113.550 registros)
 ├── docs/
-│   ├── BITACORA_S6.md … BITACORA_S11.md  # Bitácoras semanales
-│   ├── decisiones-refactorizacion.md     # Log completo de decisiones de esta refactorización
+│   ├── BITACORA_S6.md … BITACORA_S11.md  # Bitácoras semanales (S11 incluye BITACORA_S11_P0.md: roles admin + gestión de usuarios)
+│   ├── CONSTITUCION_TRACKLYTICS.md       # Identidad y principios del proyecto
+│   ├── DIMENSIONAL_MODEL.md              # Modelo dimensional (fact + dimensiones)
 │   ├── negocio/                          # Documentación de negocio por capability (sin mecanismos de simulación académica)
 │   └── PENDIENTES.md                     # Pendientes vigentes y deuda técnica
 ├── etl/
@@ -477,11 +478,13 @@ tracklytics/
 
 ## Modelo de datos
 
-**68 tablas físicas en ClickHouse** (verificado contra `system.tables`: 52 al cierre de S9 — 17
+**71 tablas físicas en ClickHouse** (verificado contra `system.tables`: 52 al cierre de S9 — 17
 preexistentes al inicio de la refactorización + 30 de las 6 capabilities nuevas + 5 del cambio
 `completar-modelo-base` — más 9 de `regalias`/`publicidad` cerradas en S10; el resto se agregó
 durante S11: entre otras, `FACT_CANCELACION_SUSCRIPCION`, `FACT_RETIRO_REGALIA`, `DIM_EMPRESA`,
-`SOLICITUD_LICENCIA`, `FACT_GASTO_OPERATIVO` y `FACT_REEMBOLSO` — `simulacion` no agrega tabla
+`SOLICITUD_LICENCIA`, `FACT_GASTO_OPERATIVO` y `FACT_REEMBOLSO`, más las 3 del cambio
+`roles-gestion-usuarios` (`DIM_ROL_ADMINISTRATIVO`, `BRIDGE_USUARIO_ROL_ADMIN`,
+`FACT_TOKEN_RECUPERACION`) — `simulacion` no agrega tabla
 propia, escribe en tablas de otras capabilities). El inventario
 original de **58 "tablas" del modelo dimensional del proyecto**
 (`openspec/config.yaml`, sección "Modelo de datos de negocio": 15 técnicas + 13 de negocio + 30
@@ -576,7 +579,7 @@ API sin credencial) — y persiste el resultado en `etl/gold/portadas_cache.json
 originales. Procesa 50 artistas + 50 álbumes por corrida (resolución incremental, respeta el
 rate limit real de las APIs públicas). Cobertura actual: ~10.6% de artistas y ~1.6% de álbumes
 con portada resuelta — limitada por el rate limit real de ambas APIs bajo uso sostenido, no por
-errores de implementación (ver `docs/decisiones-refactorizacion.md`, secciones 24-25).
+errores de implementación (ver `docs/BITACORA_S11.md`).
 
 Seis DAGs adicionales, independientes de `tracklytics_etl` porque cada uno cubre un dominio de
 negocio ajeno al catálogo (o, en el caso de `reload_portadas`, porque bloqueaba el camino
@@ -652,7 +655,7 @@ validate --specs` en verde para las 15 capabilities).
 | S6 | UX completa + reproductor | Reproductor persistente, cola, cover art por gradiente, empty states — ver `docs/BITACORA_S6.md` |
 | S7 | Spec Driven Development (OpenSpec) | Constitución, specs de `catalogo`/`suscripciones`/`analitica`/`partners`/`ingesta` — ver `docs/BITACORA_S7.md` |
 | S8 | Implementación de `analitica`/`ingesta`/`partners` + correcciones UX | Cierre del módulo operativo original — ver `docs/BITACORA_S8.md` |
-| S9 | QA/rendimiento del módulo operativo **+ refactorización completa hacia sistema completo** | Ver `docs/BITACORA_S9.md` (dos entregas dentro de la misma semana: seek/QA/optimización ClickHouse, y luego las 6 capabilities nuevas + migración a React + pulido final — detalle exhaustivo en `docs/decisiones-refactorizacion.md`) |
+| S9 | QA/rendimiento del módulo operativo **+ refactorización completa hacia sistema completo** | Ver `docs/BITACORA_S9.md` (dos entregas dentro de la misma semana: seek/QA/optimización ClickHouse, y luego las 6 capabilities nuevas + migración a React + pulido final) |
 | S10 | Retiro del frontend legado + modelo de negocio real (regalías/publicidad) + cierre de la capa operativa | Frontend único (React); capabilities `regalias`/`publicidad` (9 tablas, DAG `finanzas_periodicas`); 6 dashboards administrativos RT-04; sesiones activas multi-dispositivo; búsqueda avanzada; feed social; playlists colaborativas + reorder — ver resumen abajo |
 | S11 | Cierre del modelo de monetización y de dinero + calidad de datos del catálogo + capability `finanzas` | 6 changes de OpenSpec; capabilities `simulacion` y `finanzas` (2 nuevas, 15 en total); publicidad display, trial + plan estudiante, churn con motivo, funnel/P&L, MRR/ARR, retiro de regalías; flujo de solicitud de licencia por sello; enriquecimiento de catálogo (año/país deterministas, coherencia audio-género, recalificación en bloque); 6 hallazgos de revisión manual de producto corregidos; empresa emisora editable; dashboard/reembolsos/cuentas por cobrar-pagar/presupuesto de campañas en `finanzas` — ver `docs/BITACORA_S11.md` |
 
@@ -762,7 +765,7 @@ en `docs/BITACORA_S11.md`):
   de ClickHouse) para evitar re-ejecutar JOINs pesados en cada request.
 - **Idempotencia ETL** — `ETL_BATCH_CONTROL` verifica si una semana ya fue cargada antes de
   insertar; guard adicional por `source_type='real'` en `FACT_TRACKS` tras el incidente de
-  duplicación (ver `docs/decisiones-refactorizacion.md` §20).
+  duplicación (ver `docs/BITACORA_S10.md`).
 - **`fact_id` para navegación** — PK único de `FACT_TRACKS`, usado en toda navegación en vez de
   `track_id` (no único) para resolver la relación N:M entre tracks y géneros.
 - **`source_type`, no `is_synthetic`** — reemplazo directo (no conviven ambos campos) para
