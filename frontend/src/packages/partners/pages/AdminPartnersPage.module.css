@@ -1,0 +1,83 @@
+.page {}
+
+.heading { font-family: var(--font-sans); font-size: 1.5rem; font-weight: 600; color: var(--color-ink); margin-bottom: var(--space-xs); }
+.intro { font-family: var(--font-sans); font-size: 0.875rem; color: var(--color-muted); max-width: 70ch; line-height: 1.5; margin-bottom: var(--space-lg); }
+.sectionLabel { font-family: var(--font-sans); font-size: 0.8125rem; font-weight: 500; color: var(--color-muted); margin-bottom: var(--space-sm); }
+
+/* Panel de revelación de la API key (una sola vez) */
+.keyPanel {
+  display: flex;
+  gap: var(--space-md);
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  padding: var(--space-md);
+  margin-bottom: var(--space-xl);
+  background: color-mix(in srgb, var(--color-primary) 10%, var(--color-surface));
+  border: 1px solid color-mix(in srgb, var(--color-primary) 40%, var(--color-border));
+  border-radius: var(--radius-md);
+}
+.keyTitle { font-family: var(--font-sans); font-size: 0.875rem; font-weight: 600; color: var(--color-ink); }
+.keyHint { font-family: var(--font-sans); font-size: 0.75rem; color: var(--color-muted); margin: 2px 0 var(--space-sm); }
+.keyValue {
+  display: inline-block;
+  font-family: var(--font-mono, monospace);
+  font-size: 0.9375rem;
+  color: var(--color-ink);
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 6px 10px;
+  user-select: all;
+  word-break: break-all;
+}
+.keyActions { display: flex; gap: var(--space-xs); }
+
+.form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--space-sm);
+  padding: var(--space-md);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  margin-bottom: var(--space-xl);
+  align-items: end;
+}
+.field { display: flex; flex-direction: column; gap: var(--space-xs); min-width: 0; }
+.fieldLabel { font-family: var(--font-sans); font-size: 0.75rem; font-weight: 500; color: var(--color-muted); }
+.input, .select {
+  width: 100%; background: var(--color-bg); color: var(--color-ink); font-family: var(--font-sans);
+  font-size: 0.875rem; padding: 8px 12px; height: 36px; border-radius: var(--radius-md); border: 1px solid var(--color-border); outline: none;
+}
+.input:focus, .select:focus { border-color: var(--color-primary); }
+
+.btnPrimary {
+  display: inline-flex; align-items: center; justify-content: center; font-family: var(--font-sans);
+  font-size: 0.875rem; font-weight: 600; color: var(--color-ink); background: var(--color-primary);
+  border: none; border-radius: var(--radius-md); padding: 8px var(--space-md); height: 36px; cursor: pointer; white-space: nowrap;
+}
+.btnPrimary:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.tablePanel { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-md); overflow-x: auto; margin-bottom: var(--space-xl); }
+.table { width: 100%; border-collapse: collapse; }
+.table th { text-align: left; font-family: var(--font-sans); font-size: 0.75rem; font-weight: 500; color: var(--color-muted); padding: 10px var(--space-md); border-bottom: 1px solid var(--color-border); }
+.table td { font-family: var(--font-sans); font-size: 0.875rem; color: var(--color-ink); padding: 10px var(--space-md); }
+.table tbody tr + tr td { border-top: 1px solid var(--color-border); }
+.emptyState { padding: var(--space-lg); text-align: center; font-family: var(--font-sans); font-size: 0.875rem; color: var(--color-muted); }
+
+.actionsCol { text-align: right; white-space: nowrap; }
+.actions { display: inline-flex; gap: var(--space-xs); justify-content: flex-end; flex-wrap: wrap; }
+
+.badge { display: inline-block; font-family: var(--font-sans); font-size: 0.6875rem; font-weight: 600; padding: 2px 8px; border-radius: 999px; border: 1px solid transparent; }
+.badgeOk { color: #34d399; background: color-mix(in srgb, #34d399 14%, transparent); border-color: color-mix(in srgb, #34d399 30%, transparent); }
+.badgeOff { color: var(--color-muted); background: color-mix(in srgb, var(--color-muted) 12%, transparent); border-color: var(--color-border); }
+
+.btnGhost, .btnGhostDanger {
+  font-family: var(--font-sans); font-size: 0.75rem; font-weight: 600; padding: 5px 10px; height: 30px;
+  border-radius: var(--radius-md); background: transparent; border: 1px solid var(--color-border); color: var(--color-ink); cursor: pointer; white-space: nowrap;
+}
+.btnGhost:hover:not(:disabled) { border-color: var(--color-primary); }
+.btnGhost:disabled { opacity: 0.4; cursor: not-allowed; }
+.btnGhostDanger { color: #f87171; border-color: color-mix(in srgb, #f87171 35%, var(--color-border)); }
+.btnGhostDanger:hover { border-color: #f87171; background: color-mix(in srgb, #f87171 10%, transparent); }

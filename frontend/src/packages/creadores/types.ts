@@ -1,5 +1,5 @@
 export type EstadoCuenta = 'pendiente' | 'aprobada' | 'rechazada'
-export type EstadoRevision = 'pendiente' | 'aprobado' | 'rechazado'
+export type EstadoRevision = 'pendiente' | 'aprobado' | 'rechazado' | 'retirado'
 
 export type CuentaArtista = {
   cuenta_artista_id:  string
@@ -24,8 +24,17 @@ export type SubidaTrack = {
   track_name:         string
   album_name:         string
   genre_id:           number
+  descripcion:        string
   duration_ms:        number
   explicit:           number
+}
+
+// Edición de metadata de un track propio (change p1-ciclos-vida).
+export type EditarTrackBody = {
+  track_name?:  string
+  album_name?:  string
+  genre_id?:    number
+  descripcion?: string
 }
 
 export type SolicitudCuentaBody = {

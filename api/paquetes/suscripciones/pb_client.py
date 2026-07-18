@@ -237,6 +237,39 @@ async def contar_pago_pendiente() -> int:
     return await _admin_count('estado="pago_pendiente"')
 
 
+async def list_admin(filtro: str, page: int, per_page: int) -> dict:
+    """Listado paginado de suscripciones cross-usuario con el token de
+    superusuario (change p1-ciclos-vida) — la `listRule` de la colección
+    restringe al dueño, así que la administración comercial necesita el
+    superusuario. Devuelve items + totalItems + totalPages."""
+    token = await _get_admin_token()
+    params = {"page": page, "perPage": per_page, "sort": "-created"}
+    if filtro:
+        params["filter"] = filtro
+    async with httpx.AsyncClient(timeout=10) as client:
+        resp = await client.get(
+            f"{PB_URL}/api/collections/{COLLECTION}/records",
+            params=params, headers={"Authorization": f"Bearer {token}"},
+        )
+    resp.raise_for_status()
+    body = resp.json()
+    return {"items": body.get("items", []), "total": body.get("totalItems", 0), "total_pages": body.get("totalPages", 0)}
+
+
+async def obtener_admin(record_id: str) -> dict | None:
+    """Detalle de cualquier suscripción por id con el token de superusuario."""
+    token = await _get_admin_token()
+    async with httpx.AsyncClient(timeout=10) as client:
+        resp = await client.get(
+            f"{PB_URL}/api/collections/{COLLECTION}/records/{record_id}",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+    if resp.status_code == 404:
+        return None
+    resp.raise_for_status()
+    return resp.json()
+
+
 async def sumar_montos_activos(tipos_plan: tuple[str, ...]) -> float:
     """Suma `monto` de todas las suscripciones activas de alguno de
     `tipos_plan` — usado para MRR (modelo-financiero-simulacion). La API de

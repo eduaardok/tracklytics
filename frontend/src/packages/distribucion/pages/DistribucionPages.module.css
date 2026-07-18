@@ -439,3 +439,29 @@
 }
 .inlineRejectInput:focus { border-color: var(--color-primary); }
 
+
+/* ── Revocación de licencia (change p1-ciclos-vida) ────────────────────────── */
+.actionsCol { text-align: right; white-space: nowrap; }
+.muted { color: var(--color-text-muted, var(--color-muted)); }
+
+.modalBackdrop {
+  position: fixed; inset: 0; z-index: 1000;
+  display: grid; place-items: center; padding: var(--space-lg);
+  background: oklch(0 0 0 / 0.62); backdrop-filter: blur(2px);
+}
+.modal {
+  width: min(460px, 100%); max-height: 90vh; overflow-y: auto;
+  background: var(--color-surface); border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg, 12px); padding: var(--space-lg);
+  box-shadow: 0 24px 60px -12px oklch(0 0 0 / 0.6);
+}
+.modalTitle { font-family: var(--font-sans); font-size: 1.0625rem; font-weight: 600; color: var(--color-text, var(--color-ink)); margin-bottom: var(--space-sm); }
+.modalBody { font-family: var(--font-sans); font-size: 0.875rem; color: var(--color-text-muted, var(--color-muted)); line-height: 1.5; margin-bottom: var(--space-md); }
+.modalForm { display: flex; flex-direction: column; gap: var(--space-md); }
+.modalActions { display: flex; justify-content: flex-end; gap: var(--space-sm); }
+.textarea {
+  width: 100%; background: var(--color-bg); color: var(--color-text, var(--color-ink));
+  font-family: var(--font-sans); font-size: 0.875rem; padding: 8px 12px;
+  border-radius: var(--radius-md); border: 1px solid var(--color-border); outline: none; resize: vertical;
+}
+.textarea:focus { border-color: var(--color-primary, var(--color-accent)); }

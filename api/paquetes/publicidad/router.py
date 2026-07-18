@@ -13,6 +13,7 @@ from paquetes.publicidad.queries import (
     ANUNCIANTE_EXISTE,
     ANUNCIANTE_ID_MAX,
     ANUNCIANTES_LIST,
+    CAMPANA_ESTADO,
     CAMPANA_ID_MAX,
     CAMPANA_POR_ID,
     CAMPANAS_ELEGIBLES_POR_TIPO,
@@ -21,6 +22,7 @@ from paquetes.publicidad.queries import (
     INGRESO_YA_RECONOCIDO,
     ingresos_por_campana_sql,
 )
+from paquetes.seguridad import audit
 from paquetes.seguridad.deps import require_rol_admin
 
 # Autorización administrativa segmentada (change roles-gestion-usuarios): los
@@ -73,6 +75,48 @@ def listar_anunciantes(admin: dict = Depends(require_admin)):
     return {"data": query_rows(ANUNCIANTES_LIST)}
 
 
+class AnuncianteEditBody(BaseModel):
+    nombre: str
+    sector: str = ""
+
+
+@router.put("/admin/anunciantes/{anunciante_id}")
+def editar_anunciante(anunciante_id: int, body: AnuncianteEditBody, admin: dict = Depends(require_admin)):
+    """Edita nombre/sector de un anunciante existente (change p1-ciclos-vida)."""
+    if not (query_one(ANUNCIANTE_EXISTE, {"anunciante_id": anunciante_id}) or {}).get("n"):
+        raise HTTPException(status_code=404, detail="Anunciante no encontrado")
+    if not body.nombre.strip():
+        raise HTTPException(status_code=422, detail="El nombre del anunciante no puede estar vacío")
+    execute(
+        "ALTER TABLE DIM_ANUNCIANTE UPDATE nombre = {nombre:String}, sector = {sector:String} "
+        "WHERE anunciante_id = {id:UInt32}",
+        {"nombre": body.nombre.strip(), "sector": body.sector, "id": anunciante_id},
+    )
+    audit.record(
+        usuario_id=admin["record"]["id"], accion="editar_anunciante",
+        tabla_afectada="DIM_ANUNCIANTE", antes={"anunciante_id": anunciante_id},
+        despues={"nombre": body.nombre.strip(), "sector": body.sector},
+    )
+    return {"status": "ok", "anunciante_id": anunciante_id}
+
+
+@router.post("/admin/anunciantes/{anunciante_id}/desactivar")
+def desactivar_anunciante(anunciante_id: int, admin: dict = Depends(require_admin)):
+    """Marca el anunciante como inactivo (soft-delete, change p1-ciclos-vida)."""
+    if not (query_one(ANUNCIANTE_EXISTE, {"anunciante_id": anunciante_id}) or {}).get("n"):
+        raise HTTPException(status_code=404, detail="Anunciante no encontrado")
+    execute(
+        "ALTER TABLE DIM_ANUNCIANTE UPDATE activo = 0 WHERE anunciante_id = {id:UInt32}",
+        {"id": anunciante_id},
+    )
+    audit.record(
+        usuario_id=admin["record"]["id"], accion="desactivar_anunciante",
+        tabla_afectada="DIM_ANUNCIANTE", antes={"anunciante_id": anunciante_id, "activo": 1},
+        despues={"anunciante_id": anunciante_id, "activo": 0},
+    )
+    return {"status": "ok", "anunciante_id": anunciante_id, "activo": 0}
+
+
 class CampanaBody(BaseModel):
     anunciante_id: int
     nombre: str
@@ -114,6 +158,94 @@ def crear_campana(body: CampanaBody, admin: dict = Depends(require_admin)):
 @router.get("/admin/campanas")
 def listar_campanas(admin: dict = Depends(require_admin)):
     return {"data": query_rows(CAMPANAS_LIST)}
+
+
+# ── Ciclo de vida de una campaña (change p1-ciclos-vida) ──────────────────────
+# `formato` es el atributo comercial editable; `tipo_anuncio` gobierna el canal
+# de servido (design.md, Decisión 2): al fijar audio/display se sincroniza,
+# 'banner' se sirve por display. Pausa/reanudación/finalización operan sobre
+# `estado_manual`, eje independiente del presupuesto (`activa`).
+_FORMATO_A_TIPO = {"audio": "audio", "display": "display", "banner": "display"}
+
+
+class CampanaEditBody(BaseModel):
+    nombre: str | None = None
+    presupuesto_total: float | None = None
+    fecha_inicio: date | None = None
+    fecha_fin: date | None = None
+    formato: Literal["audio", "display", "banner"] | None = None
+
+
+def _campana_o_404(campana_id: int) -> dict:
+    fila = query_one(CAMPANA_ESTADO, {"campana_id": campana_id})
+    if not fila:
+        raise HTTPException(status_code=404, detail="Campaña no encontrada")
+    return fila
+
+
+@router.put("/admin/campanas/{campana_id}")
+def editar_campana(campana_id: int, body: CampanaEditBody, admin: dict = Depends(require_admin)):
+    _campana_o_404(campana_id)
+    sets, params = [], {"id": campana_id}
+    if body.nombre is not None:
+        if not body.nombre.strip():
+            raise HTTPException(status_code=422, detail="El nombre no puede estar vacío")
+        sets.append("nombre = {nombre:String}"); params["nombre"] = body.nombre.strip()
+    if body.presupuesto_total is not None:
+        if body.presupuesto_total <= 0:
+            raise HTTPException(status_code=422, detail="El presupuesto debe ser mayor que 0")
+        sets.append("presupuesto_total = {presupuesto:Float32}"); params["presupuesto"] = body.presupuesto_total
+    if body.fecha_inicio is not None:
+        sets.append("fecha_inicio = {fecha_inicio:Date}"); params["fecha_inicio"] = body.fecha_inicio
+    if body.fecha_fin is not None:
+        sets.append("fecha_fin = {fecha_fin:Date}"); params["fecha_fin"] = body.fecha_fin
+    if body.formato is not None:
+        sets.append("formato = {formato:String}"); params["formato"] = body.formato
+        sets.append("tipo_anuncio = {tipo:String}"); params["tipo"] = _FORMATO_A_TIPO[body.formato]
+    if not sets:
+        raise HTTPException(status_code=422, detail="No se enviaron campos a editar")
+    execute(f"ALTER TABLE DIM_CAMPANA_PUBLICITARIA UPDATE {', '.join(sets)} WHERE campana_id = {{id:UInt32}}", params)
+    audit.record(
+        usuario_id=admin["record"]["id"], accion="editar_campana",
+        tabla_afectada="DIM_CAMPANA_PUBLICITARIA", antes={"campana_id": campana_id},
+        despues={k: v for k, v in params.items() if k != "id"},
+    )
+    return {"status": "ok", "campana_id": campana_id}
+
+
+def _set_estado_manual(campana_id: int, estado: str, admin: dict, accion: str) -> dict:
+    execute(
+        "ALTER TABLE DIM_CAMPANA_PUBLICITARIA UPDATE estado_manual = {estado:String} WHERE campana_id = {id:UInt32}",
+        {"estado": estado, "id": campana_id},
+    )
+    audit.record(
+        usuario_id=admin["record"]["id"], accion=accion,
+        tabla_afectada="DIM_CAMPANA_PUBLICITARIA", antes={"campana_id": campana_id},
+        despues={"estado_manual": estado},
+    )
+    return {"status": "ok", "campana_id": campana_id, "estado_manual": estado}
+
+
+@router.post("/admin/campanas/{campana_id}/pausar")
+def pausar_campana(campana_id: int, admin: dict = Depends(require_admin)):
+    fila = _campana_o_404(campana_id)
+    if fila["estado_manual"] == "finalizada":
+        raise HTTPException(status_code=409, detail="Una campaña finalizada no puede pausarse")
+    return _set_estado_manual(campana_id, "pausada", admin, "pausar_campana")
+
+
+@router.post("/admin/campanas/{campana_id}/reanudar")
+def reanudar_campana(campana_id: int, admin: dict = Depends(require_admin)):
+    fila = _campana_o_404(campana_id)
+    if fila["estado_manual"] == "finalizada":
+        raise HTTPException(status_code=409, detail="Una campaña finalizada no puede reanudarse")
+    return _set_estado_manual(campana_id, "", admin, "reanudar_campana")
+
+
+@router.post("/admin/campanas/{campana_id}/finalizar")
+def finalizar_campana(campana_id: int, admin: dict = Depends(require_admin)):
+    _campana_o_404(campana_id)
+    return _set_estado_manual(campana_id, "finalizada", admin, "finalizar_campana")
 
 
 # ─────────────────────────────────────────────────────────────────────────────

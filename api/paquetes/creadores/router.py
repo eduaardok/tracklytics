@@ -5,7 +5,7 @@ from typing import Literal
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
-from core.database import get_client, query_one, query_rows
+from core.database import execute, get_client, query_one, query_rows
 from core.deps import get_current_user
 from paquetes.creadores.deps import require_admin, require_cuenta_artista_aprobada
 from paquetes.creadores.promocion import (
@@ -13,7 +13,7 @@ from paquetes.creadores.promocion import (
 )
 from paquetes.creadores.queries import (
     ARTIST_ID_POR_NOMBRE, CUENTA_ACTUAL_POR_ID, CUENTA_ACTUAL_POR_USUARIO, CUENTA_EXISTE_POR_USUARIO,
-    CUENTAS_ARTISTA_TOTAL, GENERO_EXISTE, SUBIDA_ACTUAL_POR_ID, SUBIDAS_POR_CUENTA,
+    CUENTAS_ARTISTA_TOTAL, GENERO_EXISTE, SUBIDA_ACTUAL_POR_ID, SUBIDA_MAX_VERSION, SUBIDAS_POR_CUENTA,
     SUBIDAS_POR_ESTADO, cuentas_admin_sql, subidas_admin_sql,
 )
 from paquetes.seguridad import audit
@@ -34,7 +34,12 @@ _FACT_SUBIDA_COLS = [
 # DIM_ESTADO_REVISION es un catálogo fijo de 3 filas sembrado en init_clickhouse.py
 # (pendiente=1, aprobado=2, rechazado=3) — no requiere una consulta para resolver
 # el id al insertar, solo al aprobar/rechazar.
-_ESTADO_REVISION_ID = {"pendiente": 1, "aprobado": 2, "rechazado": 3}
+_ESTADO_REVISION_ID = {"pendiente": 1, "aprobado": 2, "rechazado": 3, "retirado": 4}
+
+# Columnas de FACT_SUBIDA_TRACK incluyendo `version` — la edición y el retiro
+# (change p1-ciclos-vida) insertan una fila nueva con version = max+1 para
+# ganar el argMax(estado_revision_id, version) de forma determinista.
+_FACT_SUBIDA_COLS_VER = _FACT_SUBIDA_COLS + ["version"]
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -238,6 +243,107 @@ async def resolver_track(subida_id: str, body: ResolverTrackBody, admin: dict = 
             )
 
     return {"status": "ok", "subida_id": subida_id, "estado": nuevo_estado, "fact_id_promovido": fact_id_promovido}
+
+
+# ── Edición y retiro de un track propio por el artista (change p1-ciclos-vida) ─
+
+class EditarTrackBody(BaseModel):
+    track_name: str | None = None
+    album_name: str | None = None
+    genre_id: int | None = None
+    descripcion: str | None = None
+
+
+def _subida_propia_o_error(subida_id: str, cuenta: dict) -> dict:
+    subida = query_one(SUBIDA_ACTUAL_POR_ID, {"subida_id": subida_id})
+    if not subida:
+        raise HTTPException(status_code=404, detail="Track no encontrado")
+    if subida["cuenta_artista_id"] != cuenta["cuenta_artista_id"]:
+        raise HTTPException(status_code=403, detail="Este track no pertenece a tu cuenta de artista")
+    return subida
+
+
+def _siguiente_version(subida_id: str) -> int:
+    return int((query_one(SUBIDA_MAX_VERSION, {"subida_id": subida_id}) or {}).get("v") or 0) + 1
+
+
+@router.put("/tracks/{subida_id}")
+def editar_track(subida_id: str, body: EditarTrackBody, cuenta: dict = Depends(require_cuenta_artista_aprobada)):
+    """El artista edita la metadata de un track propio. Si el track estaba
+    `aprobado`, vuelve a `pendiente` para revisión editorial."""
+    subida = _subida_propia_o_error(subida_id, cuenta)
+    if subida["estado_nombre"] == "retirado":
+        raise HTTPException(status_code=409, detail="Un track retirado no puede editarse")
+
+    sets, params = [], {"sid": subida["staging_id"]}
+    if body.track_name is not None:
+        if not body.track_name.strip():
+            raise HTTPException(status_code=422, detail="El nombre del track no puede estar vacío")
+        sets.append("track_name = {tn:String}"); params["tn"] = body.track_name.strip()
+    if body.album_name is not None:
+        sets.append("album_name = {al:String}"); params["al"] = body.album_name.strip()
+    if body.genre_id is not None:
+        if query_one(GENERO_EXISTE, {"genre_id": body.genre_id})["n"] == 0:
+            raise HTTPException(status_code=422, detail="El género indicado no existe")
+        sets.append("genre_id = {gid:UInt16}"); params["gid"] = body.genre_id
+    if body.descripcion is not None:
+        sets.append("descripcion = {desc:String}"); params["desc"] = body.descripcion.strip()
+    if not sets:
+        raise HTTPException(status_code=422, detail="No se enviaron campos a editar")
+
+    execute(f"ALTER TABLE STG_ARTIST_UPLOADS UPDATE {', '.join(sets)} WHERE staging_id = {{sid:String}}", params)
+
+    volvio_a_pendiente = subida["estado_nombre"] == "aprobado"
+    if volvio_a_pendiente:
+        # Un track aprobado editado vuelve a revisión: fila nueva pendiente con
+        # version+1. Se conserva fact_id_promovido para trazabilidad.
+        get_client().insert(
+            "FACT_SUBIDA_TRACK",
+            [(
+                subida_id, subida["cuenta_artista_id"], subida["staging_id"], _ESTADO_REVISION_ID["pendiente"],
+                subida["fecha_subida"], None, None, subida["fact_id_promovido"], _siguiente_version(subida_id),
+            )],
+            column_names=_FACT_SUBIDA_COLS_VER,
+        )
+    audit.record(
+        usuario_id=cuenta["usuario_id"], accion="editar_track_artista",
+        tabla_afectada="STG_ARTIST_UPLOADS", antes={"subida_id": subida_id, "estado": subida["estado_nombre"]},
+        despues={"subida_id": subida_id, "campos": [k for k in params if k != "sid"],
+                 "volvio_a_pendiente": volvio_a_pendiente},
+    )
+    return {"status": "ok", "subida_id": subida_id,
+            "estado": "pendiente" if volvio_a_pendiente else subida["estado_nombre"]}
+
+
+@router.post("/tracks/{subida_id}/retirar")
+def retirar_track(subida_id: str, cuenta: dict = Depends(require_cuenta_artista_aprobada)):
+    """El artista retira un track propio: estado `retirado` + takedown en el
+    catálogo (disponible=0 sobre el track promovido, si existe)."""
+    subida = _subida_propia_o_error(subida_id, cuenta)
+    if subida["estado_nombre"] == "retirado":
+        raise HTTPException(status_code=409, detail="El track ya está retirado")
+
+    get_client().insert(
+        "FACT_SUBIDA_TRACK",
+        [(
+            subida_id, subida["cuenta_artista_id"], subida["staging_id"], _ESTADO_REVISION_ID["retirado"],
+            subida["fecha_subida"], datetime.now(timezone.utc), cuenta["usuario_id"],
+            subida["fact_id_promovido"], _siguiente_version(subida_id),
+        )],
+        column_names=_FACT_SUBIDA_COLS_VER,
+    )
+    fact_id = subida["fact_id_promovido"]
+    if fact_id is not None:
+        execute(
+            "ALTER TABLE FACT_TRACKS UPDATE disponible = 0 WHERE fact_id = {fid:UInt64}",
+            {"fid": fact_id},
+        )
+    audit.record(
+        usuario_id=cuenta["usuario_id"], accion="retirar_track_artista",
+        tabla_afectada="FACT_SUBIDA_TRACK", antes={"subida_id": subida_id, "estado": subida["estado_nombre"]},
+        despues={"subida_id": subida_id, "estado": "retirado", "fact_id_ocultado": fact_id},
+    )
+    return {"status": "ok", "subida_id": subida_id, "estado": "retirado", "disponible": 0}
 
 
 @router.get("/admin/dashboard")

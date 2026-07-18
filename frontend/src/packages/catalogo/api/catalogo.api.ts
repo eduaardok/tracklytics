@@ -15,6 +15,16 @@ export const catalogoApi = {
     return apiClient.get<ApiResponse<Track>>(`/tracks/search?${qs.toString()}`)
   },
 
+  // ── Takedown administrativo (change p1-ciclos-vida, rol admin_contenido) ────
+  tracksOcultos: (limit = 100) =>
+    apiClient.get<ApiResponse<Track>>(`/admin/tracks/ocultos?limit=${limit}`),
+
+  ocultarTrack: (factId: number) =>
+    apiClient.post<{ status: string; fact_id: number; track_id: string; disponible: number }>(`/admin/tracks/${factId}/ocultar`, undefined),
+
+  restaurarTrack: (factId: number) =>
+    apiClient.post<{ status: string; fact_id: number; track_id: string; disponible: number }>(`/admin/tracks/${factId}/restaurar`, undefined),
+
   tracksByArtist: (artistId: number, limit = 20) =>
     apiClient.get<ApiResponse<Track>>(`/tracks/by-artist/${artistId}?limit=${limit}`),
 

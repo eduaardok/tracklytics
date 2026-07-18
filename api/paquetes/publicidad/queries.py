@@ -2,13 +2,17 @@
 
 ANUNCIANTE_ID_MAX = "SELECT max(anunciante_id) AS n FROM DIM_ANUNCIANTE"
 ANUNCIANTE_EXISTE = "SELECT count() AS n FROM DIM_ANUNCIANTE WHERE anunciante_id = {anunciante_id:UInt32}"
-ANUNCIANTES_LIST = "SELECT anunciante_id, nombre, sector, fecha_registro FROM DIM_ANUNCIANTE ORDER BY nombre"
+ANUNCIANTES_LIST = "SELECT anunciante_id, nombre, sector, activo, fecha_registro FROM DIM_ANUNCIANTE ORDER BY nombre"
 
 CAMPANA_ID_MAX = "SELECT max(campana_id) AS n FROM DIM_CAMPANA_PUBLICITARIA"
+# Estado vigente de una campaña para las validaciones de ciclo de vida
+# (change p1-ciclos-vida): `estado_manual` distingue pausa/cierre MANUAL de la
+# elegibilidad por presupuesto (`activa`).
+CAMPANA_ESTADO = "SELECT campana_id, nombre, estado_manual FROM DIM_CAMPANA_PUBLICITARIA WHERE campana_id = {campana_id:UInt32} LIMIT 1"
 
 CAMPANAS_LIST = """
 SELECT campana_id, anunciante_id, nombre, cpm, presupuesto_total, fecha_inicio, fecha_fin, activa,
-       tipo_anuncio, url_destino
+       tipo_anuncio, formato, estado_manual, url_destino
 FROM DIM_CAMPANA_PUBLICITARIA ORDER BY fecha_inicio DESC
 """
 
@@ -21,7 +25,7 @@ FROM DIM_CAMPANA_PUBLICITARIA ORDER BY fecha_inicio DESC
 # no interpolado, igual que el resto de queries de este paquete).
 CAMPANAS_ELEGIBLES_POR_TIPO = """
 SELECT campana_id, cpm, url_destino FROM DIM_CAMPANA_PUBLICITARIA
-WHERE activa = 1 AND tipo_anuncio = {tipo:String}
+WHERE activa = 1 AND estado_manual = '' AND tipo_anuncio = {tipo:String}
   AND fecha_inicio <= today() AND (fecha_fin IS NULL OR fecha_fin >= today())
 ORDER BY campana_id
 """

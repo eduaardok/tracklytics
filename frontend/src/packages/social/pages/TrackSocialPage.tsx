@@ -6,6 +6,7 @@ import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { apiErrorMessage } from '@shared/lib/api-client'
 import { useToast } from '@shared/context/ToastContext'
 import { socialApi } from '../api/social.api'
+import { DenunciarButton } from '../components/DenunciarButton'
 import type { Canal, Comentario } from '../types'
 import styles from './SocialPages.module.css'
 
@@ -119,6 +120,7 @@ export function TrackSocialPage() {
               </div>
             )}
           </div>
+          <DenunciarButton tipoObjeto="track" objetoId={String(id)} label="Denunciar track" className={styles.btnGhost} />
         </div>
       </div>
 
@@ -189,6 +191,7 @@ export function TrackSocialPage() {
                 </p>
                 <div className={styles.commentFooter}>
                   <button className={styles.linkBtn} onClick={() => setReplyingTo(c.fact_id)}>Responder</button>
+                  {!oculto && <DenunciarButton tipoObjeto="comentario" objetoId={String(c.fact_id)} className={styles.linkBtn} />}
                 </div>
               </li>
             )

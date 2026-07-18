@@ -596,3 +596,21 @@
   .dashboardGrid { grid-template-columns: 1fr; }
 }
 
+
+/* ── Ciclo de vida de track propio (change p1-ciclos-vida) ─────────────────── */
+.trackActions { display: inline-flex; align-items: center; gap: var(--space-xs); flex-wrap: wrap; justify-content: flex-end; }
+.btnGhost {
+  font-family: var(--font-sans); font-size: 0.75rem; font-weight: 600; padding: 5px 10px; height: 30px;
+  border-radius: var(--radius-md); background: transparent; border: 1px solid var(--color-border); color: var(--color-ink); cursor: pointer; white-space: nowrap;
+}
+.btnGhost:hover:not(:disabled) { border-color: var(--color-primary); }
+.btnGhost:disabled { opacity: 0.4; cursor: not-allowed; }
+.modalBackdrop { position: fixed; inset: 0; z-index: 1000; display: grid; place-items: center; padding: var(--space-lg); background: oklch(0 0 0 / 0.62); backdrop-filter: blur(2px); }
+.modal { width: min(460px, 100%); max-height: 90vh; overflow-y: auto; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-lg, 12px); padding: var(--space-lg); box-shadow: 0 24px 60px -12px oklch(0 0 0 / 0.6); }
+.modalTitle { font-family: var(--font-sans); font-size: 1.0625rem; font-weight: 600; color: var(--color-ink); margin-bottom: var(--space-sm); }
+.modalBody { font-family: var(--font-sans); font-size: 0.8125rem; color: var(--color-muted); line-height: 1.5; margin-bottom: var(--space-md); }
+.modalForm { display: flex; flex-direction: column; gap: var(--space-md); }
+.modalField { display: flex; flex-direction: column; gap: var(--space-xs); }
+.modalActions { display: flex; justify-content: flex-end; gap: var(--space-sm); margin-top: var(--space-sm); }
+.textarea { width: 100%; background: var(--color-bg); color: var(--color-ink); font-family: var(--font-sans); font-size: 0.875rem; padding: 8px 12px; border-radius: var(--radius-md); border: 1px solid var(--color-border); outline: none; resize: vertical; }
+.textarea:focus { border-color: var(--color-primary); }

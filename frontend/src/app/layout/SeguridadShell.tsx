@@ -52,6 +52,12 @@ export function SeguridadShell() {
           <NavLink to="/seguridad/distribucion" className={({ isActive }) => isActive ? ACTIVE_CLS : INACTIVE_CLS}>
             Distribución
           </NavLink>
+          <NavLink to="/seguridad/catalogo" className={({ isActive }) => isActive ? ACTIVE_CLS : INACTIVE_CLS}>
+            Catálogo · Takedown
+          </NavLink>
+          <NavLink to="/seguridad/suscripciones" className={({ isActive }) => isActive ? ACTIVE_CLS : INACTIVE_CLS}>
+            Suscripciones
+          </NavLink>
           <NavLink to="/seguridad/soporte" className={({ isActive }) => isActive ? ACTIVE_CLS : INACTIVE_CLS}>
             Soporte
           </NavLink>
@@ -72,6 +78,9 @@ export function SeguridadShell() {
           </NavLink>
           <NavLink to="/seguridad/partners" end className={({ isActive }) => isActive ? ACTIVE_CLS : INACTIVE_CLS}>
             Partners
+          </NavLink>
+          <NavLink to="/seguridad/partners/gestion" className={({ isActive }) => isActive ? ACTIVE_CLS : INACTIVE_CLS}>
+            Gestión de partners
           </NavLink>
           <NavLink to="/seguridad/partners/metricas" className={({ isActive }) => isActive ? ACTIVE_CLS : INACTIVE_CLS}>
             Métricas de partners

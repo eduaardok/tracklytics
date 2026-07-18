@@ -1,0 +1,43 @@
+.trigger {
+  font-family: var(--font-sans);
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--color-muted);
+  background: transparent;
+  border: none;
+  padding: 2px 4px;
+  cursor: pointer;
+}
+.trigger:hover { color: #f87171; text-decoration: underline; }
+
+.modalBackdrop {
+  position: fixed; inset: 0; z-index: 1000;
+  display: grid; place-items: center; padding: var(--space-lg);
+  background: color-mix(in srgb, #000 62%, transparent); backdrop-filter: blur(2px);
+}
+.modal {
+  width: min(420px, 100%); max-height: 90vh; overflow-y: auto;
+  background: var(--color-surface); border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg, 12px); padding: var(--space-lg);
+  box-shadow: 0 24px 60px -12px rgba(0,0,0,0.6);
+}
+.modalTitle { font-family: var(--font-sans); font-size: 1.0625rem; font-weight: 600; color: var(--color-ink); margin-bottom: var(--space-md); }
+.modalForm { display: flex; flex-direction: column; gap: var(--space-md); }
+.field { display: flex; flex-direction: column; gap: var(--space-xs); }
+.fieldLabel { font-family: var(--font-sans); font-size: 0.75rem; font-weight: 500; color: var(--color-muted); }
+.select, .textarea {
+  width: 100%; background: var(--color-bg); color: var(--color-ink); font-family: var(--font-sans);
+  font-size: 0.875rem; padding: 8px 12px; border-radius: var(--radius-md); border: 1px solid var(--color-border); outline: none;
+}
+.select { height: 36px; }
+.textarea { resize: vertical; }
+.select:focus, .textarea:focus { border-color: var(--color-primary); }
+.modalActions { display: flex; justify-content: flex-end; gap: var(--space-sm); margin-top: var(--space-sm); }
+.btnGhost, .btnPrimary {
+  font-family: var(--font-sans); font-size: 0.8125rem; font-weight: 600; padding: 7px 14px; height: 34px;
+  border-radius: var(--radius-md); cursor: pointer;
+}
+.btnGhost { background: transparent; border: 1px solid var(--color-border); color: var(--color-ink); }
+.btnGhost:hover { border-color: var(--color-primary); }
+.btnPrimary { background: var(--color-primary); border: none; color: var(--color-ink); }
+.btnPrimary:disabled { opacity: 0.4; cursor: not-allowed; }

@@ -32,6 +32,17 @@ ORDER BY fact_id_track, vigente_desde DESC
 
 CONTRATO_EXISTE = "SELECT count() AS n FROM DIM_CONTRATO_REGALIA WHERE contrato_id = {contrato_id:String}"
 
+# Fila vigente de un contrato para editar/terminar (change p1-ciclos-vida).
+# DIM_CONTRATO_REGALIA es MergeTree (no Replacing) — un solo registro por
+# contrato_id, así que LIMIT 1 es suficiente.
+CONTRATO_POR_ID = """
+SELECT contrato_id, fact_id_track, sello_id, cuenta_artista_id, productor_id,
+       pct_master_sello, pct_master_artista, pct_master_productor,
+       pct_publishing_sello, pct_publishing_artista,
+       vigente_desde, vigente_hasta, activo
+FROM DIM_CONTRATO_REGALIA WHERE contrato_id = {contrato_id:String} LIMIT 1
+"""
+
 # ── Historial de liquidaciones de un contrato (detalle en RegaliasAdminPage) ─
 LIQUIDACIONES_POR_CONTRATO = """
 SELECT liquidacion_id, periodo_inicio, periodo_fin, tipo_rightsholder, rightsholder_id,

@@ -89,9 +89,16 @@ _SUBIDA_COLS = """
     s.track_name          AS track_name,
     s.album_name          AS album_name,
     s.genre_id            AS genre_id,
+    s.descripcion         AS descripcion,
     s.duration_ms         AS duration_ms,
     s.explicit            AS explicit
 """
+
+# Versión vigente máxima de una subida (change p1-ciclos-vida): la edición y el
+# retiro insertan una fila nueva con version = max+1 para ganar de forma
+# determinista el argMax(estado_revision_id, version), a diferencia de las
+# transiciones originales (que usaban version=0).
+SUBIDA_MAX_VERSION = "SELECT max(version) AS v FROM FACT_SUBIDA_TRACK WHERE subida_id = {subida_id:String}"
 
 SUBIDA_ACTUAL_POR_ID = f"""
 SELECT

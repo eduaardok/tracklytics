@@ -3,9 +3,19 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { apiErrorMessage } from '@shared/lib/api-client'
 import { useToast } from '@shared/context/ToastContext'
+import { useConfirm } from '@shared/context/ConfirmContext'
 import { publicidadApi } from '../api/publicidad.api'
-import type { Anunciante, Campana, IngresoCampana, TipoAnuncio } from '../types'
+import type { Anunciante, Campana, FormatoCampana, IngresoCampana, TipoAnuncio } from '../types'
 import styles from './PublicidadAdminPage.module.css'
+
+// Estado de negocio legible de una campaña (change p1-ciclos-vida): el eje
+// manual (pausada/finalizada) manda sobre el de presupuesto (activa).
+function estadoCampana(c: Campana): { label: string; tone: 'ok' | 'warn' | 'off' } {
+  if (c.estado_manual === 'finalizada') return { label: 'Finalizada', tone: 'off' }
+  if (c.estado_manual === 'pausada') return { label: 'Pausada', tone: 'warn' }
+  if (!c.activa) return { label: 'Sin presupuesto', tone: 'off' }
+  return { label: 'Activa', tone: 'ok' }
+}
 
 // CU-O66/CU-O68: admin registra anunciantes y campañas con CPM real, y
 // consulta el ingreso publicitario real ya reconocido por impresión
@@ -14,6 +24,10 @@ export function PublicidadAdminPage() {
   useDocumentTitle('Publicidad')
   const queryClient = useQueryClient()
   const toast = useToast()
+  const confirm = useConfirm()
+
+  // Campaña en edición (change p1-ciclos-vida) — null = diálogo cerrado.
+  const [editCampana, setEditCampana] = useState<Campana | null>(null)
 
   const [nombreAnunciante, setNombreAnunciante] = useState('')
   const [sector, setSector] = useState('')
@@ -54,6 +68,48 @@ export function PublicidadAdminPage() {
     onError: (err) => toast.error(apiErrorMessage(err, 'No se pudo crear la campaña.')),
   })
 
+  const transicion = useMutation({
+    mutationFn: ({ id, accion }: { id: number; accion: 'pausar' | 'reanudar' | 'finalizar' }) =>
+      publicidadApi.transicionCampana(id, accion),
+    onSuccess: (_d, v) => {
+      queryClient.invalidateQueries({ queryKey: ['publicidad', 'campanas'] })
+      toast.success(v.accion === 'pausar' ? 'Campaña pausada' : v.accion === 'reanudar' ? 'Campaña reanudada' : 'Campaña finalizada')
+    },
+    onError: (err) => toast.error(apiErrorMessage(err, 'No se pudo actualizar la campaña.')),
+  })
+
+  const guardarCampana = useMutation({
+    mutationFn: ({ id, nombre, presupuesto_total, fecha_inicio, fecha_fin, formato }: { id: number } & {
+      nombre: string; presupuesto_total: number; fecha_inicio: string; fecha_fin: string | null; formato: FormatoCampana
+    }) => publicidadApi.editarCampana(id, { nombre, presupuesto_total, fecha_inicio, fecha_fin, formato }),
+    onSuccess: () => {
+      setEditCampana(null)
+      queryClient.invalidateQueries({ queryKey: ['publicidad', 'campanas'] })
+      toast.success('Campaña actualizada')
+    },
+    onError: (err) => toast.error(apiErrorMessage(err, 'No se pudo actualizar la campaña.')),
+  })
+
+  const desactivarAnunciante = useMutation({
+    mutationFn: (id: number) => publicidadApi.desactivarAnunciante(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['publicidad', 'anunciantes'] })
+      toast.success('Anunciante desactivado')
+    },
+    onError: (err) => toast.error(apiErrorMessage(err, 'No se pudo desactivar el anunciante.')),
+  })
+
+  async function pedirFinalizar(c: Campana) {
+    if (await confirm(`Finalizar la campaña "${c.nombre}" es permanente: no podrá reanudarse.`, { title: 'Finalizar campaña', danger: true })) {
+      transicion.mutate({ id: c.campana_id, accion: 'finalizar' })
+    }
+  }
+  async function pedirDesactivarAnunciante(a: Anunciante) {
+    if (await confirm(`El anunciante "${a.nombre}" quedará inactivo y no se ofrecerá para campañas nuevas.`, { title: 'Desactivar anunciante', danger: true })) {
+      desactivarAnunciante.mutate(a.anunciante_id)
+    }
+  }
+
   const anunciantesData: Anunciante[] = anunciantes.data?.data ?? []
   const campanasData: Campana[] = campanas.data?.data ?? []
   const ingresosData: IngresoCampana[] = ingresos.data?.data ?? []
@@ -79,12 +135,20 @@ export function PublicidadAdminPage() {
 
       <div className={styles.tablePanel}>
         <table className={styles.table}>
-          <thead><tr><th>ID</th><th>Nombre</th><th>Sector</th></tr></thead>
+          <thead><tr><th>ID</th><th>Nombre</th><th>Sector</th><th>Estado</th><th className={styles.actionsCol}>Acciones</th></tr></thead>
           <tbody>
             {anunciantesData.length === 0 ? (
-              <tr><td colSpan={3} className={styles.emptyState}>Sin anunciantes todavía.</td></tr>
+              <tr><td colSpan={5} className={styles.emptyState}>Sin anunciantes todavía.</td></tr>
             ) : anunciantesData.map((a) => (
-              <tr key={a.anunciante_id}><td>{a.anunciante_id}</td><td>{a.nombre}</td><td>{a.sector || '—'}</td></tr>
+              <tr key={a.anunciante_id}>
+                <td>{a.anunciante_id}</td><td>{a.nombre}</td><td>{a.sector || '—'}</td>
+                <td><span className={`${styles.badge} ${a.activo ? styles.badgeOk : styles.badgeOff}`}>{a.activo ? 'Activo' : 'Inactivo'}</span></td>
+                <td className={styles.actionsCol}>
+                  {a.activo ? (
+                    <button className={styles.btnGhostDanger} onClick={() => pedirDesactivarAnunciante(a)}>Desactivar</button>
+                  ) : <span className={styles.muted}>—</span>}
+                </td>
+              </tr>
             ))}
           </tbody>
         </table>
@@ -139,16 +203,36 @@ export function PublicidadAdminPage() {
 
       <div className={styles.tablePanel}>
         <table className={styles.table}>
-          <thead><tr><th>ID</th><th>Nombre</th><th>Tipo</th><th>CPM</th><th>Inicio</th><th>Fin</th><th>Activa</th></tr></thead>
+          <thead><tr><th>ID</th><th>Nombre</th><th>Formato</th><th>CPM</th><th>Inicio</th><th>Fin</th><th>Estado</th><th className={styles.actionsCol}>Acciones</th></tr></thead>
           <tbody>
             {campanasData.length === 0 ? (
-              <tr><td colSpan={7} className={styles.emptyState}>Sin campañas todavía.</td></tr>
-            ) : campanasData.map((c) => (
-              <tr key={c.campana_id}>
-                <td>{c.campana_id}</td><td>{c.nombre}</td><td>{c.tipo_anuncio === 'display' ? 'Display' : 'Audio'}</td><td>${c.cpm.toFixed(2)}</td>
-                <td>{c.fecha_inicio}</td><td>{c.fecha_fin ?? 'indefinida'}</td><td>{c.activa ? 'Sí' : 'No'}</td>
-              </tr>
-            ))}
+              <tr><td colSpan={8} className={styles.emptyState}>Sin campañas todavía.</td></tr>
+            ) : campanasData.map((c) => {
+              const est = estadoCampana(c)
+              const finalizada = c.estado_manual === 'finalizada'
+              return (
+                <tr key={c.campana_id}>
+                  <td>{c.campana_id}</td><td>{c.nombre}</td>
+                  <td style={{ textTransform: 'capitalize' }}>{c.formato}</td><td>${c.cpm.toFixed(2)}</td>
+                  <td>{c.fecha_inicio}</td><td>{c.fecha_fin ?? 'indefinida'}</td>
+                  <td><span className={`${styles.badge} ${est.tone === 'ok' ? styles.badgeOk : est.tone === 'warn' ? styles.badgeWarn : styles.badgeOff}`}>{est.label}</span></td>
+                  <td className={styles.actionsCol}>
+                    <div className={styles.actions}>
+                      {!finalizada && c.estado_manual !== 'pausada' && (
+                        <button className={styles.btnGhost} onClick={() => transicion.mutate({ id: c.campana_id, accion: 'pausar' })}>Pausar</button>
+                      )}
+                      {c.estado_manual === 'pausada' && (
+                        <button className={styles.btnGhost} onClick={() => transicion.mutate({ id: c.campana_id, accion: 'reanudar' })}>Reanudar</button>
+                      )}
+                      <button className={styles.btnGhost} onClick={() => setEditCampana(c)} disabled={finalizada}>Editar</button>
+                      {!finalizada && (
+                        <button className={styles.btnGhostDanger} onClick={() => pedirFinalizar(c)}>Finalizar</button>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              )
+            })}
           </tbody>
         </table>
       </div>
@@ -172,6 +256,74 @@ export function PublicidadAdminPage() {
           </tbody>
         </table>
       </div>
+
+      {editCampana && (
+        <CampanaEditDialog
+          campana={editCampana}
+          pending={guardarCampana.isPending}
+          onClose={() => setEditCampana(null)}
+          onSave={(vals) => guardarCampana.mutate({ id: editCampana.campana_id, ...vals })}
+        />
+      )}
     </section>
+  )
+}
+
+// Diálogo de edición de campaña (change p1-ciclos-vida) — <dialog> nativo para
+// escapar el stacking context de la tabla con overflow.
+function CampanaEditDialog({ campana, pending, onClose, onSave }: {
+  campana: Campana
+  pending: boolean
+  onClose: () => void
+  onSave: (vals: { nombre: string; presupuesto_total: number; fecha_inicio: string; fecha_fin: string | null; formato: FormatoCampana }) => void
+}) {
+  const [nombre, setNombre] = useState(campana.nombre)
+  const [presupuesto, setPresupuesto] = useState(String(campana.presupuesto_total))
+  const [fechaInicio, setFechaInicio] = useState(campana.fecha_inicio)
+  const [fechaFin, setFechaFin] = useState(campana.fecha_fin ?? '')
+  const [formato, setFormato] = useState<FormatoCampana>(campana.formato)
+
+  return (
+    <div className={styles.modalBackdrop} onMouseDown={onClose}>
+      <div className={styles.modal} role="dialog" aria-modal="true" aria-label="Editar campaña" onMouseDown={(e) => e.stopPropagation()}>
+        <p className={styles.modalTitle}>Editar campaña</p>
+        <form className={styles.modalForm} onSubmit={(e) => {
+          e.preventDefault()
+          if (!nombre.trim() || Number(presupuesto) <= 0) return
+          onSave({ nombre: nombre.trim(), presupuesto_total: Number(presupuesto), fecha_inicio: fechaInicio, fecha_fin: fechaFin || null, formato })
+        }}>
+          <div className={styles.field}>
+            <label className={styles.fieldLabel} htmlFor="ed-nombre">Nombre</label>
+            <input id="ed-nombre" className={styles.input} value={nombre} onChange={(e) => setNombre(e.target.value)} />
+          </div>
+          <div className={styles.field}>
+            <label className={styles.fieldLabel} htmlFor="ed-formato">Formato</label>
+            <select id="ed-formato" className={styles.select} value={formato} onChange={(e) => setFormato(e.target.value as FormatoCampana)}>
+              <option value="audio">Audio</option>
+              <option value="display">Display</option>
+              <option value="banner">Banner</option>
+            </select>
+          </div>
+          <div className={styles.field}>
+            <label className={styles.fieldLabel} htmlFor="ed-pres">Presupuesto total</label>
+            <input id="ed-pres" className={styles.input} type="number" step="0.01" min="0.01" value={presupuesto} onChange={(e) => setPresupuesto(e.target.value)} />
+          </div>
+          <div className={styles.field}>
+            <label className={styles.fieldLabel} htmlFor="ed-ini">Fecha de inicio</label>
+            <input id="ed-ini" className={styles.input} type="date" value={fechaInicio} onChange={(e) => setFechaInicio(e.target.value)} />
+          </div>
+          <div className={styles.field}>
+            <label className={styles.fieldLabel} htmlFor="ed-fin">Fecha de fin</label>
+            <input id="ed-fin" className={styles.input} type="date" value={fechaFin} onChange={(e) => setFechaFin(e.target.value)} />
+          </div>
+          <div className={styles.modalActions}>
+            <button type="button" className={styles.btnGhost} onClick={onClose}>Cancelar</button>
+            <button type="submit" className={styles.btnPrimary} disabled={pending || !nombre.trim() || Number(presupuesto) <= 0}>
+              {pending ? 'Guardando…' : 'Guardar cambios'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
   )
 }

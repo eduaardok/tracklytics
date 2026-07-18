@@ -4,7 +4,7 @@ import { ErrorState } from '@shared/components/ErrorState'
 import { apiErrorMessage } from '@shared/lib/api-client'
 import { useToast } from '@shared/context/ToastContext'
 import { distribucionApi } from '../api/distribucion.api'
-import type { EstadoLicencia } from '../types'
+import type { EstadoLicencia, Licencia } from '../types'
 import styles from '../pages/DistribucionPages.module.css'
 
 function fmtDate(iso: string | null) {
@@ -14,7 +14,10 @@ function fmtDate(iso: string | null) {
 }
 
 function EstadoBadge({ estado }: { estado: EstadoLicencia }) {
-  const cls = estado === 'activa' ? styles.badgeOk : estado === 'vencida' ? styles.badgeError : styles.badgePending
+  const cls = estado === 'activa' ? styles.badgeOk
+    : estado === 'vencida' ? styles.badgeError
+    : estado === 'revocada' ? styles.badgeError
+    : styles.badgePending
   return <span className={`${styles.badge} ${cls}`}>{estado}</span>
 }
 
@@ -28,8 +31,21 @@ export function LicenciasTab() {
   const [filtroSello, setFiltroSello] = useState('')
   const [filtroPais, setFiltroPais] = useState('')
 
+  const [revocando, setRevocando] = useState<Licencia | null>(null)
+  const [motivo, setMotivo] = useState('')
+
   const sellos = useQuery({ queryKey: ['distribucion', 'sellos'], queryFn: () => distribucionApi.sellos() })
   const paises  = useQuery({ queryKey: ['distribucion', 'paises'],  queryFn: () => distribucionApi.paises() })
+
+  const revocar = useMutation({
+    mutationFn: () => distribucionApi.revocarLicencia(revocando!.licencia_id, motivo.trim()),
+    onSuccess: () => {
+      setRevocando(null); setMotivo('')
+      queryClient.invalidateQueries({ queryKey: ['distribucion', 'licencias'] })
+      toast.success('Licencia revocada')
+    },
+    onError: (err) => toast.error(apiErrorMessage(err, 'No se pudo revocar la licencia.')),
+  })
 
   const licencias = useQuery({
     queryKey: ['distribucion', 'licencias', filtroSello, filtroPais],
@@ -123,7 +139,7 @@ export function LicenciasTab() {
         ) : (
           <table className={styles.table}>
             <thead>
-              <tr><th>Sello</th><th>País</th><th>Inicio</th><th>Fin</th><th>Estado</th></tr>
+              <tr><th>Sello</th><th>País</th><th>Inicio</th><th>Fin</th><th>Estado</th><th className={styles.actionsCol}>Acciones</th></tr>
             </thead>
             <tbody>
               {data.map((l) => (
@@ -133,12 +149,44 @@ export function LicenciasTab() {
                   <td>{fmtDate(l.fecha_inicio)}</td>
                   <td>{fmtDate(l.fecha_fin)}</td>
                   <td><EstadoBadge estado={l.estado} /></td>
+                  <td className={styles.actionsCol}>
+                    {l.estado === 'activa'
+                      ? <button className={styles.btnGhostDanger} onClick={() => { setRevocando(l); setMotivo('') }}>Revocar</button>
+                      : <span className={styles.muted}>—</span>}
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
         )}
       </div>
+
+      {revocando && (
+        <div className={styles.modalBackdrop} onMouseDown={() => setRevocando(null)}>
+          <div className={styles.modal} role="dialog" aria-modal="true" aria-label="Revocar licencia" onMouseDown={(e) => e.stopPropagation()}>
+            <p className={styles.modalTitle}>Revocar licencia</p>
+            <p className={styles.modalBody}>
+              La licencia de <strong>{revocando.sello_nombre}</strong> en <strong>{revocando.pais_nombre}</strong> dejará de estar activa y no contará para la disponibilidad. Indica el motivo:
+            </p>
+            <form className={styles.modalForm} onSubmit={(e) => { e.preventDefault(); if (motivo.trim()) revocar.mutate() }}>
+              <textarea
+                className={styles.textarea}
+                value={motivo}
+                onChange={(e) => setMotivo(e.target.value)}
+                placeholder="Ej.: incumplimiento de contrato"
+                rows={3}
+                autoFocus
+              />
+              <div className={styles.modalActions}>
+                <button type="button" className={styles.btnGhost} onClick={() => setRevocando(null)}>Cancelar</button>
+                <button type="submit" className={styles.btnGhostDanger} disabled={revocar.isPending || !motivo.trim()}>
+                  {revocar.isPending ? 'Revocando…' : 'Revocar licencia'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

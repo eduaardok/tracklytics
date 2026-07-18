@@ -100,6 +100,11 @@ const RegaliasAdminPage   = lazyNamed(() => import('@packages/regalias/pages/Reg
 const PublicidadAdminPage = lazyNamed(() => import('@packages/publicidad/pages/PublicidadAdminPage'), 'PublicidadAdminPage')
 const SimulacionPage      = lazyNamed(() => import('@packages/simulacion/pages/SimulacionPage'), 'SimulacionPage')
 const FinanzasAdminPage   = lazyNamed(() => import('@packages/finanzas/pages/FinanzasAdminPage'), 'FinanzasAdminPage')
+// Nuevas páginas admin (change p1-ciclos-vida) — import directo del archivo,
+// no del barrel, para no arrastrar sus dependencias al bundle principal.
+const AdminTracksPage        = lazyNamed(() => import('@packages/catalogo/pages/AdminTracksPage'), 'AdminTracksPage')
+const AdminPartnersPage      = lazyNamed(() => import('@packages/partners/pages/AdminPartnersPage'), 'AdminPartnersPage')
+const AdminSuscripcionesPage = lazyNamed(() => import('@packages/suscripciones/pages/AdminSuscripcionesPage'), 'AdminSuscripcionesPage')
 
 export const router = createBrowserRouter([
   { path: '/login',      element: <LoginPage /> },
@@ -211,6 +216,8 @@ export const router = createBrowserRouter([
       { path: 'creadores',   element: <RevisionCreadoresPage /> },
       { path: 'social',      element: <ModeracionSocialPage /> },
       { path: 'distribucion', element: <DistribucionAdminPage /> },
+      { path: 'catalogo',    element: <AdminTracksPage /> },
+      { path: 'suscripciones', element: <AdminSuscripcionesPage /> },
       { path: 'soporte',     element: <TicketsAdminPage /> },
       { path: 'familia',     element: <FamiliaAdminPage /> },
       { path: 'regalias',    element: <RegaliasAdminPage /> },
@@ -226,6 +233,7 @@ export const router = createBrowserRouter([
       // ya cubre estas rutas — no hace falta un RequireAuth por ruta como en
       // reporte-diario (analitica), que sí vive en un shell no admin-only.
       { path: 'partners',              element: <PartnersConsolePage /> },
+      { path: 'partners/gestion',      element: <AdminPartnersPage /> },
       { path: 'partners/metricas',     element: <PartnersMetricasPage /> },
       { path: 'ingesta',                element: <EtlPage /> },
       { path: 'ingesta/dimensiones',    element: <CrudDimensionesPage /> },

@@ -1,17 +1,25 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-from core.database import query_one, query_rows
+from core.database import execute, query_one, query_rows
 from paquetes.catalogo.queries import (
     ALBUM_DETAIL, ALBUMS_SEARCH,
     ARTIST_DETAIL, ARTISTS_SEARCH, ARTISTS_TOP,
     GENRE_DETAIL, GENRES_LIST,
     TRACK_DETAIL, TRACK_DETAIL_BY_FACT_ID,
+    TRACK_DISPONIBILIDAD_POR_FACT,
+    TRACKS_OCULTOS,
     TRACKS_BY_ALBUM, TRACKS_BY_ARTIST, TRACKS_BY_GENRE, TRACKS_TOP,
     tracks_search_count_sql, tracks_search_sql,
 )
+from paquetes.seguridad import audit
+from paquetes.seguridad.deps import require_rol_admin
 from paquetes.suscripciones.deps import require_active_subscription
 
 router = APIRouter(prefix="/app/v1", tags=["App"])
+
+# Takedown de catálogo (change p1-ciclos-vida): ocultar/restaurar un track es
+# gestión de contenido → rol `admin_contenido`. `superadmin` siempre pasa.
+require_contenido_admin = require_rol_admin("admin_contenido")
 
 # Características de audio "estilo Spotify Premium" (RF paywall ya existía
 # solo en la UI de TrackDetailPage — cualquiera podía leerlas igual desde la
@@ -126,6 +134,43 @@ def track_detail(track_id: str):
     if not row:
         raise HTTPException(status_code=404, detail="Track not found")
     return row
+
+
+# ── Takedown administrativo de tracks (change p1-ciclos-vida) ─────────────────
+
+def _takedown(fact_id: int, disponible: int, admin: dict, accion: str) -> dict:
+    fila = query_one(TRACK_DISPONIBILIDAD_POR_FACT, {"fact_id": fact_id})
+    if not fila:
+        raise HTTPException(status_code=404, detail="Track no encontrado")
+    # Se aplica a todas las filas del track_id (el track existe como N filas,
+    # una por género) para que desaparezca/reaparezca de verdad del catálogo.
+    execute(
+        "ALTER TABLE FACT_TRACKS UPDATE disponible = {d:UInt8} WHERE track_id = {tid:String}",
+        {"d": disponible, "tid": fila["track_id"]},
+    )
+    audit.record(
+        usuario_id=admin["record"]["id"], accion=accion, tabla_afectada="FACT_TRACKS",
+        antes={"fact_id": fact_id, "track_id": fila["track_id"], "disponible": int(fila["disponible"])},
+        despues={"track_id": fila["track_id"], "disponible": disponible},
+    )
+    return {"status": "ok", "fact_id": fact_id, "track_id": fila["track_id"], "disponible": disponible}
+
+
+@router.get("/admin/tracks/ocultos")
+def listar_tracks_ocultos(limit: int = Query(100, ge=1, le=500), admin: dict = Depends(require_contenido_admin)):
+    """Tracks con `disponible = 0` — no aparecen en el catálogo público, así
+    que el panel de takedown los lista aquí para poder restaurarlos."""
+    return {"data": query_rows(TRACKS_OCULTOS, {"limit": limit})}
+
+
+@router.post("/admin/tracks/{fact_id}/ocultar")
+def ocultar_track(fact_id: int, admin: dict = Depends(require_contenido_admin)):
+    return _takedown(fact_id, 0, admin, "ocultar_track")
+
+
+@router.post("/admin/tracks/{fact_id}/restaurar")
+def restaurar_track(fact_id: int, admin: dict = Depends(require_contenido_admin)):
+    return _takedown(fact_id, 1, admin, "restaurar_track")
 
 
 # ── Artists ───────────────────────────────────────────────────────────────────

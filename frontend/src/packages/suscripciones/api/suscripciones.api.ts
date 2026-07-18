@@ -42,7 +42,49 @@ export const suscripcionesApi = {
     apiClient.put<{ status: string; plan_id: string; precio_usd: number }>(
       `/suscripciones/admin/planes/${planId}/precio`, { precio_usd: precioUsd },
     ),
+
+  // ── Administración de suscripciones individuales (change p1-ciclos-vida) ────
+  adminListar: (params: { estado?: string; plan_id?: string; fecha_desde?: string; fecha_hasta?: string; page?: number; limit?: number }) => {
+    const qs = new URLSearchParams()
+    if (params.estado) qs.set('estado', params.estado)
+    if (params.plan_id) qs.set('plan_id', params.plan_id)
+    if (params.fecha_desde) qs.set('fecha_desde', params.fecha_desde)
+    if (params.fecha_hasta) qs.set('fecha_hasta', params.fecha_hasta)
+    qs.set('page', String(params.page ?? 1))
+    qs.set('limit', String(params.limit ?? 20))
+    return apiClient.get<SuscripcionesAdminResponse>(`/suscripciones/admin/suscripciones?${qs.toString()}`)
+  },
+
+  adminDetalle: (suscripcionId: string) =>
+    apiClient.get<SuscripcionAdminDetalle>(`/suscripciones/admin/suscripciones/${suscripcionId}`),
+
+  adminCancelar: (suscripcionId: string, motivo: string) =>
+    apiClient.post<{ data: SuscripcionAdminRecord }>(`/suscripciones/admin/suscripciones/${suscripcionId}/cancelar`, { motivo }),
+
+  adminExtender: (suscripcionId: string, dias: number, motivo: string) =>
+    apiClient.post<{ data: SuscripcionAdminRecord; fecha_vencimiento: string }>(`/suscripciones/admin/suscripciones/${suscripcionId}/extender`, { dias, motivo }),
 }
+
+export type SuscripcionAdminRecord = {
+  id:                 string
+  usuario_o_cliente:  string
+  tipo_plan:          string
+  monto:              number
+  moneda:             string
+  estado:             string
+  created:            string
+  fecha_vencimiento?: string
+}
+export type CobroSuscripcion = {
+  transaccion_id: string
+  monto:          number
+  moneda:         string
+  estado:         string
+  concepto:       string
+  fecha:          string
+}
+export type SuscripcionesAdminResponse = { data: SuscripcionAdminRecord[]; total: number; total_pages: number; page: number; limit: number }
+export type SuscripcionAdminDetalle = { suscripcion: SuscripcionAdminRecord; cobros: CobroSuscripcion[] }
 
 export type PostAuthDestino = {
   path:       string

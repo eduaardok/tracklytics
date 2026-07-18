@@ -13,6 +13,7 @@ from paquetes.regalias.deps import require_admin, require_cuenta_sello
 from paquetes.regalias.queries import (
     ARTISTA_PAIS_POR_CUENTA,
     CONTRATO_EXISTE,
+    CONTRATO_POR_ID,
     CONTRATOS_LIST,
     CONTRATOS_VIGENTES_EN_PERIODO,
     CUENTA_SELLO_EXISTE_USUARIO,
@@ -200,6 +201,103 @@ def resumen_contrato(contrato_id: str, admin: dict = Depends(require_admin)):
         "total_liquidado":    round(float(fila.get("total_liquidado") or 0), 2),
         "ultima_liquidacion": fila.get("ultima_liquidacion") if num_liquidaciones else None,
         "num_liquidaciones":  num_liquidaciones,
+    }
+
+
+# ── Ciclo de vida de un contrato (change p1-ciclos-vida) ──────────────────────
+# El modelo real usa splits master/publishing (no un único porcentaje
+# artista/sello); la edición conserva la invariante de creación (cada split
+# suma 100) fusionando los campos enviados con los actuales. La terminación
+# usa `activo=0` + `vigente_hasta` (no una columna `estado` nueva): un contrato
+# con activo=0 y vigencia cerrada es un contrato terminado.
+class ContratoEditBody(BaseModel):
+    pct_master_sello: float | None = None
+    pct_master_artista: float | None = None
+    pct_master_productor: float | None = None
+    pct_publishing_sello: float | None = None
+    pct_publishing_artista: float | None = None
+    vigente_hasta: date | None = None
+
+
+@router.put("/admin/contratos/{contrato_id}")
+def editar_contrato(contrato_id: str, body: ContratoEditBody, admin: dict = Depends(require_admin)):
+    actual = query_one(CONTRATO_POR_ID, {"contrato_id": contrato_id})
+    if not actual:
+        raise HTTPException(status_code=404, detail="Contrato no encontrado")
+
+    def _merge(campo: str) -> float:
+        val = getattr(body, campo)
+        return float(actual[campo]) if val is None else float(val)
+
+    nm_sello, nm_artista, nm_prod = _merge("pct_master_sello"), _merge("pct_master_artista"), _merge("pct_master_productor")
+    np_sello, np_artista = _merge("pct_publishing_sello"), _merge("pct_publishing_artista")
+    suma_master = nm_sello + nm_artista + nm_prod
+    suma_publishing = np_sello + np_artista
+    if abs(suma_master - 100) > 0.01:
+        raise HTTPException(status_code=422, detail=f"Los porcentajes de master deben sumar 100 (suman {suma_master})")
+    if abs(suma_publishing - 100) > 0.01:
+        raise HTTPException(status_code=422, detail=f"Los porcentajes de publishing deben sumar 100 (suman {suma_publishing})")
+
+    sets = [
+        "pct_master_sello = {ms:Float32}", "pct_master_artista = {ma:Float32}",
+        "pct_master_productor = {mp:Float32}", "pct_publishing_sello = {ps:Float32}",
+        "pct_publishing_artista = {pa:Float32}",
+    ]
+    params = {"ms": nm_sello, "ma": nm_artista, "mp": nm_prod, "ps": np_sello, "pa": np_artista, "id": contrato_id}
+    if body.vigente_hasta is not None:
+        sets.append("vigente_hasta = {vh:Date}"); params["vh"] = body.vigente_hasta
+    execute(f"ALTER TABLE DIM_CONTRATO_REGALIA UPDATE {', '.join(sets)} WHERE contrato_id = {{id:String}}", params)
+    audit.record(
+        usuario_id=admin["record"]["id"], accion="editar_contrato_regalia",
+        tabla_afectada="DIM_CONTRATO_REGALIA",
+        antes={k: actual[k] for k in ("pct_master_sello", "pct_master_artista", "pct_master_productor",
+                                      "pct_publishing_sello", "pct_publishing_artista", "vigente_hasta")},
+        despues={k: v for k, v in params.items() if k != "id"},
+    )
+    return {"status": "ok", "contrato_id": contrato_id}
+
+
+@router.post("/admin/contratos/{contrato_id}/terminar")
+def terminar_contrato(contrato_id: str, admin: dict = Depends(require_admin)):
+    actual = query_one(CONTRATO_POR_ID, {"contrato_id": contrato_id})
+    if not actual:
+        raise HTTPException(status_code=404, detail="Contrato no encontrado")
+    if int(actual.get("activo") or 0) == 0:
+        raise HTTPException(status_code=409, detail="El contrato ya está terminado")
+    # vigente_hasta = hoy si no tenía; activo=0 marca el contrato como terminado
+    # (las queries de liquidación ya filtran activo=1, así que un terminado no
+    # vuelve a liquidarse).
+    execute(
+        "ALTER TABLE DIM_CONTRATO_REGALIA UPDATE activo = 0, "
+        "vigente_hasta = if(isNull(vigente_hasta), today(), vigente_hasta) WHERE contrato_id = {id:String}",
+        {"id": contrato_id},
+    )
+    audit.record(
+        usuario_id=admin["record"]["id"], accion="terminar_contrato_regalia",
+        tabla_afectada="DIM_CONTRATO_REGALIA", antes={"contrato_id": contrato_id, "activo": 1},
+        despues={"contrato_id": contrato_id, "activo": 0, "estado": "terminado"},
+    )
+    return {"status": "ok", "contrato_id": contrato_id, "estado": "terminado"}
+
+
+@router.get("/admin/contratos/{contrato_id}/exportar")
+def exportar_contrato(contrato_id: str, admin: dict = Depends(require_admin)):
+    """Exportación estructurada del contrato + su resumen y detalle de
+    liquidaciones (change p1-ciclos-vida)."""
+    contrato = query_one(CONTRATO_POR_ID, {"contrato_id": contrato_id})
+    if not contrato:
+        raise HTTPException(status_code=404, detail="Contrato no encontrado")
+    resumen = query_one(RESUMEN_CONTRATO, {"contrato_id": contrato_id}) or {}
+    num = int(resumen.get("num_liquidaciones") or 0)
+    return {
+        "contrato": contrato,
+        "resumen": {
+            "total_liquidado": round(float(resumen.get("total_liquidado") or 0), 2),
+            "ultima_liquidacion": resumen.get("ultima_liquidacion") if num else None,
+            "num_liquidaciones": num,
+        },
+        "liquidaciones": query_rows(LIQUIDACIONES_POR_CONTRATO, {"contrato_id": contrato_id}),
+        "generado_en": datetime.utcnow().isoformat() + "Z",
     }
 
 

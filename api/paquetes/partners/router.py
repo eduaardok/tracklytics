@@ -1,8 +1,12 @@
+from typing import Literal
+
 from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request
+from pydantic import BaseModel
 
 from core.database import query_one, query_rows
 from paquetes.partners import pb_client
 from paquetes.partners.deps import require_partner, require_partner_admin
+from paquetes.seguridad import audit
 from paquetes.partners.queries import (
     ALBUM_DETAIL, ALBUMS_LIST,
     ARTIST_DETAIL, ARTISTS_LIST,
@@ -56,6 +60,61 @@ async def metricas_por_partner():
             for f in filas
         ]
     }
+
+# ── CRUD administrativo de partners + gestión de API keys (change p1-ciclos-vida) ─
+# Van en el router interno de staff (`/app/v1/partners/admin`, ya bajo
+# `require_partner_admin` = admin_comercial). Los partners viven en PocketBase
+# (no en ClickHouse): pb_client escribe con token de superusuario (RT-01). La
+# API key se guarda hasheada; su texto claro se devuelve una sola vez.
+class PartnerCrearBody(BaseModel):
+    nombre: str
+    tier: Literal["basico", "pro", "enterprise"]
+    email_contacto: str = ""
+
+
+@v1_router.post("/admin", status_code=201)
+async def crear_partner(body: PartnerCrearBody, admin: dict = Depends(require_partner_admin)):
+    if not body.nombre.strip():
+        raise HTTPException(status_code=422, detail="El nombre del partner no puede estar vacío")
+    api_key = pb_client.generar_api_key()
+    partner = await pb_client.crear_partner(body.nombre.strip(), body.tier, body.email_contacto.strip(), api_key)
+    audit.record(
+        usuario_id=admin["record"]["id"], accion="crear_partner", tabla_afectada="pocketbase.partners",
+        antes=None, despues={"partner_id": partner["id"], "nombre": partner["nombre"], "tier": partner["tier"]},
+    )
+    # La key en claro se devuelve UNA sola vez — no se puede recuperar luego.
+    return {"status": "ok", "partner": partner, "api_key": api_key}
+
+
+@v1_router.get("/admin")
+async def listar_partners(admin: dict = Depends(require_partner_admin)):
+    return {"data": await pb_client.listar_partners()}
+
+
+@v1_router.post("/admin/{partner_id}/rotar-key")
+async def rotar_key(partner_id: str, admin: dict = Depends(require_partner_admin)):
+    if not await pb_client.get_partner(partner_id):
+        raise HTTPException(status_code=404, detail="Partner no encontrado")
+    api_key = pb_client.generar_api_key()
+    partner = await pb_client.rotar_api_key(partner_id, api_key)
+    audit.record(
+        usuario_id=admin["record"]["id"], accion="rotar_api_key_partner", tabla_afectada="pocketbase.partners",
+        antes={"partner_id": partner_id}, despues={"partner_id": partner_id, "rotada": True},
+    )
+    return {"status": "ok", "partner": partner, "api_key": api_key}
+
+
+@v1_router.post("/admin/{partner_id}/desactivar")
+async def desactivar_partner(partner_id: str, admin: dict = Depends(require_partner_admin)):
+    if not await pb_client.get_partner(partner_id):
+        raise HTTPException(status_code=404, detail="Partner no encontrado")
+    partner = await pb_client.desactivar_partner(partner_id)
+    audit.record(
+        usuario_id=admin["record"]["id"], accion="desactivar_partner", tabla_afectada="pocketbase.partners",
+        antes={"partner_id": partner_id, "estado": "vigente"}, despues={"partner_id": partner_id, "estado": "inactivo"},
+    )
+    return {"status": "ok", "partner": partner}
+
 
 # RF-PAR-003: campos devueltos por tier en los endpoints de tracks. Cada tier
 # incluye los campos del anterior — básico ve solo lo esencial, enterprise ve

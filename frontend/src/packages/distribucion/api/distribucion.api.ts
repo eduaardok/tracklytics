@@ -70,6 +70,10 @@ export const distribucionApi = {
   crearLicencia: (body: LicenciaBody) =>
     apiClient.post<{ status: string; licencia_id: number }>('/distribucion/licencias', body),
 
+  // Revocación de una licencia activa (change p1-ciclos-vida).
+  revocarLicencia: (licenciaId: number, motivo: string) =>
+    apiClient.post<{ status: string; licencia_id: number; estado: string }>(`/distribucion/licencias/${licenciaId}/revocar`, { motivo }),
+
   // ── Solicitudes de licencia ──────────────────────────────────────────────────
   // Interino: sin login de "sello" todavía (solo admin/user/analyst vía
   // PocketBase), el admin crea la solicitud en nombre del sello — mismo

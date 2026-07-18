@@ -7,7 +7,7 @@ import { CHART_COLORS } from '@shared/components/charts/colors'
 import { apiErrorMessage } from '@shared/lib/api-client'
 import { useToast } from '@shared/context/ToastContext'
 import { socialApi } from '../api/social.api'
-import type { Comentario, EstadoModeracion } from '../types'
+import type { Comentario, Denuncia, EstadoModeracion } from '../types'
 import styles from './SocialPages.module.css'
 
 function fmtDate(iso: string) {
@@ -156,6 +156,85 @@ export function ModeracionSocialPage() {
           </ul>
         )}
       </div>
+
+      <DenunciasPanel />
     </section>
+  )
+}
+
+const DEN_FILTROS: { value: string; label: string }[] = [
+  { value: 'pendiente', label: 'Pendientes' },
+  { value: 'revisada', label: 'Revisadas' },
+  { value: 'resuelta', label: 'Resueltas' },
+  { value: '', label: 'Todas' },
+]
+const MOTIVO_LABEL: Record<string, string> = {
+  spam: 'Spam', contenido_inapropiado: 'Contenido inapropiado', derechos_de_autor: 'Derechos de autor', otro: 'Otro',
+}
+
+// Bandeja de denuncias de contenido (change p1-ciclos-vida, rol admin_comunidad).
+function DenunciasPanel() {
+  const queryClient = useQueryClient()
+  const toast = useToast()
+  const [estado, setEstado] = useState('pendiente')
+
+  const denuncias = useQuery({
+    queryKey: ['social', 'admin', 'denuncias', estado],
+    queryFn: () => socialApi.denunciasAdmin({ estado: estado || undefined }),
+  })
+  const actualizar = useMutation({
+    mutationFn: ({ id, nuevo }: { id: number; nuevo: 'revisada' | 'resuelta' }) => socialApi.actualizarDenuncia(id, nuevo),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['social', 'admin', 'denuncias'] })
+      toast.success('Denuncia actualizada')
+    },
+    onError: (err) => toast.error(apiErrorMessage(err, 'No se pudo actualizar la denuncia.')),
+  })
+
+  const data: Denuncia[] = denuncias.data?.data ?? []
+
+  return (
+    <div className={styles.queuePanel} style={{ marginTop: 'var(--space-xl)' }}>
+      <div className={styles.queueHeader}>
+        <span className={styles.queueTitle}>Denuncias ({denuncias.data?.total ?? 0})</span>
+        <div className={styles.queueFilters}>
+          {DEN_FILTROS.map((f) => (
+            <button key={f.value} className={`${styles.filterChip} ${estado === f.value ? styles['filterChip--active'] : ''}`} onClick={() => setEstado(f.value)}>
+              {f.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {denuncias.isError ? (
+        <div className={styles.bannerError} style={{ margin: 'var(--space-md)' }} role="alert">No se pudieron cargar las denuncias (¿sesión de admin?).</div>
+      ) : denuncias.isLoading ? (
+        <ul className={styles.queueList}><li className={styles.queueRow}><span className={styles.skel} style={{ width: '60%', height: 14 }} /></li></ul>
+      ) : data.length === 0 ? (
+        <div className={styles.emptyState}>
+          <span className={styles.emptyTitle}>Sin denuncias</span>
+          <span className={styles.emptyBody}>No hay denuncias que coincidan con este filtro.</span>
+        </div>
+      ) : (
+        <ul className={styles.queueList}>
+          {data.map((d) => {
+            const isPending = actualizar.isPending && actualizar.variables?.id === d.denuncia_id
+            return (
+              <li key={d.denuncia_id} className={styles.queueRow}>
+                <div className={styles.queueRowInfo}>
+                  <span className={styles.queueRowMeta}>{d.tipo_objeto} #{d.objeto_id} · {MOTIVO_LABEL[d.motivo] ?? d.motivo} · {fmtDate(d.created_at)}</span>
+                  <p className={styles.queueRowBody}>{d.descripcion || <em>Sin descripción</em>}</p>
+                </div>
+                <span className={`${styles.badge} ${d.estado === 'pendiente' ? styles.badgePending : d.estado === 'revisada' ? styles.badgeOk : styles.badgeError}`}>{d.estado}</span>
+                <div className={styles.queueRowActions}>
+                  <button className={styles.btnGhost} disabled={isPending || d.estado === 'revisada'} onClick={() => actualizar.mutate({ id: d.denuncia_id, nuevo: 'revisada' })}>Revisada</button>
+                  <button className={styles.btnGhost} disabled={isPending || d.estado === 'resuelta'} onClick={() => actualizar.mutate({ id: d.denuncia_id, nuevo: 'resuelta' })}>Resuelta</button>
+                </div>
+              </li>
+            )
+          })}
+        </ul>
+      )}
+    </div>
   )
 }

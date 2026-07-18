@@ -5,6 +5,7 @@ import type {
   ResolverCuentaBody, ResolverCuentaResultado,
   SubidaTrackBody, SubidaTrackResultado,
   ResolverTrackBody, ResolverTrackResultado,
+  EditarTrackBody,
 } from '../types'
 
 // Estos endpoints requieren sesión — el header Authorization lo inyecta
@@ -29,6 +30,13 @@ export const creadoresApi = {
 
   subirTrack: (body: SubidaTrackBody) =>
     apiClient.post<SubidaTrackResultado>('/creadores/tracks', body),
+
+  // Ciclo de vida de un track propio (change p1-ciclos-vida).
+  editarTrack: (subidaId: string, body: EditarTrackBody) =>
+    apiClient.put<{ status: string; subida_id: string; estado: string }>(`/creadores/tracks/${subidaId}`, body),
+
+  retirarTrack: (subidaId: string) =>
+    apiClient.post<{ status: string; subida_id: string; estado: string; disponible: number }>(`/creadores/tracks/${subidaId}/retirar`, undefined),
 
   tracksAdmin: (estado?: string) =>
     apiClient.get<ApiResponse<SubidaTrack>>(

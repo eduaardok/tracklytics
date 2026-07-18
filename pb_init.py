@@ -403,6 +403,9 @@ def main() -> None:
             # `pago_pendiente` (texto libre, no un enum cerrado en PocketBase)
             # mientras no se agote en 3 intentos (ver design.md, decisión 2).
             {"name": "intentos_fallidos", "type": "number", "required": False},
+            # Extensión administrativa de cortesía (change p1-ciclos-vida): fecha
+            # de vencimiento que el área comercial puede desplazar N días.
+            {"name": "fecha_vencimiento", "type": "date", "required": False},
         ],
     }
     try:
@@ -419,6 +422,7 @@ def main() -> None:
     ensure_collection_field(token, "suscripciones", {"name": "fecha_fin_trial", "type": "date", "required": False})
     ensure_collection_field(token, "suscripciones", {"name": "metodo_pago_id", "type": "text", "required": False})
     ensure_collection_field(token, "suscripciones", {"name": "intentos_fallidos", "type": "number", "required": False})
+    ensure_collection_field(token, "suscripciones", {"name": "fecha_vencimiento", "type": "date", "required": False})
 
     try:
         # No se define deleteRule: las suscripciones no se eliminan, solo se
@@ -448,6 +452,12 @@ def main() -> None:
         "fields": [
             {"name": "nombre",           "type": "text", "required": True},
             {"name": "api_key",          "type": "text", "required": True},
+            # change p1-ciclos-vida: la API key se guarda como hash SHA-256 en
+            # `api_key_hash`; `api_key` queda solo para los partners demo legados
+            # (texto plano) y como placeholder no-recuperable en los partners
+            # creados desde el sistema. `email_contacto` es dato de gestión.
+            {"name": "api_key_hash",     "type": "text", "required": False},
+            {"name": "email_contacto",   "type": "text", "required": False},
             {"name": "tier",             "type": "text", "required": True},
             {"name": "estado",           "type": "text", "required": True},
             {"name": "fecha_expiracion", "type": "date", "required": False},
@@ -456,6 +466,11 @@ def main() -> None:
     }
     try:
         ensure_collection(token, partners_schema)
+        # Colecciones `partners` ya existentes (instalaciones previas al change
+        # p1-ciclos-vida) no reciben campos nuevos vía ensure_collection: se
+        # agregan explícitamente (idempotente).
+        ensure_collection_field(token, "partners", {"name": "api_key_hash", "type": "text", "required": False})
+        ensure_collection_field(token, "partners", {"name": "email_contacto", "type": "text", "required": False})
     except RuntimeError as exc:
         print(f"[pb-init] ERROR: {exc}")
         sys.exit(1)

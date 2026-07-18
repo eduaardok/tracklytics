@@ -1,6 +1,7 @@
 import { apiClient, type ApiResponse } from '@shared/lib/api-client'
 import type {
-  Anunciante, Campana, CampanaBody, ImpresionAsignada, ImpresionDisplayAsignada, IngresoCampana,
+  Anunciante, Campana, CampanaBody, CampanaEditBody, EstadoManualCampana,
+  ImpresionAsignada, ImpresionDisplayAsignada, IngresoCampana,
 } from '../types'
 
 export const publicidadApi = {
@@ -10,11 +11,25 @@ export const publicidadApi = {
   crearAnunciante: (body: { nombre: string; sector?: string }) =>
     apiClient.post<{ status: string; anunciante_id: number }>('/publicidad/admin/anunciantes', body),
 
+  editarAnunciante: (anuncianteId: number, body: { nombre: string; sector?: string }) =>
+    apiClient.put<{ status: string; anunciante_id: number }>(`/publicidad/admin/anunciantes/${anuncianteId}`, body),
+
+  desactivarAnunciante: (anuncianteId: number) =>
+    apiClient.post<{ status: string; anunciante_id: number; activo: number }>(`/publicidad/admin/anunciantes/${anuncianteId}/desactivar`, undefined),
+
   campanas: () =>
     apiClient.get<ApiResponse<Campana>>('/publicidad/admin/campanas'),
 
   crearCampana: (body: CampanaBody) =>
     apiClient.post<{ status: string; campana_id: number }>('/publicidad/admin/campanas', body),
+
+  editarCampana: (campanaId: number, body: CampanaEditBody) =>
+    apiClient.put<{ status: string; campana_id: number }>(`/publicidad/admin/campanas/${campanaId}`, body),
+
+  // Ciclo de vida de campaña (change p1-ciclos-vida): pausa/reanudación/cierre
+  // MANUAL, independiente del agotamiento de presupuesto.
+  transicionCampana: (campanaId: number, accion: 'pausar' | 'reanudar' | 'finalizar') =>
+    apiClient.post<{ status: string; campana_id: number; estado_manual: EstadoManualCampana }>(`/publicidad/admin/campanas/${campanaId}/${accion}`, undefined),
 
   // Se llama al reproducir un track — el backend decide si corresponde
   // anuncio según el plan real del usuario (RF: usuarios premium nunca

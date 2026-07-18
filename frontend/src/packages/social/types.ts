@@ -119,3 +119,26 @@ export type PerfilPublico = {
   es_propio:       boolean
   playlists:       PlaylistPublica[]
 }
+
+// ── Denuncias de contenido (change p1-ciclos-vida) ───────────────────────────
+export type TipoObjetoDenuncia = 'comentario' | 'track'
+export type MotivoDenuncia = 'spam' | 'contenido_inapropiado' | 'derechos_de_autor' | 'otro'
+export type EstadoDenuncia = 'revisada' | 'resuelta'
+
+export type DenunciaBody = {
+  tipo_objeto:  TipoObjetoDenuncia
+  objeto_id:    string
+  motivo:       MotivoDenuncia
+  descripcion?: string
+}
+
+export type Denuncia = {
+  denuncia_id:    number
+  denunciante_id: string
+  tipo_objeto:    TipoObjetoDenuncia
+  objeto_id:      string
+  motivo:         MotivoDenuncia
+  descripcion:    string
+  estado:         'pendiente' | 'revisada' | 'resuelta'
+  created_at:     string
+}

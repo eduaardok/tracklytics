@@ -8,6 +8,7 @@ from pydantic import BaseModel
 from core.database import get_client, query_one, query_rows
 from core.deps import get_current_user
 from paquetes.facturacion.router import metodo_pago_existe, procesar_pago, resolver_conversion_moneda
+from paquetes.seguridad import audit
 from paquetes.seguridad.deps import require_rol_admin
 
 # Autorización administrativa segmentada (change roles-gestion-usuarios): la
@@ -440,3 +441,122 @@ def actualizar_precio_plan(plan_id: str, body: PrecioPlanBody, admin: dict = Dep
         "DIM_PLAN", [(plan_id, body.precio_usd, 1)], column_names=["plan_id", "precio_usd", "activo"],
     )
     return {"status": "ok", "plan_id": plan_id, "precio_usd": body.precio_usd}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Administración de suscripciones individuales (change p1-ciclos-vida, CU comercial)
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Historial de cobros de una suscripción (detalle admin) — vive en ClickHouse
+# (FACT_TRANSACCION_PAGO), a diferencia de la suscripción (PocketBase).
+COBROS_POR_SUSCRIPCION = """
+SELECT transaccion_id, monto, moneda, estado, concepto, fecha
+FROM FACT_TRANSACCION_PAGO
+WHERE suscripcion_id = {suscripcion_id:String}
+ORDER BY fecha DESC
+"""
+
+
+def _pb_escape(valor: str) -> str:
+    # Los filtros de PocketBase se construyen con comillas dobles; se neutraliza
+    # cualquier comilla en el valor recibido para no romper el filtro.
+    return valor.replace('"', "")
+
+
+@router.get("/admin/suscripciones")
+async def listar_suscripciones_admin(
+    estado: str | None = Query(None),
+    plan_id: str | None = Query(None),
+    fecha_desde: str | None = Query(None),
+    fecha_hasta: str | None = Query(None),
+    page: int = Query(1, ge=1),
+    limit: int = Query(20, ge=1, le=100),
+    admin: dict = Depends(require_admin),
+):
+    clauses = []
+    if estado:
+        clauses.append(f'estado="{_pb_escape(estado)}"')
+    if plan_id:
+        clauses.append(f'tipo_plan="{_pb_escape(plan_id)}"')
+    if fecha_desde:
+        clauses.append(f'created >= "{_pb_escape(fecha_desde)}"')
+    if fecha_hasta:
+        clauses.append(f'created <= "{_pb_escape(fecha_hasta)}"')
+    filtro = " && ".join(clauses)
+    res = await pb_client.list_admin(filtro, page, limit)
+    return {"data": res["items"], "total": res["total"], "total_pages": res["total_pages"], "page": page, "limit": limit}
+
+
+@router.get("/admin/suscripciones/{suscripcion_id}")
+async def detalle_suscripcion_admin(suscripcion_id: str, admin: dict = Depends(require_admin)):
+    sus = await pb_client.obtener_admin(suscripcion_id)
+    if not sus:
+        raise HTTPException(status_code=404, detail="Suscripción no encontrada")
+    cobros = query_rows(COBROS_POR_SUSCRIPCION, {"suscripcion_id": suscripcion_id})
+    return {"suscripcion": sus, "cobros": cobros}
+
+
+class CancelarAdminBody(BaseModel):
+    motivo: str = ""
+
+
+@router.post("/admin/suscripciones/{suscripcion_id}/cancelar")
+async def cancelar_suscripcion_admin(suscripcion_id: str, body: CancelarAdminBody, admin: dict = Depends(require_admin)):
+    sus = await pb_client.obtener_admin(suscripcion_id)
+    if not sus:
+        raise HTTPException(status_code=404, detail="Suscripción no encontrada")
+    if sus.get("estado") == "cancelada":
+        raise HTTPException(status_code=409, detail="La suscripción ya está cancelada")
+    token = await pb_client._get_admin_token()
+    cancelada = await pb_client.cancelar(token, suscripcion_id)
+    # FACT_CANCELACION_SUSCRIPCION.motivo es un Enum8 cerrado — una cancelación
+    # administrativa se registra como 'otro' + voluntaria=1; el motivo libre del
+    # admin queda en la auditoría.
+    get_client().insert(
+        "FACT_CANCELACION_SUSCRIPCION",
+        [(str(uuid.uuid4()), suscripcion_id, sus.get("usuario_o_cliente", ""), "otro", 1)],
+        column_names=["cancelacion_id", "suscripcion_id", "usuario_id", "motivo", "voluntaria"],
+    )
+    audit.record(
+        usuario_id=admin["record"]["id"], accion="cancelar_suscripcion_admin",
+        tabla_afectada="pocketbase.suscripciones",
+        antes={"suscripcion_id": suscripcion_id, "estado": sus.get("estado")},
+        despues={"suscripcion_id": suscripcion_id, "estado": "cancelada", "motivo": body.motivo},
+    )
+    return {"data": cancelada}
+
+
+class ExtenderBody(BaseModel):
+    dias: int
+    motivo: str = ""
+
+
+@router.post("/admin/suscripciones/{suscripcion_id}/extender")
+async def extender_suscripcion_admin(suscripcion_id: str, body: ExtenderBody, admin: dict = Depends(require_admin)):
+    if body.dias <= 0:
+        raise HTTPException(status_code=422, detail="El número de días debe ser mayor que 0")
+    sus = await pb_client.obtener_admin(suscripcion_id)
+    if not sus:
+        raise HTTPException(status_code=404, detail="Suscripción no encontrada")
+
+    base = datetime.utcnow()
+    actual = str(sus.get("fecha_vencimiento") or "").strip()
+    if actual:
+        try:
+            venc = datetime.fromisoformat(actual.replace("Z", "").replace(" ", "T").split(".")[0])
+            base = max(base, venc)
+        except ValueError:
+            pass
+    nueva_fecha = base + timedelta(days=body.dias)
+    token = await pb_client._get_admin_token()
+    actualizada = await pb_client.actualizar_campos(token, suscripcion_id, {
+        "fecha_vencimiento": nueva_fecha.isoformat(sep=" "),
+    })
+    audit.record(
+        usuario_id=admin["record"]["id"], accion="extender_suscripcion_admin",
+        tabla_afectada="pocketbase.suscripciones",
+        antes={"suscripcion_id": suscripcion_id, "fecha_vencimiento": actual or None},
+        despues={"suscripcion_id": suscripcion_id, "fecha_vencimiento": nueva_fecha.isoformat(sep=" "),
+                 "dias": body.dias, "motivo": body.motivo},
+    )
+    return {"data": actualizada, "fecha_vencimiento": nueva_fecha.isoformat(sep=" ")}

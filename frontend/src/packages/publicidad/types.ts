@@ -2,10 +2,15 @@ export type Anunciante = {
   anunciante_id:  number
   nombre:         string
   sector:         string
+  activo:         number
   fecha_registro: string
 }
 
 export type TipoAnuncio = 'audio' | 'display'
+// Atributo comercial editable de una campaña (change p1-ciclos-vida) —
+// distinto de `tipo_anuncio`, que gobierna el canal técnico de servido.
+export type FormatoCampana = 'audio' | 'display' | 'banner'
+export type EstadoManualCampana = '' | 'pausada' | 'finalizada'
 
 export type Campana = {
   campana_id:        number
@@ -17,7 +22,17 @@ export type Campana = {
   fecha_fin:         string | null
   activa:            number
   tipo_anuncio:      TipoAnuncio
+  formato:           FormatoCampana
+  estado_manual:     EstadoManualCampana
   url_destino:       string
+}
+
+export type CampanaEditBody = {
+  nombre?:            string
+  presupuesto_total?: number
+  fecha_inicio?:      string
+  fecha_fin?:         string | null
+  formato?:           FormatoCampana
 }
 
 export type CampanaBody = {

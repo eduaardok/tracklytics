@@ -6,6 +6,7 @@ import { ApiError, apiErrorMessage } from '@shared/lib/api-client'
 import { ErrorState } from '@shared/components/ErrorState'
 import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { useToast } from '@shared/context/ToastContext'
+import { useConfirm } from '@shared/context/ConfirmContext'
 import { creadoresApi } from '../api/creadores.api'
 import type { EstadoCuenta, EstadoRevision, SubidaTrack } from '../types'
 import styles from './CreadoresPages.module.css'
@@ -154,6 +155,33 @@ export function CuentaArtistaPage() {
     },
     onError: (err) => toast.error(apiErrorMessage(err, 'No se pudo subir el track.')),
   })
+
+  const [editTrack, setEditTrack] = useState<SubidaTrack | null>(null)
+  const confirm = useConfirm()
+
+  const editar = useMutation({
+    mutationFn: ({ id, body }: { id: string; body: { track_name: string; album_name: string; genre_id: number; descripcion: string } }) =>
+      creadoresApi.editarTrack(id, body),
+    onSuccess: (res) => {
+      setEditTrack(null)
+      queryClient.invalidateQueries({ queryKey: ['creadores', 'tracks'] })
+      toast.success(res.estado === 'pendiente' ? 'Track actualizado — vuelve a revisión' : 'Track actualizado')
+    },
+    onError: (err) => toast.error(apiErrorMessage(err, 'No se pudo actualizar el track.')),
+  })
+  const retirar = useMutation({
+    mutationFn: (id: string) => creadoresApi.retirarTrack(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['creadores', 'tracks'] })
+      toast.success('Track retirado del catálogo')
+    },
+    onError: (err) => toast.error(apiErrorMessage(err, 'No se pudo retirar el track.')),
+  })
+  async function pedirRetirar(t: SubidaTrack) {
+    if (await confirm(`"${t.track_name}" dejará de estar disponible en el catálogo. Esta acción retira el track.`, { title: 'Retirar track', danger: true })) {
+      retirar.mutate(t.subida_id)
+    }
+  }
 
   const noTieneCuenta = cuenta.isError && esNoEncontrado(cuenta.error)
   const tracksData: SubidaTrack[] = tracks.data?.data ?? []
@@ -336,7 +364,15 @@ export function CuentaArtistaPage() {
                         <span className={styles.trackName}>{t.track_name}</span>
                         <span className={styles.trackMeta}>{fmtDuration(t.duration_ms)} · {fmtDate(t.fecha_subida)}</span>
                       </div>
-                      <EstadoBadge estado={t.estado_nombre} />
+                      <div className={styles.trackActions}>
+                        <EstadoBadge estado={t.estado_nombre} />
+                        {t.estado_nombre !== 'retirado' && (
+                          <>
+                            <button type="button" className={styles.btnGhost} onClick={() => setEditTrack(t)}>Editar</button>
+                            <button type="button" className={styles.btnGhostDanger} onClick={() => pedirRetirar(t)}>Retirar</button>
+                          </>
+                        )}
+                      </div>
                     </li>
                   ))}
                 </ul>
@@ -345,6 +381,60 @@ export function CuentaArtistaPage() {
           )}
         </>
       )}
+
+      {editTrack && (
+        <TrackEditDialog
+          track={editTrack}
+          generos={generosData}
+          pending={editar.isPending}
+          onClose={() => setEditTrack(null)}
+          onSave={(body) => editar.mutate({ id: editTrack.subida_id, body })}
+        />
+      )}
     </section>
+  )
+}
+
+// Edición de metadata de un track propio (change p1-ciclos-vida). Un track
+// aprobado editado vuelve a `pendiente` para revisión editorial.
+function TrackEditDialog({ track, generos, pending, onClose, onSave }: {
+  track: SubidaTrack
+  generos: { genre_id: number; name: string }[]
+  pending: boolean
+  onClose: () => void
+  onSave: (body: { track_name: string; album_name: string; genre_id: number; descripcion: string }) => void
+}) {
+  const [nombre, setNombre] = useState(track.track_name)
+  const [album, setAlbum] = useState(track.album_name)
+  const [genreId, setGenreId] = useState(String(track.genre_id))
+  const [descripcion, setDescripcion] = useState(track.descripcion ?? '')
+
+  return (
+    <div className={styles.modalBackdrop} onMouseDown={onClose}>
+      <div className={styles.modal} role="dialog" aria-modal="true" aria-label="Editar track" onMouseDown={(e) => e.stopPropagation()}>
+        <p className={styles.modalTitle}>Editar track</p>
+        {track.estado_nombre === 'aprobado' && (
+          <p className={styles.modalBody}>Este track está aprobado: al guardar volverá a revisión editorial.</p>
+        )}
+        <form className={styles.modalForm} onSubmit={(e) => {
+          e.preventDefault()
+          if (!nombre.trim()) return
+          onSave({ track_name: nombre.trim(), album_name: album.trim(), genre_id: Number(genreId), descripcion: descripcion.trim() })
+        }}>
+          <label className={styles.modalField}><span className={styles.fieldLabel}>Nombre</span><input className={styles.input} value={nombre} onChange={(e) => setNombre(e.target.value)} /></label>
+          <label className={styles.modalField}><span className={styles.fieldLabel}>Álbum</span><input className={styles.input} value={album} onChange={(e) => setAlbum(e.target.value)} /></label>
+          <label className={styles.modalField}><span className={styles.fieldLabel}>Género</span>
+            <select className={styles.input} value={genreId} onChange={(e) => setGenreId(e.target.value)}>
+              {generos.map((g) => <option key={g.genre_id} value={g.genre_id}>{g.name}</option>)}
+            </select>
+          </label>
+          <label className={styles.modalField}><span className={styles.fieldLabel}>Descripción</span><textarea className={styles.textarea} rows={3} value={descripcion} onChange={(e) => setDescripcion(e.target.value)} /></label>
+          <div className={styles.modalActions}>
+            <button type="button" className={styles.btnGhost} onClick={onClose}>Cancelar</button>
+            <button type="submit" className={styles.btnPrimary} disabled={pending || !nombre.trim()}>{pending ? 'Guardando…' : 'Guardar cambios'}</button>
+          </div>
+        </form>
+      </div>
+    </div>
   )
 }

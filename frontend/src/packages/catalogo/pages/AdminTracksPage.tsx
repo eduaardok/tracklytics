@@ -1,0 +1,114 @@
+import { useState } from 'react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
+import { apiErrorMessage } from '@shared/lib/api-client'
+import { useToast } from '@shared/context/ToastContext'
+import { useConfirm } from '@shared/context/ConfirmContext'
+import { catalogoApi } from '../api/catalogo.api'
+import type { Track } from '../types'
+import styles from './AdminTracksPage.module.css'
+
+// Panel admin de takedown de catálogo (change p1-ciclos-vida, rol
+// admin_contenido): ocultar un track (DMCA simulado, error editorial) y
+// restaurarlo. Los tracks ocultos no aparecen en la búsqueda pública, así que
+// se listan aparte para poder restaurarlos.
+export function AdminTracksPage() {
+  useDocumentTitle('Catálogo · Takedown')
+  const queryClient = useQueryClient()
+  const toast = useToast()
+  const confirm = useConfirm()
+
+  const [q, setQ] = useState('')
+  const [buscado, setBuscado] = useState('')
+
+  const resultados = useQuery({
+    queryKey: ['catalogo', 'admin', 'search', buscado],
+    queryFn: () => catalogoApi.tracksSearch({ q: buscado, limit: 30 }),
+    enabled: buscado.trim().length > 0,
+  })
+  const ocultos = useQuery({
+    queryKey: ['catalogo', 'admin', 'ocultos'],
+    queryFn: () => catalogoApi.tracksOcultos(),
+  })
+
+  const invalidar = () => {
+    queryClient.invalidateQueries({ queryKey: ['catalogo', 'admin', 'ocultos'] })
+    queryClient.invalidateQueries({ queryKey: ['catalogo', 'admin', 'search'] })
+  }
+
+  const ocultar = useMutation({
+    mutationFn: (factId: number) => catalogoApi.ocultarTrack(factId),
+    onSuccess: () => { invalidar(); toast.success('Track ocultado del catálogo') },
+    onError: (err) => toast.error(apiErrorMessage(err, 'No se pudo ocultar el track.')),
+  })
+  const restaurar = useMutation({
+    mutationFn: (factId: number) => catalogoApi.restaurarTrack(factId),
+    onSuccess: () => { invalidar(); toast.success('Track restaurado') },
+    onError: (err) => toast.error(apiErrorMessage(err, 'No se pudo restaurar el track.')),
+  })
+
+  async function pedirOcultar(t: Track) {
+    if (await confirm(`"${t.track_name}" dejará de aparecer en búsquedas y en el catálogo público. Seguirá en la base de datos y podrás restaurarlo.`, { title: 'Ocultar del catálogo', danger: true })) {
+      ocultar.mutate(t.fact_id)
+    }
+  }
+
+  const resultadosData: Track[] = resultados.data?.data ?? []
+  const ocultosData: Track[] = ocultos.data?.data ?? []
+
+  return (
+    <section className={styles.page}>
+      <h1 className={styles.heading}>Takedown de catálogo</h1>
+      <p className={styles.intro}>Oculta un track del catálogo público (DMCA, error editorial) o restaura uno retirado. El track nunca se borra: solo cambia su disponibilidad.</p>
+
+      <p className={styles.sectionLabel}>Buscar un track para ocultar</p>
+      <form className={styles.searchBar} onSubmit={(e) => { e.preventDefault(); setBuscado(q) }}>
+        <input className={styles.input} value={q} onChange={(e) => setQ(e.target.value)} placeholder="Nombre del track o artista…" aria-label="Buscar track" />
+        <button type="submit" className={styles.btnPrimary} disabled={!q.trim()}>Buscar</button>
+      </form>
+
+      {buscado.trim() && (
+        <div className={styles.tablePanel}>
+          <table className={styles.table}>
+            <thead><tr><th>Track</th><th>Artista</th><th className={styles.actionsCol}>Acción</th></tr></thead>
+            <tbody>
+              {resultados.isLoading ? (
+                <tr><td colSpan={3} className={styles.emptyState}>Buscando…</td></tr>
+              ) : resultadosData.length === 0 ? (
+                <tr><td colSpan={3} className={styles.emptyState}>Sin resultados disponibles para «{buscado}».</td></tr>
+              ) : resultadosData.map((t) => (
+                <tr key={t.fact_id}>
+                  <td>{t.track_name}</td><td>{t.artist_name}</td>
+                  <td className={styles.actionsCol}>
+                    <button className={styles.btnGhostDanger} onClick={() => pedirOcultar(t)}>Ocultar</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <p className={styles.sectionLabel} style={{ marginTop: 'var(--space-xl)' }}>Tracks ocultos ({ocultosData.length})</p>
+      <div className={styles.tablePanel}>
+        <table className={styles.table}>
+          <thead><tr><th>Track</th><th>Artista</th><th className={styles.actionsCol}>Acción</th></tr></thead>
+          <tbody>
+            {ocultos.isLoading ? (
+              <tr><td colSpan={3} className={styles.emptyState}>Cargando…</td></tr>
+            ) : ocultosData.length === 0 ? (
+              <tr><td colSpan={3} className={styles.emptyState}>No hay tracks ocultos.</td></tr>
+            ) : ocultosData.map((t) => (
+              <tr key={t.fact_id}>
+                <td>{t.track_name}</td><td>{t.artist_name}</td>
+                <td className={styles.actionsCol}>
+                  <button className={styles.btnGhost} onClick={() => restaurar.mutate(t.fact_id)} disabled={restaurar.isPending}>Restaurar</button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  )
+}

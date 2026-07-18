@@ -5,6 +5,7 @@ import { TrackPicker, type TrackSearchResult } from '@shared/components/TrackPic
 import { UserPicker, type UserSearchResult } from '@shared/components/UserPicker'
 import { apiErrorMessage } from '@shared/lib/api-client'
 import { useToast } from '@shared/context/ToastContext'
+import { useConfirm } from '@shared/context/ConfirmContext'
 import { distribucionApi } from '@packages/distribucion'
 import { creadoresApi } from '@packages/creadores'
 import { regaliasApi } from '../api/regalias.api'
@@ -27,6 +28,46 @@ export function RegaliasAdminPage() {
   useDocumentTitle('Regalías')
   const queryClient = useQueryClient()
   const toast = useToast()
+  const confirm = useConfirm()
+
+  // Contrato en edición (change p1-ciclos-vida) — null = diálogo cerrado.
+  const [editContrato, setEditContrato] = useState<Contrato | null>(null)
+
+  const terminarContrato = useMutation({
+    mutationFn: (id: string) => regaliasApi.terminarContrato(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['regalias', 'contratos'] })
+      toast.success('Contrato terminado')
+    },
+    onError: (err) => toast.error(apiErrorMessage(err, 'No se pudo terminar el contrato.')),
+  })
+  const guardarContrato = useMutation({
+    mutationFn: ({ id, body }: { id: string; body: Record<string, number | string | null> }) => regaliasApi.editarContrato(id, body),
+    onSuccess: () => {
+      setEditContrato(null)
+      queryClient.invalidateQueries({ queryKey: ['regalias', 'contratos'] })
+      toast.success('Contrato actualizado')
+    },
+    onError: (err) => toast.error(apiErrorMessage(err, 'No se pudo actualizar — revisa que master y publishing sumen 100.')),
+  })
+  async function pedirTerminar(c: Contrato) {
+    if (await confirm(`El contrato del track ${c.fact_id_track} quedará terminado y no se volverá a liquidar.`, { title: 'Terminar contrato', danger: true })) {
+      terminarContrato.mutate(c.contrato_id)
+    }
+  }
+  async function exportarContrato(c: Contrato) {
+    try {
+      const data = await regaliasApi.exportarContrato(c.contrato_id)
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url; a.download = `contrato-${c.contrato_id}.json`; a.click()
+      URL.revokeObjectURL(url)
+      toast.success('Exportación descargada')
+    } catch (err) {
+      toast.error(apiErrorMessage(err, 'No se pudo exportar el contrato.'))
+    }
+  }
 
   const productores = useQuery({ queryKey: ['regalias', 'productores'], queryFn: () => regaliasApi.productores() })
   const contratos   = useQuery({ queryKey: ['regalias', 'contratos'],   queryFn: () => regaliasApi.contratos() })
@@ -227,26 +268,30 @@ export function RegaliasAdminPage() {
 
       <div className={styles.tablePanel}>
         <table className={styles.table}>
-          <thead><tr><th>Track</th><th>Sello</th><th>Artista</th><th>Productor</th><th>Vigente desde</th><th></th></tr></thead>
+          <thead><tr><th>Track</th><th>Sello</th><th>Artista</th><th>Productor</th><th>Vigente desde</th><th>Estado</th><th className={styles.actionsCol}>Acciones</th></tr></thead>
           <tbody>
             {contratosData.length === 0 ? (
-              <tr><td colSpan={6} className={styles.emptyState}>Sin contratos todavía.</td></tr>
-            ) : contratosData.map((c) => (
+              <tr><td colSpan={7} className={styles.emptyState}>Sin contratos todavía.</td></tr>
+            ) : contratosData.map((c) => {
+              const terminado = !c.activo
+              return (
               <tr key={c.contrato_id}>
                 <td>{c.fact_id_track}</td><td>{c.sello_id ?? '—'}</td>
                 <td>{c.cuenta_artista_id ? c.cuenta_artista_id.slice(0, 8) + '…' : '—'}</td>
                 <td>{c.productor_id ?? '—'}</td><td>{c.vigente_desde}</td>
-                <td>
-                  <button
-                    type="button"
-                    className={styles.linkBtn}
-                    onClick={() => setContratoSeleccionado(contratoSeleccionado === c.contrato_id ? null : c.contrato_id)}
-                  >
-                    {contratoSeleccionado === c.contrato_id ? 'Ocultar historial' : 'Ver historial'}
-                  </button>
+                <td><span className={`${styles.badge} ${terminado ? styles.badgeOff : styles.badgeOk}`}>{terminado ? 'Terminado' : 'Vigente'}</span></td>
+                <td className={styles.actionsCol}>
+                  <div className={styles.actions}>
+                    <button type="button" className={styles.linkBtn} onClick={() => setContratoSeleccionado(contratoSeleccionado === c.contrato_id ? null : c.contrato_id)}>
+                      {contratoSeleccionado === c.contrato_id ? 'Ocultar' : 'Historial'}
+                    </button>
+                    <button type="button" className={styles.btnGhost} onClick={() => exportarContrato(c)}>Exportar</button>
+                    <button type="button" className={styles.btnGhost} onClick={() => setEditContrato(c)} disabled={terminado}>Editar</button>
+                    {!terminado && <button type="button" className={styles.btnGhostDanger} onClick={() => pedirTerminar(c)}>Terminar</button>}
+                  </div>
                 </td>
               </tr>
-            ))}
+            )})}
           </tbody>
         </table>
       </div>
@@ -278,7 +323,71 @@ export function RegaliasAdminPage() {
 
       <p className={styles.sectionLabel} style={{ marginTop: 'var(--space-xl)' }}>Solicitudes de retiro</p>
       <RetirosAdminTable />
+
+      {editContrato && (
+        <ContratoEditDialog
+          contrato={editContrato}
+          pending={guardarContrato.isPending}
+          onClose={() => setEditContrato(null)}
+          onSave={(body) => guardarContrato.mutate({ id: editContrato.contrato_id, body })}
+        />
+      )}
     </section>
+  )
+}
+
+// Edición de un contrato (change p1-ciclos-vida): splits master/publishing que
+// deben sumar 100 cada uno (misma invariante que la creación) + fecha fin.
+function ContratoEditDialog({ contrato, pending, onClose, onSave }: {
+  contrato: Contrato
+  pending: boolean
+  onClose: () => void
+  onSave: (body: Record<string, number | string | null>) => void
+}) {
+  const [ms, setMs] = useState(String(contrato.pct_master_sello))
+  const [ma, setMa] = useState(String(contrato.pct_master_artista))
+  const [mp, setMp] = useState(String(contrato.pct_master_productor))
+  const [ps, setPs] = useState(String(contrato.pct_publishing_sello))
+  const [pa, setPa] = useState(String(contrato.pct_publishing_artista))
+  const [hasta, setHasta] = useState(contrato.vigente_hasta ?? '')
+
+  const sumaMaster = Number(ms) + Number(ma) + Number(mp)
+  const sumaPub = Number(ps) + Number(pa)
+  const valido = Math.abs(sumaMaster - 100) < 0.01 && Math.abs(sumaPub - 100) < 0.01
+
+  return (
+    <div className={styles.modalBackdrop} onMouseDown={onClose}>
+      <div className={styles.modal} role="dialog" aria-modal="true" aria-label="Editar contrato" onMouseDown={(e) => e.stopPropagation()}>
+        <p className={styles.modalTitle}>Editar contrato · track {contrato.fact_id_track}</p>
+        <form className={styles.modalForm} onSubmit={(e) => {
+          e.preventDefault()
+          if (!valido) return
+          onSave({
+            pct_master_sello: Number(ms), pct_master_artista: Number(ma), pct_master_productor: Number(mp),
+            pct_publishing_sello: Number(ps), pct_publishing_artista: Number(pa),
+            vigente_hasta: hasta || null,
+          })
+        }}>
+          <p className={styles.modalBody}>Master ({sumaMaster.toFixed(0)}/100)</p>
+          <div className={styles.modalRow}>
+            <label className={styles.field}><span className={styles.fieldLabel}>Sello</span><input className={styles.input} type="number" min="0" max="100" value={ms} onChange={(e) => setMs(e.target.value)} /></label>
+            <label className={styles.field}><span className={styles.fieldLabel}>Artista</span><input className={styles.input} type="number" min="0" max="100" value={ma} onChange={(e) => setMa(e.target.value)} /></label>
+            <label className={styles.field}><span className={styles.fieldLabel}>Productor</span><input className={styles.input} type="number" min="0" max="100" value={mp} onChange={(e) => setMp(e.target.value)} /></label>
+          </div>
+          <p className={styles.modalBody}>Publishing ({sumaPub.toFixed(0)}/100)</p>
+          <div className={styles.modalRow}>
+            <label className={styles.field}><span className={styles.fieldLabel}>Sello</span><input className={styles.input} type="number" min="0" max="100" value={ps} onChange={(e) => setPs(e.target.value)} /></label>
+            <label className={styles.field}><span className={styles.fieldLabel}>Artista</span><input className={styles.input} type="number" min="0" max="100" value={pa} onChange={(e) => setPa(e.target.value)} /></label>
+          </div>
+          <label className={styles.field}><span className={styles.fieldLabel}>Vigente hasta (opcional)</span><input className={styles.input} type="date" value={hasta} onChange={(e) => setHasta(e.target.value)} /></label>
+          {!valido && <p className={styles.modalWarn}>Master y publishing deben sumar 100 cada uno.</p>}
+          <div className={styles.modalActions}>
+            <button type="button" className={styles.btnGhost} onClick={onClose}>Cancelar</button>
+            <button type="submit" className={styles.btnPrimary} disabled={pending || !valido}>{pending ? 'Guardando…' : 'Guardar cambios'}</button>
+          </div>
+        </form>
+      </div>
+    </div>
   )
 }
 

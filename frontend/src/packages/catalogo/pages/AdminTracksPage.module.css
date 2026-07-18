@@ -1,0 +1,117 @@
+.page {}
+
+.heading {
+  font-family: var(--font-sans);
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--color-ink);
+  margin-bottom: var(--space-xs);
+}
+
+.intro {
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  color: var(--color-muted);
+  max-width: 68ch;
+  line-height: 1.5;
+  margin-bottom: var(--space-xl);
+}
+
+.sectionLabel {
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--color-muted);
+  margin-bottom: var(--space-sm);
+}
+
+.searchBar {
+  display: flex;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-lg);
+}
+
+.input {
+  flex: 1;
+  min-width: 0;
+  background: var(--color-bg);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  padding: 8px 12px;
+  height: 38px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  outline: none;
+}
+.input:focus { border-color: var(--color-primary); }
+
+.btnPrimary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--color-ink);
+  background: var(--color-primary);
+  border: none;
+  border-radius: var(--radius-md);
+  padding: 8px var(--space-md);
+  height: 38px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.btnPrimary:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.tablePanel {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  overflow-x: auto;
+  margin-bottom: var(--space-md);
+}
+.table { width: 100%; border-collapse: collapse; }
+.table th {
+  text-align: left;
+  font-family: var(--font-sans);
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--color-muted);
+  padding: 10px var(--space-md);
+  border-bottom: 1px solid var(--color-border);
+}
+.table td {
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  color: var(--color-ink);
+  padding: 10px var(--space-md);
+}
+.table tbody tr + tr td { border-top: 1px solid var(--color-border); }
+
+.actionsCol { text-align: right; white-space: nowrap; }
+
+.emptyState {
+  padding: var(--space-lg);
+  text-align: center;
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  color: var(--color-muted);
+}
+
+.btnGhost, .btnGhostDanger {
+  font-family: var(--font-sans);
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 5px 10px;
+  height: 30px;
+  border-radius: var(--radius-md);
+  background: transparent;
+  border: 1px solid var(--color-border);
+  color: var(--color-ink);
+  cursor: pointer;
+}
+.btnGhost:hover:not(:disabled) { border-color: var(--color-primary); }
+.btnGhost:disabled { opacity: 0.4; cursor: not-allowed; }
+.btnGhostDanger { color: #f87171; border-color: color-mix(in srgb, #f87171 35%, var(--color-border)); }
+.btnGhostDanger:hover { border-color: #f87171; background: color-mix(in srgb, #f87171 10%, transparent); }

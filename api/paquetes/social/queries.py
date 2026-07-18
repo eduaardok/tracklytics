@@ -118,6 +118,40 @@ def comentarios_admin_sql(where: str) -> str:
     ORDER BY c.fecha_creacion DESC
     """
 
+
+# ── Denuncias de contenido (change p1-ciclos-vida) ───────────────────────────
+# FACT_DENUNCIA es ReplacingMergeTree(actualizado_en) ORDER BY denuncia_id: una
+# actualización de estado es una fila nueva con el mismo id y un
+# `actualizado_en` mayor, resuelta con argMax (nunca leyendo la tabla cruda).
+_DENUNCIA_RESUELTA = """
+    SELECT
+        denuncia_id,
+        anyLast(denunciante_id)              AS denunciante_id,
+        anyLast(tipo_objeto)                 AS tipo_objeto,
+        anyLast(objeto_id)                   AS objeto_id,
+        anyLast(motivo)                      AS motivo,
+        anyLast(descripcion)                 AS descripcion,
+        argMax(estado, actualizado_en)       AS estado,
+        min(created_at)                      AS created_at
+    FROM FACT_DENUNCIA
+    GROUP BY denuncia_id
+"""
+
+DENUNCIA_POR_ID = f"SELECT * FROM ({_DENUNCIA_RESUELTA}) WHERE denuncia_id = {{denuncia_id:UInt64}} LIMIT 1"
+
+
+def denuncias_admin_sql(where: str) -> str:
+    return f"""
+    SELECT * FROM ({_DENUNCIA_RESUELTA})
+    {where}
+    ORDER BY created_at DESC
+    LIMIT {{limit:UInt32}} OFFSET {{offset:UInt32}}
+    """
+
+
+def denuncias_count_sql(where: str) -> str:
+    return f"SELECT count() AS total FROM ({_DENUNCIA_RESUELTA}) {where}"
+
 # Dashboard (RT-04, S10 Día 3): actividad social real por día, últimos 14
 # días — 2 series (comentarios vs comparticiones), ambas append-only.
 ACTIVIDAD_SOCIAL_POR_DIA = """

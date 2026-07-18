@@ -21,6 +21,18 @@ export const regaliasApi = {
   crearContrato: (body: ContratoBody) =>
     apiClient.post<{ status: string; contrato_id: string }>('/regalias/admin/contratos', body),
 
+  // Ciclo de vida del contrato (change p1-ciclos-vida).
+  editarContrato: (contratoId: string, body: {
+    pct_master_sello?: number; pct_master_artista?: number; pct_master_productor?: number
+    pct_publishing_sello?: number; pct_publishing_artista?: number; vigente_hasta?: string | null
+  }) => apiClient.put<{ status: string; contrato_id: string }>(`/regalias/admin/contratos/${contratoId}`, body),
+
+  terminarContrato: (contratoId: string) =>
+    apiClient.post<{ status: string; contrato_id: string; estado: string }>(`/regalias/admin/contratos/${contratoId}/terminar`, undefined),
+
+  exportarContrato: (contratoId: string) =>
+    apiClient.get<Record<string, unknown>>(`/regalias/admin/contratos/${contratoId}/exportar`),
+
   liquidacionesContrato: (contratoId: string) =>
     apiClient.get<ApiResponse<LiquidacionContrato>>(`/regalias/admin/contratos/${contratoId}/liquidaciones`),
 

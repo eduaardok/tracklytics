@@ -1,4 +1,4 @@
-export type EstadoLicencia = 'activa' | 'vencida' | 'suspendida'
+export type EstadoLicencia = 'activa' | 'vencida' | 'suspendida' | 'revocada'
 
 export type Sello = {
   sello_id: number

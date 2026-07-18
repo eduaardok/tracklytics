@@ -20,6 +20,7 @@ from paquetes.distribucion.queries import (
     ARTISTA_EXISTE,
     CANAL_EXISTE,
     CANALES_LIST,
+    LICENCIA_ESTADO_POR_ID,
     LICENCIA_ID_MAX,
     LICENCIAS_ACTIVAS_TOTAL,
     PAIS_CONFIG_POR_ID,
@@ -355,6 +356,36 @@ def crear_licencia(body: LicenciaBody, admin: dict = Depends(require_admin)):
         },
     )
     return {"status": "ok", "licencia_id": nuevo_id}
+
+
+class RevocarLicenciaBody(BaseModel):
+    motivo: str
+
+
+@router.post("/licencias/{licencia_id}/revocar")
+def revocar_licencia(licencia_id: int, body: RevocarLicenciaBody, admin: dict = Depends(require_admin)):
+    """Revoca una licencia ya activa (change p1-ciclos-vida): la marca como
+    `revocada`, registra motivo y fecha. Una licencia revocada deja de contar
+    como activa para la disponibilidad (LICENCIAS_ACTIVAS_TOTAL filtra
+    `estado = 'activa'`)."""
+    fila = query_one(LICENCIA_ESTADO_POR_ID, {"licencia_id": licencia_id})
+    if not fila:
+        raise HTTPException(status_code=404, detail="Licencia no encontrada")
+    if fila["estado"] == "revocada":
+        raise HTTPException(status_code=409, detail="La licencia ya está revocada")
+    if not body.motivo.strip():
+        raise HTTPException(status_code=422, detail="Debe indicar un motivo de revocación")
+    execute(
+        "ALTER TABLE DIM_LICENCIA UPDATE estado = 'revocada', motivo_revocacion = {motivo:String}, "
+        "fecha_revocacion = now() WHERE licencia_id = {id:UInt32}",
+        {"motivo": body.motivo.strip(), "id": licencia_id},
+    )
+    audit.record(
+        usuario_id=admin["record"]["id"], accion="revocar_licencia", tabla_afectada="DIM_LICENCIA",
+        antes={"licencia_id": licencia_id, "estado": fila["estado"]},
+        despues={"licencia_id": licencia_id, "estado": "revocada", "motivo": body.motivo.strip()},
+    )
+    return {"status": "ok", "licencia_id": licencia_id, "estado": "revocada"}
 
 
 @router.get("/licencias", dependencies=[Depends(require_admin)])

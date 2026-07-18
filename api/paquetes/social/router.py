@@ -26,6 +26,7 @@ from paquetes.social.queries import (
     COMENTARIO_PADRE_INFO,
     COMENTARIO_POR_ID,
     COMENTARIOS_VISIBLES_DE_TRACK,
+    DENUNCIA_POR_ID,
     FEED_ACTIVIDAD_SEGUIDOS,
     NOTIFICACION_POR_ID,
     NOTIFICACIONES_DE_USUARIO,
@@ -34,6 +35,8 @@ from paquetes.social.queries import (
     SEGUIMIENTO_ACTIVO_EXISTE,
     TRACK_EXISTE,
     comentarios_admin_sql,
+    denuncias_admin_sql,
+    denuncias_count_sql,
 )
 
 router = APIRouter(prefix="/app/v1/social", tags=["Social"])
@@ -236,6 +239,105 @@ def listar_comentarios_admin(
         params["estado"] = estado
     where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
     return {"data": query_rows(comentarios_admin_sql(where), params)}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 3b. Denuncias de contenido por usuarios (change p1-ciclos-vida)
+# ─────────────────────────────────────────────────────────────────────────────
+
+TipoObjetoDenuncia = Literal["comentario", "track"]
+MotivoDenuncia = Literal["spam", "contenido_inapropiado", "derechos_de_autor", "otro"]
+
+_FACT_DENUNCIA_COLS = [
+    "denuncia_id", "denunciante_id", "tipo_objeto", "objeto_id",
+    "motivo", "descripcion", "estado",
+]
+
+
+class DenunciaBody(BaseModel):
+    tipo_objeto: TipoObjetoDenuncia
+    objeto_id: str
+    motivo: MotivoDenuncia
+    descripcion: str = ""
+
+
+@router.post("/denuncias", status_code=201)
+def crear_denuncia(body: DenunciaBody, user: dict = Depends(require_b2c_user)):
+    """Un usuario B2C denuncia un comentario o un track. La denuncia entra en
+    estado `pendiente` a la bandeja de moderación; no ejecuta ninguna acción
+    automática sobre el objeto."""
+    if not body.objeto_id.strip():
+        raise HTTPException(status_code=422, detail="objeto_id es obligatorio")
+    # Validación de existencia del objeto denunciado (best-effort: ambos ids
+    # son fact_id UInt64 en su tabla respectiva).
+    try:
+        objeto_num = int(body.objeto_id)
+    except ValueError:
+        raise HTTPException(status_code=422, detail="objeto_id debe ser numérico")
+    if body.tipo_objeto == "comentario":
+        if not query_one(COMENTARIO_POR_ID, {"fact_id": objeto_num}):
+            raise HTTPException(status_code=404, detail="Comentario no encontrado")
+    else:
+        if query_one(TRACK_EXISTE, {"fact_id": objeto_num})["n"] == 0:
+            raise HTTPException(status_code=404, detail="Track no encontrado")
+
+    denuncia_id = _gen_fact_id()
+    get_client().insert(
+        "FACT_DENUNCIA",
+        [(
+            denuncia_id, user["record"]["id"], body.tipo_objeto, body.objeto_id.strip(),
+            body.motivo, body.descripcion.strip(), "pendiente",
+        )],
+        column_names=_FACT_DENUNCIA_COLS,
+    )
+    return {"status": "ok", "denuncia_id": denuncia_id, "estado": "pendiente"}
+
+
+@router.get("/admin/denuncias", dependencies=[Depends(require_admin)])
+def listar_denuncias_admin(
+    tipo_objeto: str | None = Query(None),
+    motivo: str | None = Query(None),
+    estado: str | None = Query(None),
+    page: int = Query(1, ge=1),
+    limit: int = Query(20, ge=1, le=100),
+):
+    clauses, params = [], {"limit": limit, "offset": (page - 1) * limit}
+    if tipo_objeto:
+        clauses.append("tipo_objeto = {tipo_objeto:String}"); params["tipo_objeto"] = tipo_objeto
+    if motivo:
+        clauses.append("motivo = {motivo:String}"); params["motivo"] = motivo
+    if estado:
+        clauses.append("estado = {estado:String}"); params["estado"] = estado
+    where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
+    data = query_rows(denuncias_admin_sql(where), params)
+    total = query_one(denuncias_count_sql(where), params)["total"]
+    return {"data": data, "total": total, "page": page, "limit": limit}
+
+
+class ActualizarDenunciaBody(BaseModel):
+    estado: Literal["revisada", "resuelta"]
+
+
+@router.put("/admin/denuncias/{denuncia_id}")
+def actualizar_denuncia_admin(denuncia_id: int, body: ActualizarDenunciaBody, admin: dict = Depends(require_admin)):
+    actual = query_one(DENUNCIA_POR_ID, {"denuncia_id": denuncia_id})
+    if not actual:
+        raise HTTPException(status_code=404, detail="Denuncia no encontrada")
+    # Fila nueva con el mismo id y estado actualizado (ReplacingMergeTree).
+    get_client().insert(
+        "FACT_DENUNCIA",
+        [(
+            denuncia_id, actual["denunciante_id"], actual["tipo_objeto"], actual["objeto_id"],
+            actual["motivo"], actual["descripcion"], body.estado,
+        )],
+        column_names=_FACT_DENUNCIA_COLS,
+    )
+    audit.record(
+        usuario_id=admin["record"]["id"], accion="actualizar_denuncia",
+        tabla_afectada="FACT_DENUNCIA", antes={"denuncia_id": denuncia_id, "estado": actual["estado"]},
+        despues={"denuncia_id": denuncia_id, "estado": body.estado},
+    )
+    return {"status": "ok", "denuncia_id": denuncia_id, "estado": body.estado}
 
 
 # ─────────────────────────────────────────────────────────────────────────────

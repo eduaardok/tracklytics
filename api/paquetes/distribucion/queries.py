@@ -20,6 +20,8 @@ TIPO_RESTRICCION_EXISTE = "SELECT count() AS n FROM DIM_TIPO_RESTRICCION WHERE t
 
 SELLO_ID_MAX    = "SELECT max(sello_id) AS n FROM DIM_SELLO_DISCOGRAFICO"
 LICENCIA_ID_MAX = "SELECT max(licencia_id) AS n FROM DIM_LICENCIA"
+# Estado vigente de una licencia para el flujo de revocación (change p1-ciclos-vida).
+LICENCIA_ESTADO_POR_ID = "SELECT licencia_id, sello_id, pais_id, toString(estado) AS estado FROM DIM_LICENCIA WHERE licencia_id = {licencia_id:UInt32} LIMIT 1"
 
 # ── Sellos ──────────────────────────────────────────────────────────────────
 

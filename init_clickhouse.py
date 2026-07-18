@@ -1245,6 +1245,59 @@ DDL_STATEMENTS = [
     # get_current_user en cada request; una cuenta suspendida/eliminada se
     # rechaza con 403 aunque su token de PocketBase siga siendo válido.
     f"ALTER TABLE {DB}.DIM_USUARIO ADD COLUMN IF NOT EXISTS estado_cuenta String DEFAULT 'activa'",
+
+    # ── Change p1-ciclos-vida: ciclo de vida de entidades de negocio ────────────
+    # `formato` (audio|display|banner) es el atributo comercial editable de una
+    # campaña; `tipo_anuncio` sigue gobernando el canal técnico de servido
+    # (design.md, Decisión 2). Retro-relleno de `formato` desde `tipo_anuncio`
+    # para campañas ya creadas. `estado_manual` ('' | 'pausada' | 'finalizada')
+    # es el eje de pausa/cierre MANUAL, independiente de `activa` (presupuesto):
+    # una campaña se sirve solo si activa=1 Y estado_manual='' (Decisión 1).
+    # Descripción editable de un track subido por un artista (change
+    # p1-ciclos-vida): STG_ARTIST_UPLOADS es la fuente de metadata editable
+    # (track_name/album_name/genre_id/descripcion); no estaba modelada porque
+    # la subida original no la pedía. `genre_id`/nombres no están en la ORDER
+    # KEY (staging_id), así que el ALTER UPDATE de edición es válido.
+    f"ALTER TABLE {DB}.STG_ARTIST_UPLOADS ADD COLUMN IF NOT EXISTS descripcion String DEFAULT ''",
+
+    # Desactivación de anunciantes (soft-delete): un anunciante inactivo se
+    # conserva (histórico de campañas) pero no debe ofrecerse para campañas nuevas.
+    f"ALTER TABLE {DB}.DIM_ANUNCIANTE ADD COLUMN IF NOT EXISTS activo UInt8 DEFAULT 1",
+    f"ALTER TABLE {DB}.DIM_CAMPANA_PUBLICITARIA ADD COLUMN IF NOT EXISTS formato String DEFAULT 'display'",
+    f"ALTER TABLE {DB}.DIM_CAMPANA_PUBLICITARIA ADD COLUMN IF NOT EXISTS estado_manual String DEFAULT ''",
+    f"ALTER TABLE {DB}.DIM_CAMPANA_PUBLICITARIA UPDATE formato = toString(tipo_anuncio) WHERE formato = 'display' AND tipo_anuncio = 'audio'",
+
+    # Takedown de catálogo (Decisión 3): un track oculto tiene disponible=0 pero
+    # sigue en FACT_TRACKS (soft-delete vía ALTER UPDATE, nunca DELETE físico).
+    # `disponible` no está en la ORDER KEY de FACT_TRACKS, así que el UPDATE es
+    # válido (no cae en CANNOT_UPDATE_COLUMN). Reutilizado por el retiro de
+    # tracks de artista (`creadores`).
+    f"ALTER TABLE {DB}.FACT_TRACKS ADD COLUMN IF NOT EXISTS disponible UInt8 DEFAULT 1",
+
+    # Revocación de licencias activas (`distribucion`): se amplía el enum de
+    # estado con 'revocada' (superset del enum previo, seguro) y se añaden el
+    # motivo y la fecha de revocación. `estado` no está en la ORDER KEY
+    # (sello_id, pais_id), así que el ALTER UPDATE de revocación es válido.
+    f"ALTER TABLE {DB}.DIM_LICENCIA MODIFY COLUMN estado Enum8('activa'=1, 'vencida'=2, 'suspendida'=3, 'revocada'=4) DEFAULT 'activa'",
+    f"ALTER TABLE {DB}.DIM_LICENCIA ADD COLUMN IF NOT EXISTS motivo_revocacion String DEFAULT ''",
+    f"ALTER TABLE {DB}.DIM_LICENCIA ADD COLUMN IF NOT EXISTS fecha_revocacion Nullable(DateTime)",
+
+    # Denuncias de contenido por usuarios (`social`, Decisión 5). El estado
+    # vigente por denuncia se resuelve con ReplacingMergeTree ORDER BY
+    # denuncia_id (una actualización de estado es una fila nueva con el mismo id).
+    f"""
+    CREATE TABLE IF NOT EXISTS {DB}.FACT_DENUNCIA (
+        denuncia_id    UInt64,
+        denunciante_id String,
+        tipo_objeto    String,
+        objeto_id      String,
+        motivo         String,
+        descripcion    String DEFAULT '',
+        estado         String DEFAULT 'pendiente',
+        created_at     DateTime DEFAULT now(),
+        actualizado_en DateTime DEFAULT now()
+    ) ENGINE = ReplacingMergeTree(actualizado_en) ORDER BY denuncia_id
+    """,
 ]
 
 # ── Runner ────────────────────────────────────────────────────────────────────
@@ -1293,10 +1346,25 @@ def main() -> None:
         if count == 0:
             client.insert(
                 f"{DB}.DIM_ESTADO_REVISION",
-                [(1, "pendiente"), (2, "aprobado"), (3, "rechazado")],
+                [(1, "pendiente"), (2, "aprobado"), (3, "rechazado"), (4, "retirado")],
                 column_names=["estado_revision_id", "nombre"],
             )
-            print("✓ DIM_ESTADO_REVISION sembrada (3 filas).")
+            print("✓ DIM_ESTADO_REVISION sembrada (4 filas).")
+        else:
+            # Change p1-ciclos-vida: estado 'retirado' (4) para el retiro de un
+            # track propio por el artista. Idempotente sobre instalaciones que ya
+            # tenían las 3 filas originales (MergeTree admite duplicados: se
+            # inserta solo si falta).
+            existe_4 = client.query(
+                f"SELECT count() FROM {DB}.DIM_ESTADO_REVISION WHERE estado_revision_id = 4"
+            ).result_rows[0][0]
+            if existe_4 == 0:
+                client.insert(
+                    f"{DB}.DIM_ESTADO_REVISION",
+                    [(4, "retirado")],
+                    column_names=["estado_revision_id", "nombre"],
+                )
+                print("✓ DIM_ESTADO_REVISION: estado 'retirado' (4) añadido.")
     except Exception as exc:
         print(f"ERROR sembrando DIM_ESTADO_REVISION: {exc}")
 

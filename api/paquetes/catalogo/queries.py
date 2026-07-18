@@ -15,7 +15,7 @@ FROM FACT_TRACKS ft
 JOIN DIM_ARTISTS a ON ft.artist_id = a.artist_id
 JOIN DIM_ALBUMS  al ON ft.album_id = al.album_id
 JOIN DIM_GENRES  g ON ft.genre_id  = g.genre_id
-WHERE ft.source_type != 'synthetic'
+WHERE ft.source_type != 'synthetic' AND ft.disponible = 1
 GROUP BY ft.track_id, ft.track_name, ft.artist_id, a.name, a.imagen_url
 ORDER BY popularity DESC
 LIMIT {limit:UInt32}
@@ -39,7 +39,7 @@ FROM FACT_TRACKS ft
 JOIN DIM_ARTISTS a ON ft.artist_id = a.artist_id
 JOIN DIM_ALBUMS  al ON ft.album_id = al.album_id
 JOIN DIM_GENRES  g ON ft.genre_id  = g.genre_id
-WHERE ft.artist_id = {artist_id:Int32}
+WHERE ft.artist_id = {artist_id:Int32} AND ft.disponible = 1
 GROUP BY ft.track_id, ft.track_name, ft.artist_id, a.name, a.imagen_url
 ORDER BY any(ft.popularity) DESC
 LIMIT {limit:UInt32}
@@ -62,7 +62,7 @@ FROM FACT_TRACKS ft
 JOIN DIM_ARTISTS a ON ft.artist_id = a.artist_id
 JOIN DIM_ALBUMS  al ON ft.album_id = al.album_id
 JOIN DIM_GENRES  g ON ft.genre_id  = g.genre_id
-WHERE ft.album_id = {album_id:Int32}
+WHERE ft.album_id = {album_id:Int32} AND ft.disponible = 1
 GROUP BY ft.track_id, ft.track_name, ft.artist_id, a.name, a.imagen_url, al.imagen_url
 ORDER BY ft.track_name
 LIMIT {limit:UInt32}
@@ -79,7 +79,7 @@ FROM FACT_TRACKS ft
 JOIN DIM_GENRES  g ON ft.genre_id  = g.genre_id
 JOIN DIM_ARTISTS a ON ft.artist_id = a.artist_id
 JOIN DIM_ALBUMS  al ON ft.album_id = al.album_id
-WHERE ft.genre_id = {genre_id:Int32}
+WHERE ft.genre_id = {genre_id:Int32} AND ft.disponible = 1
 ORDER BY ft.popularity DESC
 LIMIT {limit:UInt32}
 """
@@ -108,7 +108,7 @@ FROM FACT_TRACKS ft
 JOIN DIM_ARTISTS a  ON ft.artist_id = a.artist_id
 JOIN DIM_ALBUMS  al ON ft.album_id  = al.album_id
 JOIN DIM_GENRES  g  ON ft.genre_id  = g.genre_id
-WHERE ft.track_id = {track_id:String}
+WHERE ft.track_id = {track_id:String} AND ft.disponible = 1
 GROUP BY ft.track_id, ft.track_name, ft.artist_id, a.name, ft.album_id, al.name, a.imagen_url, al.imagen_url
 LIMIT 1
 """
@@ -258,7 +258,34 @@ JOIN DIM_ARTISTS a  ON ft.artist_id = a.artist_id
 JOIN DIM_ALBUMS  al ON ft.album_id  = al.album_id
 JOIN DIM_GENRES  g  ON ft.genre_id  = g.genre_id
 WHERE ft.track_id = (SELECT track_id FROM FACT_TRACKS WHERE fact_id = {fact_id:Int64} LIMIT 1)
+  AND ft.disponible = 1
 GROUP BY ft.track_id, ft.track_name, ft.artist_id, a.name, ft.album_id, al.name, a.imagen_url, al.imagen_url
+"""
+
+
+# ── Takedown administrativo (change p1-ciclos-vida) ──────────────────────────
+# Un track existe como varias filas en FACT_TRACKS (una por género); el takedown
+# se aplica a TODAS las filas de su track_id para que el track desaparezca de
+# verdad del catálogo (la búsqueda dedup por track_id). Se localiza el track por
+# el fact_id recibido en la ruta.
+TRACK_ID_POR_FACT = "SELECT track_id FROM FACT_TRACKS WHERE fact_id = {fact_id:UInt64} LIMIT 1"
+TRACK_DISPONIBILIDAD_POR_FACT = "SELECT track_id, disponible FROM FACT_TRACKS WHERE fact_id = {fact_id:UInt64} LIMIT 1"
+
+# Listado de tracks ocultos (disponible=0) para el panel admin de takedown —
+# no aparecen en las búsquedas públicas, así que la restauración necesita esta
+# vista dedicada. Dedup por track_id (min fact_id como representante).
+TRACKS_OCULTOS = """
+SELECT
+    min(ft.fact_id)  AS fact_id,
+    ft.track_id      AS track_id,
+    ft.track_name    AS track_name,
+    a.name           AS artist_name
+FROM FACT_TRACKS ft
+JOIN DIM_ARTISTS a ON ft.artist_id = a.artist_id
+WHERE ft.disponible = 0
+GROUP BY ft.track_id, ft.track_name, a.name
+ORDER BY ft.track_name
+LIMIT {limit:UInt32}
 """
 
 
@@ -276,7 +303,7 @@ SELECT
     any(ft.danceability)                              AS danceability,
     any(ft.energy)                                    AS energy,
     any(ft.valence)                                   AS valence
-FROM FACT_TRACKS ft
+FROM (SELECT * FROM FACT_TRACKS WHERE disponible = 1) ft
 JOIN DIM_ARTISTS a ON ft.artist_id = a.artist_id
 JOIN DIM_ALBUMS  al ON ft.album_id = al.album_id
 JOIN DIM_GENRES  g ON ft.genre_id  = g.genre_id
@@ -290,7 +317,7 @@ LIMIT {{limit:UInt32}} OFFSET {{offset:UInt32}}
 def tracks_search_count_sql(where: str) -> str:
     return f"""
 SELECT count(DISTINCT ft.track_id) AS total
-FROM FACT_TRACKS ft
+FROM (SELECT * FROM FACT_TRACKS WHERE disponible = 1) ft
 JOIN DIM_ARTISTS a ON ft.artist_id = a.artist_id
 JOIN DIM_GENRES  g ON ft.genre_id  = g.genre_id
 {where}
