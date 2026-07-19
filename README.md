@@ -26,7 +26,7 @@ Tracklytics procesa un dataset base de 113.550 registros reales de Spotify más 
 sintéticos semanales acumulados (1.113.555 registros confirmados hoy en `FACT_TRACKS`, semanas
 1-11 cargadas, tras corregir un incidente de duplicación — ver
 `docs/BITACORA_S10.md`), los almacena en un modelo dimensional columnar en
-ClickHouse (71 tablas físicas), orquesta las cargas con Apache Airflow (7 DAGs: catálogo,
+ClickHouse (76 tablas físicas), orquesta las cargas con Apache Airflow (7 DAGs: catálogo,
 recarga de portadas independiente, recalificación administrativa en bloque, engagement de
 referencia, playlists, modelo de negocio y finanzas periódicas) y los expone mediante una API
 REST (FastAPI), un frontend React containerizado (único frontend del proyecto) con dashboards
@@ -44,7 +44,7 @@ de campañas), y una API de catálogo para partners externos.
 |---|---|
 | Fuente de datos | PocketBase — dataset base `spotify_tracks` (113.550 registros) + 5 colecciones más: `users`, `playlists`, `playlist_tracks`, `suscripciones`, `partners` |
 | Staging | Parquet (vía PyArrow) |
-| Base de datos | ClickHouse 24.3 (MergeTree) — 71 tablas físicas en esquema estrella (verificado con `system.tables`), incluyendo capabilities transaccionales (`seguridad`, `facturacion`, `finanzas`) implementadas en columnar por decisión pedagógica deliberada del docente |
+| Base de datos | ClickHouse 24.3 (MergeTree) — 76 tablas físicas en esquema estrella (verificado con `system.tables`), incluyendo capabilities transaccionales (`seguridad`, `facturacion`, `finanzas`) implementadas en columnar por decisión pedagógica deliberada del docente |
 | Orquestación ETL | Apache Airflow 2.9 — DAG principal (`tracklytics_etl`) + 3 DAGs independientes (`playlists_sync`, `modelo_negocio_sync`, `finanzas_periodicas`) |
 | API REST | FastAPI + Uvicorn (Python 3.11) — 15 paquetes (uno por capability), incluye API de partners autenticada por API key |
 | Frontend | React 18 + TypeScript + Vite — único frontend del proyecto (`frontend/`), containerizado (servicio `frontend-react`, build multi-stage Vite+Nginx); el frontend legado vanilla HTML/CSS/JS (`app/`) se retiró por completo del repo en S10 |
@@ -112,7 +112,7 @@ Docker Compose levanta automáticamente todos los servicios en el orden correcto
 1. **PocketBase** y **ClickHouse** arrancan primero.
 2. **pb-init** crea las colecciones necesarias en PocketBase y carga los 113.550 registros
    desde el CSV (tarda ~5 min).
-3. **init-db** crea el schema dimensional en ClickHouse (71 tablas).
+3. **init-db** crea el schema dimensional en ClickHouse (76 tablas).
 4. **Airflow**, **API** y el **frontend React** (`frontend-react`, puerto 8082, único frontend)
    quedan disponibles.
 
@@ -478,13 +478,15 @@ tracklytics/
 
 ## Modelo de datos
 
-**71 tablas físicas en ClickHouse** (verificado contra `system.tables`: 52 al cierre de S9 — 17
+**76 tablas físicas en ClickHouse** (verificado contra `system.tables`: 52 al cierre de S9 — 17
 preexistentes al inicio de la refactorización + 30 de las 6 capabilities nuevas + 5 del cambio
 `completar-modelo-base` — más 9 de `regalias`/`publicidad` cerradas en S10; el resto se agregó
 durante S11: entre otras, `FACT_CANCELACION_SUSCRIPCION`, `FACT_RETIRO_REGALIA`, `DIM_EMPRESA`,
 `SOLICITUD_LICENCIA`, `FACT_GASTO_OPERATIVO` y `FACT_REEMBOLSO`, más las 3 del cambio
 `roles-gestion-usuarios` (`DIM_ROL_ADMINISTRATIVO`, `BRIDGE_USUARIO_ROL_ADMIN`,
-`FACT_TOKEN_RECUPERACION`) — `simulacion` no agrega tabla
+`FACT_TOKEN_RECUPERACION`), `FACT_DENUNCIA` de `p1-ciclos-vida` y las 2 de
+`p2-descubrimiento-comunidad` (`BRIDGE_BLOQUEO_USUARIO`, `FACT_STRIKE_USUARIO`)
+— `simulacion` no agrega tabla
 propia, escribe en tablas de otras capabilities). El inventario
 original de **58 "tablas" del modelo dimensional del proyecto**
 (`openspec/config.yaml`, sección "Modelo de datos de negocio": 15 técnicas + 13 de negocio + 30
@@ -658,6 +660,9 @@ validate --specs` en verde para las 15 capabilities).
 | S9 | QA/rendimiento del módulo operativo **+ refactorización completa hacia sistema completo** | Ver `docs/BITACORA_S9.md` (dos entregas dentro de la misma semana: seek/QA/optimización ClickHouse, y luego las 6 capabilities nuevas + migración a React + pulido final) |
 | S10 | Retiro del frontend legado + modelo de negocio real (regalías/publicidad) + cierre de la capa operativa | Frontend único (React); capabilities `regalias`/`publicidad` (9 tablas, DAG `finanzas_periodicas`); 6 dashboards administrativos RT-04; sesiones activas multi-dispositivo; búsqueda avanzada; feed social; playlists colaborativas + reorder — ver resumen abajo |
 | S11 | Cierre del modelo de monetización y de dinero + calidad de datos del catálogo + capability `finanzas` | 6 changes de OpenSpec; capabilities `simulacion` y `finanzas` (2 nuevas, 15 en total); publicidad display, trial + plan estudiante, churn con motivo, funnel/P&L, MRR/ARR, retiro de regalías; flujo de solicitud de licencia por sello; enriquecimiento de catálogo (año/país deterministas, coherencia audio-género, recalificación en bloque); 6 hallazgos de revisión manual de producto corregidos; empresa emisora editable; dashboard/reembolsos/cuentas por cobrar-pagar/presupuesto de campañas en `finanzas` — ver `docs/BITACORA_S11.md` |
+| S11 · P0 | Seguridad y gestión de usuarios | 6 roles administrativos por área (`require_rol_admin`), panel de gestión con vista 360°, suspender/reactivar, lockout por intentos fallidos, recuperación de contraseña y baja de cuenta — ver `docs/BITACORA_S11_P0.md` |
+| S11 · P1 | Ciclos de vida de entidades de negocio | Pausar/reanudar/finalizar campañas, revocar licencias, editar/terminar contratos, takedown de catálogo, editar/retirar tracks de artista, CRUD de partners con rotación de API key, administración de suscripciones y denuncias de contenido — ver `docs/BITACORA_S11_P1.md` |
+| S11 · P2 | Descubrimiento y comunidad | Búsqueda unificada multi-entidad; radio por canción y mix diario determinista por similitud de audio en SQL; recomendaciones por afinidad con motivo explicable; bloqueo entre usuarios; historial de strikes con suspensión automática a los 3; verificación de correo simulada; exportación de datos personales — ver `docs/BITACORA_S11_P2.md` |
 
 Resumen de la segunda entrega de S9 (el refactor):
 - **6 capabilities OpenSpec nuevas** cerradas: `seguridad`, `facturacion`, `creadores`,
