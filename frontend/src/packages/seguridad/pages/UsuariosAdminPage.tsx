@@ -49,6 +49,11 @@ export function UsuariosAdminPage() {
     enabled:  !!selectedId,
   })
 
+  // Los strikes llegan dentro de la vista 360°; el `?? []` cubre una respuesta
+  // de backend anterior al change p2-descubrimiento-comunidad.
+  const strikes = detalle.data?.strikes ?? []
+  const strikesActivos = strikes.filter((s) => s.activo === 1).length
+
   function invalidarUsuario() {
     queryClient.invalidateQueries({ queryKey: ['seguridad', 'usuario-360', selectedId] })
     queryClient.invalidateQueries({ queryKey: ['seguridad', 'usuarios'] })
@@ -250,6 +255,34 @@ export function UsuariosAdminPage() {
                 <span className={styles.miniMuted}>Permisos vigentes</span>
                 <span>{d.permisos.length}</span>
               </div>
+            </div>
+
+            {/* Historial de sanciones (change p2-descubrimiento-comunidad):
+                el contexto de por qué una cuenta está suspendida es lo primero
+                que necesita un moderador al abrir la ficha. */}
+            <div className={styles.section}>
+              <span className={styles.sectionTitle}>
+                Strikes
+                {strikesActivos > 0 && (
+                  <span className={`${styles.badge} ${styles.badgeSuspendido}`}>
+                    {strikesActivos} activo{strikesActivos !== 1 ? 's' : ''}
+                  </span>
+                )}
+              </span>
+              {strikes.length === 0 ? (
+                <span className={styles.miniMuted}>Sin sanciones registradas.</span>
+              ) : (
+                strikes.map((s) => (
+                  <div key={s.strike_id} className={styles.miniRow}>
+                    <span className={styles.miniMuted}>
+                      {String(s.created_at).slice(0, 10)} · {s.origen_tipo}
+                    </span>
+                    <span className={s.activo === 1 ? undefined : styles.miniMuted}>
+                      {s.motivo}{s.activo === 1 ? '' : ' (revocado)'}
+                    </span>
+                  </div>
+                ))
+              )}
             </div>
 
             {/* Transacciones recientes */}

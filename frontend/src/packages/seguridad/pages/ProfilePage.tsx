@@ -13,6 +13,9 @@ import { distribucionApi } from '@packages/distribucion/api/distribucion.api'
 import type { Pais } from '@packages/distribucion/types'
 import { usePlanActivo } from '@packages/suscripciones'
 import { experienciaApi } from '@packages/experiencia/api/experiencia.api'
+// Import directo, no vía el barrel `@packages/social` (arrastraría
+// ModeracionSocialPage con Recharts al bundle principal — ver router.tsx).
+import { socialApi } from '@packages/social/api/social.api'
 import type { MiFamilia } from '@packages/experiencia/types'
 import { authApi } from '../api/auth.api'
 import styles from './ProfilePage.module.css'
@@ -52,6 +55,7 @@ export function ProfilePage() {
   const confirm = useConfirm()
   const { tipoPlan } = usePlanActivo()
 
+  const [descargando, setDescargando] = useState(false)
   const [editando, setEditando] = useState(false)
   const [nombre, setNombre]     = useState(user?.name ?? '')
   const [pais, setPais]         = useState(user?.pais ?? '')
@@ -197,6 +201,28 @@ export function ProfilePage() {
       { danger: true, confirmLabel: 'Sí, dar de baja' },
     )
     if (paso2) darDeBaja.mutate()
+  }
+
+  // Descarga de datos personales (change p2-descubrimiento-comunidad). El JSON
+  // se materializa como blob y se descarga desde el cliente: el endpoint es
+  // autenticado por header, así que un <a href> directo no serviría.
+  async function handleDescargarDatos() {
+    setDescargando(true)
+    try {
+      const datos = await authApi.misDatos()
+      const blob = new Blob([JSON.stringify(datos, null, 2)], { type: 'application/json' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `tracklytics-mis-datos-${datos.generado_en.slice(0, 10)}.json`
+      a.click()
+      URL.revokeObjectURL(url)
+      toast.success('Descarga lista')
+    } catch (err) {
+      toast.error(apiErrorMessage(err, 'No se pudieron descargar tus datos.'))
+    } finally {
+      setDescargando(false)
+    }
   }
 
   if (!user) return null
@@ -473,6 +499,27 @@ export function ProfilePage() {
         </div>
       )}
 
+      {/* Usuarios bloqueados y descarga de datos (change
+          p2-descubrimiento-comunidad): ambos son control del usuario sobre su
+          propia cuenta, así que van justo antes de la zona de baja. */}
+      <UsuariosBloqueadosSection />
+
+      <div className={styles.familiaSection}>
+        <h2 className={styles.sectionTitle}>Mis datos personales</h2>
+        <p className={styles.note}>
+          Descarga un archivo con todo lo que Tracklytics guarda sobre ti: perfil,
+          pagos, favoritos, playlists, historial, comentarios y denuncias.
+        </p>
+        <button
+          type="button"
+          className={styles.btnGhost}
+          disabled={descargando}
+          onClick={handleDescargarDatos}
+        >
+          {descargando ? 'Preparando…' : 'Descargar mis datos'}
+        </button>
+      </div>
+
       <div className={styles.dangerZone}>
         <h2 className={styles.sectionTitle}>Dar de baja mi cuenta</h2>
         <p className={styles.note}>
@@ -489,5 +536,59 @@ export function ProfilePage() {
         </button>
       </div>
     </section>
+  )
+}
+
+/**
+ * Lista de usuarios bloqueados con opción de desbloquear (change
+ * p2-descubrimiento-comunidad).
+ *
+ * La sección se oculta por completo cuando no hay nadie bloqueado: un apartado
+ * permanentemente vacío en el perfil solo añade ruido a una página que ya es
+ * larga.
+ */
+function UsuariosBloqueadosSection() {
+  const toast = useToast()
+  const queryClient = useQueryClient()
+
+  const bloqueados = useQuery({
+    queryKey: ['social', 'mis-bloqueados'],
+    queryFn:  () => socialApi.misBloqueados(),
+  })
+
+  const desbloquear = useMutation({
+    mutationFn: (usuarioId: string) => socialApi.desbloquear(usuarioId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['social'] })
+      toast.success('Usuario desbloqueado')
+    },
+    onError: (err) => toast.error(apiErrorMessage(err, 'No se pudo desbloquear al usuario.')),
+  })
+
+  const lista = bloqueados.data?.data ?? []
+  if (lista.length === 0) return null
+
+  return (
+    <div className={styles.familiaSection}>
+      <h2 className={styles.sectionTitle}>Usuarios bloqueados</h2>
+      <p className={styles.note}>
+        No ves sus comentarios y no pueden responder a los tuyos.
+      </p>
+      <div className={styles.familiaMiembros}>
+        {lista.map((u) => (
+          <div key={u.usuario_id} className={styles.familiaMiembroRow}>
+            <span>{u.nombre || `Usuario ${u.usuario_id.slice(0, 6)}`}</span>
+            <button
+              type="button"
+              className={styles.btnGhost}
+              disabled={desbloquear.isPending}
+              onClick={() => desbloquear.mutate(u.usuario_id)}
+            >
+              Desbloquear
+            </button>
+          </div>
+        ))}
+      </div>
+    </div>
   )
 }

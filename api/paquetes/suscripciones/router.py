@@ -9,7 +9,7 @@ from core.database import get_client, query_one, query_rows
 from core.deps import get_current_user
 from paquetes.facturacion.router import metodo_pago_existe, procesar_pago, resolver_conversion_moneda
 from paquetes.seguridad import audit
-from paquetes.seguridad.deps import require_rol_admin
+from paquetes.seguridad.deps import require_email_verificado, require_rol_admin
 
 # Autorización administrativa segmentada (change roles-gestion-usuarios): la
 # gestión de planes y sus precios pertenece al área comercial. `superadmin`
@@ -117,6 +117,12 @@ async def confirmar_suscripcion(
             status_code=404,
             detail="Plan no encontrado o no disponible para este tipo de cuenta",
         )
+
+    # Verificación de correo (change p2-descubrimiento-comunidad): solo frena
+    # los planes DE PAGO. El plan free debe seguir siendo contratable sin
+    # verificar, o la regla se convertiría en un muro para entrar al producto.
+    if precio_efectivo(body.plan_id) > 0:
+        require_email_verificado(user)
 
     # Plan estudiante (monetizacion-retencion-mejoras): exige email
     # institucional válido antes de aceptar la selección.

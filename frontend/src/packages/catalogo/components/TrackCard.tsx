@@ -1,12 +1,13 @@
 import type { KeyboardEvent, MouseEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ListPlus } from 'lucide-react'
+import { ListPlus, Radio } from 'lucide-react'
 import { usePlayer } from '@shared/context/PlayerContext'
 import { AlbumArt } from '@shared/components/AlbumArt'
 import { ErrorState } from '@shared/components/ErrorState'
 import { ApiError, apiErrorMessage } from '@shared/lib/api-client'
 import { useAd } from '@packages/publicidad'
 import { useFavoritos } from '../hooks/useFavoritos'
+import { useRadio } from '../hooks/useRadio'
 import { AddToPlaylistMenu } from './AddToPlaylistMenu'
 import { bibliotecaApi } from '../api/biblioteca.api'
 import type { Track } from '../types'
@@ -28,6 +29,7 @@ export function TrackCard({ track, position }: Props) {
   const { play, reportPlaybackIssue, enqueue } = usePlayer()
   const { pedirImpresion } = useAd()
   const { isAuthenticated, isFavorite, toggle, toggleError } = useFavoritos()
+  const { iniciarRadio, iniciando } = useRadio()
   const favorite = isFavorite(track.fact_id)
 
   function goToDetail() {
@@ -62,6 +64,11 @@ export function TrackCard({ track, position }: Props) {
   function handleEnqueue(e: MouseEvent) {
     e.stopPropagation()
     enqueue(track)
+  }
+
+  function handleRadio(e: MouseEvent) {
+    e.stopPropagation()
+    void iniciarRadio(track.fact_id)
   }
 
   function handleKeyDown(e: KeyboardEvent) {
@@ -112,6 +119,16 @@ export function TrackCard({ track, position }: Props) {
             aria-label="Agregar a la cola"
           >
             <ListPlus size={16} aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            className={styles.actionBtn}
+            onClick={handleRadio}
+            disabled={iniciando}
+            title="Iniciar radio de esta canción"
+            aria-label="Iniciar radio de esta canción"
+          >
+            <Radio size={16} aria-hidden="true" />
           </button>
           {isAuthenticated && (
             <>

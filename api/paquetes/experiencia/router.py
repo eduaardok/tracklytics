@@ -16,17 +16,21 @@ from paquetes.experiencia.queries import (
     COUNT_MIEMBROS_SUSCRIPCION,
     FACT_IDS_ESCUCHADOS_USUARIO,
     FACT_IDS_FAVORITOS_USUARIO,
+    GENERO_DOMINANTE_USUARIO,
     GENEROS_FAVORITOS_USUARIO,
     GENEROS_MAS_ESCUCHADOS_USUARIO,
     MIEMBRO_EXISTE,
     MIEMBROS_DE_SUSCRIPCION,
     MIS_TICKETS,
-    PERFIL_AUDIO_USUARIO,
+    MIX_AFINIDAD,
+    MIX_EXPLORACION,
+    PERFIL_AUDIO_FAVORITOS_E_HISTORIAL,
+    RADIO_POR_TRACK,
     RECOMENDACIONES_NOVEDADES_ARTISTAS_SEGUIDOS,
     RECOMENDACIONES_POPULARES,
-    RECOMENDACIONES_POR_GENERO,
-    RECOMENDACIONES_POR_PERFIL_AUDIO,
+    RECOMENDACIONES_POR_AFINIDAD,
     REDESCUBRE_USUARIO,
+    TRACK_SEMILLA,
     SUSCRIPCION_FAMILIAR_DE_USUARIO,
     SUSCRIPCION_TIENE_TITULAR,
     TICKET_POR_ID,
@@ -106,12 +110,16 @@ def marcar_impresion_reproducida(usuario_id: str, fact_id_impresion: int, fact_i
 # si el usuario reproduce esa recomendación.
 # ─────────────────────────────────────────────────────────────────────────────
 
-def _registrar_impresiones(usuario_id: str, algoritmo: str, tracks: list[dict]) -> list[dict]:
+def _registrar_impresiones(
+    usuario_id: str, algoritmo: str, tracks: list[dict], motivo: str = "",
+) -> list[dict]:
     filas, items = [], []
     for t in tracks:
         impresion_id = _gen_fact_id()
         filas.append((impresion_id, usuario_id, t["fact_id"], algoritmo, 0, datetime.now(timezone.utc)))
-        items.append({**t, "impresion_id": impresion_id, "algoritmo": algoritmo})
+        items.append({
+            **t, "impresion_id": impresion_id, "algoritmo": algoritmo, "motivo": motivo,
+        })
     if filas:
         get_client().insert(
             "FACT_IMPRESION_RECOMENDACION",
@@ -132,38 +140,42 @@ def obtener_recomendaciones(limit: int = Query(10, ge=1, le=50), user: dict = De
 
     secciones = []
 
-    # 1. Hecho para ti
-    generos_escuchados = [r["genre_id"] for r in query_rows(GENEROS_MAS_ESCUCHADOS_USUARIO, {"usuario_id": usuario_id})]
-    if generos_escuchados:
-        algoritmo = "similar_a_tu_escucha"
-        perfil = query_one(PERFIL_AUDIO_USUARIO, {"usuario_id": usuario_id}) or {}
+    # 1. Hecho para ti — afinidad real al perfil de audio del usuario (change
+    # p2-descubrimiento-comunidad). Antes esta sección ordenaba por distancia
+    # solo DENTRO de los géneros más escuchados; ahora la distancia se evalúa
+    # sobre todo el catálogo disponible con el género como peso, de modo que
+    # puede sorprender con un track afín de un género vecino.
+    perfil = query_one(PERFIL_AUDIO_FAVORITOS_E_HISTORIAL, {"usuario_id": usuario_id}) or {}
+    generos_usuario = [
+        r["genre_id"] for r in query_rows(GENEROS_MAS_ESCUCHADOS_USUARIO, {"usuario_id": usuario_id})
+    ] or [
+        r["genre_id"] for r in query_rows(GENEROS_FAVORITOS_USUARIO, {"usuario_id": usuario_id})
+    ]
+
+    if perfil.get("n_senales"):
+        algoritmo = "afinidad_audio"
+        fila_genero = query_one(GENERO_DOMINANTE_USUARIO, {"usuario_id": usuario_id}) or {}
+        genero_dominante = fila_genero.get("genero") or ""
+        motivo = (
+            f"similar a tus favoritos de {genero_dominante}" if genero_dominante
+            else "similar a lo que sueles escuchar"
+        )
         tracks = query_rows(
-            RECOMENDACIONES_POR_PERFIL_AUDIO,
+            RECOMENDACIONES_POR_AFINIDAD,
             {
-                "genre_ids": generos_escuchados, "excluidos": excluidos, "limit": limit,
-                # Defaults neutrales si por alguna razón el promedio viniera
-                # nulo (no debería, ya filtramos por tener escucha real) —
-                # evita un 500 por parámetro faltante en vez de fallar limpio.
-                "p_danceability": perfil.get("danceability") or 0.5,
-                "p_energy":       perfil.get("energy") or 0.5,
-                "p_valence":      perfil.get("valence") or 0.5,
-                "p_tempo":        perfil.get("tempo") or 120.0,
+                "genre_ids": generos_usuario, "excluidos": excluidos, "limit": limit,
+                **_params_perfil(perfil),
             },
         )
     else:
-        generos_favoritos = [r["genre_id"] for r in query_rows(GENEROS_FAVORITOS_USUARIO, {"usuario_id": usuario_id})]
-        if generos_favoritos:
-            algoritmo = "mismo_genero_favoritos"
-            tracks = query_rows(
-                RECOMENDACIONES_POR_GENERO,
-                {"genre_ids": generos_favoritos, "excluidos": excluidos, "limit": limit},
-            )
-        else:
-            algoritmo = "popularidad_global"
-            tracks = query_rows(RECOMENDACIONES_POPULARES, {"excluidos": excluidos, "limit": limit})
+        # Sin ninguna señal de consumo: populares de géneros diversos.
+        algoritmo = "popularidad_global"
+        motivo = "popular ahora mismo"
+        tracks = query_rows(RECOMENDACIONES_POPULARES, {"excluidos": excluidos, "limit": limit})
+
     secciones.append({
         "id": "hecho_para_ti", "titulo": "Hecho para ti",
-        "data": _registrar_impresiones(usuario_id, algoritmo, tracks),
+        "data": _registrar_impresiones(usuario_id, algoritmo, tracks, motivo),
     })
 
     # 2. Novedades de artistas que sigues — ausente si no sigue a nadie o no
@@ -177,7 +189,10 @@ def obtener_recomendaciones(limit: int = Query(10, ge=1, le=50), user: dict = De
         if tracks_novedades:
             secciones.append({
                 "id": "novedades_seguidos", "titulo": "Novedades de artistas que sigues",
-                "data": _registrar_impresiones(usuario_id, "novedades_artistas_seguidos", tracks_novedades),
+                "data": _registrar_impresiones(
+                    usuario_id, "novedades_artistas_seguidos", tracks_novedades,
+                    "novedad de un artista que sigues",
+                ),
             })
 
     # 3. Redescubre — ausente si el usuario no tiene ningún favorito/reproducción todavía.
@@ -185,10 +200,123 @@ def obtener_recomendaciones(limit: int = Query(10, ge=1, le=50), user: dict = De
     if tracks_redescubre:
         secciones.append({
             "id": "redescubre", "titulo": "Redescubre",
-            "data": _registrar_impresiones(usuario_id, "redescubre_historial_antiguo", tracks_redescubre),
+            "data": _registrar_impresiones(
+                usuario_id, "redescubre_historial_antiguo", tracks_redescubre,
+                "lo escuchaste hace tiempo",
+            ),
         })
 
     return {"secciones": secciones}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Radio y mix diario (change p2-descubrimiento-comunidad)
+# ─────────────────────────────────────────────────────────────────────────────
+
+RADIO_LIMITE = 25
+MIX_TOTAL = 30
+# ~20 % de exploración fuera de los géneros habituales: suficiente para que el
+# mix no se cierre sobre sí mismo, sin desdibujar que es un mix personal.
+MIX_EXPLORACION_N = 6
+
+
+def _params_perfil(perfil: dict) -> dict:
+    """Traduce un perfil de audio a los parámetros de la métrica de distancia.
+
+    Los defaults neutrales evitan un 500 por parámetro nulo cuando el promedio
+    viene vacío; `tempo` usa 120 BPM (tempo medio típico) en vez de 0, que
+    sesgaría toda la distancia hacia los tracks más lentos del catálogo.
+    """
+    return {
+        "p_danceability": perfil.get("danceability") or 0.5,
+        "p_energy":       perfil.get("energy") or 0.5,
+        "p_valence":      perfil.get("valence") or 0.5,
+        "p_acousticness": perfil.get("acousticness") or 0.5,
+        "p_tempo":        perfil.get("tempo") or 120.0,
+    }
+
+
+@router.get("/radio/track/{fact_id}")
+def radio_por_track(fact_id: int, limit: int = Query(RADIO_LIMITE, ge=1, le=50)):
+    """Radio basada en una canción: cola de tracks similares a la semilla."""
+    semilla = query_one(TRACK_SEMILLA, {"fact_id": fact_id})
+    # `query_one` sobre una agregación sin GROUP BY devuelve siempre una fila;
+    # el track no existe (o no está disponible) cuando esa fila viene vacía.
+    if not semilla or not semilla.get("track_name"):
+        raise HTTPException(status_code=404, detail="Track no encontrado o no disponible")
+
+    tracks = query_rows(
+        RADIO_POR_TRACK,
+        {
+            "genre_ids": semilla.get("genre_ids") or [],
+            "semilla_nombre": semilla["track_name"],
+            "semilla_artista": semilla.get("artist_name") or "",
+            "limit": limit,
+            **_params_perfil(semilla),
+        },
+    )
+    return {
+        "semilla": {
+            "fact_id": fact_id,
+            "track_name": semilla["track_name"],
+            "artist_name": semilla.get("artist_name"),
+        },
+        "data": tracks,
+        "total": len(tracks),
+    }
+
+
+@router.get("/mix-diario")
+def mix_diario(user: dict = Depends(require_b2c_user)):
+    """Mix diario del usuario: estable dentro del día, distinto al siguiente.
+
+    El determinismo viene de la semilla (usuario_id + fecha) que ordena la
+    porción de exploración, y del desempate estable por nombre en la porción de
+    afinidad. No se cachea nada: se recalcula igual cada vez.
+    """
+    usuario_id = user["record"]["id"]
+    fecha = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    seed = f"{usuario_id}:{fecha}"
+
+    perfil = query_one(PERFIL_AUDIO_FAVORITOS_E_HISTORIAL, {"usuario_id": usuario_id}) or {}
+    generos = [
+        r["genre_id"] for r in query_rows(GENEROS_MAS_ESCUCHADOS_USUARIO, {"usuario_id": usuario_id})
+    ] or [
+        r["genre_id"] for r in query_rows(GENEROS_FAVORITOS_USUARIO, {"usuario_id": usuario_id})
+    ]
+
+    # Sin señal de consumo no hay perfil que seguir: se degrada a populares.
+    if not perfil.get("n_senales") or not generos:
+        populares = query_rows(RECOMENDACIONES_POPULARES, {"excluidos": [], "limit": MIX_TOTAL})
+        return {
+            "fecha": fecha, "personalizado": False,
+            "data": populares, "total": len(populares),
+        }
+
+    favoritos  = [r["fact_id"] for r in query_rows(FACT_IDS_FAVORITOS_USUARIO, {"usuario_id": usuario_id})]
+    escuchados = [r["fact_id"] for r in query_rows(FACT_IDS_ESCUCHADOS_USUARIO, {"usuario_id": usuario_id})]
+    excluidos  = list({*favoritos, *escuchados})
+
+    afinidad = query_rows(
+        MIX_AFINIDAD,
+        {
+            "genre_ids": generos, "excluidos": excluidos,
+            "limit": MIX_TOTAL - MIX_EXPLORACION_N, **_params_perfil(perfil),
+        },
+    )
+    exploracion = query_rows(
+        MIX_EXPLORACION,
+        {"genre_ids": generos, "excluidos": excluidos, "limit": MIX_EXPLORACION_N, "seed": seed},
+    )
+
+    # La exploración va al final y no intercalada: intercalar exigiría un
+    # barajado que rompería el determinismo o habría que sembrarlo aparte, y la
+    # cola se consume en orden de todos modos.
+    return {
+        "fecha": fecha, "personalizado": True,
+        "data": afinidad + exploracion,
+        "total": len(afinidad) + len(exploracion),
+    }
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -552,3 +680,4 @@ def dashboard_experiencia(admin: dict = Depends(require_admin)):
         "tickets_por_estado":   query_rows(TICKETS_POR_ESTADO),
         "tickets_abiertos_total": (query_one(TICKETS_ABIERTOS_TOTAL) or {}).get("n", 0),
     }
+

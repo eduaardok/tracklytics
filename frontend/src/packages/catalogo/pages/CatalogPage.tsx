@@ -5,6 +5,7 @@ import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { catalogoApi } from '../api/catalogo.api'
 import { TrackCard } from '../components/TrackCard'
 import { ExploreCard } from '../components/ExploreCard'
+import { MixDiarioCard } from '../components/MixDiarioCard'
 import { ErrorState } from '@shared/components/ErrorState'
 import type { Track, Album, Artist, Genre } from '../types'
 import styles from './CatalogPage.module.css'
@@ -155,6 +156,12 @@ function CancionesSection({ genre, onToggleGenre }: CancionesProps) {
   return (
     <>
       <span className={styles.subtitle}>{subtitle()}</span>
+
+      {/* Mix diario (change p2-descubrimiento-comunidad): encabeza la pestaña
+          de canciones porque es el punto de entrada personalizado al catálogo.
+          Se oculta solo cuando hay búsqueda o filtro activo, donde el usuario
+          ya declaró una intención concreta. */}
+      {!filtered && <MixDiarioCard />}
 
       {genres.length > 0 && (
         <div className={styles.genreChipsSection} aria-label="Explorar por género">

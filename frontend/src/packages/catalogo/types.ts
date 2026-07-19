@@ -138,3 +138,48 @@ export type PlaylistDetail = {
   colaboradores: Colaborador[]
   es_publica:    boolean
 }
+
+// ── Búsqueda unificada (change p2-descubrimiento-comunidad) ──────────────────
+
+export type SearchTrack = {
+  fact_id:     number
+  track_id:    string
+  track_name:  string
+  artist_name: string
+  imagen_url:  string | null
+  genre_name:  string
+  popularity:  number
+  duration_ms: number
+}
+
+export type SearchArtista = {
+  artist_id:      number
+  name:           string
+  imagen_url:     string | null
+  track_count:    number
+  avg_popularity: number
+}
+
+export type SearchAlbum = {
+  album_id:       number
+  name:           string
+  release_year:   number
+  imagen_url:     string | null
+  artist_name:    string
+  track_count:    number
+  avg_popularity: number
+}
+
+export type SearchPlaylist = {
+  playlist_id: string
+  name:        string
+  es_publica:  boolean
+  es_propia:   boolean
+}
+
+export type SearchAllResultado = {
+  tracks:    SearchTrack[]
+  artistas:  SearchArtista[]
+  albumes:   SearchAlbum[]
+  playlists: SearchPlaylist[]
+}

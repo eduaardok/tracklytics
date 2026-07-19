@@ -36,6 +36,35 @@ export type Recomendacion = {
   imagen_url:   string | null
   impresion_id: number
   algoritmo:    string
+  // Motivo legible de la sugerencia (change p2-descubrimiento-comunidad).
+  // Opcional por compatibilidad: una respuesta anterior al cambio no lo trae.
+  motivo?:      string
+}
+
+// Radio basada en una canción (change p2-descubrimiento-comunidad).
+export type TrackSimilar = {
+  fact_id:     number
+  track_id:    string
+  track_name:  string
+  artist_name: string
+  genre_name:  string
+  imagen_url:  string | null
+  distancia:   number
+}
+
+export type RadioResultado = {
+  semilla: { fact_id: number; track_name: string; artist_name: string | null }
+  data:    TrackSimilar[]
+  total:   number
+}
+
+// Mix diario: `personalizado=false` indica la degradación a populares para un
+// usuario sin historial ni favoritos.
+export type MixDiario = {
+  fecha:         string
+  personalizado: boolean
+  data:          Recomendacion[]
+  total:         number
 }
 
 // "Para ti" en secciones (S10 ronda 2): antes una sola lista genérica, ahora

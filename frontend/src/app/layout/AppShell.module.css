@@ -23,13 +23,18 @@
   border-bottom: 1px solid var(--color-border);
 }
 
+/* El wordmark ya no crece: el espacio libre del header lo toma ahora la
+   búsqueda global (change p2-descubrimiento-comunidad). `margin-right: auto`
+   conserva la separación con las acciones en los anchos donde la búsqueda se
+   oculta. */
 .wordmark {
   display: flex;
   align-items: baseline;
   gap: var(--space-sm);
   text-decoration: none;
-  flex: 1 1 auto;
+  flex: 0 0 auto;
   min-width: 0;
+  margin-right: auto;
 }
 
 .logo {

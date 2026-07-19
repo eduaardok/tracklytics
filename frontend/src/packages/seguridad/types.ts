@@ -92,4 +92,34 @@ export type Usuario360 = {
   sesiones_activas:    { sesion_id: string; dispositivo_id: string; fecha_inicio: string; tipo: string | null; os: string | null }[]
   permisos:            Permiso[]
   ultimo_login:        string | null
+  // Historial de sanciones (change p2-descubrimiento-comunidad). Opcional por
+  // compatibilidad con respuestas anteriores al cambio.
+  strikes?:            Strike[]
+}
+
+// ── Sanciones (change p2-descubrimiento-comunidad) ───────────────────────────
+
+export type Strike = {
+  strike_id:   number
+  motivo:      string
+  origen_tipo: 'denuncia' | 'manual'
+  origen_id:   string
+  emitido_por: string
+  activo:      number
+  created_at:  string
+}
+
+export type StrikeEmitidoResultado = {
+  status:            string
+  strike_id:         number
+  strikes_activos:   number
+  cuenta_suspendida: boolean
+}
+
+// ── Exportación de datos personales (change p2-descubrimiento-comunidad) ─────
+
+export type MisDatos = {
+  generado_en: string
+  usuario_id:  string
+  datos:       Record<string, unknown>
 }

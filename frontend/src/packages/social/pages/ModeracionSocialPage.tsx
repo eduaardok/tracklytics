@@ -182,11 +182,31 @@ function DenunciasPanel() {
     queryKey: ['social', 'admin', 'denuncias', estado],
     queryFn: () => socialApi.denunciasAdmin({ estado: estado || undefined }),
   })
+  // Strike al resolver (change p2-descubrimiento-comunidad): se arma por
+  // denuncia, no global, porque la decisión de sancionar es de cada caso.
+  const [strikePor, setStrikePor] = useState<Record<number, boolean>>({})
+  const [motivoPor, setMotivoPor] = useState<Record<number, string>>({})
+
   const actualizar = useMutation({
-    mutationFn: ({ id, nuevo }: { id: number; nuevo: 'revisada' | 'resuelta' }) => socialApi.actualizarDenuncia(id, nuevo),
-    onSuccess: () => {
+    mutationFn: ({ id, nuevo }: { id: number; nuevo: 'revisada' | 'resuelta' }) =>
+      socialApi.actualizarDenuncia(id, nuevo, {
+        // Un strike solo tiene sentido al resolver: marcar "revisada" es
+        // triaje, no una decisión sancionadora.
+        emitirStrike: nuevo === 'resuelta' && !!strikePor[id],
+        motivo: motivoPor[id]?.trim() || 'Contenido denunciado',
+      }),
+    onSuccess: (r) => {
       queryClient.invalidateQueries({ queryKey: ['social', 'admin', 'denuncias'] })
-      toast.success('Denuncia actualizada')
+      if (!r.strike) {
+        toast.success('Denuncia actualizada')
+      } else if (!r.strike.emitido) {
+        // La denuncia sí se resolvió: el aviso es sobre la sanción, no un fallo.
+        toast.error(r.strike.detalle ?? 'La denuncia se resolvió, pero no se pudo emitir el strike.')
+      } else if (r.strike.cuenta_suspendida) {
+        toast.success(`Strike emitido (${r.strike.strikes_activos}) — cuenta suspendida automáticamente`)
+      } else {
+        toast.success(`Strike emitido (${r.strike.strikes_activos} de 3)`)
+      }
     },
     onError: (err) => toast.error(apiErrorMessage(err, 'No se pudo actualizar la denuncia.')),
   })
@@ -227,6 +247,23 @@ function DenunciasPanel() {
                 </div>
                 <span className={`${styles.badge} ${d.estado === 'pendiente' ? styles.badgePending : d.estado === 'revisada' ? styles.badgeOk : styles.badgeError}`}>{d.estado}</span>
                 <div className={styles.queueRowActions}>
+                  <label className={styles.strikeToggle}>
+                    <input
+                      type="checkbox"
+                      checked={!!strikePor[d.denuncia_id]}
+                      onChange={(e) => setStrikePor((p) => ({ ...p, [d.denuncia_id]: e.target.checked }))}
+                    />
+                    Emitir strike
+                  </label>
+                  {strikePor[d.denuncia_id] && (
+                    <input
+                      type="text"
+                      className={styles.strikeMotivo}
+                      placeholder="Motivo del strike"
+                      value={motivoPor[d.denuncia_id] ?? ''}
+                      onChange={(e) => setMotivoPor((p) => ({ ...p, [d.denuncia_id]: e.target.value }))}
+                    />
+                  )}
                   <button className={styles.btnGhost} disabled={isPending || d.estado === 'revisada'} onClick={() => actualizar.mutate({ id: d.denuncia_id, nuevo: 'revisada' })}>Revisada</button>
                   <button className={styles.btnGhost} disabled={isPending || d.estado === 'resuelta'} onClick={() => actualizar.mutate({ id: d.denuncia_id, nuevo: 'resuelta' })}>Resuelta</button>
                 </div>

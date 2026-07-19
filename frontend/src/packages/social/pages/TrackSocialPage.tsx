@@ -7,6 +7,7 @@ import { apiErrorMessage } from '@shared/lib/api-client'
 import { useToast } from '@shared/context/ToastContext'
 import { socialApi } from '../api/social.api'
 import { DenunciarButton } from '../components/DenunciarButton'
+import { BloquearButton } from '../components/BloquearButton'
 import type { Canal, Comentario } from '../types'
 import styles from './SocialPages.module.css'
 
@@ -192,6 +193,7 @@ export function TrackSocialPage() {
                 <div className={styles.commentFooter}>
                   <button className={styles.linkBtn} onClick={() => setReplyingTo(c.fact_id)}>Responder</button>
                   {!oculto && <DenunciarButton tipoObjeto="comentario" objetoId={String(c.fact_id)} className={styles.linkBtn} />}
+                  {!oculto && <BloquearButton usuarioId={c.usuario_id} className={styles.linkBtn} />}
                 </div>
               </li>
             )

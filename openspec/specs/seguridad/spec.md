@@ -218,6 +218,211 @@ El sistema SHALL permitir a un usuario con rol admin listar la tabla completa de
 - **WHEN** un usuario con rol admin solicita el listado de usuarios indicando una fecha de registro mínima, máxima, o ambas
 - **THEN** el sistema retorna únicamente los usuarios registrados dentro de ese rango
 
+### Requirement: Catálogo de roles administrativos por área de negocio
+El sistema SHALL mantener un catálogo cerrado de roles administrativos, cada uno con un alcance acotado de capabilities de negocio: `superadmin` (todas), `admin_finanzas` (`facturacion`, `finanzas`, `regalias`, `publicidad`), `admin_contenido` (`creadores`, `distribucion`, `catalogo`), `admin_comunidad` (`social`, `experiencia`), `admin_datos` (`gestion_datos`, `analitica`) y `admin_comercial` (`suscripciones`, `partners`). El rol `superadmin` SHALL ser equivalente al administrador general previo (`role == admin`); los demás roles SHALL ser subconjuntos de su alcance. El catálogo SHALL persistir en `DIM_ROL_ADMINISTRATIVO`.
+
+#### Scenario: Consultar el catálogo de roles administrativos
+- **WHEN** un usuario con rol `superadmin` solicita el catálogo de roles administrativos
+- **THEN** el sistema retorna los seis roles con su nombre de display, su descripción y el conjunto de capabilities que abarca cada uno
+
+### Requirement: Autorización administrativa segmentada por rol de área
+El sistema SHALL autorizar cada operación administrativa contra el rol administrativo específico del área a la que pertenece, en lugar de un único check monolítico de `role == admin`. Un usuario con rol `superadmin` SHALL pasar siempre cualquier verificación administrativa. Un usuario con un rol de área SHALL acceder únicamente a los endpoints administrativos de las capabilities dentro de su alcance, y SHALL ser rechazado con 403 en los endpoints administrativos de otras áreas. Los roles administrativos vigentes de un usuario SHALL resolverse contra `BRIDGE_USUARIO_ROL_ADMIN`.
+
+#### Scenario: superadmin accede a cualquier área administrativa
+- **WHEN** un usuario con rol `superadmin` invoca cualquier endpoint administrativo de cualquier capability
+- **THEN** el sistema autoriza la operación
+
+#### Scenario: Rol de área accede a su propio dominio
+- **WHEN** un usuario con rol `admin_finanzas` invoca un endpoint administrativo de `finanzas` o de `regalias`
+- **THEN** el sistema autoriza la operación
+
+#### Scenario: Rol de área es rechazado fuera de su dominio
+- **WHEN** un usuario con rol `admin_finanzas` intenta invocar un endpoint administrativo de `seguridad` o de `creadores`
+- **THEN** el sistema rechaza la operación con 403, indicando que requiere un rol administrativo distinto
+
+#### Scenario: Usuario sin rol administrativo es rechazado
+- **WHEN** un usuario sin ningún rol administrativo vigente intenta invocar un endpoint administrativo
+- **THEN** el sistema rechaza la operación con 403
+
+### Requirement: Mapeo automático de administradores existentes a superadmin
+El sistema SHALL asegurar que toda cuenta con `role == admin` en PocketBase quede reflejada con el rol `superadmin` en `BRIDGE_USUARIO_ROL_ADMIN` de forma automática, sin migración manual, de modo que los administradores actuales conserven acceso a todas las áreas tras el cambio.
+
+#### Scenario: Un administrador existente conserva acceso total
+- **WHEN** una cuenta con `role == admin` en PocketBase inicia sesión por primera vez tras el cambio
+- **THEN** el sistema le asigna el rol `superadmin` en `BRIDGE_USUARIO_ROL_ADMIN` si aún no lo tenía, y la cuenta accede a todos los endpoints administrativos
+
+### Requirement: Estado de cuenta verificado en cada autenticación
+El sistema SHALL mantener un `estado_cuenta` por usuario en `DIM_USUARIO` con valores `activa`, `suspendido` o `eliminado` (`activa` por defecto). El middleware de autenticación SHALL verificar este estado en cada petición autenticada y SHALL rechazar con 403 toda petición de una cuenta `suspendido` o `eliminado`, aun cuando su token de PocketBase siga siendo válido.
+
+#### Scenario: Cuenta activa opera normalmente
+- **WHEN** un usuario con `estado_cuenta = 'activa'` realiza una petición autenticada
+- **THEN** el sistema procesa la petición con normalidad
+
+#### Scenario: Cuenta suspendida es rechazada
+- **WHEN** un usuario con `estado_cuenta = 'suspendido'` realiza cualquier petición autenticada
+- **THEN** el sistema rechaza la petición con 403 indicando que la cuenta está suspendida
+
+#### Scenario: Cuenta eliminada es rechazada
+- **WHEN** un usuario con `estado_cuenta = 'eliminado'` intenta iniciar sesión o realizar una petición autenticada
+- **THEN** el sistema rechaza el acceso con 403
+
+### Requirement: Gestión administrativa de usuarios
+El sistema SHALL permitir a un usuario con rol `superadmin` listar usuarios de forma paginada con filtros (rol, estado de cuenta, rango de fecha de registro) y consultar la vista 360° de un usuario: perfil, rol de PocketBase, roles administrativos vigentes, suscripción activa, transacciones recientes, sesiones activas, permisos vigentes y último inicio de sesión, consolidando datos de `DIM_USUARIO`, `BRIDGE_USUARIO_ROL_ADMIN`, `FACT_SESION`, `FACT_TRANSACCION_PAGO` y `FACT_PERMISO_USUARIO`.
+
+#### Scenario: Listar usuarios con filtros
+- **WHEN** un usuario con rol `superadmin` solicita el listado de usuarios filtrando por rol y estado de cuenta
+- **THEN** el sistema retorna la página solicitada de usuarios que cumplen los filtros, junto con el total, ordenada por fecha de registro descendente
+
+#### Scenario: Consultar la vista 360° de un usuario
+- **WHEN** un usuario con rol `superadmin` solicita el detalle de un usuario por su identificador
+- **THEN** el sistema retorna su perfil, sus roles administrativos, su suscripción activa, sus transacciones recientes, sus sesiones activas, sus permisos vigentes y su último inicio de sesión
+
+#### Scenario: Usuario sin rol superadmin intenta gestionar usuarios
+- **WHEN** un usuario sin rol `superadmin` intenta listar usuarios o consultar la vista 360°
+- **THEN** el sistema rechaza la operación con 403
+
+### Requirement: Asignación y revocación de roles administrativos
+El sistema SHALL permitir a un usuario con rol `superadmin` asignar un rol administrativo a un usuario (registrando en `BRIDGE_USUARIO_ROL_ADMIN` quién lo asignó y cuándo) y revocarlo. El rol asignado SHALL pertenecer al catálogo `DIM_ROL_ADMINISTRATIVO`. Cada asignación o revocación SHALL quedar registrada en `FACT_AUDIT_LOG`.
+
+#### Scenario: Asignar un rol administrativo
+- **WHEN** un usuario con rol `superadmin` asigna el rol `admin_finanzas` a un usuario
+- **THEN** el sistema registra la asignación en `BRIDGE_USUARIO_ROL_ADMIN` con el autor y la fecha, la audita, y el usuario objetivo pasa a acceder a los endpoints administrativos de finanzas
+
+#### Scenario: Revocar un rol administrativo
+- **WHEN** un usuario con rol `superadmin` revoca un rol administrativo previamente asignado
+- **THEN** el sistema deja de considerar ese rol vigente para el usuario y audita la revocación
+
+#### Scenario: Asignar un rol fuera del catálogo
+- **WHEN** un usuario con rol `superadmin` intenta asignar un rol administrativo que no existe en `DIM_ROL_ADMINISTRATIVO`
+- **THEN** el sistema rechaza la operación con un error de validación
+
+### Requirement: Suspensión y reactivación de cuentas
+El sistema SHALL permitir a un usuario con rol `superadmin` suspender una cuenta (fijando `estado_cuenta = 'suspendido'` en `DIM_USUARIO`) y reactivarla (`estado_cuenta = 'activa'`). Ambas operaciones SHALL quedar registradas en `FACT_AUDIT_LOG`.
+
+#### Scenario: Suspender una cuenta bloquea su acceso
+- **WHEN** un usuario con rol `superadmin` suspende una cuenta y su titular intenta después realizar una petición autenticada
+- **THEN** el sistema rechaza la petición del titular con 403 y deja registro de la suspensión en `FACT_AUDIT_LOG`
+
+#### Scenario: Reactivar una cuenta restaura su acceso
+- **WHEN** un usuario con rol `superadmin` reactiva una cuenta previamente suspendida
+- **THEN** el titular vuelve a poder iniciar sesión y operar con normalidad
+
+### Requirement: Bloqueo temporal por intentos de inicio de sesión fallidos
+El sistema SHALL registrar cada intento fallido de inicio de sesión en `FACT_AUDIT_LOG`. Antes de validar credenciales contra PocketBase, el sistema SHALL comprobar si existen 5 o más intentos fallidos para ese correo en los últimos 15 minutos y, de ser así, SHALL rechazar el intento con 429 y un mensaje de bloqueo temporal, sin llegar a validar la contraseña.
+
+#### Scenario: Cinco fallos consecutivos bloquean temporalmente la cuenta
+- **WHEN** un correo acumula cinco intentos de inicio de sesión fallidos dentro de una ventana de 15 minutos y se intenta un sexto inicio de sesión
+- **THEN** el sistema rechaza el sexto intento con 429 indicando que la cuenta está bloqueada temporalmente, sin validar la contraseña
+
+#### Scenario: El bloqueo expira tras la ventana
+- **WHEN** han transcurrido más de 15 minutos desde los intentos fallidos y el usuario intenta iniciar sesión con credenciales correctas
+- **THEN** el sistema procesa el inicio de sesión con normalidad
+
+### Requirement: Recuperación de contraseña por token de un solo uso
+El sistema SHALL permitir solicitar la recuperación de contraseña indicando un correo; si el correo corresponde a un usuario existente, el sistema SHALL generar un token de un solo uso con vencimiento, persistirlo en `FACT_TOKEN_RECUPERACION`, y en todo caso SHALL responder con un mensaje genérico que no revele si el correo existe. El sistema SHALL permitir restablecer la contraseña presentando un token válido (no vencido, no usado) y una nueva contraseña, delegando el cambio a PocketBase y marcando el token como usado. No se envía correo real (patrón de simulación del proyecto).
+
+#### Scenario: Solicitud de recuperación no revela existencia del correo
+- **WHEN** alguien solicita recuperar la contraseña de un correo, exista o no en el sistema
+- **THEN** el sistema responde con un mensaje genérico de "si el correo existe, recibirás instrucciones", generando un token únicamente cuando el correo corresponde a un usuario real
+
+#### Scenario: Restablecer con token válido
+- **WHEN** un usuario presenta un token de recuperación no vencido y no usado junto con una nueva contraseña
+- **THEN** el sistema cambia la contraseña en PocketBase, marca el token como usado, y el usuario puede iniciar sesión con la nueva contraseña
+
+#### Scenario: Restablecer con token vencido o ya usado
+- **WHEN** un usuario presenta un token de recuperación vencido o previamente usado
+- **THEN** el sistema rechaza el restablecimiento sin cambiar la contraseña
+
+### Requirement: Baja de cuenta propia
+El sistema SHALL permitir a un usuario autenticado solicitar la baja de su propia cuenta. La baja SHALL fijar `estado_cuenta = 'eliminado'` en `DIM_USUARIO`, invalidar todas sus sesiones activas en `FACT_SESION` y cancelar su suscripción activa si la tuviera. El sistema NO SHALL borrar los datos históricos del usuario en ClickHouse (retención analítica), pero SHALL rechazar todo inicio de sesión posterior igual que una cuenta suspendida.
+
+#### Scenario: Un usuario da de baja su cuenta
+- **WHEN** un usuario autenticado confirma la baja de su cuenta
+- **THEN** el sistema fija su `estado_cuenta = 'eliminado'`, cierra todas sus sesiones activas, cancela su suscripción activa si la tenía, y conserva sus datos históricos en ClickHouse
+
+#### Scenario: Un usuario dado de baja no puede volver a entrar
+- **WHEN** un usuario que dio de baja su cuenta intenta iniciar sesión de nuevo
+- **THEN** el sistema rechaza el acceso con 403
+
+### Requirement: Historial de sanciones del usuario
+El sistema SHALL mantener un historial de strikes por usuario, donde cada strike registra su motivo, su origen (una denuncia resuelta o una emisión manual), quién lo emitió y cuándo. Un usuario con rol `admin_comunidad` SHALL poder emitir un strike manual contra un usuario y SHALL poder consultar el historial de strikes de cualquier usuario. La emisión SHALL auditarse.
+
+#### Scenario: Emitir un strike manual
+- **WHEN** un `admin_comunidad` emite un strike manual contra un usuario indicando el motivo
+- **THEN** el sistema registra el strike y este aparece en el historial del usuario
+
+#### Scenario: Consultar el historial de sanciones
+- **WHEN** un `admin_comunidad` consulta el historial de strikes de un usuario
+- **THEN** el sistema devuelve todos sus strikes con motivo, origen y fecha
+
+#### Scenario: Un rol sin competencia no puede sancionar
+- **WHEN** un administrador de otra área intenta emitir un strike
+- **THEN** el sistema rechaza la operación
+
+### Requirement: Suspensión automática por acumulación de strikes
+El sistema SHALL suspender automáticamente la cuenta de un usuario cuando acumule tres strikes activos, reutilizando el mecanismo de suspensión de cuentas existente. La suspensión automática SHALL auditarse indicando que su origen fue la acumulación de strikes.
+
+#### Scenario: El tercer strike suspende la cuenta
+- **WHEN** un usuario con dos strikes activos recibe un tercer strike
+- **THEN** el sistema suspende automáticamente su cuenta y registra la suspensión en la auditoría
+
+#### Scenario: La cuenta suspendida pierde acceso
+- **WHEN** un usuario cuya cuenta fue suspendida por acumulación de strikes intenta usar el sistema
+- **THEN** el sistema rechaza sus peticiones autenticadas por cuenta suspendida
+
+#### Scenario: Menos de tres strikes no suspende
+- **WHEN** un usuario recibe su segundo strike activo
+- **THEN** su cuenta permanece activa
+
+### Requirement: Verificación de correo electrónico en el registro
+El sistema SHALL marcar como no verificados los correos de las cuentas registradas a partir de ahora, generando un token de verificación de un solo uso y con caducidad. El sistema SHALL permitir verificar el correo presentando ese token, y SHALL permitir solicitar el reenvío del token, invalidando el anterior. Los usuarios registrados con anterioridad SHALL considerarse verificados.
+
+#### Scenario: Verificar el correo con el token
+- **WHEN** un usuario recién registrado presenta su token de verificación
+- **THEN** el sistema marca su correo como verificado
+
+#### Scenario: Reenviar la verificación invalida el token previo
+- **WHEN** un usuario solicita el reenvío de su verificación
+- **THEN** el sistema genera un token nuevo y el token anterior deja de ser válido
+
+#### Scenario: Token inválido, caducado o ya usado
+- **WHEN** un usuario presenta un token de verificación inválido, caducado o ya utilizado
+- **THEN** el sistema rechaza la verificación indicando el motivo
+
+#### Scenario: Un token de verificación no sirve para restablecer contraseña
+- **WHEN** alguien intenta restablecer una contraseña usando un token de verificación de correo
+- **THEN** el sistema rechaza la operación
+
+### Requirement: Restricción de acciones para cuentas sin verificar
+El sistema SHALL permitir a un usuario con el correo sin verificar navegar el catálogo con normalidad, pero SHALL impedirle comentar, subir tracks como artista y contratar un plan de pago, informando con un mensaje claro de que debe verificar su correo.
+
+#### Scenario: Un usuario sin verificar navega el catálogo
+- **WHEN** un usuario con el correo sin verificar consulta el catálogo
+- **THEN** el sistema responde con normalidad
+
+#### Scenario: Un usuario sin verificar intenta comentar
+- **WHEN** un usuario con el correo sin verificar intenta publicar un comentario
+- **THEN** el sistema rechaza la operación indicando que debe verificar su correo
+
+#### Scenario: Tras verificar, las acciones se habilitan
+- **WHEN** un usuario verifica su correo y vuelve a intentar comentar
+- **THEN** el sistema permite la operación
+
+### Requirement: Exportación de datos personales
+El sistema SHALL permitir a un usuario autenticado descargar un documento estructurado con todos sus datos personales, incluyendo su perfil, su suscripción e historial de pagos, sus favoritos, sus playlists, su historial de reproducción, sus comentarios, sus seguimientos, sus tickets de soporte y las denuncias que ha emitido.
+
+#### Scenario: Descargar los datos personales
+- **WHEN** un usuario autenticado solicita la exportación de sus datos
+- **THEN** el sistema devuelve un documento estructurado con todas las secciones de datos que le corresponden
+
+#### Scenario: Un usuario solo obtiene sus propios datos
+- **WHEN** un usuario autenticado solicita la exportación de sus datos
+- **THEN** el documento contiene exclusivamente datos de ese usuario
+
+#### Scenario: Exportación sin sesión
+- **WHEN** alguien solicita la exportación de datos sin sesión iniciada
+- **THEN** el sistema rechaza la petición
+
 ## Entradas
 
 - Correo electrónico, contraseña, nombre, país y rol (registro).

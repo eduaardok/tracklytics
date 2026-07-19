@@ -139,6 +139,32 @@ async def listar_publicas(user_id: str) -> list[dict]:
     return resp.json().get("items", [])
 
 
+async def buscar(termino: str, user_id: str | None, limit: int) -> list[dict]:
+    """Playlists que coinciden con un término, para la búsqueda unificada
+    (change p2-descubrimiento-comunidad).
+
+    Visibilidad: las públicas de cualquiera, más las propias del usuario
+    autenticado aunque sean privadas. Con `user_id=None` (búsqueda anónima) solo
+    devuelve públicas. Token de superusuario, igual que listar_publicas().
+    """
+    token = await _get_admin_token()
+    # `~` es el operador LIKE de PocketBase. Las comillas dobles del término se
+    # escapan porque el filtro se compone como cadena.
+    seguro = termino.replace('"', '')
+    visibilidad = "es_publica=true"
+    if user_id:
+        visibilidad = f'(es_publica=true || user="{user_id}")'
+    filtro = f'name~"{seguro}" && {visibilidad}'
+    async with httpx.AsyncClient(timeout=5) as client:
+        resp = await client.get(
+            f"{PB_URL}/api/collections/{PLAYLISTS_COLLECTION}/records",
+            params={"filter": filtro, "page": 1, "perPage": limit},
+            headers={"Authorization": f"Bearer {token}"},
+        )
+    resp.raise_for_status()
+    return resp.json().get("items", [])
+
+
 async def eliminar(token: str, playlist_id: str) -> None:
     # `playlist` en playlist_tracks es una relation `required` con cascadeDelete=False
     # (pb_init.py): PocketBase rechaza con 400 borrar la playlist mientras existan

@@ -7,7 +7,8 @@ from pydantic import BaseModel
 
 from core.database import execute, get_client, query_one, query_rows
 from core.deps import get_current_user
-from paquetes.seguridad import audit, pb_client
+from paquetes.biblioteca import pb_playlists
+from paquetes.seguridad import audit, exportacion, pb_client, strikes
 from paquetes.seguridad.deps import require_admin, require_rol_admin, roles_admin_vigentes
 from paquetes.seguridad.queries import (
     ACCIONES_POR_DIA,
@@ -16,6 +17,7 @@ from paquetes.seguridad.queries import (
     DISPOSITIVO_EXISTE,
     ERRORES_RECIENTES,
     ERRORES_ULTIMAS_24H,
+    EMAIL_VERIFICADO_USUARIO,
     ESTADO_CUENTA_VIGENTE,
     LOGIN_FALLIDOS_RECIENTES,
     MI_PERFIL,
@@ -29,6 +31,7 @@ from paquetes.seguridad.queries import (
     SESION_POR_ID,
     SESIONES_ABIERTAS_TOTAL,
     TOKEN_RECUPERACION_VIGENTE,
+    TOKENS_VERIFICACION_ABIERTOS,
     TRANSACCIONES_RECIENTES_USUARIO,
     ULTIMO_LOGIN_USUARIO,
     USUARIO_360_BASE,
@@ -61,6 +64,40 @@ def _insert_dim_usuario(usuario_id: str, email: str, nombre: str, pais: str, rol
         "DIM_USUARIO",
         [(usuario_id, email, nombre, pais or "", datetime.now(timezone.utc), rol)],
         column_names=["usuario_id", "email", "nombre", "pais", "fecha_registro", "rol"],
+    )
+
+
+# FACT_TOKEN_RECUPERACION comparte tabla entre los tokens de recuperación de
+# contraseña y los de verificación de correo (change p2-descubrimiento-comunidad).
+_TOKEN_COLS = ["token", "usuario_id", "expira_en", "usado", "created_at", "proposito"]
+
+
+def _token_vigente_o_400(token: str, proposito: str) -> dict:
+    """Resuelve un token del propósito indicado o lanza 400 con la causa.
+
+    Un token existente pero de otro propósito cae en "Token inválido": desde
+    fuera es indistinguible de uno inexistente, que es lo correcto — un token de
+    verificación no debe poder usarse para restablecer una contraseña.
+    """
+    fila = query_one(TOKEN_RECUPERACION_VIGENTE, {"token": token, "proposito": proposito})
+    if not fila:
+        raise HTTPException(status_code=400, detail="Token inválido")
+    if fila.get("usado"):
+        raise HTTPException(status_code=400, detail="Token ya utilizado")
+    expira = fila["expira_en"]
+    expira = expira if expira.tzinfo else expira.replace(tzinfo=timezone.utc)
+    if expira < datetime.now(timezone.utc):
+        raise HTTPException(status_code=400, detail="Token expirado")
+    return fila
+
+
+def _marcar_token_usado(token: str, usuario_id: str, expira_en, proposito: str) -> None:
+    # Fila nueva con usado=1 y created_at mayor — resuelto por argMax en
+    # TOKEN_RECUPERACION_VIGENTE. Nunca se muta la fila original.
+    get_client().insert(
+        "FACT_TOKEN_RECUPERACION",
+        [(token, usuario_id, expira_en, 1, datetime.now(timezone.utc), proposito)],
+        column_names=_TOKEN_COLS,
     )
 
 
@@ -165,7 +202,16 @@ async def registro(body: RegistroBody):
         despues={"email": body.email, "nombre": body.nombre, "pais": body.pais, "rol": body.rol},
     )
 
-    return {"status": "ok", "usuario_id": usuario_id, "email": body.email, "rol": body.rol}
+    # Verificación de correo (change p2-descubrimiento-comunidad): el usuario
+    # nace con email_verificado=0 (DEFAULT de la columna) y se le emite un token.
+    # Flujo simulado: el token vuelve en la respuesta porque no hay correo real
+    # que lo transporte — mismo patrón que la recuperación de contraseña de P0.
+    token_verificacion = _emitir_token_verificacion(usuario_id)
+
+    return {
+        "status": "ok", "usuario_id": usuario_id, "email": body.email, "rol": body.rol,
+        "email_verificado": False, "token_verificacion": token_verificacion,
+    }
 
 
 @router.post("/auth/login")
@@ -309,7 +355,11 @@ def mi_perfil(user: dict = Depends(get_current_user)):
     fila = query_one(MI_PERFIL, {"usuario_id": user["record"]["id"]})
     if not fila:
         raise HTTPException(status_code=404, detail="Perfil no encontrado")
-    return {**fila, "perfil_publico": bool(fila["perfil_publico"])}
+    return {
+        **fila,
+        "perfil_publico":   bool(fila["perfil_publico"]),
+        "email_verificado": bool(fila["email_verificado"]),
+    }
 
 
 @router.patch("/perfil")
@@ -521,8 +571,8 @@ async def recuperar_password(body: RecuperarBody):
         expira = datetime.now(timezone.utc) + timedelta(minutes=TOKEN_RECUPERACION_TTL_MIN)
         get_client().insert(
             "FACT_TOKEN_RECUPERACION",
-            [(token, usuario["id"], expira, 0, datetime.now(timezone.utc))],
-            column_names=["token", "usuario_id", "expira_en", "usado", "created_at"],
+            [(token, usuario["id"], expira, 0, datetime.now(timezone.utc), "recuperacion")],
+            column_names=_TOKEN_COLS,
         )
         audit.record(
             usuario_id=usuario["id"], accion="solicitar_recuperacion_password",
@@ -539,26 +589,11 @@ async def restablecer_password(body: RestablecerBody):
     if len(body.nueva_password) < 8:
         raise HTTPException(status_code=422, detail="La nueva contraseña debe tener al menos 8 caracteres")
 
-    fila = query_one(TOKEN_RECUPERACION_VIGENTE, {"token": body.token})
-    if not fila:
-        raise HTTPException(status_code=400, detail="Token inválido")
-    if fila.get("usado"):
-        raise HTTPException(status_code=400, detail="Token ya utilizado")
-    expira = fila["expira_en"]
-    expira = expira if expira.tzinfo else expira.replace(tzinfo=timezone.utc)
-    if expira < datetime.now(timezone.utc):
-        raise HTTPException(status_code=400, detail="Token expirado")
-
+    fila = _token_vigente_o_400(body.token, "recuperacion")
     usuario_id = fila["usuario_id"]
     await pb_client.admin_cambiar_password(usuario_id, body.nueva_password)
 
-    # Marca el token como usado: fila nueva con usado=1 y created_at mayor —
-    # resuelto por argMax en TOKEN_RECUPERACION_VIGENTE (no se muta la fila).
-    get_client().insert(
-        "FACT_TOKEN_RECUPERACION",
-        [(body.token, usuario_id, fila["expira_en"], 1, datetime.now(timezone.utc))],
-        column_names=["token", "usuario_id", "expira_en", "usado", "created_at"],
-    )
+    _marcar_token_usado(body.token, usuario_id, fila["expira_en"], "recuperacion")
     audit.record(
         usuario_id=usuario_id, accion="restablecer_password",
         tabla_afectada="FACT_TOKEN_RECUPERACION", antes=None,
@@ -568,10 +603,128 @@ async def restablecer_password(body: RestablecerBody):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# 5.b Verificación de correo (change p2-descubrimiento-comunidad)
+#
+# Mismo patrón de simulación que la recuperación de contraseña: el token se
+# guarda en tabla y se devuelve en la respuesta, sin enviar correo real. Comparte
+# la tabla FACT_TOKEN_RECUPERACION discriminando por `proposito` (design.md,
+# Decisión 6).
+# ─────────────────────────────────────────────────────────────────────────────
+
+TOKEN_VERIFICACION_TTL_HORAS = 48
+
+
+class VerificarEmailBody(BaseModel):
+    token: str
+
+
+class ReenviarVerificacionBody(BaseModel):
+    email: str
+
+
+def _emitir_token_verificacion(usuario_id: str) -> str:
+    token = str(uuid.uuid4())
+    expira = datetime.now(timezone.utc) + timedelta(hours=TOKEN_VERIFICACION_TTL_HORAS)
+    get_client().insert(
+        "FACT_TOKEN_RECUPERACION",
+        [(token, usuario_id, expira, 0, datetime.now(timezone.utc), "verificacion")],
+        column_names=_TOKEN_COLS,
+    )
+    return token
+
+
+def _invalidar_tokens_verificacion(usuario_id: str) -> None:
+    """Marca como usados los tokens de verificación abiertos del usuario, para
+    que un reenvío deje exactamente un token válido y el anterior deje de
+    servir."""
+    abiertos = query_rows(TOKENS_VERIFICACION_ABIERTOS, {"usuario_id": usuario_id})
+    for t in abiertos:
+        _marcar_token_usado(t["token"], usuario_id, t["expira_en"], "verificacion")
+
+
+@router.post("/auth/verificar-email")
+def verificar_email(body: VerificarEmailBody):
+    fila = _token_vigente_o_400(body.token, "verificacion")
+    usuario_id = fila["usuario_id"]
+
+    execute(
+        "ALTER TABLE DIM_USUARIO UPDATE email_verificado = 1 WHERE usuario_id = {usuario_id:String}",
+        {"usuario_id": usuario_id},
+    )
+    _marcar_token_usado(body.token, usuario_id, fila["expira_en"], "verificacion")
+    audit.record(
+        usuario_id=usuario_id, accion="verificar_email",
+        tabla_afectada="DIM_USUARIO", antes={"email_verificado": 0},
+        despues={"email_verificado": 1},
+    )
+    return {"status": "ok", "email_verificado": True}
+
+
+@router.post("/auth/reenviar-verificacion")
+async def reenviar_verificacion(body: ReenviarVerificacionBody):
+    usuario = await pb_client.buscar_por_email(body.email)
+    # Respuesta genérica igual que en la recuperación: no revela qué correos
+    # están registrados ni cuáles ya están verificados.
+    respuesta = {"status": "ok", "mensaje": _MENSAJE_RECUPERACION}
+    if not usuario:
+        return respuesta
+
+    usuario_id = usuario["id"]
+    ya = (query_one(EMAIL_VERIFICADO_USUARIO, {"usuario_id": usuario_id}) or {}).get("email_verificado")
+    if ya == 1:
+        return respuesta
+
+    _invalidar_tokens_verificacion(usuario_id)
+    token = _emitir_token_verificacion(usuario_id)
+    audit.record(
+        usuario_id=usuario_id, accion="reenviar_verificacion_email",
+        tabla_afectada="FACT_TOKEN_RECUPERACION", antes=None, despues={"email": body.email},
+    )
+    # Flujo simulado: el token viaja en la respuesta porque no hay correo que lo
+    # transporte. El frontend lo muestra en el banner de verificación.
+    return {**respuesta, "token_verificacion": token}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # 6. Baja de cuenta propia (change roles-gestion-usuarios)
 #    Marca estado_cuenta='eliminado', cierra sesiones y cancela la suscripción
 #    activa. No borra datos históricos de ClickHouse (retención analítica).
 # ─────────────────────────────────────────────────────────────────────────────
+
+@router.get("/perfil/mis-datos")
+async def exportar_mis_datos(user: dict = Depends(get_current_user)):
+    """Descarga de datos personales (change p2-descubrimiento-comunidad).
+
+    Devuelve exclusivamente datos del solicitante: el `usuario_id` sale del
+    token, nunca de un parámetro, así que no hay forma de pedir los de otro.
+    """
+    usuario_id = user["record"]["id"]
+
+    # Playlists y suscripción viven en PocketBase. Un fallo ahí degrada esas dos
+    # secciones a vacío en vez de tumbar toda la exportación: el resto de los
+    # datos del usuario sigue siendo suyo y sigue siendo entregable.
+    try:
+        playlists = await pb_playlists.listar(user["token"], usuario_id)
+    except Exception:
+        playlists = []
+    try:
+        activas = await susc_pb.list_activas(user["token"], usuario_id)
+        suscripcion = activas[0] if activas else None
+    except Exception:
+        suscripcion = None
+
+    datos = exportacion.construir(usuario_id, playlists, suscripcion)
+    audit.record(
+        usuario_id=usuario_id, accion="exportar_datos_personales",
+        tabla_afectada="DIM_USUARIO", antes=None,
+        despues={"secciones": list(datos.keys())},
+    )
+    return {
+        "generado_en": datetime.now(timezone.utc).isoformat(),
+        "usuario_id": usuario_id,
+        "datos": datos,
+    }
+
 
 @router.post("/perfil/baja")
 async def baja_cuenta(user: dict = Depends(get_current_user)):
@@ -674,6 +827,10 @@ async def usuario_360(usuario_id: str, admin: dict = Depends(require_admin)):
         "sesiones_activas": query_rows(MIS_SESIONES_ABIERTAS, {"usuario_id": usuario_id}),
         "permisos":       query_rows(PERMISOS_VIGENTES, {"usuario_id": usuario_id}),
         "ultimo_login":   ultimo,
+        # Historial de sanciones (change p2-descubrimiento-comunidad): va en la
+        # vista 360° porque el contexto de por qué una cuenta está suspendida es
+        # justo lo que un moderador necesita al abrir la ficha del usuario.
+        "strikes":        query_rows(strikes.STRIKES_DE_USUARIO, {"usuario_id": usuario_id}),
     }
 
 
@@ -727,6 +884,45 @@ def _cambiar_estado_cuenta(usuario_id: str, nuevo_estado: str, admin_id: str, ac
         tabla_afectada="DIM_USUARIO", antes=None,
         despues={"usuario_id": usuario_id, "estado_cuenta": nuevo_estado},
     )
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Historial de sanciones (change p2-descubrimiento-comunidad)
+#
+# Bajo `admin_comunidad`, no `superadmin`: sancionar usuarios es moderación de
+# comunidad, la misma competencia que ya resuelve las denuncias. `superadmin`
+# pasa igual, como en todos los require_rol_admin.
+# ─────────────────────────────────────────────────────────────────────────────
+
+require_comunidad_admin = require_rol_admin("admin_comunidad")
+
+
+class EmitirStrikeBody(BaseModel):
+    motivo: str
+
+
+@router.post("/admin/usuarios/{usuario_id}/strikes", status_code=201)
+def emitir_strike_manual(
+    usuario_id: str, body: EmitirStrikeBody,
+    admin: dict = Depends(require_comunidad_admin),
+):
+    if not body.motivo.strip():
+        raise HTTPException(status_code=422, detail="El motivo del strike no puede estar vacío")
+    if not query_one(USUARIO_POR_ID, {"usuario_id": usuario_id}):
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+
+    resultado = strikes.emitir(
+        usuario_id=usuario_id, motivo=body.motivo.strip(),
+        emitido_por=admin["record"]["id"], origen_tipo="manual",
+    )
+    return {"status": "ok", **resultado}
+
+
+@router.get("/admin/usuarios/{usuario_id}/strikes")
+def listar_strikes_usuario(usuario_id: str, admin: dict = Depends(require_comunidad_admin)):
+    rows = query_rows(strikes.STRIKES_DE_USUARIO, {"usuario_id": usuario_id})
+    activos = sum(1 for r in rows if r["activo"] == 1)
+    return {"data": rows, "total": len(rows), "activos": activos}
 
 
 @router.post("/admin/usuarios/{usuario_id}/suspender")

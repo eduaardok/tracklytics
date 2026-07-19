@@ -142,3 +142,28 @@ export type Denuncia = {
   estado:         'pendiente' | 'revisada' | 'resuelta'
   created_at:     string
 }
+
+// Resolución de denuncia con strike opcional (change p2-descubrimiento-comunidad).
+// `strike` solo viene si se pidió emitirlo; `emitido: false` significa que la
+// denuncia sí se resolvió pero el autor del contenido no era resoluble.
+export type StrikeEmitido = {
+  emitido:           boolean
+  detalle?:          string
+  usuario_id?:       string
+  strike_id?:        number
+  strikes_activos?:  number
+  cuenta_suspendida?: boolean
+}
+
+export type ActualizarDenunciaResultado = {
+  status:      string
+  denuncia_id: number
+  estado:      string
+  strike?:     StrikeEmitido
+}
+
+export type UsuarioBloqueado = {
+  usuario_id: string
+  nombre:     string
+  created_at: string
+}

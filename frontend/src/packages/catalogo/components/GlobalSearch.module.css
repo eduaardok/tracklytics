@@ -1,0 +1,41 @@
+.wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: 420px;
+}
+
+.icon {
+  position: absolute;
+  left: 10px;
+  color: var(--color-muted);
+  pointer-events: none;
+}
+
+.input {
+  width: 100%;
+  background: var(--color-surface);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+  padding: 7px 12px 7px 32px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-pill);
+  outline: none;
+  transition: border-color var(--duration-standard) var(--ease-standard);
+}
+
+.input::placeholder { color: var(--color-muted); }
+
+.input:focus {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 2px oklch(0.48 0.15 290 / 0.35);
+}
+
+/* El buscador es lo primero que se sacrifica en pantallas estrechas: el
+   catálogo tiene su propia búsqueda por pestaña y el header solo tiene 56px. */
+@media (max-width: 720px) {
+  .wrap { display: none; }
+}

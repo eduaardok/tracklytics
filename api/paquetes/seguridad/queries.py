@@ -127,9 +127,21 @@ SELECT usuario_id, nombre, email, rol FROM DIM_USUARIO WHERE usuario_id = {usuar
 
 # Autoservicio de Mi Perfil (S10 ronda 2): incluye `perfil_publico`, ausente
 # de USUARIO_POR_ID (uso administrativo, no necesita ese campo).
+# DIM_USUARIO es ReplacingMergeTree(actualizado_en): se resuelve con argMax en
+# vez de leer una fila cruda, o un perfil recién editado podría devolver la
+# versión anterior mientras el merge no haya ocurrido. `email_verificado`
+# (change p2-descubrimiento-comunidad) alimenta el banner de verificación.
 MI_PERFIL = """
-SELECT usuario_id, nombre, email, pais, rol, perfil_publico
-FROM DIM_USUARIO WHERE usuario_id = {usuario_id:String} LIMIT 1
+SELECT
+    usuario_id,
+    argMax(nombre, actualizado_en)           AS nombre,
+    argMax(email, actualizado_en)            AS email,
+    argMax(pais, actualizado_en)             AS pais,
+    argMax(rol, actualizado_en)              AS rol,
+    argMax(perfil_publico, actualizado_en)   AS perfil_publico,
+    argMax(email_verificado, actualizado_en) AS email_verificado
+FROM DIM_USUARIO WHERE usuario_id = {usuario_id:String}
+GROUP BY usuario_id
 """
 
 # Dashboard (RT-04, S10 Día 3): acciones administrativas reales por día, no
@@ -303,13 +315,35 @@ WHERE accion = 'login_fallido'
 """
 
 # ── Recuperación de contraseña (token de un solo uso) ──────────────────────────
+# FACT_TOKEN_RECUPERACION aloja los dos tipos de token que existen
+# ('recuperacion' y 'verificacion', change p2-descubrimiento-comunidad): mismo
+# ciclo de vida, discriminados por `proposito`. El filtro por propósito es lo
+# que impide que un token de verificación de correo sirva para restablecer una
+# contraseña, y viceversa.
 TOKEN_RECUPERACION_VIGENTE = """
 SELECT token, usuario_id, expira_en,
        argMax(usado, created_at) AS usado
 FROM FACT_TOKEN_RECUPERACION
-WHERE token = {token:String}
+WHERE token = {token:String} AND proposito = {proposito:String}
 GROUP BY token, usuario_id, expira_en
 LIMIT 1
+"""
+
+# Tokens de verificación aún sin usar de un usuario: el reenvío los invalida
+# antes de emitir uno nuevo, para que solo haya un token válido a la vez.
+TOKENS_VERIFICACION_ABIERTOS = """
+SELECT token, usuario_id, expira_en
+FROM (
+    SELECT token, usuario_id, expira_en, argMax(usado, created_at) AS usado
+    FROM FACT_TOKEN_RECUPERACION
+    WHERE usuario_id = {usuario_id:String} AND proposito = 'verificacion'
+    GROUP BY token, usuario_id, expira_en
+) WHERE usado = 0
+"""
+
+EMAIL_VERIFICADO_USUARIO = """
+SELECT argMax(email_verificado, actualizado_en) AS email_verificado
+FROM DIM_USUARIO WHERE usuario_id = {usuario_id:String}
 """
 
 SESION_POR_ID = """

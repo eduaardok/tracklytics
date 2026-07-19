@@ -9,8 +9,8 @@ from core.database import execute, get_client, query_one, query_rows
 from core.deps import get_current_user, require_b2c_user
 from paquetes.biblioteca import pb_playlists
 from paquetes.biblioteca.queries import TRACKS_BY_FACT_IDS
-from paquetes.seguridad import audit
-from paquetes.seguridad.deps import require_rol_admin
+from paquetes.seguridad import audit, strikes
+from paquetes.seguridad.deps import require_email_verificado, require_rol_admin
 
 # Autorización administrativa segmentada (change roles-gestion-usuarios): la
 # moderación de comentarios y el dashboard social pertenecen al área de
@@ -23,17 +23,21 @@ from paquetes.social.queries import (
     ARTISTAS_MAS_SEGUIDOS,
     ARTISTAS_SEGUIDOS_POR_USUARIO,
     AUTOR_TRACK_POR_FACT_ID,
+    BLOQUEO_VIGENTE,
     COMENTARIO_PADRE_INFO,
     COMENTARIO_POR_ID,
     COMENTARIOS_VISIBLES_DE_TRACK,
     DENUNCIA_POR_ID,
     FEED_ACTIVIDAD_SEGUIDOS,
+    ME_BLOQUEO,
+    MIS_BLOQUEADOS,
     NOTIFICACION_POR_ID,
     NOTIFICACIONES_DE_USUARIO,
     NOTIFICACIONES_NO_LEIDAS_TOTAL,
     PERFIL_PUBLICO_USUARIO,
     SEGUIMIENTO_ACTIVO_EXISTE,
     TRACK_EXISTE,
+    USUARIO_EXISTE,
     comentarios_admin_sql,
     denuncias_admin_sql,
     denuncias_count_sql,
@@ -136,7 +140,11 @@ class ComentarioBody(BaseModel):
 
 
 @router.post("/comentarios", status_code=201)
-def comentar_track(body: ComentarioBody, user: dict = Depends(require_b2c_user)):
+def comentar_track(
+    body: ComentarioBody,
+    user: dict = Depends(require_b2c_user),
+    _verificado: dict = Depends(require_email_verificado),
+):
     if not body.contenido.strip():
         raise HTTPException(status_code=422, detail="El contenido del comentario no puede estar vacío")
     if query_one(TRACK_EXISTE, {"fact_id": body.fact_id_track})["n"] == 0:
@@ -150,6 +158,21 @@ def comentar_track(body: ComentarioBody, user: dict = Depends(require_b2c_user))
             raise HTTPException(status_code=404, detail="Comentario padre no encontrado")
         if padre["fact_id_track"] != body.fact_id_track:
             raise HTTPException(status_code=422, detail="El comentario padre pertenece a otro track")
+        # Bloqueo (change p2-descubrimiento-comunidad): responder a un comentario
+        # es la forma real de dirigirse a alguien en este modelo (no hay muro de
+        # perfil), así que es donde se corta el contacto del bloqueado hacia
+        # quien lo bloqueó. El mensaje no dice "te bloqueó" explícitamente pero
+        # tampoco lo esconde: la acción falla de forma comprensible.
+        autor_padre = padre.get("usuario_id")
+        if autor_padre and autor_padre != user["record"]["id"]:
+            fila = query_one(ME_BLOQUEO, {
+                "autor_id": autor_padre, "candidato_id": user["record"]["id"],
+            })
+            if (fila or {}).get("activo") == 1:
+                raise HTTPException(
+                    status_code=403,
+                    detail="No puedes responder a los comentarios de este usuario",
+                )
         tipo = "comentario_respuesta"
 
     usuario_id = user["record"]["id"]
@@ -191,7 +214,69 @@ def _notificar_comentario(tipo: str, autor_id: str, body: ComentarioBody, padre:
 
 @router.get("/comentarios/{fact_id_track}")
 def listar_comentarios(fact_id_track: int, user: dict = Depends(get_current_user)):
-    return {"data": query_rows(COMENTARIOS_VISIBLES_DE_TRACK, {"fact_id_track": fact_id_track})}
+    return {"data": query_rows(COMENTARIOS_VISIBLES_DE_TRACK, {
+        "fact_id_track": fact_id_track, "lector_id": user["record"]["id"],
+    })}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Bloqueo usuario-a-usuario (change p2-descubrimiento-comunidad)
+#
+# Herramienta del propio usuario, no de moderación: no requiere motivo ni pasa
+# por un admin. Efectos en la lectura de comentarios y en el feed (queries.py) y
+# en la capacidad de responder (POST /comentarios, arriba).
+# ─────────────────────────────────────────────────────────────────────────────
+
+class BloqueoBody(BaseModel):
+    usuario_id: str
+
+
+_BRIDGE_BLOQUEO_COLS = [
+    "bloqueador_id", "bloqueado_id", "activo", "created_at", "actualizado_en",
+]
+
+
+@router.post("/bloqueos", status_code=201)
+def bloquear_usuario(body: BloqueoBody, user: dict = Depends(require_b2c_user)):
+    bloqueador_id = user["record"]["id"]
+    if body.usuario_id == bloqueador_id:
+        raise HTTPException(status_code=422, detail="No puedes bloquearte a ti mismo")
+    if query_one(USUARIO_EXISTE, {"usuario_id": body.usuario_id})["n"] == 0:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+
+    ahora = datetime.now(timezone.utc)
+    get_client().insert(
+        "BRIDGE_BLOQUEO_USUARIO",
+        [(bloqueador_id, body.usuario_id, 1, ahora, ahora)],
+        column_names=_BRIDGE_BLOQUEO_COLS,
+    )
+    return {"status": "ok", "bloqueado_id": body.usuario_id}
+
+
+@router.delete("/bloqueos/{usuario_id}")
+def desbloquear_usuario(usuario_id: str, user: dict = Depends(require_b2c_user)):
+    bloqueador_id = user["record"]["id"]
+    fila = query_one(BLOQUEO_VIGENTE, {
+        "bloqueador_id": bloqueador_id, "bloqueado_id": usuario_id,
+    })
+    if (fila or {}).get("activo") != 1:
+        raise HTTPException(status_code=404, detail="No tienes bloqueado a este usuario")
+
+    # Borrado lógico: fila nueva con activo=0 y `actualizado_en` mayor, que es
+    # la que gana en el argMax y en el merge del ReplacingMergeTree.
+    ahora = datetime.now(timezone.utc)
+    get_client().insert(
+        "BRIDGE_BLOQUEO_USUARIO",
+        [(bloqueador_id, usuario_id, 0, ahora, ahora)],
+        column_names=_BRIDGE_BLOQUEO_COLS,
+    )
+    return {"status": "ok", "desbloqueado_id": usuario_id}
+
+
+@router.get("/bloqueos")
+def listar_bloqueos(user: dict = Depends(require_b2c_user)):
+    rows = query_rows(MIS_BLOQUEADOS, {"bloqueador_id": user["record"]["id"]})
+    return {"data": rows, "total": len(rows)}
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -316,6 +401,26 @@ def listar_denuncias_admin(
 
 class ActualizarDenunciaBody(BaseModel):
     estado: Literal["revisada", "resuelta"]
+    # Emisión de strike al resolver (change p2-descubrimiento-comunidad): la
+    # sanción va en la misma acción que la resolución para que moderar sea un
+    # solo paso y no dos pantallas distintas.
+    emitir_strike: bool = False
+    motivo: str = ""
+
+
+def _autor_del_contenido_denunciado(denuncia: dict) -> str | None:
+    """Resuelve a quién sancionar por una denuncia.
+
+    Un track del dataset original no tiene autor resoluble: AUTOR_TRACK_POR_FACT_ID
+    hace un join "suave" por nombre artístico contra DIM_CUENTA_ARTISTA, que solo
+    encaja para tracks subidos por un artista de la plataforma. En ese caso no hay
+    a quién sancionar y devuelve None.
+    """
+    if denuncia["tipo_objeto"] == "comentario":
+        comentario = query_one(COMENTARIO_POR_ID, {"fact_id": int(denuncia["objeto_id"])})
+        return (comentario or {}).get("usuario_id")
+    autor = query_one(AUTOR_TRACK_POR_FACT_ID, {"fact_id": int(denuncia["objeto_id"])})
+    return (autor or {}).get("usuario_id")
 
 
 @router.put("/admin/denuncias/{denuncia_id}")
@@ -323,6 +428,9 @@ def actualizar_denuncia_admin(denuncia_id: int, body: ActualizarDenunciaBody, ad
     actual = query_one(DENUNCIA_POR_ID, {"denuncia_id": denuncia_id})
     if not actual:
         raise HTTPException(status_code=404, detail="Denuncia no encontrada")
+    if body.emitir_strike and not body.motivo.strip():
+        raise HTTPException(status_code=422, detail="Un strike requiere motivo")
+
     # Fila nueva con el mismo id y estado actualizado (ReplacingMergeTree).
     get_client().insert(
         "FACT_DENUNCIA",
@@ -337,7 +445,25 @@ def actualizar_denuncia_admin(denuncia_id: int, body: ActualizarDenunciaBody, ad
         tabla_afectada="FACT_DENUNCIA", antes={"denuncia_id": denuncia_id, "estado": actual["estado"]},
         despues={"denuncia_id": denuncia_id, "estado": body.estado},
     )
-    return {"status": "ok", "denuncia_id": denuncia_id, "estado": body.estado}
+
+    respuesta = {"status": "ok", "denuncia_id": denuncia_id, "estado": body.estado}
+    if body.emitir_strike:
+        autor_id = _autor_del_contenido_denunciado(actual)
+        if not autor_id:
+            # La resolución de la denuncia NO se revierte: es válida por sí
+            # misma. Solo se informa de que la sanción no pudo aplicarse.
+            respuesta["strike"] = {
+                "emitido": False,
+                "detalle": "No se pudo determinar el autor del contenido denunciado",
+            }
+        else:
+            resultado = strikes.emitir(
+                usuario_id=autor_id, motivo=body.motivo.strip(),
+                emitido_por=admin["record"]["id"],
+                origen_tipo="denuncia", origen_id=str(denuncia_id),
+            )
+            respuesta["strike"] = {"emitido": True, "usuario_id": autor_id, **resultado}
+    return respuesta
 
 
 # ─────────────────────────────────────────────────────────────────────────────

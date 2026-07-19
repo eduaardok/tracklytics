@@ -8,12 +8,14 @@ import { experienciaApi } from '../api/experiencia.api'
 import type { Recomendacion, SeccionRecomendaciones } from '../types'
 import styles from './ExperienciaPages.module.css'
 
-// Motivo corto por tarjeta — un algoritmo distinto por sección (ver
-// api/paquetes/experiencia/router.py `obtener_recomendaciones`): para
-// "Hecho para ti" con perfil de audio, el motivo real es el género que más
-// escucha el usuario; para el resto de niveles/secciones un motivo fijo por
-// algoritmo alcanza, no hay una señal más específica que mostrar.
+// Motivo corto por tarjeta. Desde el change p2-descubrimiento-comunidad el
+// backend calcula el motivo y lo envía en cada track (`motivo`), que es la
+// fuente correcta: conoce el género dominante real del usuario, algo que aquí
+// solo se podía aproximar con el género del track sugerido. El mapeo local se
+// conserva como respaldo para respuestas anteriores al cambio, que no traen el
+// campo (ver api/paquetes/experiencia/router.py `obtener_recomendaciones`).
 function motivo(r: Recomendacion): string {
+  if (r.motivo) return r.motivo[0].toUpperCase() + r.motivo.slice(1)
   if (r.algoritmo === 'similar_a_tu_escucha') return `Porque escuchas mucho ${r.genre_name}`
   if (r.algoritmo === 'mismo_genero_favoritos') return `Mismo género que tus favoritos: ${r.genre_name}`
   if (r.algoritmo === 'novedades_artistas_seguidos') return 'Nuevo track de un artista que sigues'

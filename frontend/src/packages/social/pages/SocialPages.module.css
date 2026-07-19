@@ -463,7 +463,35 @@
   line-height: 1.5;
 }
 
-.queueRowActions { display: flex; gap: 6px; flex-shrink: 0; }
+.queueRowActions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; flex-wrap: wrap; }
+
+/* Emisión de strike al resolver una denuncia (change p2-descubrimiento-comunidad) */
+.strikeToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--color-muted);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.strikeToggle input { cursor: pointer; accent-color: var(--color-primary); }
+
+.strikeMotivo {
+  background: var(--color-bg);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+  padding: 6px 10px;
+  width: 180px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  outline: none;
+}
+
+.strikeMotivo:focus { border-color: var(--color-primary); }
 
 /* ── Badges ── */
 .badge {

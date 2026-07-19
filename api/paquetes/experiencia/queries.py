@@ -220,6 +220,218 @@ LIMIT {limit:UInt32}
 """
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Radio, mix diario y afinidad de audio (change p2-descubrimiento-comunidad)
+#
+# Métrica de similitud (design.md, Decisión 1): distancia euclídea al cuadrado
+# sobre 5 atributos, más una penalización aditiva por no compartir género. Los
+# 4 primeros atributos ya están en escala 0-1; `tempo` va en BPM (~50-250) y se
+# normaliza dividiendo entre 250, o dominaría por completo la suma.
+#
+# El género PENALIZA, no filtra: un track de otro género puede entrar si es muy
+# cercano en audio, pero parte con desventaja. Un filtro duro encerraría la
+# radio en un solo género, que es justo lo que la haría inútil.
+#
+# Deduplicación por (track_name, artist_name) y no por track_id: en el dataset
+# la misma grabación puede tener varios track_id (ediciones/compilaciones),
+# además de repetirse una vez por género. Misma convención que las queries de
+# recomendación de arriba. Por eso la penalización se agrega con min(): un track
+# que comparte ALGUNO de sus géneros con la semilla no queda penalizado.
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Fragmento compartido: se interpola en las queries de abajo, nunca recibe
+# valores del usuario (los valores siempre van como parámetros nombrados).
+_DISTANCIA_AUDIO = """
+      pow(danceability - {p_danceability:Float64}, 2)
+    + pow(energy       - {p_energy:Float64},       2)
+    + pow(valence      - {p_valence:Float64},      2)
+    + pow(acousticness - {p_acousticness:Float64}, 2)
+    + pow((tempo       - {p_tempo:Float64}) / 250.0, 2)
+    + penalizacion_genero
+"""
+
+# Perfil de audio del usuario a partir de favoritos Y reproducciones (el
+# PERFIL_AUDIO_USUARIO previo solo miraba reproducciones). Un usuario que
+# marcó favoritos pero aún no reprodujo nada tenía perfil vacío y caía al
+# nivel de popularidad global pese a haber dado señal explícita.
+PERFIL_AUDIO_FAVORITOS_E_HISTORIAL = """
+SELECT
+    avg(ft.danceability) AS danceability,
+    avg(ft.energy)       AS energy,
+    avg(ft.valence)      AS valence,
+    avg(ft.acousticness) AS acousticness,
+    avg(ft.tempo)        AS tempo,
+    count()              AS n_senales
+FROM (
+    SELECT fact_id, argMax(event_type, event_timestamp) AS last_event
+    FROM FACT_ENGAGEMENT_USUARIO
+    WHERE user_id = {usuario_id:String}
+      AND event_type IN ('favorito_add', 'favorito_remove', 'reproduccion')
+    GROUP BY fact_id
+    HAVING last_event IN ('favorito_add', 'reproduccion')
+) senal
+JOIN FACT_TRACKS ft ON ft.fact_id = senal.fact_id
+"""
+
+# Atributos de audio y géneros de un track semilla, para la radio.
+TRACK_SEMILLA = """
+SELECT
+    any(ft.track_name)          AS track_name,
+    avg(ft.danceability)        AS danceability,
+    avg(ft.energy)              AS energy,
+    avg(ft.valence)             AS valence,
+    avg(ft.acousticness)        AS acousticness,
+    avg(ft.tempo)               AS tempo,
+    groupUniqArray(ft.genre_id) AS genre_ids,
+    any(a.name)                 AS artist_name
+FROM FACT_TRACKS ft
+JOIN DIM_ARTISTS a ON ft.artist_id = a.artist_id
+WHERE ft.fact_id = {fact_id:UInt64} AND ft.disponible = 1
+"""
+
+# Radio: tracks similares a la semilla. Excluye la propia semilla por
+# (track_name, artist_name) y no por fact_id, porque la semilla son N filas y
+# además puede existir como varias ediciones.
+RADIO_POR_TRACK = """
+SELECT
+    fact_id, track_id, track_name, artist_name, genre_name, imagen_url,
+    round(__DISTANCIA__, 5) AS distancia
+FROM (
+    SELECT
+        any(ft.track_id)                                                    AS track_id,
+        min(ft.fact_id)                                                     AS fact_id,
+        ft.track_name                                                       AS track_name,
+        a.name                                                              AS artist_name,
+        arrayStringConcat(groupUniqArray(g.name), ' / ')                    AS genre_name,
+        coalesce(any(ft.imagen_url), any(al.imagen_url), any(a.imagen_url)) AS imagen_url,
+        avg(ft.danceability)                                                AS danceability,
+        avg(ft.energy)                                                      AS energy,
+        avg(ft.valence)                                                     AS valence,
+        avg(ft.acousticness)                                                AS acousticness,
+        avg(ft.tempo)                                                       AS tempo,
+        min(if(has({genre_ids:Array(UInt16)}, ft.genre_id), 0.0, 0.35))     AS penalizacion_genero
+    FROM FACT_TRACKS ft
+    JOIN DIM_ARTISTS a  ON ft.artist_id = a.artist_id
+    JOIN DIM_ALBUMS  al ON ft.album_id  = al.album_id
+    JOIN DIM_GENRES  g  ON ft.genre_id  = g.genre_id
+    WHERE ft.disponible = 1
+      AND NOT (ft.track_name = {semilla_nombre:String} AND a.name = {semilla_artista:String})
+    GROUP BY ft.track_name, a.name
+)
+ORDER BY distancia ASC, track_name ASC
+LIMIT {limit:UInt32}
+""".replace("__DISTANCIA__", _DISTANCIA_AUDIO)
+
+# Mix diario, porción de afinidad: cercanos al perfil del usuario dentro de sus
+# géneros habituales, excluyendo lo que ya conoce. El desempate por track_name
+# es lo que hace el resultado estable entre llamadas del mismo día: sin él, dos
+# tracks equidistantes podrían alternar.
+MIX_AFINIDAD = """
+SELECT fact_id, track_id, track_name, artist_name, genre_name, imagen_url
+FROM (
+    SELECT
+        any(ft.track_id)                                                    AS track_id,
+        min(ft.fact_id)                                                     AS fact_id,
+        ft.track_name                                                       AS track_name,
+        a.name                                                              AS artist_name,
+        arrayStringConcat(groupUniqArray(g.name), ' / ')                    AS genre_name,
+        coalesce(any(ft.imagen_url), any(al.imagen_url), any(a.imagen_url)) AS imagen_url,
+        avg(ft.danceability)                                                AS danceability,
+        avg(ft.energy)                                                      AS energy,
+        avg(ft.valence)                                                     AS valence,
+        avg(ft.acousticness)                                                AS acousticness,
+        avg(ft.tempo)                                                       AS tempo,
+        0.0                                                                 AS penalizacion_genero
+    FROM FACT_TRACKS ft
+    JOIN DIM_ARTISTS a  ON ft.artist_id = a.artist_id
+    JOIN DIM_ALBUMS  al ON ft.album_id  = al.album_id
+    JOIN DIM_GENRES  g  ON ft.genre_id  = g.genre_id
+    WHERE ft.disponible = 1
+      AND ft.genre_id IN {genre_ids:Array(UInt16)}
+      AND ft.fact_id NOT IN {excluidos:Array(UInt64)}
+    GROUP BY ft.track_name, a.name
+)
+ORDER BY (__DISTANCIA__) ASC, track_name ASC
+LIMIT {limit:UInt32}
+""".replace("__DISTANCIA__", _DISTANCIA_AUDIO)
+
+# Mix diario, porción de exploración: FUERA de los géneros habituales del
+# usuario. El orden es pseudoaleatorio pero determinista para ese usuario y ese
+# día, porque la semilla del hash es (usuario_id + fecha) — de ahí que el mix
+# "del día" sea estable y cambie solo al día siguiente (Decisión 2).
+MIX_EXPLORACION = """
+SELECT fact_id, track_id, track_name, artist_name, genre_name, imagen_url
+FROM (
+    SELECT
+        any(ft.track_id)                                                    AS track_id,
+        min(ft.fact_id)                                                     AS fact_id,
+        ft.track_name                                                       AS track_name,
+        a.name                                                              AS artist_name,
+        arrayStringConcat(groupUniqArray(g.name), ' / ')                    AS genre_name,
+        coalesce(any(ft.imagen_url), any(al.imagen_url), any(a.imagen_url)) AS imagen_url,
+        max(ft.popularity)                                                  AS popularity
+    FROM FACT_TRACKS ft
+    JOIN DIM_ARTISTS a  ON ft.artist_id = a.artist_id
+    JOIN DIM_ALBUMS  al ON ft.album_id  = al.album_id
+    JOIN DIM_GENRES  g  ON ft.genre_id  = g.genre_id
+    WHERE ft.disponible = 1
+      AND ft.genre_id NOT IN {genre_ids:Array(UInt16)}
+      AND ft.fact_id NOT IN {excluidos:Array(UInt64)}
+      AND ft.popularity >= 40
+    GROUP BY ft.track_name, a.name
+)
+ORDER BY cityHash64(concat(track_name, artist_name, {seed:String})) ASC
+LIMIT {limit:UInt32}
+"""
+
+# Recomendaciones por afinidad (reemplazo del nivel 1): mismo criterio que el
+# mix pero SIN restringir a los géneros habituales, para que la sección "Hecho
+# para ti" pueda sorprender. Filtra `disponible = 1`, que las queries de
+# recomendación previas no hacían.
+RECOMENDACIONES_POR_AFINIDAD = """
+SELECT fact_id, track_id, track_name, artist_name, genre_name, imagen_url
+FROM (
+    SELECT
+        any(ft.track_id)                                                    AS track_id,
+        min(ft.fact_id)                                                     AS fact_id,
+        ft.track_name                                                       AS track_name,
+        a.name                                                              AS artist_name,
+        arrayStringConcat(groupUniqArray(g.name), ' / ')                    AS genre_name,
+        coalesce(any(ft.imagen_url), any(al.imagen_url), any(a.imagen_url)) AS imagen_url,
+        avg(ft.danceability)                                                AS danceability,
+        avg(ft.energy)                                                      AS energy,
+        avg(ft.valence)                                                     AS valence,
+        avg(ft.acousticness)                                                AS acousticness,
+        avg(ft.tempo)                                                       AS tempo,
+        min(if(has({genre_ids:Array(UInt16)}, ft.genre_id), 0.0, 0.35))     AS penalizacion_genero
+    FROM FACT_TRACKS ft
+    JOIN DIM_ARTISTS a  ON ft.artist_id = a.artist_id
+    JOIN DIM_ALBUMS  al ON ft.album_id  = al.album_id
+    JOIN DIM_GENRES  g  ON ft.genre_id  = g.genre_id
+    WHERE ft.disponible = 1
+      AND ft.fact_id NOT IN {excluidos:Array(UInt64)}
+      AND ft.source_type != 'synthetic'
+    GROUP BY ft.track_name, a.name
+)
+ORDER BY (__DISTANCIA__) ASC, track_name ASC
+LIMIT {limit:UInt32}
+""".replace("__DISTANCIA__", _DISTANCIA_AUDIO)
+
+# Género dominante del usuario, para redactar el `motivo` de la recomendación
+# ("similar a tus favoritos de <género>") sin inventar nada por track.
+GENERO_DOMINANTE_USUARIO = """
+SELECT g.name AS genero, count() AS n
+FROM FACT_ENGAGEMENT_USUARIO e
+JOIN FACT_TRACKS ft ON ft.fact_id = e.fact_id
+JOIN DIM_GENRES  g  ON g.genre_id = ft.genre_id
+WHERE e.user_id = {usuario_id:String}
+  AND e.event_type IN ('favorito_add', 'reproduccion')
+GROUP BY g.name
+ORDER BY n DESC
+LIMIT 1
+"""
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Tickets de soporte (RF-EXP-004/005)
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -316,3 +528,4 @@ WHERE suscripcion_id = {suscripcion_id:String} AND es_titular = 1
 TICKETS_POR_ESTADO = "SELECT estado, count() AS total FROM FACT_TICKET_SOPORTE GROUP BY estado"
 
 TICKETS_ABIERTOS_TOTAL = "SELECT count() AS n FROM FACT_TICKET_SOPORTE WHERE estado IN ('abierto', 'en_proceso')"
+

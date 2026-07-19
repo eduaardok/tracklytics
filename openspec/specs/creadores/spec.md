@@ -27,9 +27,7 @@ Hoy el único camino para que un track exista en `FACT_TRACKS` es la carga por l
 | Operativo | Artista | Creadores y catálogo de artistas | CU-O26 Subir un track | Como Artista, quiero subir un track con su metadata, para someterlo a revisión y publicarlo en el catálogo |
 | Operativo | Lead Data Engineer / CTO | Creadores y catálogo de artistas | CU-O27 Aprobar o rechazar un track subido | Como Lead Data Engineer/CTO, quiero revisar y aprobar o rechazar cada track subido por un artista, para mantener la calidad del catálogo antes de publicarlo |
 | Operativo | Artista / Lead Data Engineer / CTO | Creadores y catálogo de artistas | CU-O28 Consultar el estado de cuentas y subidas | Como Artista, quiero ver el estado de mi cuenta y de mis tracks subidos, para saber si ya puedo publicar o si un track fue aprobado |
-
 ## Requirements
-
 ### Requirement: Solicitud de cuenta de artista
 El sistema SHALL permitir a un usuario autenticado solicitar una cuenta de artista indicando un nombre artístico, quedando en estado `pendiente` hasta que `admin` la resuelva. Un usuario SHALL tener como máximo una cuenta de artista.
 
@@ -133,6 +131,24 @@ El sistema SHALL exponer a un usuario con rol `admin` un panel con métricas ope
 #### Scenario: Usuario sin rol admin intenta consultar el panel de creadores
 - **WHEN** un usuario sin rol `admin` intenta consultar el dashboard de creadores
 - **THEN** el sistema rechaza la operación
+
+### Requirement: Edición de la metadata de un track propio por el artista
+El sistema SHALL permitir a un artista con cuenta aprobada editar el nombre, álbum, género y descripción de un track propio (pendiente o aprobado). Si el track estaba `aprobado`, la edición SHALL devolverlo al estado `pendiente` para revisión editorial. Un artista SHALL poder editar únicamente sus propios tracks.
+
+#### Scenario: Editar un track aprobado lo devuelve a pendiente
+- **WHEN** un artista aprobado edita la metadata de un track propio que estaba aprobado
+- **THEN** el sistema aplica los cambios y devuelve el track a estado `pendiente`
+
+#### Scenario: Un artista no puede editar tracks ajenos
+- **WHEN** un artista intenta editar un track que no le pertenece
+- **THEN** el sistema rechaza la operación con 403
+
+### Requirement: Retiro de un track propio por el artista
+El sistema SHALL permitir a un artista con cuenta aprobada retirar un track propio, marcándolo con estado `retirado` y ejecutando el takedown equivalente en el catálogo (`FACT_TRACKS.disponible = 0`).
+
+#### Scenario: Retirar un track propio
+- **WHEN** un artista aprobado retira un track propio
+- **THEN** el sistema marca el track como `retirado` y lo oculta del catálogo público
 
 ## Entradas
 

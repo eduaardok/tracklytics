@@ -38,6 +38,12 @@ type PlayerContextValue = {
   // reproductor (ver comentario de `PlayerProvider` más abajo).
   queue:            PlayableTrack[]
   enqueue:          (track: PlayableTrack) => void
+  // Encolar/reemplazar en bloque (change p2-descubrimiento-comunidad): la radio
+  // y el mix diario producen ~25-30 tracks de una vez. `replaceQueue` es lo que
+  // hace que "iniciar radio" sustituya la cola en vez de acumularse sobre lo
+  // que ya hubiera, que es el comportamiento esperado de una radio.
+  enqueueMany:      (tracks: PlayableTrack[]) => void
+  replaceQueue:     (tracks: PlayableTrack[]) => void
   removeFromQueue:  (index: number) => void
   moveInQueue:      (index: number, direction: -1 | 1) => void
   volume:           number
@@ -391,6 +397,14 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     setQueue((prev) => [...prev, track])
   }, [])
 
+  const enqueueMany = useCallback((tracks: PlayableTrack[]) => {
+    setQueue((prev) => [...prev, ...tracks])
+  }, [])
+
+  const replaceQueue = useCallback((tracks: PlayableTrack[]) => {
+    setQueue(tracks)
+  }, [])
+
   const removeFromQueue = useCallback((index: number) => {
     setQueue((prev) => prev.filter((_, i) => i !== index))
   }, [])
@@ -438,7 +452,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
         currentTrack, isPlaying, progressMs,
         playbackUnavailable, playbackUnavailableReason: playbackReason,
         play, togglePlay, seek, reportPlaybackIssue,
-        queue, enqueue, removeFromQueue, moveInQueue,
+        queue, enqueue, enqueueMany, replaceQueue, removeFromQueue, moveInQueue,
         volume, setVolume,
       }}
     >

@@ -5,6 +5,7 @@ from fastapi import Depends, HTTPException
 from core.database import get_client, query_one, query_rows
 from core.deps import get_current_user
 from paquetes.seguridad.queries import (
+    EMAIL_VERIFICADO_USUARIO,
     PERMISO_VIGENTE_UNO,
     ROLES_ADMIN_VIGENTES,
 )
@@ -72,6 +73,35 @@ def require_rol_admin(*roles_permitidos: str):
 # `seguridad` (auditoría, errores, permisos, gestión de usuarios) y cualquier
 # import externo de `require_admin` siguen exigiendo el rol total `superadmin`.
 require_admin = require_rol_admin("superadmin")
+
+
+def require_email_verificado(user: dict = Depends(get_current_user)) -> dict:
+    """Regla suave de verificación de correo (change p2-descubrimiento-comunidad).
+
+    Un usuario sin verificar navega el catálogo con total normalidad; solo se le
+    frena en las acciones que dejan huella en la plataforma o mueven dinero:
+    comentar, subir un track y contratar un plan de pago.
+
+    Fail-open ante fallo de lectura, mismo criterio que
+    `core.deps._rechazar_si_cuenta_inactiva`: si ClickHouse no responde, no se
+    bloquea una acción legítima por una regla accesoria. El detalle es un código
+    estable (`email_no_verificado`) para que el frontend pueda reaccionar con el
+    banner de verificación en vez de parsear el mensaje.
+    """
+    usuario_id = user["record"]["id"]
+    try:
+        fila = query_one(EMAIL_VERIFICADO_USUARIO, {"usuario_id": usuario_id})
+    except Exception:
+        return user
+    if fila is not None and fila.get("email_verificado") == 0:
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "codigo": "email_no_verificado",
+                "mensaje": "Verifica tu correo electrónico para completar esta acción",
+            },
+        )
+    return user
 
 
 def require_permiso(recurso: str, accion: str):

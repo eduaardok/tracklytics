@@ -7,6 +7,7 @@ import type {
   DashboardSocial, FeedItem,
   NotificacionesResultado, PerfilPublico,
   Denuncia, DenunciaBody, EstadoDenuncia,
+  ActualizarDenunciaResultado, UsuarioBloqueado,
 } from '../types'
 
 export const socialApi = {
@@ -53,8 +54,27 @@ export const socialApi = {
     return apiClient.get<{ data: Denuncia[]; total: number; page: number; limit: number }>(`/social/admin/denuncias?${qs.toString()}`)
   },
 
-  actualizarDenuncia: (denunciaId: number, estado: EstadoDenuncia) =>
-    apiClient.put<{ status: string; denuncia_id: number; estado: string }>(`/social/admin/denuncias/${denunciaId}`, { estado }),
+  // `emitirStrike` sanciona al autor del contenido en la misma acción que
+  // resuelve la denuncia (change p2-descubrimiento-comunidad).
+  actualizarDenuncia: (
+    denunciaId: number, estado: EstadoDenuncia,
+    opciones: { emitirStrike?: boolean; motivo?: string } = {},
+  ) =>
+    apiClient.put<ActualizarDenunciaResultado>(`/social/admin/denuncias/${denunciaId}`, {
+      estado,
+      emitir_strike: opciones.emitirStrike ?? false,
+      motivo: opciones.motivo ?? '',
+    }),
+
+  // ── Bloqueo usuario-a-usuario (change p2-descubrimiento-comunidad) ──────────
+  bloquear: (usuarioId: string) =>
+    apiClient.post<{ status: string; bloqueado_id: string }>('/social/bloqueos', { usuario_id: usuarioId }),
+
+  desbloquear: (usuarioId: string) =>
+    apiClient.delete<{ status: string; desbloqueado_id: string }>(`/social/bloqueos/${usuarioId}`),
+
+  misBloqueados: () =>
+    apiClient.get<ApiResponse<UsuarioBloqueado>>('/social/bloqueos'),
 
   // ── Compartir ────────────────────────────────────────────────────────────────
   compartir: (body: ComparticionBody) =>

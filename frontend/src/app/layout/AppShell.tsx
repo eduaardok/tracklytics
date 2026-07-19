@@ -7,6 +7,10 @@ import {
 // Import directo, no vía el barrel `@packages/seguridad` (arrastraría los
 // dashboards con Recharts de ese paquete al bundle principal — ver router.tsx).
 import { UserMenu } from '@packages/seguridad/components/UserMenu'
+// Mismo criterio de import directo: el barrel de `seguridad` arrastra páginas
+// admin al bundle principal.
+import { VerificacionEmailBanner } from '@packages/seguridad/components/VerificacionEmailBanner'
+import { GlobalSearch } from '@packages/catalogo/components/GlobalSearch'
 // Mismo criterio: `@packages/social` exporta ModeracionSocialPage (dashboard
 // con Recharts) en su barrel — import directo del componente.
 import { NotificationBell } from '@packages/social/components/NotificationBell'
@@ -149,11 +153,14 @@ export function AppShell() {
           <span className={styles.brand}>Tracklytics</span>
           <span className={styles.badge}>beta</span>
         </a>
+        <GlobalSearch />
         <div className={styles.headerActions}>
           <NotificationBell />
           <UserMenu />
         </div>
       </header>
+
+      <VerificacionEmailBanner />
 
       <div className={styles.body}>
         <nav

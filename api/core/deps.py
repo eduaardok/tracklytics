@@ -60,6 +60,29 @@ async def get_current_user(request: Request, authorization: str = Header(None)) 
         raise HTTPException(status_code=503, detail=f"Auth service unavailable: {exc}")
 
 
+async def get_current_user_optional(
+    request: Request, authorization: str = Header(None)
+) -> dict | None:
+    """Sesión opcional: devuelve el usuario si llega un token válido y `None` si
+    no llega token o si no es válido, sin lanzar 401 nunca.
+
+    Lo usa la búsqueda unificada (`catalogo`), que es pública pero necesita saber
+    quién pregunta para incluir sus playlists privadas además de las públicas
+    (design.md, Decisión 9). Un token inválido degrada a anónimo en vez de
+    romper la búsqueda: el resultado sigue siendo correcto, solo más pequeño.
+    """
+    if not authorization or not authorization.startswith("Bearer "):
+        return None
+    try:
+        return await get_current_user(request, authorization)
+    except HTTPException as exc:
+        # Una cuenta suspendida o dada de baja (403) sí debe seguir bloqueada:
+        # solo el fallo de autenticación degrada a anónimo.
+        if exc.status_code == 401:
+            return None
+        raise
+
+
 def verify_analytics_access(user: dict = Depends(get_current_user)) -> dict:
     role = user.get("record", {}).get("role", "")
     if role not in ("admin", "analyst"):

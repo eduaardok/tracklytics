@@ -45,9 +45,7 @@ reporte) sobre datos que ya existen en `facturacion`, `publicidad` y `regalias`.
 | Operativo | Lead Data Engineer / CTO | Finanzas | CU-O88 Consultar indicadores empresariales | Como Lead Data Engineer/CTO, quiero ver ARPU, % de ingresos a regalías/gastos y crecimiento vs. periodo anterior, para evaluar la eficiencia financiera del negocio |
 | Operativo | Lead Data Engineer / CTO | Finanzas | CU-O89 Consultar alertas financieras administrativas | Como Lead Data Engineer/CTO, quiero ver en un solo lugar facturas vencidas, retiros pendientes, campañas por agotarse y gastos que superan ingresos, para actuar a tiempo |
 | Operativo | Lead Data Engineer / CTO | Finanzas | CU-O90 Consultar reporte financiero por periodo | Como Lead Data Engineer/CTO, quiero un reporte consolidado de ingresos, gastos, regalías, reembolsos y utilidad por rango de fechas, para presentar resultados del periodo |
-
 ## Requirements
-
 ### Requirement: Registro y anulación de gastos operativos
 El sistema SHALL permitir a un usuario con rol `admin` crear un gasto operativo indicando
 concepto, categoría (`infraestructura`, `marketing`, `nomina`, `licencias`, `servicios`,
@@ -221,6 +219,13 @@ periodo.
 #### Scenario: Admin genera el reporte financiero de un periodo
 - **WHEN** un usuario con rol `admin` solicita el reporte financiero de un rango de fechas
 - **THEN** el sistema retorna un único payload con ingresos, gastos, regalías, reembolsos, cuentas por cobrar/pagar, utilidad, margen e indicadores de ese rango
+
+### Requirement: Reporte financiero consolidado por período
+El sistema SHALL permitir a un usuario con rol `admin_finanzas` obtener un reporte consolidado de un período que incluya ingresos, gastos operativos, regalías liquidadas e ingresos publicitarios, para dar visibilidad de la utilidad del negocio.
+
+#### Scenario: Obtener el reporte consolidado de un período
+- **WHEN** un `admin_finanzas` solicita el reporte financiero de un rango de fechas
+- **THEN** el sistema devuelve los ingresos, gastos, regalías y publicidad consolidados del período
 
 ## Entradas
 

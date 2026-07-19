@@ -17,6 +17,7 @@ from paquetes.creadores.queries import (
     SUBIDAS_POR_ESTADO, cuentas_admin_sql, subidas_admin_sql,
 )
 from paquetes.seguridad import audit
+from paquetes.seguridad.deps import require_email_verificado
 from paquetes.social import notificaciones
 
 router = APIRouter(prefix="/app/v1/creadores", tags=["Creadores"])
@@ -139,7 +140,11 @@ class ResolverTrackBody(BaseModel):
 
 
 @router.post("/tracks", status_code=201)
-def subir_track(body: SubidaTrackBody, cuenta: dict = Depends(require_cuenta_artista_aprobada)):
+def subir_track(
+    body: SubidaTrackBody,
+    cuenta: dict = Depends(require_cuenta_artista_aprobada),
+    _verificado: dict = Depends(require_email_verificado),
+):
     genero_existe = query_one(GENERO_EXISTE, {"genre_id": body.genre_id})["n"] > 0
     if not genero_existe:
         raise HTTPException(status_code=422, detail="El género indicado no existe")

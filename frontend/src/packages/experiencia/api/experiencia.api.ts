@@ -1,6 +1,7 @@
 import { apiClient, type ApiResponse } from '@shared/lib/api-client'
 import type {
-  EstadoTicket, MiFamilia, PlanFamiliar, Recomendacion, SeccionRecomendaciones,
+  EstadoTicket, MiFamilia, MixDiario, PlanFamiliar, RadioResultado,
+  Recomendacion, SeccionRecomendaciones,
   SincronizacionResultado, Ticket, TicketBody, TopTrackPlaylist,
   DashboardExperiencia,
 } from '../types'
@@ -9,6 +10,13 @@ export const experienciaApi = {
   // ── Recomendaciones (RF-EXP-002/003) ────────────────────────────────────────
   recomendaciones: (limit = 10) =>
     apiClient.get<{ secciones: SeccionRecomendaciones[] }>(`/experiencia/recomendaciones?limit=${limit}`),
+
+  // ── Radio y mix diario (change p2-descubrimiento-comunidad) ─────────────────
+  radioDeTrack: (factId: number, limit = 25) =>
+    apiClient.get<RadioResultado>(`/experiencia/radio/track/${factId}?limit=${limit}`),
+
+  mixDiario: () =>
+    apiClient.get<MixDiario>('/experiencia/mix-diario'),
 
   // ── Tickets de soporte (RF-EXP-004/005) ─────────────────────────────────────
   crearTicket: (body: TicketBody) =>

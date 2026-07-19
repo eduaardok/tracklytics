@@ -322,3 +322,66 @@ JOIN DIM_ARTISTS a ON ft.artist_id = a.artist_id
 JOIN DIM_GENRES  g ON ft.genre_id  = g.genre_id
 {where}
 """
+
+
+# ── Búsqueda unificada (change p2-descubrimiento-comunidad) ───────────────────
+# Las tres queries parten de tracks con `disponible = 1`. En artistas y álbumes
+# eso es un cambio de criterio respecto a ARTISTS_SEARCH / ALBUMS_SEARCH, que no
+# filtran nada: un artista cuyos tracks fueron todos retirados por takedown sigue
+# apareciendo en el buscador por entidad. Los endpoints antiguos se dejan como
+# están para no cambiar su contrato; la corrección vive aquí (design.md,
+# Decisión 10). Un track es N filas (una por género), de ahí el GROUP BY.
+
+SEARCH_TRACKS_GRUPO = """
+SELECT
+    min(ft.fact_id)                                   AS fact_id,
+    ft.track_id                                       AS track_id,
+    ft.track_name                                     AS track_name,
+    a.name                                            AS artist_name,
+    coalesce(any(ft.imagen_url), any(al.imagen_url), a.imagen_url) AS imagen_url,
+    arrayStringConcat(groupUniqArray(g.name), ' / ')  AS genre_name,
+    any(ft.popularity)                                AS popularity,
+    any(ft.duration_ms)                               AS duration_ms
+FROM (SELECT * FROM FACT_TRACKS WHERE disponible = 1) ft
+JOIN DIM_ARTISTS a  ON ft.artist_id = a.artist_id
+JOIN DIM_ALBUMS  al ON ft.album_id  = al.album_id
+JOIN DIM_GENRES  g  ON ft.genre_id  = g.genre_id
+WHERE lower(ft.track_name) LIKE lower({pattern:String})
+   OR lower(a.name)        LIKE lower({pattern:String})
+GROUP BY ft.track_id, ft.track_name, ft.artist_id, a.name, a.imagen_url
+ORDER BY any(ft.popularity) DESC, ft.track_id ASC
+LIMIT {limit:UInt32}
+"""
+
+SEARCH_ARTISTAS_GRUPO = """
+SELECT
+    a.artist_id                        AS artist_id,
+    a.name                             AS name,
+    a.imagen_url                       AS imagen_url,
+    count(DISTINCT ft.track_id)        AS track_count,
+    round(avg(ft.popularity), 2)       AS avg_popularity
+FROM (SELECT * FROM FACT_TRACKS WHERE disponible = 1) ft
+JOIN DIM_ARTISTS a ON ft.artist_id = a.artist_id
+WHERE lower(a.name) LIKE lower({pattern:String})
+GROUP BY a.artist_id, a.name, a.imagen_url
+ORDER BY track_count DESC, a.artist_id ASC
+LIMIT {limit:UInt32}
+"""
+
+SEARCH_ALBUMES_GRUPO = """
+SELECT
+    al.album_id                        AS album_id,
+    al.name                            AS name,
+    al.release_year                    AS release_year,
+    al.imagen_url                      AS imagen_url,
+    any(a.name)                        AS artist_name,
+    count(DISTINCT ft.track_id)        AS track_count,
+    round(avg(ft.popularity), 2)       AS avg_popularity
+FROM (SELECT * FROM FACT_TRACKS WHERE disponible = 1) ft
+JOIN DIM_ALBUMS  al ON ft.album_id  = al.album_id
+JOIN DIM_ARTISTS a  ON ft.artist_id = a.artist_id
+WHERE lower(al.name) LIKE lower({pattern:String})
+GROUP BY al.album_id, al.name, al.release_year, al.imagen_url
+ORDER BY track_count DESC, al.album_id ASC
+LIMIT {limit:UInt32}
+"""

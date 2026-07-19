@@ -1,7 +1,7 @@
 import { apiClient, type ApiResponse } from '@shared/lib/api-client'
 import type {
   Permiso, AuditLogEntry, ErrorSistemaEntry, AsignarPermisoBody, DashboardSeguridad, CatalogoPermisos,
-  UsuarioAdmin, RolAdmin, Usuario360,
+  UsuarioAdmin, RolAdmin, Usuario360, Strike, StrikeEmitidoResultado,
 } from '../types'
 
 export type UsuariosAdminFiltros = {
@@ -65,4 +65,15 @@ export const seguridadApi = {
 
   reactivarUsuario: (usuarioId: string) =>
     apiClient.post<{ status: string; estado_cuenta: string }>(`/seguridad/admin/usuarios/${usuarioId}/reactivar`, {}),
+
+  // ── Sanciones (change p2-descubrimiento-comunidad, rol admin_comunidad) ─────
+  strikesDeUsuario: (usuarioId: string) =>
+    apiClient.get<{ data: Strike[]; total: number; activos: number }>(
+      `/seguridad/admin/usuarios/${usuarioId}/strikes`,
+    ),
+
+  emitirStrike: (usuarioId: string, motivo: string) =>
+    apiClient.post<StrikeEmitidoResultado>(
+      `/seguridad/admin/usuarios/${usuarioId}/strikes`, { motivo },
+    ),
 }

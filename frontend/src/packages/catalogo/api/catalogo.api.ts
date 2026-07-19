@@ -1,7 +1,14 @@
 import { apiClient, type ApiResponse } from '@shared/lib/api-client'
-import type { Track, TrackDetail, AudioFeatures, Artist, Album, Genre, TracksSearchParams } from '../types'
+import type { Track, TrackDetail, AudioFeatures, Artist, Album, Genre, TracksSearchParams, SearchAllResultado } from '../types'
 
 export const catalogoApi = {
+  // ── Búsqueda unificada (change p2-descubrimiento-comunidad) ─────────────────
+  // Una sola llamada para los 4 grupos, en vez de tres endpoints por entidad.
+  searchAll: (q: string, limit = 5) =>
+    apiClient.get<SearchAllResultado>(
+      `/search?q=${encodeURIComponent(q)}&limit=${limit}`,
+    ),
+
   // ── Tracks ──────────────────────────────────────────────────────────────────
   tracksTop: (limit = 20) =>
     apiClient.get<ApiResponse<Track>>(`/tracks/top?limit=${limit}`),

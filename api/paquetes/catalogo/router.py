@@ -1,10 +1,15 @@
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from core.database import execute, query_one, query_rows
+from core.deps import get_current_user_optional
+from paquetes.biblioteca import pb_playlists
 from paquetes.catalogo.queries import (
     ALBUM_DETAIL, ALBUMS_SEARCH,
     ARTIST_DETAIL, ARTISTS_SEARCH, ARTISTS_TOP,
     GENRE_DETAIL, GENRES_LIST,
+    SEARCH_ALBUMES_GRUPO, SEARCH_ARTISTAS_GRUPO, SEARCH_TRACKS_GRUPO,
     TRACK_DETAIL, TRACK_DETAIL_BY_FACT_ID,
     TRACK_DISPONIBILIDAD_POR_FACT,
     TRACKS_OCULTOS,
@@ -29,6 +34,63 @@ AUDIO_FEATURE_FIELDS = [
     "danceability", "energy", "valence",
     "acousticness", "speechiness", "instrumentalness", "liveness",
 ]
+
+
+logger = logging.getLogger(__name__)
+
+
+# ── Búsqueda unificada ────────────────────────────────────────────────────────
+
+@router.get("/search")
+async def search_all(
+    q: str = Query("", description="Término de búsqueda"),
+    limit: int = Query(5, ge=1, le=20, description="Máximo de resultados por grupo"),
+    user: dict | None = Depends(get_current_user_optional),
+):
+    """Búsqueda unificada multi-entidad (change p2-descubrimiento-comunidad).
+
+    Una sola llamada devuelve los cuatro grupos que el usuario espera de un
+    buscador de catálogo, en vez de obligarle a saber de antemano si busca un
+    track, un artista o un álbum. Los endpoints por entidad siguen existiendo.
+
+    Sesión opcional: las playlists incluyen las públicas de todos y, si hay
+    usuario autenticado, además las suyas privadas.
+    """
+    termino = q.strip()
+    if not termino:
+        return {"tracks": [], "artistas": [], "albumes": [], "playlists": []}
+
+    pattern = f"%{termino}%"
+    params = {"pattern": pattern, "limit": limit}
+    tracks = query_rows(SEARCH_TRACKS_GRUPO, params)
+    artistas = query_rows(SEARCH_ARTISTAS_GRUPO, params)
+    albumes = query_rows(SEARCH_ALBUMES_GRUPO, params)
+
+    # Las playlists viven en PocketBase, no en ClickHouse (design.md, Decisión
+    # 9). Un fallo de PocketBase degrada ese grupo a vacío en vez de tumbar toda
+    # la búsqueda: los tres grupos de catálogo ya son un resultado útil.
+    usuario_id = (user or {}).get("record", {}).get("id")
+    try:
+        crudas = await pb_playlists.buscar(termino, usuario_id, limit)
+        playlists = [
+            {
+                "playlist_id": p.get("id"),
+                "name": p.get("name"),
+                "es_publica": bool(p.get("es_publica")),
+                "es_propia": bool(usuario_id) and p.get("user") == usuario_id,
+            }
+            for p in crudas
+        ]
+    except Exception as exc:
+        logger.warning("Búsqueda de playlists no disponible: %s", exc)
+        playlists = []
+
+    return {
+        "tracks": tracks,
+        "artistas": artistas,
+        "albumes": albumes,
+        "playlists": playlists,
+    }
 
 
 # ── Tracks ────────────────────────────────────────────────────────────────────

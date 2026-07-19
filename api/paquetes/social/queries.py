@@ -99,6 +99,12 @@ _COMENTARIO_COLS = """
 # también del listado"). Un comentario `oculto` SÍ se devuelve — el frontend
 # decide sustituir `contenido` por un placeholder (design.md, "Listado
 # público de comentarios: excluye `eliminado`, conserva `oculto`").
+#
+# Bloqueo (change p2-descubrimiento-comunidad): los comentarios de un usuario
+# bloqueado desaparecen para quien lo bloqueó. El filtro es unidireccional a
+# propósito — solo mira los bloqueos EMITIDOS por el lector, no los recibidos:
+# ocultarle a alguien los comentarios de quien lo bloqueó le revelaría el
+# bloqueo, que es justo lo que un bloqueo debe evitar señalar (Decisión 4).
 COMENTARIOS_VISIBLES_DE_TRACK = f"""
 SELECT {_COMENTARIO_COLS}
 FROM FACT_COMENTARIO c
@@ -106,7 +112,53 @@ LEFT JOIN FACT_COMENTARIO p ON c.comentario_padre_id = p.fact_id
 WHERE c.fact_id_track = {{fact_id_track:UInt64}}
   AND c.estado_moderacion != 'eliminado'
   AND (c.comentario_padre_id IS NULL OR p.estado_moderacion != 'eliminado')
+  AND c.usuario_id NOT IN (
+      SELECT bloqueado_id FROM (
+          SELECT bloqueado_id, argMax(activo, actualizado_en) AS vigente
+          FROM BRIDGE_BLOQUEO_USUARIO
+          WHERE bloqueador_id = {{lector_id:String}}
+          GROUP BY bloqueado_id
+      ) WHERE vigente = 1
+  )
 ORDER BY c.fecha_creacion ASC
+"""
+
+
+# ── Bloqueo usuario-a-usuario (change p2-descubrimiento-comunidad) ───────────
+# BRIDGE_BLOQUEO_USUARIO es ReplacingMergeTree(actualizado_en) ORDER BY
+# (bloqueador_id, bloqueado_id): desbloquear es insertar una fila nueva con
+# activo=0, nunca un DELETE. Todas las lecturas resuelven con argMax porque el
+# merge puede no haber ocurrido todavía.
+
+BLOQUEO_VIGENTE = """
+SELECT argMax(activo, actualizado_en) AS activo
+FROM BRIDGE_BLOQUEO_USUARIO
+WHERE bloqueador_id = {bloqueador_id:String} AND bloqueado_id = {bloqueado_id:String}
+"""
+
+MIS_BLOQUEADOS = """
+SELECT b.bloqueado_id AS usuario_id, u.nombre AS nombre, b.created_at AS created_at
+FROM (
+    SELECT bloqueado_id, argMax(activo, actualizado_en) AS vigente, min(created_at) AS created_at
+    FROM BRIDGE_BLOQUEO_USUARIO
+    WHERE bloqueador_id = {bloqueador_id:String}
+    GROUP BY bloqueado_id
+) b
+LEFT JOIN DIM_USUARIO u ON u.usuario_id = b.bloqueado_id
+WHERE b.vigente = 1
+ORDER BY b.created_at DESC
+"""
+
+# ¿`candidato` fue bloqueado por `autor`? Gobierna si un usuario puede responder
+# a un comentario ajeno: el bloqueado no puede dirigirse a quien lo bloqueó.
+ME_BLOQUEO = """
+SELECT argMax(activo, actualizado_en) AS activo
+FROM BRIDGE_BLOQUEO_USUARIO
+WHERE bloqueador_id = {autor_id:String} AND bloqueado_id = {candidato_id:String}
+"""
+
+USUARIO_EXISTE = """
+SELECT count() AS n FROM DIM_USUARIO WHERE usuario_id = {usuario_id:String}
 """
 
 
@@ -207,6 +259,14 @@ FROM (
     LEFT JOIN DIM_USUARIO u ON u.usuario_id = s.usuario_id
     WHERE s.fact_id_track IS NOT NULL
       AND a.artist_id IN (SELECT artista_id FROM BRIDGE_SEGUIMIENTO_ARTISTA WHERE usuario_id = {usuario_id:String} AND activo = 1)
+)
+WHERE usuario_id NOT IN (
+    SELECT bloqueado_id FROM (
+        SELECT bloqueado_id, argMax(activo, actualizado_en) AS vigente
+        FROM BRIDGE_BLOQUEO_USUARIO
+        WHERE bloqueador_id = {usuario_id:String}
+        GROUP BY bloqueado_id
+    ) WHERE vigente = 1
 )
 ORDER BY fecha DESC
 LIMIT 30

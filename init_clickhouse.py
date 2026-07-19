@@ -29,6 +29,12 @@ DB   = os.getenv("CLICKHOUSE_DB",       "tracklytics")
 USER = os.getenv("CLICKHOUSE_USER",     "default")
 PASS = os.getenv("CLICKHOUSE_PASSWORD", "")
 
+# Fecha en que se añadió DIM_USUARIO.email_verificado (change
+# p2-descubrimiento-comunidad). Las cuentas anteriores a este corte se dan por
+# verificadas; las posteriores pasan por el flujo de verificación. Es una
+# constante fija a propósito: mueve el corte solo si se rehace la migración.
+FECHA_CORTE_VERIFICACION = "2026-07-19 00:00:00"
+
 # ── DDL ───────────────────────────────────────────────────────────────────────
 
 DDL_STATEMENTS = [
@@ -1298,6 +1304,53 @@ DDL_STATEMENTS = [
         actualizado_en DateTime DEFAULT now()
     ) ENGINE = ReplacingMergeTree(actualizado_en) ORDER BY denuncia_id
     """,
+
+    # ── Change p2-descubrimiento-comunidad: descubrimiento y comunidad ──────────
+    # BRIDGE_BLOQUEO_USUARIO: bloqueo dirigido de un usuario a otro. El desbloqueo
+    # es lógico (fila nueva con activo=0), nunca DELETE físico: el par
+    # (bloqueador_id, bloqueado_id) es la ORDER KEY y ReplacingMergeTree se queda
+    # con la versión de mayor `actualizado_en` (design.md, Decisión 5).
+    f"""
+    CREATE TABLE IF NOT EXISTS {DB}.BRIDGE_BLOQUEO_USUARIO (
+        bloqueador_id  String,
+        bloqueado_id   String,
+        activo         UInt8 DEFAULT 1,
+        created_at     DateTime DEFAULT now(),
+        actualizado_en DateTime DEFAULT now()
+    ) ENGINE = ReplacingMergeTree(actualizado_en)
+    ORDER BY (bloqueador_id, bloqueado_id)
+    """,
+
+    # FACT_STRIKE_USUARIO: historial de sanciones. `origen_tipo` distingue el
+    # strike emitido al resolver una denuncia ('denuncia', con origen_id =
+    # denuncia_id) del emitido a mano por un admin ('manual'). `activo` permite
+    # revocar un strike sin borrarlo: la regla de negocio cuenta 3 strikes
+    # ACTIVOS para suspender la cuenta (design.md, Decisión 5).
+    f"""
+    CREATE TABLE IF NOT EXISTS {DB}.FACT_STRIKE_USUARIO (
+        strike_id      UInt64,
+        usuario_id     String,
+        motivo         String,
+        origen_tipo    String DEFAULT 'manual',
+        origen_id      String DEFAULT '',
+        emitido_por    String,
+        activo         UInt8 DEFAULT 1,
+        created_at     DateTime DEFAULT now(),
+        actualizado_en DateTime DEFAULT now()
+    ) ENGINE = ReplacingMergeTree(actualizado_en) ORDER BY strike_id
+    """,
+
+    # Verificación de email (simulada, sin correo real). Nace en 0 para los
+    # registros nuevos; los usuarios que ya existían se marcan como verificados
+    # en el backfill de abajo para no bloquear cuentas en uso (Decisión 7).
+    f"ALTER TABLE {DB}.DIM_USUARIO ADD COLUMN IF NOT EXISTS email_verificado UInt8 DEFAULT 0",
+
+    # `proposito` ('recuperacion' | 'verificacion') discrimina los dos tipos de
+    # token que conviven en la misma tabla: el ciclo de vida es idéntico (UUID,
+    # expiración, un solo uso) y duplicar la tabla sería copiar el DDL entero
+    # (Decisión 6). El DEFAULT deja las filas de P0 bien clasificadas sin
+    # backfill. `proposito` no está en la ORDER KEY (token, created_at).
+    f"ALTER TABLE {DB}.FACT_TOKEN_RECUPERACION ADD COLUMN IF NOT EXISTS proposito String DEFAULT 'recuperacion'",
 ]
 
 # ── Runner ────────────────────────────────────────────────────────────────────
@@ -1584,6 +1637,33 @@ def main() -> None:
             print("✓ DIM_ROL_ADMINISTRATIVO sembrada (6 filas).")
     except Exception as exc:
         print(f"ERROR sembrando DIM_ROL_ADMINISTRATIVO: {exc}")
+
+    # Backfill de email_verificado (change p2-descubrimiento-comunidad): la
+    # columna nace en 0, así que sin este paso TODAS las cuentas ya registradas
+    # (incluidas las de demo y las de prueba por tier) quedarían sin verificar y
+    # no podrían comentar ni suscribirse. La regla solo debe aplicar a registros
+    # nuevos, de modo que se marcan como verificadas las cuentas anteriores a la
+    # migración (design.md, Decisión 7).
+    #
+    # El corte es una FECHA FIJA, no `email_verificado = 0` a secas: este bloque
+    # corre en cada `docker compose up`, y un filtro por el flag volvería a
+    # verificar a cualquiera que se hubiera registrado desde el arranque
+    # anterior y aún no hubiera verificado su correo. Acotado por
+    # fecha_registro el backfill es idempotente y solo alcanza a las cuentas que
+    # existían cuando se añadió la columna.
+    try:
+        pendientes = client.query(
+            f"SELECT count() FROM {DB}.DIM_USUARIO "
+            f"WHERE email_verificado = 0 AND fecha_registro < '{FECHA_CORTE_VERIFICACION}'"
+        ).result_rows[0][0]
+        if pendientes:
+            client.command(
+                f"ALTER TABLE {DB}.DIM_USUARIO UPDATE email_verificado = 1 "
+                f"WHERE email_verificado = 0 AND fecha_registro < '{FECHA_CORTE_VERIFICACION}'"
+            )
+            print(f"✓ email_verificado backfilleado ({pendientes} usuarios previos).")
+    except Exception as exc:
+        print(f"ERROR backfilleando email_verificado: {exc}")
 
 
 if __name__ == "__main__":

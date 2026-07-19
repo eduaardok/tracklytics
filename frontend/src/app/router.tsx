@@ -8,6 +8,7 @@ import { AppShell } from '@app/layout/AppShell'
 import { SeguridadShell } from '@app/layout/SeguridadShell'
 import { RouteLoadingFallback } from '@shared/components/RouteLoadingFallback'
 import { CatalogPage, TrackDetailPage, ArtistDetailPage, AlbumDetailPage, BibliotecaPage } from '@packages/catalogo'
+import { SearchResultsPage } from '@packages/catalogo/pages/SearchResultsPage'
 // Mismo motivo que el bloque de arriba (`@app/layout`): 6 de estos 7 barrels
 // (seguridad/facturacion/creadores/social/distribucion/experiencia) también
 // re-exportan una página con Recharts (los dashboards de S10 Día 3, ver
@@ -122,6 +123,10 @@ export const router = createBrowserRouter([
       // backend, api/paquetes/catalogo/router.py no gatea ningún endpoint).
       { index: true,        element: <CatalogPage /> },
       { path: 'catalog',    element: <CatalogPage /> },
+      // Búsqueda unificada (change p2-descubrimiento-comunidad): pública igual
+      // que el resto del catálogo — con sesión, además incluye las playlists
+      // privadas del usuario.
+      { path: 'buscar',     element: <SearchResultsPage /> },
       { path: 'catalogo/track/:factId',      element: <TrackDetailPage /> },
       { path: 'catalogo/artista/:artistaId', element: <ArtistDetailPage /> },
       { path: 'catalogo/album/:albumId',     element: <AlbumDetailPage /> },

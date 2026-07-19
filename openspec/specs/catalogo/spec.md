@@ -25,9 +25,7 @@ Tracklytics necesita una capa de exploración musical funcional para sostener el
 | Operativo | Usuario B2C / Cliente B2B | Catálogo y biblioteca personal | CU-O03 Consultar detalle de track/artista/álbum/género | Como Usuario B2C, quiero ver el detalle completo de un track, para conocer sus características antes de guardarlo |
 | Operativo | Usuario B2C | Catálogo y biblioteca personal | CU-O04 Gestionar favoritos y playlists | Como Usuario B2C, quiero guardar tracks en favoritos y organizarlos en playlists, para acceder rápido a mi música preferida |
 | Operativo | Usuario B2C | Catálogo y biblioteca personal | CU-O05 Consultar historial de reproducción | Como Usuario B2C, quiero ver mi historial de reproducción, para recordar qué he escuchado |
-
 ## Requirements
-
 ### Requirement: Búsqueda de catálogo musical
 El sistema SHALL permitir buscar tracks por nombre, artista o género contra FACT_TRACKS en ClickHouse, con resultados paginados, y SHALL responder en menos de 1 segundo bajo condiciones normales de carga (~700k registros en FACT_TRACKS).
 
@@ -201,6 +199,43 @@ Un Cliente B2B SHALL tener acceso de solo lectura al catálogo; no puede gestion
 #### Scenario: Cliente B2B intenta gestionar biblioteca personal
 - **WHEN** un Cliente B2B autenticado intenta agregar un favorito, crear una playlist o consultar un historial de reproducción
 - **THEN** el sistema rechaza la operación porque la biblioteca personal es exclusiva de Usuario B2C
+
+### Requirement: Takedown administrativo de un track
+El sistema SHALL permitir a un usuario con rol `admin_contenido` ocultar un track del catálogo (`FACT_TRACKS.disponible = 0`) y restaurarlo (`disponible = 1`). Un track oculto SHALL seguir existiendo en la base de datos pero SHALL NO aparecer en las consultas públicas de catálogo. Ambas acciones SHALL auditarse.
+
+#### Scenario: Ocultar un track
+- **WHEN** un `admin_contenido` oculta un track por su `fact_id`
+- **THEN** el track deja de aparecer en búsquedas y listados públicos, pero se conserva en la base de datos
+
+#### Scenario: Restaurar un track oculto
+- **WHEN** un `admin_contenido` restaura un track previamente oculto
+- **THEN** el track vuelve a aparecer en el catálogo público
+
+### Requirement: Filtrado de disponibilidad en el catálogo público
+El sistema SHALL filtrar por `disponible = 1` todas las consultas públicas de catálogo (listado, búsqueda, top, detalle, por artista, por álbum y por género), de modo que los tracks retirados no sean visibles.
+
+#### Scenario: Un track oculto no aparece en búsqueda
+- **WHEN** un usuario busca un track que ha sido ocultado
+- **THEN** el sistema no lo incluye en los resultados
+
+### Requirement: Búsqueda unificada multi-entidad
+El sistema SHALL ofrecer una búsqueda única que, a partir de un solo término, devuelva resultados agrupados por tipo de entidad: tracks, artistas, álbumes y playlists. Cada grupo SHALL estar limitado a un número máximo de resultados configurable por el cliente. La búsqueda SHALL respetar la disponibilidad del catálogo, de modo que los tracks retirados por takedown no aparezcan en ningún grupo, ni directamente ni a través de los artistas y álbumes que los contienen.
+
+#### Scenario: Buscar un término y obtener los cuatro grupos
+- **WHEN** un usuario busca un término presente en el catálogo
+- **THEN** el sistema devuelve un resultado con los grupos de tracks, artistas, álbumes y playlists, cada uno con como máximo el número de resultados solicitado
+
+#### Scenario: Un track retirado no aparece en la búsqueda unificada
+- **WHEN** un usuario busca un término que coincide con un track ocultado por takedown
+- **THEN** el sistema no incluye ese track en el grupo de tracks
+
+#### Scenario: Visibilidad de playlists en la búsqueda
+- **WHEN** un usuario busca un término que coincide con playlists
+- **THEN** el sistema devuelve únicamente las playlists públicas y, si el usuario está autenticado, además las suyas propias aunque sean privadas
+
+#### Scenario: Búsqueda sin sesión iniciada
+- **WHEN** un usuario sin sesión realiza una búsqueda unificada
+- **THEN** el sistema responde con normalidad e incluye únicamente playlists públicas
 
 ## Entradas
 

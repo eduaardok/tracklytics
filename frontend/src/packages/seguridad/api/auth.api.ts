@@ -1,5 +1,6 @@
 import { apiClient, type ApiResponse } from '@shared/lib/api-client'
 import { clearSession, getDeviceId, setSession, updateSessionUser, type SessionUser } from '@shared/lib/session'
+import type { MisDatos } from '../types'
 
 type PbAuthResponse = {
   token:  string
@@ -19,8 +20,9 @@ export type MiPerfil = {
   nombre:         string
   email:          string
   pais:           string
-  rol:            string
-  perfil_publico: boolean
+  rol:              string
+  perfil_publico:   boolean
+  email_verificado: boolean
 }
 
 export const ROLES_AUTO_REGISTRABLES = ['user', 'analyst'] as const
@@ -100,6 +102,24 @@ export const authApi = {
     apiClient.post<{ status: string }>('/seguridad/auth/restablecer', {
       token, nueva_password: nuevaPassword,
     }),
+
+  // Verificación de correo simulada (change p2-descubrimiento-comunidad): el
+  // token viaja en la respuesta porque no hay envío real de correo — mismo
+  // patrón que la recuperación de contraseña.
+  verificarEmail: (token: string) =>
+    apiClient.post<{ status: string; email_verificado: boolean }>(
+      '/seguridad/auth/verificar-email', { token },
+    ),
+
+  reenviarVerificacion: (email: string) =>
+    apiClient.post<{ status: string; mensaje: string; token_verificacion?: string }>(
+      '/seguridad/auth/reenviar-verificacion', { email },
+    ),
+
+  // Exportación de datos personales: devuelve el documento completo para que el
+  // navegador lo descargue como archivo.
+  misDatos: () =>
+    apiClient.get<MisDatos>('/seguridad/perfil/mis-datos'),
 
   // Baja de cuenta propia: irreversible — invalida sesiones y cancela la
   // suscripción activa. Tras la respuesta, se limpia la sesión local.
