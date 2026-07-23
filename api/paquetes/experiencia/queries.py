@@ -529,3 +529,44 @@ TICKETS_POR_ESTADO = "SELECT estado, count() AS total FROM FACT_TICKET_SOPORTE G
 
 TICKETS_ABIERTOS_TOTAL = "SELECT count() AS n FROM FACT_TICKET_SOPORTE WHERE estado IN ('abierto', 'en_proceso')"
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Reportes administrativos
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Panel de pruebas A/B: FACT_AB_TEST_EXPOSICION es MergeTree simple (no
+# versionada), así que un GROUP BY directo ya refleja el estado real sin
+# necesitar argMax.
+AB_TESTS_RESUMEN = """
+SELECT
+    experimento,
+    variante,
+    count() AS exposiciones,
+    min(fecha) AS primera_exposicion,
+    max(fecha) AS ultima_exposicion,
+    uniq(usuario_id) AS usuarios_unicos
+FROM FACT_AB_TEST_EXPOSICION
+GROUP BY experimento, variante
+ORDER BY experimento, variante
+"""
+
+# Panel de plan familiar (RF-EXP-008): una fila por suscripcion_id con el
+# titular resuelto vía maxIf(es_titular=1) — mismo shape que MIEMBROS_DE_
+# SUSCRIPCION pero agregado por familia, no expandido por miembro. `plan`
+# (tipo_plan de PocketBase) NO se resuelve acá: BRIDGE_SUSCRIPTOR_FAMILIA no
+# tiene esa columna (vive en PocketBase, misma decisión ya tomada para
+# `plan_activo` en `seguridad`) — se enriquece en el router con un lookup por
+# `familia_id` (= suscripcion_id de PocketBase).
+FAMILIAS_RESUMEN = """
+SELECT
+    f.suscripcion_id AS familia_id,
+    count() AS total_miembros,
+    maxIf(f.usuario_id, f.es_titular = 1) AS titular_id,
+    maxIf(u.nombre, f.es_titular = 1) AS titular_nombre,
+    maxIf(u.email, f.es_titular = 1) AS titular_email,
+    min(f.fecha_union) AS creada_en
+FROM BRIDGE_SUSCRIPTOR_FAMILIA f
+LEFT JOIN DIM_USUARIO u ON f.usuario_id = u.usuario_id
+GROUP BY f.suscripcion_id
+ORDER BY creada_en DESC
+"""
+

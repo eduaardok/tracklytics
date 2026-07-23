@@ -69,6 +69,28 @@ SELECT fact_id, usuario_destino_id, leido
 FROM FACT_NOTIFICACION WHERE fact_id = {fact_id:UInt64} LIMIT 1
 """
 
+# Panel de moderación: últimas 200 notificaciones de TODO el sistema, no por
+# usuario (a diferencia de NOTIFICACIONES_DE_USUARIO). FACT_NOTIFICACION es
+# MergeTree simple (no ReplacingMergeTree), así que el LEFT JOIN a DIM_USUARIO
+# no necesita resolverse con argMax — mismo criterio que AUDIT_LOG_RECIENTES/
+# ERRORES_RECIENTES en `seguridad`.
+NOTIFICACIONES_ADMIN = """
+SELECT
+    n.fact_id            AS fact_id,
+    n.usuario_destino_id  AS usuario_destino_id,
+    u.nombre              AS destinatario_nombre,
+    n.tipo                AS tipo,
+    n.referencia_tipo      AS referencia_tipo,
+    n.referencia_id        AS referencia_id,
+    n.mensaje              AS mensaje,
+    n.leido                AS leido,
+    n.fecha_creacion       AS fecha_creacion
+FROM FACT_NOTIFICACION n
+LEFT JOIN DIM_USUARIO u ON n.usuario_destino_id = u.usuario_id
+ORDER BY n.fecha_creacion DESC
+LIMIT 200
+"""
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Perfiles públicos/privados (S10 ronda 2)
 # ─────────────────────────────────────────────────────────────────────────────

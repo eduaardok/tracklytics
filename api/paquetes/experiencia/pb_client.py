@@ -33,6 +33,23 @@ async def _get_admin_token() -> str:
     return _admin_token
 
 
+async def obtener_por_id(suscripcion_id: str) -> dict | None:
+    """Suscripción por id (no por usuario) con token de superusuario — usada
+    por el reporte de familias (GET /admin/familias), donde el id disponible
+    es el de la suscripción (`familia_id` = `suscripcion_id`), no el de un
+    usuario en particular."""
+    token = await _get_admin_token()
+    async with httpx.AsyncClient(timeout=10) as client:
+        resp = await client.get(
+            f"{PB_URL}/api/collections/{SUSCRIPCIONES_COLLECTION}/records/{suscripcion_id}",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+    if resp.status_code == 404:
+        return None
+    resp.raise_for_status()
+    return resp.json()
+
+
 async def suscripcion_activa_de_usuario(usuario_id: str) -> dict | None:
     """Suscripción activa de cualquier usuario, resuelta con token de
     superusuario (no el del admin que hace la request) — necesario para que

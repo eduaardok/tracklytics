@@ -32,6 +32,7 @@ from paquetes.social.queries import (
     ME_BLOQUEO,
     MIS_BLOQUEADOS,
     NOTIFICACION_POR_ID,
+    NOTIFICACIONES_ADMIN,
     NOTIFICACIONES_DE_USUARIO,
     NOTIFICACIONES_NO_LEIDAS_TOTAL,
     PERFIL_PUBLICO_USUARIO,
@@ -553,6 +554,14 @@ def marcar_todas_leidas(user: dict = Depends(get_current_user)):
         {"usuario_id": usuario_id},
     )
     return {"status": "ok"}
+
+
+@router.get("/admin/notificaciones")
+def notificaciones_admin(admin: dict = Depends(require_admin)):
+    """Panel de moderación (`admin_comunidad`): últimas 200 notificaciones de
+    todo el sistema, a diferencia de GET /notificaciones que es autoservicio
+    de la propia bandeja."""
+    return {"notificaciones": query_rows(NOTIFICACIONES_ADMIN)}
 
 
 @router.patch("/notificaciones/{fact_id}/leer")

@@ -14,9 +14,11 @@ from paquetes.experiencia.deps import (
     get_current_user, require_admin, require_b2c_user, verify_analytics_access,
 )
 from paquetes.experiencia.queries import (
+    AB_TESTS_RESUMEN,
     COUNT_MIEMBROS_SUSCRIPCION,
     FACT_IDS_ESCUCHADOS_USUARIO,
     FACT_IDS_FAVORITOS_USUARIO,
+    FAMILIAS_RESUMEN,
     GENERO_DOMINANTE_USUARIO,
     GENEROS_FAVORITOS_USUARIO,
     GENEROS_MAS_ESCUCHADOS_USUARIO,
@@ -733,4 +735,31 @@ def dashboard_experiencia(admin: dict = Depends(require_admin)):
         "tickets_por_estado":   query_rows(TICKETS_POR_ESTADO),
         "tickets_abiertos_total": (query_one(TICKETS_ABIERTOS_TOTAL) or {}).get("n", 0),
     }
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Reportes administrativos
+# ─────────────────────────────────────────────────────────────────────────────
+
+@router.get("/admin/ab-tests")
+def ab_tests_resumen(admin: dict = Depends(require_admin)):
+    return {"tests": query_rows(AB_TESTS_RESUMEN)}
+
+
+@router.get("/admin/familias")
+async def familias_resumen(admin: dict = Depends(require_admin)):
+    """Panel de plan familiar (RF-EXP-008): a diferencia de GET /familia/
+    {suscripcion_id} (miembros de UNA familia ya conocida), este lista TODAS
+    las familias activas. `plan` se enriquece con un lookup a PocketBase por
+    familia — best-effort: si PocketBase falla o no encuentra el registro, se
+    degrada a 'familiar' (el único plan que admite plan familiar hoy, ver
+    crear_titular/crear_mi_plan_familiar arriba) sin tumbar el reporte."""
+    familias = query_rows(FAMILIAS_RESUMEN)
+    for f in familias:
+        try:
+            suscripcion = await pb_client.obtener_por_id(f["familia_id"])
+            f["plan"] = (suscripcion or {}).get("tipo_plan") or "familiar"
+        except Exception:
+            f["plan"] = "familiar"
+    return {"familias": familias}
 
