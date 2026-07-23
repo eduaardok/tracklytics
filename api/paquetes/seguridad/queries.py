@@ -346,6 +346,64 @@ SELECT argMax(email_verificado, actualizado_en) AS email_verificado
 FROM DIM_USUARIO WHERE usuario_id = {usuario_id:String}
 """
 
+# ── Informe de captación y registro (objetivo táctico "Captación y registro
+# de usuarios") ─────────────────────────────────────────────────────────────
+# `plan_activo` NO se une aquí: vive en PocketBase (suscripciones), igual que
+# ya decidió usuarios_listado_sql más arriba — se enriquece en el router con
+# UN solo lookup a PocketBase (no N+1 por fila). DIM_USUARIO es
+# ReplacingMergeTree(actualizado_en): se resuelve con argMax por usuario_id
+# antes de exponerla, mismo criterio que usuarios_admin_listado_sql. No existe
+# columna `ultimo_acceso` en DIM_USUARIO — se deriva de FACT_SESION
+# (max(fecha_inicio) por usuario), igual que ULTIMO_LOGIN_USUARIO. `rol` acá
+# es el rol ADMINISTRATIVO por área (BRIDGE_USUARIO_ROL_ADMIN, revocación =
+# borrado lógico igual que ROLES_ADMIN_VIGENTES), no el rol base de cuenta de
+# DIM_USUARIO — un usuario sin rol admin asignado cae en 'usuario'.
+USUARIOS_REPORTE = """
+SELECT
+    u.usuario_id    AS usuario_id,
+    u.nombre        AS nombre,
+    u.email         AS email,
+    u.pais          AS pais,
+    u.estado_cuenta AS estado_cuenta,
+    s.ultimo_acceso AS ultimo_acceso,
+    ifNull(r.rol_admin, 'usuario')  AS rol,
+    ifNull(cm.nombre, 'directo')    AS canal_adquisicion
+FROM (
+    SELECT
+        usuario_id,
+        argMax(nombre, actualizado_en)        AS nombre,
+        argMax(email, actualizado_en)         AS email,
+        argMax(pais, actualizado_en)          AS pais,
+        argMax(estado_cuenta, actualizado_en) AS estado_cuenta
+    FROM DIM_USUARIO
+    GROUP BY usuario_id
+) u
+LEFT JOIN (
+    SELECT usuario_id, max(fecha_inicio) AS ultimo_acceso
+    FROM FACT_SESION
+    GROUP BY usuario_id
+) s ON u.usuario_id = s.usuario_id
+LEFT JOIN (
+    SELECT usuario_id, rol_admin
+    FROM (
+        SELECT
+            usuario_id,
+            argMax(rol_admin, fecha) AS rol_admin,
+            argMax(revocado, fecha)  AS revocado
+        FROM BRIDGE_USUARIO_ROL_ADMIN
+        GROUP BY usuario_id
+    )
+    WHERE revocado = 0
+) r ON u.usuario_id = r.usuario_id
+LEFT JOIN (
+    SELECT usuario_id, argMax(canal_id, fecha) AS canal_id
+    FROM FACT_ADQUISICION
+    GROUP BY usuario_id
+) fa ON u.usuario_id = fa.usuario_id
+LEFT JOIN DIM_CANAL_MARKETING cm ON fa.canal_id = cm.canal_id
+ORDER BY s.ultimo_acceso DESC
+"""
+
 SESION_POR_ID = """
 SELECT sesion_id, usuario_id, dispositivo_id, fecha_inicio, fecha_fin
 FROM (

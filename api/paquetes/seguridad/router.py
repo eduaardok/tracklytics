@@ -37,6 +37,7 @@ from paquetes.seguridad.queries import (
     USUARIO_360_BASE,
     USUARIO_POR_ID,
     USUARIOS_BUSQUEDA,
+    USUARIOS_REPORTE,
     usuarios_admin_listado_sql,
     usuarios_admin_total_sql,
     usuarios_listado_sql,
@@ -935,3 +936,43 @@ def suspender_usuario(usuario_id: str, admin: dict = Depends(require_admin)):
 def reactivar_usuario(usuario_id: str, admin: dict = Depends(require_admin)):
     _cambiar_estado_cuenta(usuario_id, "activa", admin["record"]["id"], "reactivar_cuenta")
     return {"status": "ok", "estado_cuenta": "activa"}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Informe de captación y registro (objetivo táctico "Captación y registro de
+# usuarios"): listado enriquecido para reporting, no paginado (mismo criterio
+# de "reporte simple" que AUDIT_LOG_RECIENTES/ERRORES_RECIENTES).
+# ─────────────────────────────────────────────────────────────────────────────
+
+async def _mapa_planes_activos() -> dict[str, str]:
+    """usuario_id -> tipo_plan de la suscripción activa más reciente (excluye
+    'cancelada'). UN solo lookup a PocketBase para todo el reporte (no N+1 por
+    fila, mismo criterio ya documentado en usuarios_listado_sql de queries.py).
+    Best-effort: si PocketBase falla, el reporte sigue con todos en 'free' en
+    vez de tumbar el endpoint entero."""
+    planes: dict[str, str] = {}
+    try:
+        resp = await susc_pb.list_admin('estado!="cancelada"', page=1, per_page=500)
+        # list_admin ordena por -created: la primera aparición de un
+        # usuario_o_cliente es su suscripción no cancelada más reciente.
+        for item in resp.get("items", []):
+            uid = item.get("usuario_o_cliente")
+            if uid and uid not in planes:
+                planes[uid] = item.get("tipo_plan", "free")
+    except Exception:
+        pass
+    return planes
+
+
+@router.get("/admin/usuarios-reporte")
+async def usuarios_reporte(admin: dict = Depends(require_admin)):
+    usuarios = query_rows(USUARIOS_REPORTE)
+    planes = await _mapa_planes_activos()
+    for fila in usuarios:
+        fila["plan_activo"] = planes.get(fila["usuario_id"], "free")
+    return {"usuarios": usuarios}
+
+
+@router.get("/admin/strikes")
+def strikes_activos_global(admin: dict = Depends(require_comunidad_admin)):
+    return {"strikes": query_rows(strikes.STRIKES_ACTIVOS_GLOBAL)}
