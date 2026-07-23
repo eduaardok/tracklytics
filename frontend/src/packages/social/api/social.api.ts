@@ -7,7 +7,7 @@ import type {
   DashboardSocial, FeedItem,
   NotificacionesResultado, PerfilPublico,
   Denuncia, DenunciaBody, EstadoDenuncia,
-  ActualizarDenunciaResultado, UsuarioBloqueado,
+  ActualizarDenunciaResultado, UsuarioBloqueado, NotificacionAdmin,
 } from '../types'
 
 export const socialApi = {
@@ -99,4 +99,8 @@ export const socialApi = {
   // ── Perfiles públicos ────────────────────────────────────────────────────────
   perfilPublico: (usuarioId: string) =>
     apiClient.get<PerfilPublico>(`/social/usuarios/${usuarioId}/perfil`),
+
+  // ── Reportes administrativos (S12) ──────────────────────────────────────────
+  notificacionesAdmin: () =>
+    apiClient.get<{ notificaciones: NotificacionAdmin[] }>('/social/admin/notificaciones'),
 }

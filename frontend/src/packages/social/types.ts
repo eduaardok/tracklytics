@@ -167,3 +167,18 @@ export type UsuarioBloqueado = {
   nombre:     string
   created_at: string
 }
+
+// ── Reportes administrativos (S12) ──────────────────────────────────────────
+// A diferencia de `Notificacion` (autoservicio de la propia bandeja), este
+// listado es global y trae `destinatario_nombre` resuelto vía JOIN.
+export type NotificacionAdmin = {
+  fact_id:             number
+  usuario_destino_id:  string
+  destinatario_nombre: string | null
+  tipo:                TipoNotificacion
+  referencia_tipo:     ReferenciaNotificacion
+  referencia_id:       string
+  mensaje:             string
+  leido:               number
+  fecha_creacion:      string
+}

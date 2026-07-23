@@ -111,3 +111,24 @@ export type DashboardExperiencia = {
   tickets_por_estado:     { estado: string; total: number }[]
   tickets_abiertos_total: number
 }
+
+// ── Reportes administrativos (S12) ──────────────────────────────────────────
+
+export type AbTestResumen = {
+  experimento:        string
+  variante:           string
+  exposiciones:       number
+  primera_exposicion: string
+  ultima_exposicion:  string
+  usuarios_unicos:    number
+}
+
+export type FamiliaResumen = {
+  familia_id:     string
+  total_miembros: number
+  titular_id:     string | null
+  titular_nombre: string | null
+  titular_email:  string | null
+  creada_en:      string
+  plan:           string
+}

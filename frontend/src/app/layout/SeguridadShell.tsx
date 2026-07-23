@@ -94,6 +94,24 @@ export function SeguridadShell() {
           <NavLink to="/seguridad/ingesta/calidad" className={({ isActive }) => isActive ? ACTIVE_CLS : INACTIVE_CLS}>
             Calidad de datos
           </NavLink>
+
+          {/* ── Reportes administrativos (S12) ── */}
+          <span className={styles.sectionLabel}>Reportes</span>
+          <NavLink to="/seguridad/reporte-usuarios" className={({ isActive }) => isActive ? ACTIVE_CLS : INACTIVE_CLS}>
+            Usuarios
+          </NavLink>
+          <NavLink to="/seguridad/reporte-strikes" className={({ isActive }) => isActive ? ACTIVE_CLS : INACTIVE_CLS}>
+            Strikes
+          </NavLink>
+          <NavLink to="/seguridad/reporte-ab-tests" className={({ isActive }) => isActive ? ACTIVE_CLS : INACTIVE_CLS}>
+            Pruebas A/B
+          </NavLink>
+          <NavLink to="/seguridad/reporte-notificaciones" className={({ isActive }) => isActive ? ACTIVE_CLS : INACTIVE_CLS}>
+            Notificaciones
+          </NavLink>
+          <NavLink to="/seguridad/reporte-familias" className={({ isActive }) => isActive ? ACTIVE_CLS : INACTIVE_CLS}>
+            Familias
+          </NavLink>
         </nav>
 
         <main className={styles.main}>

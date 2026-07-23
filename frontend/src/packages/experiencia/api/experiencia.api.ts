@@ -3,7 +3,7 @@ import type {
   EstadoTicket, MiFamilia, MixDiario, PlanFamiliar, RadioResultado,
   Recomendacion, SeccionRecomendaciones,
   SincronizacionResultado, Ticket, TicketBody, TopTrackPlaylist,
-  DashboardExperiencia,
+  DashboardExperiencia, AbTestResumen, FamiliaResumen,
 } from '../types'
 
 export const experienciaApi = {
@@ -84,4 +84,11 @@ export const experienciaApi = {
 
   dashboard: () =>
     apiClient.get<DashboardExperiencia>('/experiencia/admin/dashboard'),
+
+  // ── Reportes administrativos (S12) ──────────────────────────────────────────
+  abTests: () =>
+    apiClient.get<{ tests: AbTestResumen[] }>('/experiencia/admin/ab-tests'),
+
+  familiasReporte: () =>
+    apiClient.get<{ familias: FamiliaResumen[] }>('/experiencia/admin/familias'),
 }

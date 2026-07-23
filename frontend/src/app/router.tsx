@@ -107,6 +107,15 @@ const AdminTracksPage        = lazyNamed(() => import('@packages/catalogo/pages/
 const AdminPartnersPage      = lazyNamed(() => import('@packages/partners/pages/AdminPartnersPage'), 'AdminPartnersPage')
 const AdminSuscripcionesPage = lazyNamed(() => import('@packages/suscripciones/pages/AdminSuscripcionesPage'), 'AdminSuscripcionesPage')
 
+// Reportes administrativos (S12) — mismo motivo que el bloque de arriba:
+// admin-only, se lazy-cargan por consistencia con el resto del árbol de
+// administración, aunque ninguno traiga Recharts propio.
+const ReporteUsuariosPage      = lazyNamed(() => import('@packages/seguridad/pages/ReporteUsuariosPage'), 'ReporteUsuariosPage')
+const StrikesGlobalPage        = lazyNamed(() => import('@packages/seguridad/pages/StrikesGlobalPage'), 'StrikesGlobalPage')
+const AbTestsPage              = lazyNamed(() => import('@packages/experiencia/pages/AbTestsPage'), 'AbTestsPage')
+const NotificacionesAdminPage  = lazyNamed(() => import('@packages/social/pages/NotificacionesAdminPage'), 'NotificacionesAdminPage')
+const FamiliasReportePage      = lazyNamed(() => import('@packages/experiencia/pages/FamiliasReportePage'), 'FamiliasReportePage')
+
 export const router = createBrowserRouter([
   { path: '/login',      element: <LoginPage /> },
   { path: '/register',   element: <RegisterPage /> },
@@ -243,6 +252,12 @@ export const router = createBrowserRouter([
       { path: 'ingesta',                element: <EtlPage /> },
       { path: 'ingesta/dimensiones',    element: <CrudDimensionesPage /> },
       { path: 'ingesta/calidad',        element: <DataQualityPage /> },
+      // ── Reportes administrativos (S12) ──────────────────────────────────────
+      { path: 'reporte-usuarios',       element: <ReporteUsuariosPage /> },
+      { path: 'reporte-strikes',        element: <StrikesGlobalPage /> },
+      { path: 'reporte-ab-tests',       element: <AbTestsPage /> },
+      { path: 'reporte-notificaciones', element: <NotificacionesAdminPage /> },
+      { path: 'reporte-familias',       element: <FamiliasReportePage /> },
     ],
   },
 ])

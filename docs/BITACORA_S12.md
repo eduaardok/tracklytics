@@ -157,3 +157,101 @@ vía `POST /app/v1/seguridad/auth/login`:
 | `api/paquetes/experiencia/router.py` | Ampliado — `GET /admin/ab-tests`, `GET /admin/familias` |
 | `api/paquetes/social/queries.py` | Ampliado — `NOTIFICACIONES_ADMIN` |
 | `api/paquetes/social/router.py` | Ampliado — `GET /admin/notificaciones` |
+
+---
+
+## Bloque 3 — Frontend de los 5 reportes admin (23 jul 2026)
+
+5 páginas nuevas que consumen los endpoints de los Bloques 1 y 2, agregadas como una sección
+"Reportes" nueva en el sidebar de `SeguridadShell`. Sigue el patrón exacto de las páginas admin
+existentes (`AuditoriaPage`/`UsuariosAdminPage`): `useQuery` de TanStack Query contra un método de
+`*.api.ts` (que envuelve `apiClient`, el cual ya inyecta el token de `localStorage` y prefija
+`/app/v1`), estado de carga/error/vacío explícito, y estilos vía el CSS module compartido de cada
+paquete (`SeguridadPages.module.css` / `ExperienciaPages.module.css` / `SocialPages.module.css`) —
+cero CSS ad-hoc por página, cero dependencia nueva.
+
+### Páginas
+| Página | Paquete | Ruta | Consume |
+|---|---|---|---|
+| `ReporteUsuariosPage` | `seguridad` | `/seguridad/reporte-usuarios` | `GET /seguridad/admin/usuarios-reporte` |
+| `StrikesGlobalPage` | `seguridad` | `/seguridad/reporte-strikes` | `GET /seguridad/admin/strikes` |
+| `AbTestsPage` | `experiencia` | `/seguridad/reporte-ab-tests` | `GET /experiencia/admin/ab-tests` |
+| `NotificacionesAdminPage` | `social` | `/seguridad/reporte-notificaciones` | `GET /social/admin/notificaciones` |
+| `FamiliasReportePage` | `experiencia` | `/seguridad/reporte-familias` | `GET /experiencia/admin/familias` |
+
+Las 3 últimas viven bajo `/seguridad/*` aunque su código está en `experiencia`/`social` — mismo
+patrón ya establecido por `FamiliaAdminPage`/`ModeracionSocialPage`/`DistribucionAdminPage`: el
+árbol `/seguridad` es el back-office transversal, no un espejo 1:1 del paquete de código.
+
+### Decisiones de diseño
+- **Filtros de `ReporteUsuariosPage` (país/plan/rol) son client-side**: el endpoint no pagina ni
+  filtra (es un reporte simple, no un listado administrativo con `WHERE` en ClickHouse) y el
+  volumen esperado (usuarios totales, no eventos) no justifica ida y vuelta al backend por cada
+  cambio de filtro. Las opciones de cada `<select>` se derivan con `useMemo` de los propios datos
+  ya cargados (`Array.from(new Set(...))`), tal como pedía el enunciado — no de un catálogo aparte.
+- **Las 5 páginas se agregan al router vía `lazyNamed`** (no import directo), igual que el resto
+  del árbol admin en `router.tsx` — ninguna trae Recharts propio, pero se lazy-cargan "por
+  consistencia" (comentario ya existente en el archivo para `EtlPage`/`CrudDimensionesPage`): son
+  admin-only, nunca están en el camino crítico de carga de un usuario B2C.
+- **`SocialPages.module.css` no tenía tabla plana** (solo el patrón `queue*`, pensado para
+  denuncias/comentarios uno-por-tarjeta) — se agregó `.tablePanel`/`.table` copiando exactamente
+  las mismas reglas ya presentes en `ExperienciaPages.module.css` (el comentario de cabecera de
+  ambos archivos ya declara "mismo lenguaje visual" entre ellos, así que no es una convención
+  nueva). Igual se agregó `.userCell`/`.userCellName`/`.userCellMeta` a `ExperienciaPages.module.css`
+  (celda apilada nombre+email), reutilizando el patrón que ya existía solo en
+  `SeguridadPages.module.css`.
+- **Separador "Reportes" en el sidebar**: `<span className={styles.sectionLabel}>` + `border-top`,
+  usando los tokens reales del theme (`--color-muted`, `--color-border`) en vez de los valores hex
+  de fallback sugeridos en el enunciado (`#888`/`#333`) — ese shell ya tiene esos tokens definidos
+  y usarlos evita un color fijo que no respetaría un futuro retema.
+
+### Hallazgo real corregido en verificación: `canal_adquisicion`/`rol` siempre vacíos
+Verificando `ReporteUsuariosPage` con datos reales, las columnas Canal y Rol aparecían vacías para
+usuarios sin canal de adquisición o sin rol administrativo asignado, en vez de mostrar los defaults
+`'directo'`/`'usuario'` que `USUARIOS_REPORTE` (Bloque 1) ya declaraba con `ifNull(...)`. Causa
+raíz: un `LEFT JOIN` en ClickHouse sin fila que matchee NO rellena el lado derecho con `NULL`
+sino con el valor por defecto del tipo de la columna — `''` para una `String` no-Nullable
+(`cm.nombre`/`r.rol_admin`, ambas `String` sin `Nullable()`) — así que `ifNull` nunca se disparaba:
+el valor ya "existía" como cadena vacía, no como NULL. Corregido envolviendo ambas columnas con
+`nullIf(columna, '')` antes del `ifNull` (`api/paquetes/seguridad/queries.py`, `USUARIOS_REPORTE`).
+Sin este fix, el filtro de "Canal"/"Rol" del frontend habría mostrado una opción `""` fantasma en
+vez de agrupar correctamente esas filas bajo "directo"/"usuario".
+
+### Verificación
+`docker compose up --build -d` (backend) + `npm run dev -- --port 5173` (frontend, proxy ya
+apuntaba a `localhost:8000`). `npm run build` sin errores — las 5 páginas salen como chunks lazy
+independientes (1.6–2.9 kB cada una); el bundle principal (`index-*.js`) queda en 528.86 kB, en
+línea con el crecimiento esperado de agregar 5 rutas lazy (S11 lo dejó en 526.7 kB).
+
+Verificación real de UI con Playwright (login real contra `s10r2_admin@test.com`, sesión inyectada
+en `localStorage` como hace la app tras un login real, no mockeada): las 5 rutas cargan su `<h1>`
+correcto, su tabla con filas reales (96/3/1/4/5 respectivamente — `reporte-ab-tests` muestra el
+estado vacío esperado, ver Bloque 2), el sidebar muestra la sección "Reportes" con los 5 enlaces,
+y cero errores de consola en las 5 navegaciones. Se verificó además que el filtro de país de
+`ReporteUsuariosPage` reduce correctamente las filas (96 → 44 al filtrar `EC`) y que las opciones
+de los 3 `<select>` reflejan valores reales del dataset (incluyendo datos de prueba "sucios" como
+`Narnia`/`Ecuador` junto a `EC`, evidencia de que se derivan dinámicamente y no de un catálogo
+curado). Frontend detenido (`Ctrl+C` al proceso de `vite`) y stack de Docker detenido
+(`docker compose down`) al cierre de la sesión.
+
+### Artefactos entregados (Bloque 3)
+
+| Artefacto | Estado |
+|---|---|
+| `frontend/src/packages/seguridad/pages/ReporteUsuariosPage.tsx` | Nuevo |
+| `frontend/src/packages/seguridad/pages/StrikesGlobalPage.tsx` | Nuevo |
+| `frontend/src/packages/experiencia/pages/AbTestsPage.tsx` | Nuevo |
+| `frontend/src/packages/experiencia/pages/FamiliasReportePage.tsx` | Nuevo |
+| `frontend/src/packages/social/pages/NotificacionesAdminPage.tsx` | Nuevo |
+| `frontend/src/packages/seguridad/types.ts` | Ampliado — `UsuarioReporte`, `StrikeGlobal` |
+| `frontend/src/packages/experiencia/types.ts` | Ampliado — `AbTestResumen`, `FamiliaResumen` |
+| `frontend/src/packages/social/types.ts` | Ampliado — `NotificacionAdmin` |
+| `frontend/src/packages/seguridad/api/seguridad.api.ts` | Ampliado — `usuariosReporte`, `strikesGlobal` |
+| `frontend/src/packages/experiencia/api/experiencia.api.ts` | Ampliado — `abTests`, `familiasReporte` |
+| `frontend/src/packages/social/api/social.api.ts` | Ampliado — `notificacionesAdmin` |
+| `frontend/src/packages/experiencia/pages/ExperienciaPages.module.css` | Ampliado — `.userCell`/`.userCellName`/`.userCellMeta` |
+| `frontend/src/packages/social/pages/SocialPages.module.css` | Ampliado — `.tablePanel`/`.table` |
+| `frontend/src/app/layout/SeguridadShell.tsx` | Ampliado — sección "Reportes" (5 `NavLink`) |
+| `frontend/src/app/layout/SeguridadShell.module.css` | Ampliado — `.sectionLabel` |
+| `frontend/src/app/router.tsx` | Ampliado — 5 rutas lazy nuevas bajo `/seguridad/*` |
+| `api/paquetes/seguridad/queries.py` | Corregido — `USUARIOS_REPORTE`: `nullIf(..., '')` antes de `ifNull` |

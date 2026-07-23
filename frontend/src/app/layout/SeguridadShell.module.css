@@ -104,6 +104,21 @@
   background-color: oklch(0.48 0.15 290 / 0.14);
 }
 
+/* Separador de la sección "Reportes" (S12) — mismo criterio visual que el
+   resto del sidebar, sin introducir un segundo componente de navegación. */
+.sectionLabel {
+  display: block;
+  font-family: var(--font-sans);
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-muted);
+  padding: var(--space-md) var(--space-md) var(--space-xs);
+  margin-top: var(--space-xs);
+  border-top: 1px solid var(--color-border);
+}
+
 .main {
   flex: 1;
   min-width: 0;

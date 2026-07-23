@@ -116,6 +116,32 @@ export type StrikeEmitidoResultado = {
   cuenta_suspendida: boolean
 }
 
+// ── Reportes administrativos (S12) ──────────────────────────────────────────
+
+export type UsuarioReporte = {
+  usuario_id:        string
+  nombre:            string
+  email:             string
+  pais:              string
+  estado_cuenta:     EstadoCuenta
+  ultimo_acceso:     string | null
+  rol:               string
+  canal_adquisicion: string
+  plan_activo:       string
+}
+
+export type StrikeGlobal = {
+  strike_id:      number
+  usuario_id:     string
+  usuario_nombre: string | null
+  usuario_email:  string | null
+  motivo:         string
+  origen_tipo:    'denuncia' | 'manual'
+  origen_id:      string
+  emitido_por:    string
+  created_at:     string
+}
+
 // ── Exportación de datos personales (change p2-descubrimiento-comunidad) ─────
 
 export type MisDatos = {

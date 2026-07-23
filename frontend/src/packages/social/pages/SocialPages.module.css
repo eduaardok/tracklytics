@@ -493,6 +493,42 @@
 
 .strikeMotivo:focus { border-color: var(--color-primary); }
 
+/* ── Tabla simple (S12, reportes admin) ──
+   Mismo lenguaje visual que `tablePanel`/`.table` de ExperienciaPages.module.css
+   — este paquete no tenía tabla plana todavía (solo el patrón `queue*` de
+   arriba, pensado para tarjetas de una denuncia/comentario por fila, no para
+   datos tabulares). */
+.tablePanel {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  overflow-x: auto;
+  margin-bottom: var(--space-xl);
+}
+
+.table { width: 100%; border-collapse: collapse; }
+
+.table th {
+  text-align: left;
+  font-family: var(--font-sans);
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--color-muted);
+  padding: 10px var(--space-md);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.table td {
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  color: var(--color-ink);
+  padding: 10px var(--space-md);
+  vertical-align: middle;
+}
+
+.table tbody tr + tr td { border-top: 1px solid var(--color-border); }
+.table tbody tr:hover { background: var(--color-surface-raised); }
+
 /* ── Badges ── */
 .badge {
   display: inline-flex;

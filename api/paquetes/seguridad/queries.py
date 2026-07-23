@@ -358,6 +358,12 @@ FROM DIM_USUARIO WHERE usuario_id = {usuario_id:String}
 # es el rol ADMINISTRATIVO por área (BRIDGE_USUARIO_ROL_ADMIN, revocación =
 # borrado lógico igual que ROLES_ADMIN_VIGENTES), no el rol base de cuenta de
 # DIM_USUARIO — un usuario sin rol admin asignado cae en 'usuario'.
+# `nullIf(..., '')` antes de `ifNull` en ambas columnas (no un `ifNull` a
+# secas): un LEFT JOIN sin match en ClickHouse no rellena el lado derecho con
+# NULL sino con el valor por defecto del tipo de columna — '' para String no
+# Nullable (`r.rol_admin`/`cm.nombre`) — así que `ifNull` solo nunca disparaba
+# el default y el reporte mostraba "" en vez de 'usuario'/'directo' (hallazgo
+# real de verificación end-to-end con Playwright, ver BITACORA_S12).
 USUARIOS_REPORTE = """
 SELECT
     u.usuario_id    AS usuario_id,
@@ -366,8 +372,8 @@ SELECT
     u.pais          AS pais,
     u.estado_cuenta AS estado_cuenta,
     s.ultimo_acceso AS ultimo_acceso,
-    ifNull(r.rol_admin, 'usuario')  AS rol,
-    ifNull(cm.nombre, 'directo')    AS canal_adquisicion
+    ifNull(nullIf(r.rol_admin, ''), 'usuario')  AS rol,
+    ifNull(nullIf(cm.nombre, ''), 'directo')    AS canal_adquisicion
 FROM (
     SELECT
         usuario_id,

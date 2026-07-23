@@ -2,6 +2,7 @@ import { apiClient, type ApiResponse } from '@shared/lib/api-client'
 import type {
   Permiso, AuditLogEntry, ErrorSistemaEntry, AsignarPermisoBody, DashboardSeguridad, CatalogoPermisos,
   UsuarioAdmin, RolAdmin, Usuario360, Strike, StrikeEmitidoResultado,
+  UsuarioReporte, StrikeGlobal,
 } from '../types'
 
 export type UsuariosAdminFiltros = {
@@ -76,4 +77,11 @@ export const seguridadApi = {
     apiClient.post<StrikeEmitidoResultado>(
       `/seguridad/admin/usuarios/${usuarioId}/strikes`, { motivo },
     ),
+
+  // ── Reportes administrativos (S12) ──────────────────────────────────────────
+  usuariosReporte: () =>
+    apiClient.get<{ usuarios: UsuarioReporte[] }>('/seguridad/admin/usuarios-reporte'),
+
+  strikesGlobal: () =>
+    apiClient.get<{ strikes: StrikeGlobal[] }>('/seguridad/admin/strikes'),
 }

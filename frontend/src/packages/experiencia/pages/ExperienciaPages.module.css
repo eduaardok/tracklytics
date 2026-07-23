@@ -195,6 +195,25 @@
 
 .tableActions { display: flex; gap: 6px; justify-content: flex-end; }
 
+/* Celda titular (S12, reporte de familias) — nombre + email apilados, mismo
+   patrón que `.userCell` de seguridad/SeguridadPages.module.css. */
+.userCell {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  white-space: nowrap;
+}
+
+.userCellName {
+  font-family: var(--font-sans);
+  color: var(--color-ink);
+}
+
+.userCellMeta {
+  font-size: 0.75rem;
+  color: var(--color-muted);
+}
+
 /* ── Recomendaciones ("Para ti") ──
    Filas con portada, no tabla de texto plano — mismo lenguaje visual que
    TrackCard/LibraryTrackRow (catálogo/biblioteca) en vez de un componente
