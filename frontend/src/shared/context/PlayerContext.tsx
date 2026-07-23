@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
+import { experienciaApi } from '@packages/experiencia/api/experiencia.api'
 
 export type PlayableTrack = {
   fact_id:     number
@@ -28,6 +29,14 @@ type PlayerContextValue = {
   play:             (track: PlayableTrack) => void
   togglePlay:       () => void
   seek:             (ms: number) => void
+  // Corta la reproducción por completo y limpia el track actual — a
+  // diferencia de `togglePlay` (pausa, conserva `currentTrack`/cola), esto
+  // deja el reproductor como si nunca se hubiera tocado play. Usado desde
+  // `UserMenu::handleLogout`: sin esto, cerrar sesión mientras algo suena
+  // dejaba el audio (o el tono simulado) corriendo detrás del login con una
+  // sesión ya invalidada, y el siguiente track de la cola intentaba
+  // reproducirse contra un token que el backend ya no reconoce.
+  stop:             () => void
   // Los call-sites de `registrarReproduccion` (TrackCard/TrackDetailPage/
   // LibraryTrackRow) llaman esto cuando el backend devuelve 403 — antes ese
   // error se descartaba en silencio y el track seguía "reproduciéndose" sin
@@ -59,17 +68,21 @@ const TICK_MS = 500
 // resuelve ningún medio real (se queda en el estado UNSTARTED, sin avanzar a PLAYING). Sin este
 // watchdog, ese caso no cae en el fallback simulado porque técnicamente no es un error.
 const YT_PLAYBACK_WATCHDOG_MS = 4500
-const YT_HOST_ID = 'tracklytics-yt-audio-host'
 
 // ── Carga perezosa de la YouTube IFrame Player API (una sola vez, global) ───
-// Sin necesidad de API key: `playerVars.listType = 'search'` es un parámetro
-// documentado del IFrame Player API que reproduce el primer resultado de una
-// búsqueda de texto — la "búsqueda por texto ejecutada desde el propio
-// cliente" que pide RF-EXP-010, sin backend ni credencial de por medio.
+// RF-EXP-010, corrección post-lanzamiento: la implementación original pasaba
+// `playerVars.listType = 'search'` directo al IFrame Player API para
+// resolver "artista + track" a un video sin backend ni API key. YouTube
+// deprecó ese valor de `listType` el 15/11/2020 — el player lo sigue
+// aceptando (onReady dispara, onError no) pero el <video> interno nunca
+// resuelve media real (ver `YT_PLAYBACK_WATCHDOG_MS` más abajo, que
+// diagnosticó justo ese síntoma). La búsqueda de texto ahora se resuelve en
+// el backend vía `experienciaApi.resolverYoutubeVideoId` (YouTube Data API
+// v3, `search.list`) antes de instanciar el player con un `videoId` real.
 declare global {
   interface Window {
     YT?: {
-      Player: new (elId: string, opts: Record<string, unknown>) => YTPlayerInstance
+      Player: new (el: string | HTMLElement, opts: Record<string, unknown>) => YTPlayerInstance
       PlayerState: { PLAYING: number; PAUSED: number; ENDED: number }
     }
     onYouTubeIframeAPIReady?: () => void
@@ -160,6 +173,19 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
 
   const timerRef        = useRef<ReturnType<typeof setInterval> | null>(null)
   const ytPlayerRef      = useRef<YTPlayerInstance | null>(null)
+  // Contenedor que React sí posee (nunca lo mutan directamente ni YT ni
+  // nadie): el hijo que YT.Player reemplaza por su <iframe> se crea abajo con
+  // `document.createElement`, fuera del árbol virtual — así React jamás
+  // intenta reconciliar un nodo que la IFrame API ya reemplazó por su cuenta.
+  // Antes se le pasaba a `new YT.Player(id, ...)` el id de un <div> renderizado
+  // por JSX: la API reemplaza ESE nodo por un <iframe> in-place sin que React
+  // se entere, y el próximo re-render de `PlayerProvider` (el ticker de
+  // progreso corre cada `TICK_MS`) hacía crashear la app entera con
+  // "NotFoundError: insertBefore/removeChild ... not a child of this node" —
+  // invisible mientras `listType: 'search'` nunca llegaba a reproducir de
+  // verdad, pero garantizado en cuanto la reproducción real funciona y sigue
+  // corriendo más allá del primer tick.
+  const ytHostRef        = useRef<HTMLDivElement | null>(null)
   const simulatedRef     = useRef<SimulatedNodes | null>(null)
   // Espejos en ref de `queue`/`volume`: los callbacks de larga vida (el timer
   // de progreso simulado, los handlers del YT.Player) se crean una vez por
@@ -189,6 +215,12 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   const destroyYtPlayer = useCallback(() => {
     ytPlayerRef.current?.destroy()
     ytPlayerRef.current = null
+    // `destroy()` ya remueve el <iframe>, pero si la creación del player
+    // falló a mitad de camino (ej. `new YT.Player` lanzó después de haber
+    // insertado el div hijo) puede quedar un nodo huérfano — se limpia el
+    // contenedor explícitamente para que el próximo `play()` arranque de un
+    // wrapper vacío, nunca con dos hijos superpuestos.
+    if (ytHostRef.current) ytHostRef.current.innerHTML = ''
   }, [])
 
   const stopSimulated = useCallback(() => {
@@ -272,12 +304,18 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       return
     }
 
-    loadYouTubeApi().then(() => {
+    const query = `${track.artist_name} ${track.track_name}`
+    // Resolver el videoId (backend) y cargar la IFrame API en paralelo — son
+    // independientes, y esperar a una antes de empezar la otra solo suma
+    // latencia al arranque de la reproducción.
+    Promise.all([
+      experienciaApi.resolverYoutubeVideoId(query).then((r) => r.video_id),
+      loadYouTubeApi(),
+    ]).then(([videoId]) => {
       // Un play() posterior (u otro track) ya invalidó este intento — no
       // pisar el estado del track actualmente activo.
-      if (token !== playTokenRef.current || !window.YT) return
+      if (token !== playTokenRef.current || !window.YT || !ytHostRef.current) return
 
-      const query = `${track.artist_name} ${track.track_name}`
       // Cerradas sobre esta invocación de play() específica (una por token) —
       // no hace falta un ref, cada intento tiene su propia closure.
       let startedPlaying = false
@@ -290,11 +328,18 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
         fallbackTriggered = true
         startSimulatedPlayback(track, token)
       }
+      // Nodo creado fuera de React (nunca vía JSX): es el que la IFrame API
+      // reemplaza por su <iframe>, así que React no debe conocerlo ni
+      // intentar reconciliarlo — ver comentario de `ytHostRef` más arriba.
+      ytHostRef.current.innerHTML = ''
+      const playerHost = document.createElement('div')
+      ytHostRef.current.appendChild(playerHost)
       try {
-        const player = new window.YT.Player(YT_HOST_ID, {
+        const player = new window.YT.Player(playerHost, {
           height: '0',
           width:  '0',
-          playerVars: { listType: 'search', list: query, autoplay: 1 },
+          videoId,
+          playerVars: { autoplay: 1 },
           events: {
             onReady: () => {
               player.playVideo()
@@ -342,10 +387,29 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
         startSimulatedPlayback(track, token)
       }
     }).catch(() => {
-      // Rechazo de `loadYouTubeApi()` (script bloqueado/timeout, ver arriba).
+      // Rechazo de cualquiera de las dos promesas: `resolverYoutubeVideoId`
+      // (sin resultados, sin `YOUTUBE_API_KEY` configurada en el backend, o
+      // fallo de red — el backend responde 404 en los tres casos) o
+      // `loadYouTubeApi()` (script bloqueado/timeout, ver arriba).
       startSimulatedPlayback(track, token)
     })
   }, [clearTimer, destroyYtPlayer, stopSimulated, startSimulatedPlayback])
+
+  const stop = useCallback(() => {
+    // Invalida cualquier `play()` en vuelo (ej. la promesa de
+    // `resolverYoutubeVideoId` que todavía no resolvió) — sin esto, esa
+    // respuesta llegaría después y arrancaría el player igual, ignorando el
+    // stop.
+    playTokenRef.current += 1
+    clearTimer()
+    destroyYtPlayer()
+    stopSimulated()
+    setCurrentTrack(null)
+    setIsPlaying(false)
+    setProgressMs(0)
+    setPlaybackUnavailable(false)
+    setPlaybackReason(null)
+  }, [clearTimer, destroyYtPlayer, stopSimulated])
 
   // Detiene la reproducción (real o simulada) y expone el motivo dado por el
   // backend — único caso real de "no disponible" que queda (RF-DIS-007).
@@ -451,16 +515,18 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       value={{
         currentTrack, isPlaying, progressMs,
         playbackUnavailable, playbackUnavailableReason: playbackReason,
-        play, togglePlay, seek, reportPlaybackIssue,
+        play, togglePlay, seek, stop, reportPlaybackIssue,
         queue, enqueue, enqueueMany, replaceQueue, removeFromQueue, moveInQueue,
         volume, setVolume,
       }}
     >
       {children}
-      {/* Host del iframe de audio real — 0x0, nunca visible; el YT.Player lo
-          reemplaza in-place (mismo elemento, no hace falta desmontar/montar
-          por track). RF-EXP-010: solo audio de fondo, sin UI de video propia. */}
-      <div id={YT_HOST_ID} style={{ position: 'fixed', width: 0, height: 0, overflow: 'hidden' }} />
+      {/* Wrapper de audio real — 0x0, nunca visible. React solo posee ESTE
+          nodo; el <div> hijo que reemplaza el <iframe> de YT se crea fuera de
+          JSX en cada `play()` (ver `ytHostRef` arriba), así React nunca
+          intenta reconciliar un nodo que la IFrame API ya mutó por su cuenta.
+          RF-EXP-010: solo audio de fondo, sin UI de video propia. */}
+      <div ref={ytHostRef} style={{ position: 'fixed', width: 0, height: 0, overflow: 'hidden' }} />
     </PlayerContext.Provider>
   )
 }

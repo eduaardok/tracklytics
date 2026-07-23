@@ -7,6 +7,13 @@ import type {
 } from '../types'
 
 export const experienciaApi = {
+  // ── Reproducción en segundo plano (RF-EXP-010, corrección) ──────────────────
+  // `listType: 'search'` de la IFrame Player API fue deprecado por YouTube en
+  // 2020; resolver "artista + track" a un videoId real requiere pasar por la
+  // YouTube Data API v3 desde el backend (ver experiencia/router.py).
+  resolverYoutubeVideoId: (q: string) =>
+    apiClient.get<{ video_id: string }>(`/experiencia/reproduccion/youtube-video-id?q=${encodeURIComponent(q)}`),
+
   // ── Recomendaciones (RF-EXP-002/003) ────────────────────────────────────────
   recomendaciones: (limit = 10) =>
     apiClient.get<{ secciones: SeccionRecomendaciones[] }>(`/experiencia/recomendaciones?limit=${limit}`),

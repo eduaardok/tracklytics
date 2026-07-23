@@ -167,6 +167,7 @@ services:
       POCKETBASE_URL:      ${POCKETBASE_URL}
       POCKETBASE_EMAIL:    ${POCKETBASE_EMAIL}
       POCKETBASE_PASSWORD: ${POCKETBASE_PASSWORD}
+      YOUTUBE_API_KEY:     ${YOUTUBE_API_KEY:-}
     volumes:
       - ./api:/app
     networks:

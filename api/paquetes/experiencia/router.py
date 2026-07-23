@@ -6,7 +6,8 @@ import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
-from core.config import AIRFLOW_PASS, AIRFLOW_URL, AIRFLOW_USER
+from core.cache import cached
+from core.config import AIRFLOW_PASS, AIRFLOW_URL, AIRFLOW_USER, YOUTUBE_API_KEY
 from core.database import execute, get_client, query_one, query_rows
 from paquetes.experiencia import pb_client
 from paquetes.experiencia.deps import (
@@ -90,6 +91,58 @@ def marcar_impresion_reproducida(usuario_id: str, fact_id_impresion: int, fact_i
         "AND fact_id_track = {fact_id_track:UInt64}",
         {"fact_id": fact_id_impresion, "usuario_id": usuario_id, "fact_id_track": fact_id_track},
     )
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 1b. Resolución de video de YouTube (RF-EXP-010, corrección post-lanzamiento)
+# El player del cliente (PlayerContext.tsx) reproducía audio de fondo pasando
+# `playerVars: { listType: 'search', list: query }` directo a la IFrame
+# Player API, sin backend ni API key — YouTube deprecó ese valor de
+# `listType` el 15/11/2020 (sigue aceptando el player pero el <video> interno
+# nunca resuelve media real), así que en la práctica SIEMPRE caía al
+# fallback simulado. Este endpoint hace la búsqueda de texto → videoId contra
+# la YouTube Data API v3 (`search.list`, sí soportada), que es la alternativa
+# que la propia documentación de YouTube indica para reemplazar `listType:
+# 'search'`. Cacheado varias horas: el video de "artista + track" no cambia,
+# y cada llamada a `search.list` cuesta 100 unidades de las 10.000/día que
+# trae la cuota gratuita.
+# ─────────────────────────────────────────────────────────────────────────────
+
+YOUTUBE_RESOLVER_CACHE_TTL_S = 6 * 60 * 60
+
+
+@cached(ttl=YOUTUBE_RESOLVER_CACHE_TTL_S)
+async def _resolver_youtube_video_id(query: str) -> str | None:
+    if not YOUTUBE_API_KEY:
+        return None
+    try:
+        async with httpx.AsyncClient(timeout=8) as client:
+            resp = await client.get(
+                "https://www.googleapis.com/youtube/v3/search",
+                params={
+                    "part": "id", "type": "video", "maxResults": 1,
+                    "q": query, "key": YOUTUBE_API_KEY,
+                },
+            )
+    except httpx.RequestError:
+        return None
+    if resp.status_code != 200:
+        return None
+    items = resp.json().get("items") or []
+    if not items:
+        return None
+    return items[0]["id"]["videoId"]
+
+
+@router.get("/reproduccion/youtube-video-id")
+async def resolver_youtube_video_id(q: str = Query(..., min_length=1), user: dict = Depends(get_current_user)):
+    """Solo requiere sesión iniciada (no un rol B2C específico) — mismo umbral
+    de acceso que ya tiene la reproducción en el cliente. No expone
+    `YOUTUBE_API_KEY` al navegador: el cliente solo recibe el `video_id`."""
+    video_id = await _resolver_youtube_video_id(q)
+    if not video_id:
+        raise HTTPException(status_code=404, detail="Sin resultados de YouTube para esta búsqueda")
+    return {"video_id": video_id}
 
 
 # ─────────────────────────────────────────────────────────────────────────────

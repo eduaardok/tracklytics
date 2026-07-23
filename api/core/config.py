@@ -18,6 +18,14 @@ PB_URL      = os.getenv("POCKETBASE_URL", "http://pocketbase:8090")
 PB_ADMIN_EMAIL    = os.getenv("POCKETBASE_EMAIL", "admin@tracklytics.com")
 PB_ADMIN_PASSWORD = os.getenv("POCKETBASE_PASSWORD", "")
 
+# YouTube Data API v3 (`search.list`) — RF-EXP-010, corrección: la IFrame
+# Player API dejó de soportar `listType: 'search'` en 2020, así que resolver
+# "artista + track" a un video real ya no puede hacerse solo en el cliente.
+# Vacío por defecto: sin key configurada, `experiencia/router.py::resolver_youtube_video_id`
+# devuelve 404 y el reproductor cae al fallback simulado (mismo comportamiento
+# de siempre, no un error nuevo).
+YOUTUBE_API_KEY = os.getenv("YOUTUBE_API_KEY", "")
+
 DIM_TABLES: dict[str, str] = {
     "artists":          "DIM_ARTISTS",
     "albums":           "DIM_ALBUMS",
