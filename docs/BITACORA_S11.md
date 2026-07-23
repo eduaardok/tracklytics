@@ -1,31 +1,42 @@
 # Bitácora de Desarrollo — Semana 11
 **Proyecto:** Tracklytics v2 — Plataforma de Analítica Musical
 **Semana académica:** 11 de 16
-**Fecha:** 13–15 de julio de 2026
+**Fecha:** 13–19 de julio de 2026
 **Cierre de semana:** cierre del modelo de monetización freemium (publicidad display, churn con
 motivo, trial + plan estudiante, funnel/P&L), corrección de un bug real de control de acceso
 (admin podía suscribirse y facturar), cierre del modelo financiero completo (liquidación
-idempotente, renovación con cancelación en cobro fallido, retiro de regalías, MRR/ARR), una
-capability nueva, `simulacion`, para demostrar el flujo de dinero de punta a punta sin operar la
-app manualmente a escala, el cierre de calidad de datos del catálogo (año/país plausibles,
-coherencia audio-género, recalificación administrativa en bloque, mismo criterio también en la
-subida de tracks por artistas), una ronda de revisión manual de producto que encuentra y corrige
-6 hallazgos reales (exención de ads para artistas, disclosure de cobro del trial, disponibilidad
-por país como lista navegable, moneda incorrecta en facturas, tags de stack técnico en el login),
-y el cierre de la capability `finanzas` (15ª del proyecto): gastos operativos, reembolsos
-validados, cuentas por cobrar/pagar, tracking de presupuesto de campañas con pausa automática,
-indicadores empresariales, alertas administrativas y un dashboard/reporte financiero consolidado
-— todo compuesto sobre el dato transaccional que `facturacion`/`publicidad`/`regalias` ya
-generaban, sin duplicar su lógica.
+idempotente, renovación con cancelación en cobro fallido, retiro de regalías, MRR/ARR, cambio de
+plan con prorrateo, dunning real, retención fiscal en regalías, país/moneda/IVA/precios
+configurables), una capability nueva, `simulacion`, para demostrar el flujo de dinero de punta a
+punta sin operar la app manualmente a escala, el cierre de calidad de datos del catálogo
+(año/país plausibles, coherencia audio-género, recalificación administrativa en bloque, mismo
+criterio también en la subida de tracks por artistas), una ronda de revisión manual de producto
+que encuentra y corrige 6 hallazgos reales (exención de ads para artistas, disclosure de cobro
+del trial, disponibilidad por país como lista navegable, moneda incorrecta en facturas, tags de
+stack técnico en el login), el cierre de la capability `finanzas` (15ª del proyecto): gastos
+operativos, reembolsos validados, cuentas por cobrar/pagar, tracking de presupuesto de campañas
+con pausa automática, indicadores empresariales, alertas administrativas y un dashboard/reporte
+financiero consolidado, gating real por tier B2B (Básico/Pro/Enterprise) en `analitica` con 2
+paneles predictivos exclusivos Enterprise, un gobierno de identidad y autorización administrativa
+completo (6 roles admin por área, gestión de usuarios con vista 360°, lockout, recuperación de
+contraseña, baja de cuenta), el cierre de los ciclos de vida de las entidades de negocio que el
+sistema sabía crear pero no operar (pausar/revocar/terminar/takedown/retirar, CRUD de partners,
+administración de suscripciones, denuncias), y el cierre de descubrimiento y comunidad (búsqueda
+unificada, radio/mix diario por similitud de audio en SQL, bloqueos, strikes, verificación de
+email, exportación de datos personales) — todo compuesto sobre el dato transaccional y de
+catálogo que las capabilities existentes ya generaban, sin duplicar su lógica.
 
 ---
 
 ## Resumen ejecutivo
 
-La semana 11 se organiza en cinco changes de OpenSpec consecutivas (más una sesión autónoma
+La semana 11 se organiza en nueve changes de OpenSpec consecutivas (más una sesión autónoma
 multi-fase que no introduce capabilities nuevas, solo cierra deuda y ejecuta 10 fases de
-producto/infraestructura — ver Bloque 6) y cierra con una sexta: la capability `finanzas`
-(Bloque 7). La primera,
+producto/infraestructura — ver Bloque 6). Las primeras siete (Bloques 1–9, 13–16 jul) cierran el
+modelo de monetización y de dinero, la calidad del catálogo y el acceso B2B por tier. Las tres
+finales (Bloques 10–12, 16–19 jul) cierran gobierno de identidad, ciclos de vida operativos, y
+descubrimiento/comunidad — extendiendo capabilities existentes, sin crear ninguna nueva. La
+primera,
 `monetizacion-retencion-mejoras`, amplía tres capabilities existentes (`publicidad`,
 `suscripciones`, `analitica`) sin crear ninguna nueva: publicidad display además de audio, motivo
 de cancelación auditable, trial gratuito de 7 días + plan estudiante, y dos vistas nuevas de
@@ -957,3 +968,270 @@ botón "Reintentar cobro", no "Free").
 Cuentas de prueba de la demo restauradas a un estado limpio tras las pruebas: `cliente_basico@...`
 de vuelta a `activa`; `cliente_dunning@...` dejado deliberadamente en `pago_pendiente` (1 de 3
 intentos) para que el banner sea visible al abrir sesión mañana.
+
+---
+
+## Bloque 10 — `roles-gestion-usuarios` (16–17 jul 2026)
+
+**Gobierno de identidad y autorización administrativa**, extensión de `seguridad` (sin
+capabilities nuevas). Hasta este bloque la autorización admin era monolítica: ~50 endpoints
+`/admin/*` de 15 capabilities compartían un único check (`role == "admin"`), de modo que cualquier
+administrador podía liquidar regalías, moderar comentarios, cambiar precios de planes y aprobar
+artistas indistintamente.
+
+### Diseño
+- **`require_rol_admin(*roles)` reemplaza al `require_admin` monolítico, con retrocompatibilidad.**
+  La mayoría de capabilities ya reexportaban un único `require_admin`
+  (`api/paquetes/seguridad/deps.py`) en su propio `deps.py`; la migración de cada capability se
+  redujo a redefinir ese reexport (`require_admin = require_rol_admin("admin_finanzas")`, etc.),
+  sin editar router por router. `require_admin` se conserva como alias delgado de
+  `require_rol_admin("superadmin")`.
+- **`admin` de PocketBase → `superadmin` por auto-backfill.** Toda cuenta con `role == "admin"` en
+  PocketBase queda reflejada con `superadmin` en `BRIDGE_USUARIO_ROL_ADMIN` de forma automática al
+  resolver la autorización, sin migración manual y sin pérdida de acceso para cuentas existentes.
+- **Roles vigentes resueltos con `argMax`**, nunca filtrando la tabla cruda del
+  `ReplacingMergeTree` — mismo patrón que `FACT_PERMISO_USUARIO`/`FACT_SESION`. Se reprodujo y
+  corrigió el gotcha de aliasing de ClickHouse (`max(fecha) AS fecha` rompe el `argMax` interno,
+  Code 184), ya documentado en `PERMISOS_VIGENTES`.
+- **`estado_cuenta` verificado en cada request** (`get_current_user`, `api/core/deps.py`): rechaza
+  con 403 una cuenta `suspendido`/`eliminado` aunque su token de PocketBase siga siendo válido.
+  Fail-open ante fallo de lectura de ClickHouse.
+- **Lockout sobre `FACT_AUDIT_LOG`, sin tabla nueva**: intentos fallidos como
+  `accion='login_fallido'` (`usuario_id = email`, porque un login fallido no tiene identidad
+  resuelta); ≥5 fallos en 15 min → 429.
+- **Recuperación de contraseña simulada con token de un solo uso.** `POST /auth/recuperar` responde
+  siempre genérico (no revela si el correo existe); `POST /auth/restablecer` valida token no
+  vencido/no usado, cambia la contraseña vía la API de superusuario de PocketBase y marca el token
+  como usado. Sin correo real (patrón de simulación del proyecto).
+
+### Tablas nuevas (ClickHouse)
+`DIM_ROL_ADMINISTRATIVO` (catálogo cerrado de 6 roles y su alcance de capabilities, sembrada en
+`init_clickhouse.py`), `BRIDGE_USUARIO_ROL_ADMIN` (asignaciones usuario→rol, revocación = borrado
+lógico), `FACT_TOKEN_RECUPERACION` (tokens de un solo uso con vencimiento). Más
+`DIM_USUARIO.estado_cuenta` (`activa`/`suspendido`/`eliminado`). Total de tablas físicas: 68 → 71.
+
+Catálogo de roles: `superadmin` (todas), `admin_finanzas` (facturacion/finanzas/regalias/
+publicidad), `admin_contenido` (creadores/distribucion/catalogo), `admin_comunidad`
+(social/experiencia), `admin_datos` (gestion_datos/analitica), `admin_comercial`
+(suscripciones/partners).
+
+### Endpoints y frontend
+Nuevos en `seguridad`: catálogo de roles, listado/vista 360° de usuarios, asignar/revocar rol
+admin, suspender/reactivar, recuperar/restablecer contraseña, baja de cuenta propia. Modificados:
+`POST /auth/login` (lockout + verificación de `estado_cuenta`), `get_current_user`. Gating
+`/admin/*` migrado a rol de área en 12 capabilities. Frontend: `UsuariosAdminPage.tsx`
+(`/seguridad/usuarios`, vista 360° + gestión de roles/estado), flujo recuperar/restablecer en
+`LoginPage`, baja de cuenta con confirmación doble en `ProfilePage`.
+
+### Verificación
+Stack real (`docker compose up`), 6 escenarios curl en verde: login admin → `superadmin`
+auto-asignado; cuenta `admin_finanzas` con acceso correcto y revocación efectiva; suspender/
+reactivar afectando login; 5 fallos → 6º rechazado (429); ciclo completo recuperar → restablecer →
+login (token reusado → 400); baja de cuenta → login posterior 403. `npm run build` en verde
+(`UsuariosAdminPage` en chunk lazy propio).
+
+### Limpieza de `docs/`
+Se eliminaron 5 documentos obsoletos (era S2 / pre-React / pre-B2B2C) cuyo contenido vigente ya
+había migrado a bitácoras, README y `design.md` archivados: `decisiones-refactorizacion.md`,
+`ARQUITECTURA_S2.MD`, `TRACKLYTICS_PLAN_S2.md`, `PLAN_MEJORAS_FRONTEND_P2.md`,
+`EMPRESA_TRACKLYTICS.md`.
+
+### Artefactos entregados (Bloque 10)
+
+| Artefacto | Estado |
+|---|---|
+| `init_clickhouse.py` | Ampliado — `DIM_ROL_ADMINISTRATIVO`, `BRIDGE_USUARIO_ROL_ADMIN`, `FACT_TOKEN_RECUPERACION`, `DIM_USUARIO.estado_cuenta` |
+| `api/paquetes/seguridad/{deps,router}.py` | Ampliado — `require_rol_admin`, lockout, recuperación, baja de cuenta |
+| `api/core/deps.py` | Ampliado — rechazo de cuentas suspendidas/eliminadas |
+| 12 capabilities (`creadores`, `distribucion`, `social`, `experiencia`, `facturacion`, `finanzas`, `regalias`, `publicidad`, `suscripciones`, `gestion_datos`, `partners`, `simulacion`) | Migrado — gating por rol de área |
+| `frontend/src/packages/seguridad/pages/UsuariosAdminPage.tsx` | Nuevo — vista 360°, gestión de roles/estado |
+| `openspec/changes/archive/2026-07-19-roles-gestion-usuarios/` | Archivado |
+
+---
+
+## Bloque 11 — `p1-ciclos-vida` (18 jul 2026)
+
+**Ciclos de vida de entidades de negocio.** El sistema sabía crear casi todas sus entidades de
+negocio pero no operarlas a lo largo de su ciclo de vida. Sin capabilities nuevas: cada pieza
+extiende un paquete existente. Toda acción admin se autoriza con el rol de área de
+`roles-gestion-usuarios` y se audita en `FACT_AUDIT_LOG`.
+
+### Qué se implementó, por capability
+- **`publicidad`** — editar/pausar/reanudar/finalizar campaña; editar/desactivar anunciante.
+  Doble estado de campaña: `activa` (presupuesto) y `estado_manual` (pausa/cierre manual) son ejes
+  independientes; elegibilidad de servido = ambos en regla; `finalizar` es terminal (409 al
+  reanudar/pausar una finalizada).
+- **`distribucion`** — revocar licencia (`DIM_LICENCIA.estado` gana `'revocada'`).
+- **`regalias`** — editar contrato (splits granulares, revalida que sumen 100), terminar contrato
+  (`activo=0` + `vigente_hasta=today()`, sin columna `estado` nueva), exportar historial.
+- **`catalogo`** — ocultar/restaurar track (takedown). Un track existe como N filas en
+  `FACT_TRACKS` (una por género); `disponible=0` se aplica a todas las filas del `track_id` para
+  que desaparezca de verdad de la búsqueda.
+- **`creadores`** — editar/retirar track propio (`require_cuenta_artista_aprobada`). Al editar un
+  track `aprobado` vuelve a `pendiente` (revisión editorial); transiciones insertan fila nueva con
+  `version=max+1`.
+- **`partners`** — CRUD completo con rotación de API key. Los partners viven solo en PocketBase; la
+  key se guarda como hash SHA-256 (`api_key_hash`), se devuelve en claro una sola vez. Fallback a
+  `api_key` en claro para los 2 partners demo legados. Caché TTL de 30s en la resolución
+  partner→tier (rotar/desactivar tarda hasta 30s en propagarse).
+- **`suscripciones`** — listar/detalle/cancelar/extender suscripciones (admin).
+- **`social`** — denunciar contenido (`POST /denuncias`) + bandeja de moderación admin
+  (`FACT_DENUNCIA`, tabla nueva). No ejecuta acción automática sobre el objeto denunciado.
+
+### Tablas y columnas nuevas
+`FACT_DENUNCIA` (ClickHouse, nueva). Columnas: `DIM_CAMPANA_PUBLICITARIA.{formato,estado_manual}`,
+`FACT_TRACKS.disponible`, `DIM_ANUNCIANTE.activo`, `DIM_LICENCIA.{motivo_revocacion,
+fecha_revocacion}`, `STG_ARTIST_UPLOADS.descripcion`, semilla `DIM_ESTADO_REVISION` (`retirado`).
+PocketBase: `partners.{api_key_hash,email_contacto}`, `suscripciones.fecha_vencimiento`.
+
+### Verificación
+curl real sobre 9 flujos (campaña completa incluida transición terminal en 409, anunciante,
+licencia con doble-revocación en 409, contrato con validación 422→ok→terminar→409→exportar, track
+oculto/restaurado, artista aprobar→editar→retirar, partner crear→usar→listar→rotar→(31s)
+401/200→desactivar, suscripciones listar/extender/detalle, denuncia usuario→admin). Frontend
+completo (sistema de diseño Impeccable), `npm run build` verde, Playwright real contra el stack
+reconstruido, cero errores de consola.
+
+### Estado de las portadas al cerrar el bloque
+El backfill standalone `gold.backfill_portadas` (secuencial, ~2000 tracks/h por rate-limit de
+Spotify oEmbed, reanudable) quedó corriendo en background sobre las ~89 741 canciones reales.
+Cobertura al cierre: ~266 tracks reales — **no completo**, no cabe al 100% en una sola ventana.
+
+### Artefactos entregados (Bloque 11)
+
+| Artefacto | Estado |
+|---|---|
+| `init_clickhouse.py`, `pb_init.py` | Ampliado — `FACT_DENUNCIA` y columnas de ciclo de vida |
+| `api/paquetes/publicidad/{router,queries}.py` | Ampliado — pausar/reanudar/finalizar, editar |
+| `api/paquetes/distribucion/{router,queries}.py` | Ampliado — revocar licencia |
+| `api/paquetes/regalias/{router,queries}.py` | Ampliado — editar/terminar/exportar contrato |
+| `api/paquetes/catalogo/{router,queries}.py` | Ampliado — ocultar/restaurar track |
+| `api/paquetes/creadores/{router,queries}.py` | Ampliado — editar/retirar track propio |
+| `api/paquetes/partners/{router,pb_client}.py` | Ampliado — CRUD, rotación de API key |
+| `api/paquetes/suscripciones/{router,pb_client}.py` | Ampliado — administración de suscripciones |
+| `api/paquetes/social/{router,queries}.py` | Ampliado — denuncias |
+| `frontend/src/packages/{catalogo,partners,suscripciones,social,publicidad,distribucion,regalias,creadores}` | Ampliado/nuevo — UI de ciclo de vida |
+| `openspec/changes/archive/2026-07-19-p1-ciclos-vida/` | Archivado |
+
+---
+
+## Bloque 12 — `p2-descubrimiento-comunidad` (19 jul 2026)
+
+**Descubrimiento y comunidad.** El sistema tenía un catálogo grande y un modelo de comunidad, pero
+no sabía descubrir ni convivir. Sin capabilities nuevas y sin ML externo: la similitud se calcula
+en SQL de ClickHouse sobre los atributos de audio que ya viven en `FACT_TRACKS`.
+
+### Qué se implementó
+- **Búsqueda unificada** (`GET /catalogo/search`, sesión opcional): `{tracks, artistas, albumes,
+  playlists}` en un solo request, respetando `disponible=1` (takedown) en los cuatro grupos.
+- **Radio y mix diario** (`experiencia`): `GET /radio/track/{fact_id}` (~25 similares) y `GET
+  /mix-diario` (~30). Similitud = distancia euclídea al cuadrado sobre 5 atributos de audio +
+  penalización aditiva de 0.35 por no compartir género (pesa, no filtra). Mix diario: porción de
+  afinidad determinista + porción de exploración pseudoaleatoria estable por `usuario_id + fecha`
+  (`cityHash64`), sin caché. `GET /recomendaciones` pasa de filtrar por exclusión a recomendar por
+  afinidad, con `motivo` explicable.
+- **Bloqueo entre usuarios** (`social`): traducido al modelo real (no existe seguimiento
+  usuario-a-usuario ni comentarios de perfil) — comentarios del bloqueado invisibles para quien
+  bloquea (lectura, unidireccional), bloqueado no puede responder a comentarios de quien lo bloqueó
+  (escritura, 403). Borrado lógico (`activo`/`actualizado_en`, resuelto por `argMax`).
+- **Strikes con suspensión automática**: `FACT_STRIKE_USUARIO` (nueva), 3 strikes activos →
+  suspensión. Emitidos manualmente o al resolver una denuncia (`emitir_strike`).
+- **Verificación de email simulada**: reutiliza `FACT_TOKEN_RECUPERACION` (columna `proposito`
+  nueva) en vez de una tabla paralela. Regla suave: sin verificar se navega con normalidad, solo
+  se frena comentar, subir track y contratar plan de pago (free sigue disponible). 403 con código
+  estable `email_no_verificado`.
+- **Exportación de datos personales**: `GET /perfil/mis-datos`, 11 secciones, queries propias de
+  solo lectura en `seguridad/exportacion.py` (acoplado al modelo dimensional, no a los routers de
+  otras capabilities).
+
+### Tablas y columnas nuevas
+`BRIDGE_BLOQUEO_USUARIO`, `FACT_STRIKE_USUARIO` (ambas nuevas). `DIM_USUARIO.email_verificado`
+(backfill por fecha de corte fija, 91 usuarios previos marcados verificados),
+`FACT_TOKEN_RECUPERACION.proposito`. Total de tablas: 71 → 73.
+
+### Hallazgos durante la implementación
+`reload_portadas` no es el backfill completo (50/corrida); ClickHouse rechaza identificadores
+no-ASCII en alias; alias que colisiona con columna dentro de un agregado (`ILLEGAL_AGGREGATION`);
+`MI_PERFIL` leía `DIM_USUARIO` sin `argMax` (corregido de paso).
+
+### Verificación
+curl real (8 escenarios: búsqueda con takedown, radio 25/25 del género de la semilla, mix diario
+idéntico en dos llamadas el mismo día, recomendaciones con `motivo` y solapamiento 0 con
+favoritos/historial, bloqueo A↔B con unidireccionalidad y 403 verificados, 3 strikes →
+`cuenta_suspendida:true`, verificación de email bloqueando/desbloqueando comentar, exportación con
+11 secciones). Playwright real: 7/7 escenarios, cero errores de consola. `npm run build` verde
+(bundle principal 511.6 kB → 526.7 kB).
+
+### Avance de portadas al cierre del bloque
+Backfill de portadas: 10 906 → 20 322 filas `source_type='real'` con `imagen_url` (+9 416 en la
+sesión), 93 228 pendientes. Sigue corriendo, reanudable.
+
+### Artefactos entregados (Bloque 12)
+
+| Artefacto | Estado |
+|---|---|
+| `init_clickhouse.py` | Ampliado — `BRIDGE_BLOQUEO_USUARIO`, `FACT_STRIKE_USUARIO`, `email_verificado`, `proposito` |
+| `api/paquetes/catalogo/{router,queries}.py` | Ampliado — `GET /search` unificado |
+| `api/paquetes/experiencia/{router,queries}.py` | Ampliado — radio, mix diario, recomendaciones por afinidad |
+| `api/paquetes/social/{router,queries}.py` | Ampliado — bloqueos, strike al resolver denuncia |
+| `api/paquetes/seguridad/{router,exportacion}.py` | Ampliado/nuevo — strikes, verificación de email, exportación de datos |
+| `frontend/src/packages/catalogo/{components/GlobalSearch,components/MixDiarioCard,pages/SearchResultsPage,hooks/useRadio}` | Nuevo |
+| `frontend/src/packages/social/components/BloquearButton.tsx` | Nuevo |
+| `frontend/src/packages/seguridad/components/VerificacionEmailBanner.tsx` | Nuevo |
+| `frontend/src/shared/context/PlayerContext.tsx` | Ampliado — `enqueueMany`/`replaceQueue` |
+| `openspec/changes/archive/2026-07-19-p2-descubrimiento-comunidad/` | Archivado |
+
+---
+
+## Bloque 13 — Cierre técnico post-S11: reproducción real de YouTube (19–22 jul 2026)
+
+QA final (no un change de OpenSpec, corrección directa en código): la reproducción "real" del
+reproductor (`PlayerContext.tsx`, documentada en S9 como parte de `experiencia`) nunca reproducía
+audio real en la práctica. Causa raíz: `playerVars.listType: 'search'` de la IFrame Player API de
+YouTube fue **deprecado el 15/11/2020** — el player lo sigue aceptando (`onReady` dispara,
+`onError` no) pero el `<video>` interno nunca resuelve media, cayendo siempre al fallback simulado
+sin que el watchdog lo distinguiera de un fallo real.
+
+### Corrección: resolución de `videoId` en el backend
+`GET /experiencia/reproduccion/youtube-video-id` (nuevo endpoint, solo requiere sesión) resuelve
+`"artista + track"` contra la **YouTube Data API v3** (`search.list`, sí soportada) usando
+`YOUTUBE_API_KEY` (`api/core/config.py`, vacía por defecto — sin key configurada el endpoint
+devuelve 404 y el reproductor cae al mismo fallback simulado de siempre, no un error nuevo).
+Cacheado 6h (`core/cache.py`) porque el video de una combinación artista+track no cambia y
+`search.list` cuesta 100 de las 10 000 unidades/día de la cuota gratuita. `PlayerContext.tsx`
+resuelve el `videoId` (backend) y carga la IFrame API en paralelo, y solo entonces instancia
+`YT.Player` con un `videoId` real en vez de una búsqueda de texto.
+
+### Bug de React encontrado en el camino
+Reproducir con un `videoId` real (a diferencia de `listType: 'search'`, que nunca llegaba a
+reemplazar nada) expuso un crash latente: `new YT.Player(id, ...)` recibía el id de un `<div>`
+renderizado por JSX, y la IFrame API lo reemplazaba in-place por su `<iframe>` sin que React se
+enterara — el siguiente re-render (el ticker de progreso corre cada 500ms) lanzaba
+`NotFoundError: insertBefore/removeChild ... not a child of this node`. Corregido: el `<div>` que
+YT reemplaza ahora se crea con `document.createElement`, fuera del árbol virtual, dentro de un
+wrapper que React sí posee y nunca muta.
+
+### Logout no cortaba el audio
+`UserMenu::handleLogout` invalidaba la sesión sin detener la reproducción — el audio (real o el
+tono simulado) seguía sonando tras el logout, y el siguiente track de la cola intentaba
+reproducirse contra un token que el backend ya no reconocía. Se agregó `stop()` a
+`PlayerContext` (invalida cualquier `play()` en vuelo, limpia timers/host/estado) y se llama antes
+de `authApi.logout()`.
+
+### Limpieza relacionada
+`etl/gold/reload_portadas_1h.py`/`reload_portadas_5h.py` (scripts standalone de recarga puntual de
+portadas, precursor del patrón) eliminados — superados por el DAG `reload_portadas` (Bloque 6,
+Fase 7) y el backfill reanudable `gold.backfill_portadas.py` (Bloques 11–12), que cubren los mismos
+casos de uso sin duplicar código.
+
+### Artefactos entregados (Bloque 13)
+
+| Artefacto | Estado |
+|---|---|
+| `api/core/config.py` | Ampliado — `YOUTUBE_API_KEY` |
+| `api/paquetes/experiencia/router.py` | Ampliado — `GET /reproduccion/youtube-video-id` (cacheado 6h) |
+| `frontend/src/packages/experiencia/api/experiencia.api.ts` | Ampliado — `resolverYoutubeVideoId` |
+| `frontend/src/shared/context/PlayerContext.tsx` | Corregido — `videoId` real, host fuera de React, `stop()` |
+| `frontend/src/packages/seguridad/components/UserMenu.tsx` | Corregido — corta audio antes de logout |
+| `docker-compose.yml` | Ampliado — `YOUTUBE_API_KEY` pasada al servicio `api` |
+| `etl/gold/{reload_portadas_1h,reload_portadas_5h}.py` | Eliminados — superados por `reload_portadas` DAG / `backfill_portadas.py` |

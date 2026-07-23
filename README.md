@@ -450,7 +450,7 @@ tracklytics/
 ├── dataset/
 │   └── spotify.csv              # Dataset fuente (113.550 registros)
 ├── docs/
-│   ├── BITACORA_S6.md … BITACORA_S11.md  # Bitácoras semanales (S11 incluye BITACORA_S11_P0.md: roles admin + gestión de usuarios)
+│   ├── BITACORA_S6.md … BITACORA_S11.md  # Bitácoras semanales (S11 es una sola bitácora, 13 bloques: monetización, finanzas, tier B2B, roles admin, ciclos de vida, descubrimiento/comunidad, fix reproducción YouTube)
 │   ├── CONSTITUCION_TRACKLYTICS.md       # Identidad y principios del proyecto
 │   ├── DIMENSIONAL_MODEL.md              # Modelo dimensional (fact + dimensiones)
 │   ├── negocio/                          # Documentación de negocio por capability (sin mecanismos de simulación académica)
@@ -659,10 +659,7 @@ validate --specs` en verde para las 15 capabilities).
 | S8 | Implementación de `analitica`/`ingesta`/`partners` + correcciones UX | Cierre del módulo operativo original — ver `docs/BITACORA_S8.md` |
 | S9 | QA/rendimiento del módulo operativo **+ refactorización completa hacia sistema completo** | Ver `docs/BITACORA_S9.md` (dos entregas dentro de la misma semana: seek/QA/optimización ClickHouse, y luego las 6 capabilities nuevas + migración a React + pulido final) |
 | S10 | Retiro del frontend legado + modelo de negocio real (regalías/publicidad) + cierre de la capa operativa | Frontend único (React); capabilities `regalias`/`publicidad` (9 tablas, DAG `finanzas_periodicas`); 6 dashboards administrativos RT-04; sesiones activas multi-dispositivo; búsqueda avanzada; feed social; playlists colaborativas + reorder — ver resumen abajo |
-| S11 | Cierre del modelo de monetización y de dinero + calidad de datos del catálogo + capability `finanzas` | 6 changes de OpenSpec; capabilities `simulacion` y `finanzas` (2 nuevas, 15 en total); publicidad display, trial + plan estudiante, churn con motivo, funnel/P&L, MRR/ARR, retiro de regalías; flujo de solicitud de licencia por sello; enriquecimiento de catálogo (año/país deterministas, coherencia audio-género, recalificación en bloque); 6 hallazgos de revisión manual de producto corregidos; empresa emisora editable; dashboard/reembolsos/cuentas por cobrar-pagar/presupuesto de campañas en `finanzas` — ver `docs/BITACORA_S11.md` |
-| S11 · P0 | Seguridad y gestión de usuarios | 6 roles administrativos por área (`require_rol_admin`), panel de gestión con vista 360°, suspender/reactivar, lockout por intentos fallidos, recuperación de contraseña y baja de cuenta — ver `docs/BITACORA_S11_P0.md` |
-| S11 · P1 | Ciclos de vida de entidades de negocio | Pausar/reanudar/finalizar campañas, revocar licencias, editar/terminar contratos, takedown de catálogo, editar/retirar tracks de artista, CRUD de partners con rotación de API key, administración de suscripciones y denuncias de contenido — ver `docs/BITACORA_S11_P1.md` |
-| S11 · P2 | Descubrimiento y comunidad | Búsqueda unificada multi-entidad; radio por canción y mix diario determinista por similitud de audio en SQL; recomendaciones por afinidad con motivo explicable; bloqueo entre usuarios; historial de strikes con suspensión automática a los 3; verificación de correo simulada; exportación de datos personales — ver `docs/BITACORA_S11_P2.md` |
+| S11 | Cierre del modelo de monetización y de dinero + calidad de datos del catálogo + capability `finanzas` + tier B2B + gobierno de identidad + ciclos de vida + descubrimiento/comunidad | 9 changes de OpenSpec + 1 fix técnico directo (13 bloques); capabilities `simulacion` y `finanzas` (2 nuevas, 15 en total); publicidad display, trial + plan estudiante, churn con motivo, funnel/P&L, MRR/ARR, retiro de regalías, cambio de plan con prorrateo, dunning real, retención fiscal, país/moneda/IVA configurables; flujo de solicitud de licencia por sello; enriquecimiento de catálogo (año/país deterministas, coherencia audio-género, recalificación en bloque); gating por tier B2B (Básico/Pro/Enterprise) con 2 paneles predictivos Enterprise; 6 roles administrativos por área con gestión de usuarios (vista 360°, lockout, recuperación de contraseña, baja de cuenta); ciclos de vida de entidades de negocio (pausar/revocar/terminar/takedown/retirar, CRUD de partners, denuncias); búsqueda unificada, radio/mix diario por similitud de audio, bloqueos, strikes, verificación de email, exportación de datos — ver `docs/BITACORA_S11.md` |
 
 Resumen de la segunda entrega de S9 (el refactor):
 - **6 capabilities OpenSpec nuevas** cerradas: `seguridad`, `facturacion`, `creadores`,
@@ -716,8 +713,9 @@ Resumen de S10 (cierre de la capa operativa, 4 días):
   alcanzable por un usuario no-dueño, porque ninguna otra colección tiene todavía una feature
   multi-usuario compartida como los colaboradores de playlist.
 
-Resumen de S11 (cierre del modelo de dinero + calidad de catálogo, 13-15 jul, detalle completo
-en `docs/BITACORA_S11.md`):
+Resumen de S11 (cierre del modelo de dinero + calidad de catálogo + tier B2B + gobierno de
+identidad + ciclos de vida + descubrimiento/comunidad, 13-22 jul, detalle completo en
+`docs/BITACORA_S11.md`):
 - **Monetización y retención:** publicidad display (además de audio), churn con motivo
   auditable, trial de 7 días + plan estudiante, funnel de conversión y P&L consolidado en
   `analitica`; bug real corregido (`admin` podía suscribirse y facturar como B2C).
@@ -759,6 +757,28 @@ en `docs/BITACORA_S11.md`):
   contra el stack levantado (`docker compose` + `npm run dev`), sesión admin real creada con
   `pb_client.crear_usuario(rol="admin")`: las 8 pestañas cargan sin errores de consola, y un ciclo
   completo de alta de gasto (formulario → tabla) confirmado end-to-end.
+- **Gating por tier B2B en `analitica`** (16 jul): Básico/Pro/Enterprise real (no solo suscripción
+  activa), con 2 paneles predictivos exclusivos Enterprise (proyección de tendencia de género y de
+  trayectoria de artista, regresión lineal simple, `numpy.polyfit`).
+- **Modelo financiero, huecos finales** (16 jul, mismo día): cambio de plan con prorrateo, dunning
+  real (3 intentos, degradación B2C→free / cancelación B2B), retención fiscal en liquidación de
+  regalías, país/moneda/IVA/precios de plan configurables sin tocar código.
+- **Gobierno de identidad y autorización** (16–17 jul): 6 roles administrativos por área
+  (`require_rol_admin`), reemplazando el check monolítico `role=="admin"` en ~50 endpoints; gestión
+  de usuarios con vista 360°, suspender/reactivar; lockout por intentos fallidos; recuperación de
+  contraseña simulada; baja de cuenta propia.
+- **Ciclos de vida de entidades de negocio** (18 jul): pausar/reanudar/finalizar campañas, revocar
+  licencias, editar/terminar contratos de regalías, takedown de catálogo, editar/retirar tracks de
+  artista, CRUD de partners con rotación de API key, administración de suscripciones, denuncias de
+  contenido con bandeja de moderación.
+- **Descubrimiento y comunidad** (19 jul): búsqueda unificada multi-entidad; radio por canción y
+  mix diario determinista por similitud de audio calculada en SQL (sin ML externo); recomendaciones
+  por afinidad con motivo explicable; bloqueo entre usuarios; strikes con suspensión automática a
+  los 3; verificación de correo simulada; exportación de datos personales.
+- **Cierre técnico: reproducción real de YouTube** (19–22 jul): `listType: 'search'` (deprecado por
+  YouTube en 2020) reemplazado por resolución de `videoId` vía YouTube Data API v3 desde el
+  backend; corregido en el camino un crash de React por reconciliar un nodo que la IFrame API ya
+  había reemplazado, y el audio quedando sonando tras el logout.
 
 ---
 
