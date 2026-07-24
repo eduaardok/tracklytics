@@ -349,3 +349,48 @@ de `vite` usado para esta verificación.
 | `frontend/src/packages/seguridad/pages/SeguridadPages.module.css` | Ampliado — `.statsRow`, `.chipRow`, `.badge` + variantes |
 | `frontend/src/packages/experiencia/pages/ExperienciaPages.module.css` | Ampliado — `.statsRow` |
 | `frontend/src/packages/social/pages/SocialPages.module.css` | Ampliado — `.statsRow`, `.form`/`.field`/`.select`, `.badgeRead`/`.badgeUnread` |
+
+---
+
+## Bloque 5 — Datos semilla para `FACT_AB_TEST_EXPOSICION` (23 jul 2026)
+
+`FACT_AB_TEST_EXPOSICION` seguía vacía (hallazgo documentado en el Bloque 2: la tabla nunca tuvo
+un productor real en el código desde que se creó en S9). Se sembraron ~50 exposiciones de ejemplo
+para poder ver `GET /experiencia/admin/ab-tests` con contenido real mientras no exista el flujo de
+asignación de variantes A/B.
+
+### Script: `etl/seeds/seed_ab_tests.py`
+Inserta 50 filas repartidas aleatoriamente entre 2 experimentos con 2 variantes cada uno
+(`recomendacion_layout`: `control`/`grid_2x2`; `boton_premium`: `verde`/`morado`), `usuario_id`
+tomado al azar de `DIM_USUARIO` real (no sintético) y `fecha` aleatoria dentro de las últimas 2
+semanas. `fact_id` es secuencial desde `max(fact_id)+1` en la propia tabla (no el `UInt64`
+aleatorio de 50 bits que usa el resto del proyecto) — decisión deliberada: es un seed de un solo
+uso, no una ruta de escritura de producción, y un id secuencial permite verificar a simple vista
+cuántas filas insertó una corrida.
+
+### Corrección al enunciado: cómo se ejecuta en realidad
+El enunciado original pedía `docker compose exec api python -m etl.seeds.seed_ab_tests` — no
+funciona en este repo: `api/api_Dockerfile` solo copia `api/` a `/app` (`COPY api/ .`), así que el
+paquete `etl` ni siquiera existe dentro del contenedor `api`. El contenedor que sí tiene acceso a
+`etl/` (copiado a `/app` en build time, `COPY etl/ .`) es el servicio `etl`, y ahí el path del
+módulo no lleva el prefijo `etl.` (el propio directorio `etl/` ES la raíz `/app` dentro de ese
+contenedor). Se creó `etl/seeds/__init__.py` para el paquete nuevo y se ejecutó:
+```
+docker compose build etl                          # la nueva carpeta seeds/ no existía en la imagen
+docker compose run --rm etl python -m seeds.seed_ab_tests
+```
+
+### Verificación
+`✓ 50 exposiciones A/B insertadas (fact_id 1..50)`. `GET /experiencia/admin/ab-tests` (con token de
+`s10r2_admin@test.com`, superadmin) ya no devuelve `[]`: 4 filas reales (una por combinación
+experimento×variante), exposiciones 11–14 cada una (suman 50), 11–12 usuarios únicos cada una,
+fechas entre 2026-07-10 y 2026-07-23 (dentro de la ventana de 14 días). Sin errores en logs del
+contenedor `api`. `AbTestsPage` (frontend, Bloque 4) ya maneja el caso con datos — no requirió
+ningún cambio, solo dejó de mostrar su estado vacío.
+
+### Artefactos entregados (Bloque 5)
+
+| Artefacto | Estado |
+|---|---|
+| `etl/seeds/__init__.py` | Nuevo |
+| `etl/seeds/seed_ab_tests.py` | Nuevo |
