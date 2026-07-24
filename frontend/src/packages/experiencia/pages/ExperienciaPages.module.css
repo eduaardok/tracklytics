@@ -479,3 +479,12 @@
   .dashboardGrid { grid-template-columns: 1fr; }
 }
 
+/* ── Tarjetas KPI de reportes (S12) — fila responsive de solo tarjetas de
+   resumen, distinta de `.dashboardGrid` (gráfico 2fr + KPI 1fr). ── */
+.statsRow {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--space-md);
+  margin-bottom: var(--space-lg);
+}
+

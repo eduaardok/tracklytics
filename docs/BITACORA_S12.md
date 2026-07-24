@@ -255,3 +255,97 @@ curado). Frontend detenido (`Ctrl+C` al proceso de `vite`) y stack de Docker det
 | `frontend/src/app/layout/SeguridadShell.module.css` | Ampliado — `.sectionLabel` |
 | `frontend/src/app/router.tsx` | Ampliado — 5 rutas lazy nuevas bajo `/seguridad/*` |
 | `api/paquetes/seguridad/queries.py` | Corregido — `USUARIOS_REPORTE`: `nullIf(..., '')` antes de `ifNull` |
+
+---
+
+## Bloque 4 — Sidebar reorganizado en secciones + reportes enriquecidos con KPIs y badges (23 jul 2026)
+
+Pulido puramente visual sobre lo entregado en los Bloques 1–3: ni un endpoint ni una ruta nuevos,
+solo reorganización de navegación y enriquecimiento de las 5 páginas de reportes para que tengan
+el mismo nivel de riqueza que el resto del panel admin (`TicketsAdminPage`/`FinanzasAdminPage`).
+
+### Sidebar reorganizado en 5 secciones
+`SeguridadShell.tsx` tenía ~28 enlaces en lista plana. Se reagruparon en **Seguridad** (sin label —
+es la sección por defecto al entrar al panel), **Comercial**, **Contenido**, **Datos y Partners** y
+**Reportes** (ya existía desde el Bloque 3), usando `<span className={styles.sectionLabel}>` antes
+de cada grupo — el mismo patrón ya usado para "Reportes", sin componente nuevo. Ninguna ruta
+cambió; verificado con Playwright que los 28 `<NavLink>` siguen presentes y las 4 etiquetas de
+sección nuevas se renderizan.
+
+### Las 5 páginas de reportes, enriquecidas
+Cada página gana una fila de tarjetas KPI (`.statsRow`, grid responsive `auto-fit minmax(180px,
+1fr)` — nueva en los 3 CSS modules de paquete, distinta de `.dashboardGrid` que fija 2fr/1fr para
+gráfico+KPI) reutilizando `.kpiPanel`/`.kpiRow`/`.kpiValue`/`.kpiLabel`, que ya existían en los 3
+módulos desde los dashboards RT-04 de S10. Todas las tarjetas se recalculan sobre la lista **ya
+filtrada** (`useMemo` sobre `filtrados`, no sobre el dataset crudo) — verificado con Playwright:
+filtrar `ReporteUsuariosPage` por país reduce filas de 96 a 44 y el KPI "Total usuarios" sigue el
+mismo número.
+
+- **`ReporteUsuariosPage`**: 4ª tarjeta KPI ("Distribución por plan") no es un número sino una fila
+  de chips (`free: 68 · basico: 5 · pro: 3 · ...`) — no encaja en `.kpiValue` (1.75rem), así que usa
+  una nueva clase `.chipRow` en vez de forzarlo. Filtro nuevo por `estado_cuenta` (4º filtro, mismo
+  patrón dinámico que los otros 3). Badge de color en la columna Estado: `activa` → verde,
+  `suspendido` → rojo, **`eliminado` → naranja** (`badgeBlocked`) — el enunciado solo mencionaba
+  "suspendida"/"bloqueada", pero el tipo real `EstadoCuenta` (`seguridad/types.ts`) es
+  `'activa' | 'suspendido' | 'eliminado'`; se mapeó al valor real en vez de inventar un cuarto
+  estado que no existe en el backend.
+- **`StrikesGlobalPage`**: 3 tarjetas KPI, incluyendo "en riesgo" con el umbral real de
+  `strikes.py::STRIKES_PARA_SUSPENSION` (2+ strikes activos, el tercero dispara la suspensión
+  automática) citado en el propio label de la tarjeta. Filtro por `origen_tipo` (manual/denuncia) y
+  badge de color a juego (`badgeManual` gris, `badgeDenuncia` naranja).
+- **`AbTestsPage`**: 3 tarjetas KPI (experimentos únicos, variantes, exposiciones totales) y estado
+  vacío con el componente ya compartido `@shared/components/EmptyState` (mismo patrón que
+  `EtlPage`/`PartnersMetricasPage`, con un glifo de texto en vez de un ícono de librería — consistente
+  con el resto del proyecto) en vez de un texto plano dentro de una celda de tabla. Sigue vacío por
+  el mismo motivo documentado en el Bloque 2 (`FACT_AB_TEST_EXPOSICION` sin productor real).
+- **`NotificacionesAdminPage`**: 3 tarjetas KPI, incluyendo tasa de lectura formateada `NN%`.
+  Filtros nuevos por tipo y por estado de lectura (leído/no leído/todos). Badge de color reemplaza
+  al `badgeOk`/`badgePending` que ya existía en `SocialPages.module.css` (esos significaban
+  éxito/pendiente de una acción en otras páginas del mismo módulo, no lectura) por `badgeRead`/
+  `badgeUnread` nuevos y semánticamente correctos.
+- **`FamiliasReportePage`**: 3 tarjetas KPI (familias, miembros totales, promedio miembros/familia
+  con 1 decimal) y filtro por plan.
+
+### Decisiones de diseño
+- **`.badge` base nuevo en `SeguridadPages.module.css`**, distinto del `.badgeOk`/`.badgeDenied` ya
+  existente ahí (esos son texto de color plano para permisos otorgados/denegados en otra página;
+  el nuevo es una píldora con fondo, para estado de entidades) — evita colisión de nombres
+  reutilizando el mismo módulo.
+- **`SocialPages.module.css` no tenía barra de filtros** (`.form`/`.field`/`.select` — solo
+  `.filterChip`, pensado para 2–4 valores fijos por botón, no un `<select>` con opciones dinámicas
+  del dataset) — se copió el mismo bloque ya presente en `ExperienciaPages.module.css` (ambos
+  archivos ya se declaran "mismo lenguaje visual" en su comentario de cabecera).
+- **Colores de badge en `oklch(... / alpha)` tal como los dio el enunciado**, sin reescalarlos a los
+  tokens semánticos del proyecto (`--color-success`/`--color-error`/`--color-warning`) — se
+  mantiene el criterio explícito del enunciado en vez de una decisión propia de sistema de diseño,
+  ya que produce colores prácticamente equivalentes a esos tokens.
+
+### Verificación
+`npm run build` sin errores (bundle principal 528.86 kB → 529.87 kB, crecimiento marginal
+esperado por los KPIs/filtros/badges nuevos, todo dentro de chunks lazy). Verificación real de UI
+con Playwright (login real, sesión inyectada como en el Bloque 3, backend Docker + `vite --port
+5173`): las 4 etiquetas de sección nuevas y los 28 `NavLink` se renderizan; las 5 páginas muestran
+sus tarjetas KPI con valores reales (`ReporteUsuariosPage`: 96/8/4 sin filtro, 44 tras filtrar
+`país=EC`, KPI y conteo de filas coinciden; `StrikesGlobalPage`: 3/1/1; `AbTestsPage`: 0/0/0 +
+estado vacío visible; `NotificacionesAdminPage`: 4/50%/3 sin filtro → 2/100%/2 tras filtrar
+`leído`; `FamiliasReportePage`: 5/8/1.6); los filtros nuevos (estado de cuenta, origen de strike,
+tipo/lectura de notificación, plan de familia) muestran opciones reales derivadas del dataset;
+capturas de pantalla de `ReporteUsuariosPage`/`StrikesGlobalPage` confirman los badges de color
+correctos (verde/rojo/naranja, gris/naranja). Cero errores de consola en las 5 navegaciones.
+Scripts y capturas de verificación borrados al cierre; el stack de Docker se dejó corriendo (ya
+estaba arriba por pedido explícito del usuario en el turno anterior) y solo se detuvo el proceso
+de `vite` usado para esta verificación.
+
+### Artefactos entregados (Bloque 4)
+
+| Artefacto | Estado |
+|---|---|
+| `frontend/src/app/layout/SeguridadShell.tsx` | Reorganizado — 4 secciones nuevas, mismas 28 rutas |
+| `frontend/src/packages/seguridad/pages/ReporteUsuariosPage.tsx` | Ampliado — KPIs, 4º filtro (estado), badge de estado |
+| `frontend/src/packages/seguridad/pages/StrikesGlobalPage.tsx` | Ampliado — KPIs, filtro de origen, badge de origen |
+| `frontend/src/packages/experiencia/pages/AbTestsPage.tsx` | Ampliado — KPIs, estado vacío con `EmptyState` |
+| `frontend/src/packages/experiencia/pages/FamiliasReportePage.tsx` | Ampliado — KPIs, filtro de plan |
+| `frontend/src/packages/social/pages/NotificacionesAdminPage.tsx` | Ampliado — KPIs, filtros de tipo/lectura, badge de lectura |
+| `frontend/src/packages/seguridad/pages/SeguridadPages.module.css` | Ampliado — `.statsRow`, `.chipRow`, `.badge` + variantes |
+| `frontend/src/packages/experiencia/pages/ExperienciaPages.module.css` | Ampliado — `.statsRow` |
+| `frontend/src/packages/social/pages/SocialPages.module.css` | Ampliado — `.statsRow`, `.form`/`.field`/`.select`, `.badgeRead`/`.badgeUnread` |

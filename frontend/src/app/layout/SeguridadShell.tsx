@@ -25,6 +25,8 @@ export function SeguridadShell() {
 
       <div className={styles.body}>
         <nav className={styles.sidebar} aria-label="Navegación de seguridad">
+          {/* Sección por defecto (S12): sin label — es lo primero que ve un
+              admin al entrar al panel, no necesita anunciarse como grupo. */}
           <NavLink to="/seguridad/usuarios" className={({ isActive }) => isActive ? ACTIVE_CLS : INACTIVE_CLS}>
             Usuarios
           </NavLink>
@@ -37,12 +39,28 @@ export function SeguridadShell() {
           <NavLink to="/seguridad/errores" className={({ isActive }) => isActive ? ACTIVE_CLS : INACTIVE_CLS}>
             Errores
           </NavLink>
+
+          <span className={styles.sectionLabel}>Comercial</span>
           <NavLink to="/seguridad/facturacion" end className={({ isActive }) => isActive ? ACTIVE_CLS : INACTIVE_CLS}>
             Facturación
           </NavLink>
           <NavLink to="/seguridad/facturacion/empresa" className={({ isActive }) => isActive ? ACTIVE_CLS : INACTIVE_CLS}>
             Info. empresa
           </NavLink>
+          <NavLink to="/seguridad/suscripciones" className={({ isActive }) => isActive ? ACTIVE_CLS : INACTIVE_CLS}>
+            Suscripciones
+          </NavLink>
+          <NavLink to="/seguridad/regalias" className={({ isActive }) => isActive ? ACTIVE_CLS : INACTIVE_CLS}>
+            Regalías
+          </NavLink>
+          <NavLink to="/seguridad/publicidad" className={({ isActive }) => isActive ? ACTIVE_CLS : INACTIVE_CLS}>
+            Publicidad
+          </NavLink>
+          <NavLink to="/seguridad/finanzas" className={({ isActive }) => isActive ? ACTIVE_CLS : INACTIVE_CLS}>
+            Finanzas
+          </NavLink>
+
+          <span className={styles.sectionLabel}>Contenido</span>
           <NavLink to="/seguridad/creadores" className={({ isActive }) => isActive ? ACTIVE_CLS : INACTIVE_CLS}>
             Creadores
           </NavLink>
@@ -55,27 +73,14 @@ export function SeguridadShell() {
           <NavLink to="/seguridad/catalogo" className={({ isActive }) => isActive ? ACTIVE_CLS : INACTIVE_CLS}>
             Catálogo · Takedown
           </NavLink>
-          <NavLink to="/seguridad/suscripciones" className={({ isActive }) => isActive ? ACTIVE_CLS : INACTIVE_CLS}>
-            Suscripciones
-          </NavLink>
           <NavLink to="/seguridad/soporte" className={({ isActive }) => isActive ? ACTIVE_CLS : INACTIVE_CLS}>
             Soporte
           </NavLink>
           <NavLink to="/seguridad/familia" className={({ isActive }) => isActive ? ACTIVE_CLS : INACTIVE_CLS}>
             Plan familiar
           </NavLink>
-          <NavLink to="/seguridad/regalias" className={({ isActive }) => isActive ? ACTIVE_CLS : INACTIVE_CLS}>
-            Regalías
-          </NavLink>
-          <NavLink to="/seguridad/publicidad" className={({ isActive }) => isActive ? ACTIVE_CLS : INACTIVE_CLS}>
-            Publicidad
-          </NavLink>
-          <NavLink to="/seguridad/simulacion" className={({ isActive }) => isActive ? ACTIVE_CLS : INACTIVE_CLS}>
-            Simulación
-          </NavLink>
-          <NavLink to="/seguridad/finanzas" className={({ isActive }) => isActive ? ACTIVE_CLS : INACTIVE_CLS}>
-            Finanzas
-          </NavLink>
+
+          <span className={styles.sectionLabel}>Datos y Partners</span>
           <NavLink to="/seguridad/partners" end className={({ isActive }) => isActive ? ACTIVE_CLS : INACTIVE_CLS}>
             Partners
           </NavLink>
@@ -93,6 +98,9 @@ export function SeguridadShell() {
           </NavLink>
           <NavLink to="/seguridad/ingesta/calidad" className={({ isActive }) => isActive ? ACTIVE_CLS : INACTIVE_CLS}>
             Calidad de datos
+          </NavLink>
+          <NavLink to="/seguridad/simulacion" className={({ isActive }) => isActive ? ACTIVE_CLS : INACTIVE_CLS}>
+            Simulación
           </NavLink>
 
           {/* ── Reportes administrativos (S12) ── */}

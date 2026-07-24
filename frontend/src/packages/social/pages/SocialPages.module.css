@@ -493,6 +493,58 @@
 
 .strikeMotivo:focus { border-color: var(--color-primary); }
 
+/* ── Filtros de reporte (S12) ── Mismo lenguaje visual que `.form`/`.field`/
+   `.select` de ExperienciaPages.module.css — este paquete no tenía filtros en
+   forma de barra todavía (solo `.filterChip`, pensado para 2-4 valores fijos
+   por botón, no para un `<select>` con opciones dinámicas del dataset). */
+.form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: var(--space-sm);
+  padding: var(--space-md);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  margin-bottom: var(--space-xl);
+  align-items: end;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  min-width: 0;
+}
+
+.fieldLabel {
+  font-family: var(--font-sans);
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--color-muted);
+}
+
+.select {
+  width: 100%;
+  background: var(--color-bg);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  padding: 8px 12px;
+  height: 36px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  outline: none;
+  min-width: 0;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16' fill='none'%3E%3Cpath d='M4 6l4 4 4-4' stroke='%2358586a' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  padding-right: 32px;
+  transition: border-color var(--duration-standard) var(--ease-standard);
+}
+.select:hover { border-color: oklch(0.30 0.012 285); }
+.select:focus { border-color: var(--color-primary); }
+
 /* ── Tabla simple (S12, reportes admin) ──
    Mismo lenguaje visual que `tablePanel`/`.table` de ExperienciaPages.module.css
    — este paquete no tenía tabla plana todavía (solo el patrón `queue*` de
@@ -627,4 +679,20 @@
 @media (max-width: 700px) {
   .dashboardGrid { grid-template-columns: 1fr; }
 }
+
+/* ── Tarjetas KPI de reportes (S12) — fila responsive de solo tarjetas de
+   resumen, distinta de `.dashboardGrid` (gráfico 2fr + KPI 1fr). ── */
+.statsRow {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--space-md);
+  margin-bottom: var(--space-lg);
+}
+
+/* Leído/no leído (NotificacionesAdminPage) — reutiliza la píldora `.badge`
+   de arriba, con los colores de estado que pidió el enunciado (distintos de
+   `.badgeOk`/`.badgePending`, que aquí significaban otra cosa: éxito/pendiente
+   de una acción, no lectura). */
+.badgeRead   { background: oklch(0.45 0.12 155 / 0.15); color: oklch(0.7 0.15 155); }
+.badgeUnread { background: oklch(0.35 0.02 0 / 0.2);    color: oklch(0.65 0.02 0);  }
 

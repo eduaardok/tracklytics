@@ -200,3 +200,52 @@
   .dashboardGrid { grid-template-columns: 1fr; }
 }
 
+/* ── Tarjetas KPI de reportes (S12) — fila responsive, distinta de
+   `.dashboardGrid` (que fija 2fr/1fr para gráfico+KPI, no aplica cuando son
+   solo tarjetas de resumen). ── */
+.statsRow {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--space-md);
+  margin-bottom: var(--space-lg);
+}
+
+/* Chips de distribución por plan dentro de una tarjeta KPI (ReporteUsuariosPage):
+   varios valores pequeños en vez de un solo número grande — no encajan en
+   `.kpiValue` (1.75rem), así que van en su propia fila envolvente. */
+.chipRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+/* ── Badges de estado (S12: estado de cuenta, origen de strike) ──
+   Distintos de `.badgeOk`/`.badgeDenied` de arriba (esos son texto de color
+   plano para permisos otorgados/denegados) — estos son píldoras con fondo,
+   para estados de entidades (cuenta, sanción). */
+.badge {
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  font-weight: 500;
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+  white-space: nowrap;
+}
+
+.badgeNeutral { background: var(--color-surface-raised); color: var(--color-muted); }
+
+/* Estado de cuenta (ReporteUsuariosPage): activa/suspendido/eliminado
+   (`EstadoCuenta`) — "eliminado" (baja de cuenta) mapea a `badgeBlocked`
+   (naranja), no a `badgeSuspend` (rojo): son estados distintos en el modelo
+   (`seguridad/types.ts`), aunque el enunciado original solo mencionaba
+   "suspendida"/"bloqueada" sin nombrar el tercer valor real. */
+.badgeActive  { background: oklch(0.45 0.12 155 / 0.15); color: oklch(0.7 0.15 155); }
+.badgeSuspend { background: oklch(0.45 0.12 25 / 0.15);  color: oklch(0.7 0.15 25);  }
+.badgeBlocked { background: oklch(0.45 0.12 60 / 0.15);  color: oklch(0.7 0.15 60);  }
+
+/* Origen de un strike (StrikesGlobalPage). */
+.badgeManual   { background: oklch(0.35 0.02 0 / 0.2);   color: oklch(0.65 0.02 0);  }
+.badgeDenuncia { background: oklch(0.45 0.12 60 / 0.15); color: oklch(0.7 0.15 60);  }
+
