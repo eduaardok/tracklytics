@@ -11,6 +11,7 @@ package-lock.json
 .venv/
 parquet_stage/
 frontend/dist/
+.impeccable/
 .env
 __pycache__/
 *.pyc

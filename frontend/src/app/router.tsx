@@ -259,6 +259,10 @@ export const router = createBrowserRouter([
       { path: 'reporte-ab-tests',       element: <AbTestsPage /> },
       { path: 'reporte-notificaciones', element: <NotificacionesAdminPage /> },
       { path: 'reporte-familias',       element: <FamiliasReportePage /> },
+      // Reusa el mismo componente que `/analitica/disponibilidad` (CU-O55) —
+      // ver comentario en SeguridadShell.tsx. Mismo `lazyNamed` de arriba, no
+      // se vuelve a importar el módulo.
+      { path: 'disponibilidad',         element: <DisponibilidadInfraPage /> },
     ],
   },
   // Catch-all: sin esto, cualquier URL sin match (typo, enlace viejo) caía en

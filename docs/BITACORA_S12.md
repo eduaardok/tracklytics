@@ -476,3 +476,66 @@ Playwright contra el build de producción (`:8082`, login real con cuenta de pru
 | `FACT_AB_TEST_EXPOSICION` (ClickHouse) | +86 filas (3 experimentos nuevos) |
 | `FACT_COMENTARIO` (ClickHouse) | +18 filas |
 | `FACT_COMPARTICION` (ClickHouse) | +9 filas |
+
+---
+
+## Bloque 7 — Verificación final de las 13 páginas de reportes admin (24 jul 2026)
+
+Suite de Playwright contra el build de producción (`docker compose up --build -d`, Nginx en
+`:8082`), login real con `s10r2_admin@test.com`. Para cada URL: heading (`h1`/`h2`) renderizado,
+ausencia de `Unexpected Application Error`/errores de consola/`pageerror`, y KPIs con valor
+contextual (>0 donde aplica, 0 legítimo donde el dato real es cero — p. ej. "errores críticos: 0").
+
+| # | Ruta | Heading | Errores | KPIs |
+|---|---|---|---|---|
+| 1 | `/seguridad/reporte-usuarios` | "Reporte de usuarios" | ninguno | 99 / 8 / 6 |
+| 2 | `/seguridad/reporte-strikes` | "Strikes activos" | ninguno | 3 / 1 / 1 |
+| 3 | `/seguridad/reporte-ab-tests` | "Pruebas A/B" | ninguno | 5 experimentos / 10 variantes / 136 exposiciones |
+| 4 | `/seguridad/reporte-notificaciones` | "Notificaciones — administración" | ninguno | 4 / 3 |
+| 5 | `/seguridad/reporte-familias` | "Planes familiares" | ninguno | 5 / 8 / 1.6 |
+| 6 | `/seguridad/disponibilidad` | — (ver corrección abajo) | ninguno | — |
+| 7 | `/seguridad/facturacion` | "Auditoría de facturación" | ninguno | 0 / 6000 / 12000 / 13 |
+| 8 | `/seguridad/ingesta` | "Ingesta de catálogo" | ninguno | histograma de duración, ceros legítimos en los extremos de los buckets |
+| 9 | `/seguridad/creadores` | "Revisión de creadores" | ninguno | 11 / 1 / 1 |
+| 10 | `/seguridad/social` | "Moderación social" | ninguno | actividad real por día, 0 legítimo en denuncias pendientes |
+| 11 | `/seguridad/auditoria` | "Auditoría" | ninguno | 0 críticos (legítimo) / 30 / 60 / 293 eventos |
+| 12 | `/seguridad/usuarios` | "Usuarios" | ninguno | tabla (sin KPI numérico propio) |
+| 13 | `/seguridad/errores` | "Errores de sistema" | ninguno | tabla (sin KPI numérico propio) |
+
+12 de 13 pasaron en la primera corrida sin tocar nada. La única falla real fue la #6, y **no** era
+el bug original del Bloque 6 (`NotFoundPage` seguía funcionando correctamente: sin
+`Unexpected Application Error`, solo que — correctamente — no hay ningún heading porque la URL
+nunca fue una ruta admin real, solo el catch-all).
+
+### Corrección: `/seguridad/disponibilidad` ahora es una ruta real (además de `/analitica/disponibilidad`)
+El enunciado de esta verificación volvió a listar `/seguridad/disponibilidad` como "la que estaba
+rota" y exige que tenga heading + KPIs como el resto de reportes del panel admin — a diferencia del
+Bloque 6, donde el pedido era "mover la ruta" (premisa falsa, revertida por el gating B2B). Se
+interpreta esto como una necesidad real y distinta: un admin quiere llegar al mismo reporte de
+disponibilidad de infraestructura *desde el panel de Seguridad*, junto al resto de reportes S12,
+sin depender de navegar a `/analitica`.
+
+Se agregó una segunda entrada de ruta que reutiliza el **mismo** componente
+(`DisponibilidadInfraPage`, mismo `lazyNamed` ya importado una sola vez) y el mismo endpoint
+(`GET /analitica/disponibilidad`, sin tier gate propio) bajo `SeguridadShell`:
+- `frontend/src/app/router.tsx`: `{ path: 'disponibilidad', element: <DisponibilidadInfraPage /> }`
+  dentro de los children de `/seguridad`.
+- `frontend/src/app/layout/SeguridadShell.tsx`: link "Disponibilidad" en la sección de Reportes.
+
+No se tocó `/analitica/disponibilidad` ni su gating de tier B2B ([[project_b2b_tier_access_analitica]])
+— es un segundo punto de entrada al mismo panel, no una migración. Re-verificado tras rebuild:
+heading "Disponibilidad de infraestructura" renderiza, sin errores de consola.
+
+### Verificación
+- `npm run build`: sin errores.
+- `docker compose up --build -d` (frontend-react + api): stack sano, las 13 rutas confirmadas tras
+  el rebuild final.
+- Sin cuentas de prueba residuales (se usó únicamente la cuenta ya existente
+  `s10r2_admin@test.com`, sin crear ni eliminar cuentas nuevas en este bloque).
+
+### Artefactos entregados (Bloque 7)
+
+| Artefacto | Estado |
+|---|---|
+| `frontend/src/app/router.tsx` | Ampliado — `disponibilidad` dentro de `/seguridad` |
+| `frontend/src/app/layout/SeguridadShell.tsx` | Ampliado — link "Disponibilidad" en Reportes |

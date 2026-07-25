@@ -120,6 +120,13 @@ export function SeguridadShell() {
           <NavLink to="/seguridad/reporte-familias" className={({ isActive }) => isActive ? ACTIVE_CLS : INACTIVE_CLS}>
             Familias
           </NavLink>
+          {/* Reusa `DisponibilidadInfraPage` (CU-O55, `/analitica/disponibilidad`)
+              — mismo componente y endpoint, sin tier gate propio, solo un
+              segundo punto de entrada para el panel de reportes admin. No
+              reemplaza la ruta B2B (paga, `planes.py`), que sigue intacta. */}
+          <NavLink to="/seguridad/disponibilidad" className={({ isActive }) => isActive ? ACTIVE_CLS : INACTIVE_CLS}>
+            Disponibilidad
+          </NavLink>
         </nav>
 
         <main className={styles.main}>
