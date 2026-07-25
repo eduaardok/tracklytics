@@ -7,6 +7,7 @@ import { createBrowserRouter } from 'react-router-dom'
 import { AppShell } from '@app/layout/AppShell'
 import { SeguridadShell } from '@app/layout/SeguridadShell'
 import { RouteLoadingFallback } from '@shared/components/RouteLoadingFallback'
+import { NotFoundPage } from '@shared/components/NotFoundPage'
 import { CatalogPage, TrackDetailPage, ArtistDetailPage, AlbumDetailPage, BibliotecaPage } from '@packages/catalogo'
 import { SearchResultsPage } from '@packages/catalogo/pages/SearchResultsPage'
 // Mismo motivo que el bloque de arriba (`@app/layout`): 6 de estos 7 barrels
@@ -260,4 +261,7 @@ export const router = createBrowserRouter([
       { path: 'reporte-familias',       element: <FamiliasReportePage /> },
     ],
   },
+  // Catch-all: sin esto, cualquier URL sin match (typo, enlace viejo) caía en
+  // el error boundary por defecto de react-router-dom en vez de una página real.
+  { path: '*', element: <NotFoundPage /> },
 ])

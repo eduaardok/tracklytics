@@ -394,3 +394,85 @@ ningún cambio, solo dejó de mostrar su estado vacío.
 |---|---|
 | `etl/seeds/__init__.py` | Nuevo |
 | `etl/seeds/seed_ab_tests.py` | Nuevo |
+
+---
+
+## Bloque 6 — Fix de catch-all + datos semilla adicionales (24 jul 2026)
+
+### Corrección al enunciado: `DisponibilidadInfraPage` NO estaba mal ruteada
+El enunciado pedía diagnosticar un 404 al navegar a `/seguridad/disponibilidad` y, si la ruta
+estaba bajo el shell equivocado, moverla a `SeguridadShell`. Investigación real (no se movió nada):
+
+- `DisponibilidadInfraPage` (`packages/analitica/pages/DisponibilidadInfraPage.tsx`) existe sin
+  cambios desde S9 (`03f7b2f`, refactor inicial) — nunca vivió en otro lugar.
+- Está registrada correctamente en `/analitica` (`router.tsx:206`), enlazada desde el sidebar de
+  `AnalyticaShell` (`to="/analitica/disponibilidad"`), y `api/paquetes/suscripciones/planes.py`
+  lista "Disponibilidad de infraestructura" como feature de plan pagado — es contenido B2B
+  gateado por suscripción (CU-O55, `completar-modelo-base`), no una herramienta admin-only. Moverla
+  a `/seguridad` habría roto el gating de tier ya shipeado
+  ([[project_b2b_tier_access_analitica]]) sin ninguna necesidad real.
+- `npm run build` pasa limpio y `GET /analitica/disponibilidad` (autenticado) devuelve datos reales
+  — la página nunca estuvo rota en `/analitica`.
+
+**La causa real del "404 en producción":** el árbol de rutas (`app/router.tsx`) no tenía ningún
+`path: '*'` ni `errorElement`. Cualquier URL sin match — incluida la ruta `/seguridad/disponibilidad`
+que el enunciado asumía válida, pero también cualquier typo o enlace viejo — caía en el error
+boundary por defecto de `react-router-dom` en vez de una página real. Se agregó:
+- `frontend/src/shared/components/NotFoundPage.tsx` (+ `.module.css`): página 404 real, mismo
+  patrón `EmptyState` + link de vuelta a `/`, reutilizando tokens de diseño existentes.
+- `{ path: '*', element: <NotFoundPage /> }` como última entrada del árbol raíz en `router.tsx`.
+
+Verificado con Playwright contra el build de producción (`docker compose up --build -d
+frontend-react`, servido por Nginx en `:8082`): `/seguridad/disponibilidad` y una URL inventada
+ahora muestran `NotFoundPage` ("Página no encontrada") sin errores de consola, en vez de una
+pantalla en blanco. `/analitica/disponibilidad` (la ruta real) sigue funcionando y muestra "4
+componentes" de datos reales.
+
+### Datos semilla adicionales: `FACT_AB_TEST_EXPOSICION`
+El Bloque 5 ya había sembrado 50 filas con 2 experimentos (`recomendacion_layout`/`boton_premium`).
+Este enunciado pedía 3 experimentos con nombres distintos (`layout_recomendaciones`,
+`color_boton_premium`, `orden_playlist`) — se sembraron 86 filas adicionales para esos 3
+experimentos (sin tocar ni borrar las 50 filas existentes, `fact_id` continúa desde `max(fact_id)+1`),
+con la misma regla de negocio pedida: cada usuario mantiene la misma variante dentro de un mismo
+experimento aunque tenga varias exposiciones. Ejecutado con `docker compose run --rm etl python -c
+"..."` inline (sin crear archivo permanente, según lo pedido). Total actual: 136 filas, 5
+experimentos, 10 combinaciones experimento×variante.
+
+### Datos sociales: `FACT_COMENTARIO`/`FACT_COMPARTICION` NO estaban vacías
+El enunciado asumía "Sin datos todavía" por tablas vacías. Diagnóstico real: ya tenían datos
+orgánicos (16 comentarios, 7 comparticiones, de pruebas anteriores del 2 al 19 de julio) y `GET
+/social/admin/dashboard` ya los devolvía correctamente para una cuenta con rol `admin_comunidad`/
+`superadmin` — se verificó con una cuenta de prueba desechable (`pb_client.crear_usuario(rol="admin")`,
+creada y eliminada en la misma sesión, [[feedback_admin_test_accounts_and_credential_boundary]]).
+El enunciado también pedía el estado `pendiente_revision`, que no existe en el `Enum8` real de
+`estado_moderacion` (`visible`/`oculto`/`eliminado`) — se usaron los 3 estados reales.
+
+No había ningún bug que corregir en el endpoint. Se agregaron 18 comentarios y 9 comparticiones más
+(mismo patrón: `usuario_id`/`fact_id_track` reales de `DIM_USUARIO`/`FACT_TRACKS`, vía `docker
+compose run --rm etl`) fechados dentro de los últimos 13 días para que la ventana de 14 días del
+dashboard (`ACTIVIDAD_SOCIAL_POR_DIA`) tenga cobertura densa en vez de 4 días sueltos. Total actual:
+34 comentarios, 16 comparticiones.
+
+### Verificación
+Playwright contra el build de producción (`:8082`, login real con cuenta de prueba `admin`):
+- `/seguridad/disponibilidad` → `NotFoundPage`, sin errores de consola (antes: comportamiento
+  indefinido del error boundary por defecto).
+- `/analitica/disponibilidad` → "Disponibilidad de infraestructura", 4 componentes con datos.
+- `/seguridad/reporte-ab-tests` → KPIs "5 Experimentos / 10 Variantes / 136 Exposiciones totales",
+  tabla con las 5 combinaciones incluyendo los 3 experimentos nuevos.
+- `/seguridad/social` → gráfico de actividad con barras reales (comentarios/comparticiones por
+  día), "Artistas más seguidos" con datos, cola de comentarios (34) con estados variados.
+- `npm run build`: sin errores.
+- Cuenta de prueba (`seed_diag_fixed_s12b@test.com`, rol `admin`) eliminada al cierre de la
+  verificación — no queda en `DIM_USUARIO`/PocketBase.
+
+### Artefactos entregados (Bloque 6)
+
+| Artefacto | Estado |
+|---|---|
+| `frontend/src/shared/components/NotFoundPage.tsx` | Nuevo |
+| `frontend/src/shared/components/NotFoundPage.module.css` | Nuevo |
+| `frontend/src/app/router.tsx` | Ampliado — catch-all `path: '*'` |
+| `FACT_AB_TEST_EXPOSICION` (ClickHouse) | +86 filas (3 experimentos nuevos) |
+| `FACT_COMENTARIO` (ClickHouse) | +18 filas |
+| `FACT_COMPARTICION` (ClickHouse) | +9 filas |
