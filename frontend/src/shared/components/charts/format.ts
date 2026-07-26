@@ -9,3 +9,14 @@ export function formatTooltipValue(value: unknown): string {
   if (!Number.isFinite(n)) return String(value ?? 0)
   return n.toLocaleString('es-ES', { maximumFractionDigits: 2 })
 }
+
+// Series diarias (ej. "Ingreso por día (14 días)"): el eje X con 14 fechas
+// ISO completas ("2026-07-13") se superpone. "13/7" es suficiente contexto
+// cuando el rango es de días, no meses — usado solo por gráficos que pasan
+// `denseDates` a MiniLineChart, no globalmente (otros usos de MiniLineChart
+// grafican por mes, donde día/mes sería incorrecto).
+export function formatShortDate(value: unknown): string {
+  const d = new Date(String(value))
+  if (isNaN(d.getTime())) return String(value ?? '')
+  return `${d.getDate()}/${d.getMonth() + 1}`
+}

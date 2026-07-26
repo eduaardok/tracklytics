@@ -615,3 +615,66 @@ con cuenta de prueba nueva `s12_verify_admin@test.com` (rol `admin`, creada vía
 | `etl/seeds/seed_disponibilidad_incidentes.py` | Nuevo — corrige incidentes de `FACT_DISPONIBILIDAD` sobre datos ya generados |
 | `FACT_ADQUISICION`/`FACT_DISPONIBILIDAD` (ClickHouse) | Semanas 5-11 generadas (`modelo_negocio_sync`), hasta la fecha actual |
 | Capability `creadores` | Sin cambios — bug no reproducido |
+
+---
+
+## Bloque 9 — Últimas transacciones en facturación + fix de fechas superpuestas (25 jul 2026)
+
+### "Últimas transacciones" en `AuditoriaFacturacionPage`
+La página solo mostraba contenido (transacciones/invoices de un usuario) después de buscarlo — antes
+de eso, un único texto "Busca un usuario...". No existía ningún endpoint que devolviera transacciones
+globales (`GET /facturacion/transacciones` exige `usuario_id`, o resuelve al propio usuario logueado).
+Se agregó:
+- `TRANSACCIONES_RECIENTES` (`api/paquetes/facturacion/queries.py`) + `GET
+  /facturacion/admin/transacciones-recientes` (`require_admin`), últimas 20 por `fecha DESC`.
+- La query pedida en el enunciado usaba `t.fact_id` y `t.metodo_pago` — ninguna de las dos existe en
+  `FACT_TRANSACCION_PAGO` (la PK real es `transaccion_id` UUID, y el método de pago es
+  `metodo_pago_id` FK a `DIM_METODO_PAGO`, sin columna de texto propia). Se adaptó con el mismo JOIN
+  a `DIM_METODO_PAGO` que ya usa `INVOICE_DETALLE` para `metodo_tipo`.
+- Frontend: tabla nueva debajo del buscador de usuario (`facturacionApi.transaccionesRecientes()`,
+  carga sola al montar, sin depender de `buscado`). Reutiliza el `StatusBadge` que ya existía en la
+  página en vez de crear uno nuevo: los 3 estados reales de `FACT_TRANSACCION_PAGO` son
+  `pendiente`/`exitosa`/`fallida` (`Enum8` en `init_clickhouse.py`), no
+  `completada`/`pendiente`/`fallida`/`reembolsada` como sugería el enunciado — "reembolsada" vive en
+  `FACT_REEMBOLSO`, una tabla distinta, nunca como valor de `estado` acá. No se inventó un badge gris
+  para un valor que no puede ocurrir en esta columna.
+- `usuario_nombre`/`metodo_pago` pueden venir como `""` (no `null`) en un `LEFT JOIN` sin match sobre
+  columnas `String` de ClickHouse — el fallback en la tabla usa `||`, no `??`, para no mostrarlos en
+  blanco.
+
+### Fechas superpuestas en los gráficos de 14 días
+`MiniLineChart` es compartido por 9 páginas (facturación, auditoría, MRR/ARR, proyecciones, etc.);
+cambiar su formato de fecha globalmente habría roto las páginas que grafican por mes (ej.
+`MrrArrPage`, donde "día/mes" no aplicaría). Se agregó una prop opt-in `denseDates` (con
+`formatShortDate` nuevo en `shared/components/charts/format.ts`) que solo activa rotación -35°,
+`tickFormatter` a `"día/mes"` corto y `height={50}` cuando se pasa explícitamente — se pasó
+únicamente desde `AuditoriaFacturacionPage` ("Ingreso real por día") y `AuditoriaPage` ("Acciones
+administrativas por día"), los 2 gráficos con el problema. El resto de usos de `MiniLineChart` queda
+sin cambios de comportamiento.
+
+### Verificación
+- `npx tsc --noEmit`: 0 errores nuevos (3 preexistentes en `EngagementPage.tsx`, confirmados también
+  en `main` antes de este cambio, sin relación con este bloque).
+- `npm run build`: sin errores.
+- `docker compose build --no-cache frontend-react && docker compose up -d frontend-react` (el
+  servicio se llama `frontend-react` en este `docker-compose.yml`, no `frontend`) — sin healthcheck
+  propio (nginx plano), se esperó con `curl` hasta que sirvió antes de verificar.
+- Playwright contra el build reconstruido (`:8082`), login real con `s12_verify_admin@test.com`:
+  - `/seguridad/facturacion`: tabla "Últimas transacciones" con 20 filas al cargar (sin buscar
+    usuario), badges de estado correctos (`exitosa` verde, `fallida` roja), eje X del gráfico de
+    ingreso con fechas cortas rotadas ("12/7", "13/7"...) sin superposición.
+  - `/seguridad/auditoria`: mismo fix aplicado, eje X legible.
+  - Sin errores de consola en ninguna de las 2 rutas.
+
+### Artefactos entregados (Bloque 9)
+
+| Artefacto | Estado |
+|---|---|
+| `api/paquetes/facturacion/queries.py` | Ampliado — `TRANSACCIONES_RECIENTES` |
+| `api/paquetes/facturacion/router.py` | Ampliado — `GET /admin/transacciones-recientes` |
+| `frontend/src/packages/facturacion/types.ts` | Ampliado — `TransaccionReciente` |
+| `frontend/src/packages/facturacion/api/facturacion.api.ts` | Ampliado — `transaccionesRecientes()` |
+| `frontend/src/packages/facturacion/pages/AuditoriaFacturacionPage.tsx` | Ampliado — tabla "Últimas transacciones" + `denseDates` |
+| `frontend/src/packages/seguridad/pages/AuditoriaPage.tsx` | `denseDates` en el gráfico de acciones |
+| `frontend/src/shared/components/charts/MiniLineChart.tsx` | Ampliado — prop opt-in `denseDates` |
+| `frontend/src/shared/components/charts/format.ts` | Ampliado — `formatShortDate` |

@@ -2,7 +2,7 @@ import { apiClient, type ApiResponse } from '@shared/lib/api-client'
 import type {
   MetodoPago, Transaccion, Invoice, InvoiceDetalle,
   MetodosPagoResponse, DashboardFacturacion, EmpresaInfo, NotificacionEmail,
-  RegistrarMetodoPagoBody, PagarSuscripcionBody, PagoResultado,
+  RegistrarMetodoPagoBody, PagarSuscripcionBody, PagoResultado, TransaccionReciente,
 } from '../types'
 
 // Estos endpoints requieren sesión — el header Authorization lo inyecta
@@ -34,6 +34,9 @@ export const facturacionApi = {
 
   dashboard: () =>
     apiClient.get<DashboardFacturacion>('/facturacion/admin/dashboard'),
+
+  transaccionesRecientes: () =>
+    apiClient.get<ApiResponse<TransaccionReciente>>('/facturacion/admin/transacciones-recientes'),
 
   empresa: () =>
     apiClient.get<EmpresaInfo>('/facturacion/empresa'),

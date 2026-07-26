@@ -32,6 +32,7 @@ export function AuditoriaPage() {
             data={dashboard.data?.acciones_por_dia ?? []}
             xKey="dia"
             series={[{ key: 'total', label: 'Acciones', color: CHART_COLORS.violeta }]}
+            denseDates
           />
         </div>
         <div className={styles.kpiPanel}>

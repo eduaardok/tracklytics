@@ -31,6 +31,31 @@ WHERE usuario_id = {usuario_id:String}
 ORDER BY fecha DESC
 """
 
+# Panel admin (S12): últimas transacciones GLOBALES, sin buscar un usuario —
+# `AuditoriaFacturacionPage` antes solo mostraba contenido tras una búsqueda.
+# `metodo_pago` sale de DIM_METODO_PAGO.tipo (no existe columna de texto en
+# FACT_TRANSACCION_PAGO, solo `metodo_pago_id` UUID — mismo JOIN que ya usa
+# INVOICE_DETALLE para `metodo_tipo`). LEFT JOIN plano sobre DIM_USUARIO
+# (ReplacingMergeTree), mismo criterio ya usado por auditoría/errores de
+# sistema en `seguridad.queries` para nombre/email de display.
+TRANSACCIONES_RECIENTES = """
+SELECT
+    t.transaccion_id AS transaccion_id,
+    t.usuario_id      AS usuario_id,
+    u.nombre           AS usuario_nombre,
+    u.email            AS usuario_email,
+    t.monto            AS monto,
+    t.moneda           AS moneda,
+    t.estado           AS estado,
+    m.tipo             AS metodo_pago,
+    t.fecha            AS fecha
+FROM FACT_TRANSACCION_PAGO t
+LEFT JOIN DIM_USUARIO u      ON u.usuario_id = t.usuario_id
+LEFT JOIN DIM_METODO_PAGO m  ON m.metodo_pago_id = t.metodo_pago_id
+ORDER BY t.fecha DESC
+LIMIT 20
+"""
+
 EMPRESA_ACTUAL = (
     "SELECT razon_social, ruc, direccion, iva_tasa_global, retencion_fiscal_pct_global "
     "FROM DIM_EMPRESA WHERE empresa_id = 1 LIMIT 1"

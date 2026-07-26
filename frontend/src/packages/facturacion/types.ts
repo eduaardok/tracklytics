@@ -95,6 +95,22 @@ export type DashboardFacturacion = {
   ingreso_total_historico:  number
 }
 
+// GET /admin/transacciones-recientes (S12) — últimas 20 transacciones
+// globales, para que la página muestre contenido sin tener que buscar un
+// usuario primero. `usuario_nombre`/`metodo_pago` pueden venir `null`
+// (LEFT JOIN sobre DIM_USUARIO/DIM_METODO_PAGO).
+export type TransaccionReciente = {
+  transaccion_id: string
+  usuario_id:     string
+  usuario_nombre: string | null
+  usuario_email:  string | null
+  monto:          number
+  moneda:         string
+  estado:         'pendiente' | 'exitosa' | 'fallida'
+  metodo_pago:    string | null
+  fecha:          string
+}
+
 // GET/PUT /empresa (CU-O81) — identidad de la empresa emisora que aparece en
 // el encabezado de cada factura, editable solo por admin.
 export type EmpresaInfo = {

@@ -24,6 +24,7 @@ from paquetes.facturacion.queries import (
     NOTIFICACIONES_EMAIL_POR_USUARIO,
     TASA_EXITO_DEFAULT,
     TRANSACCIONES_POR_USUARIO,
+    TRANSACCIONES_RECIENTES,
     TRANSACCIONES_ULTIMAS_24H,
     USUARIO_PAIS,
 )
@@ -327,6 +328,11 @@ def dashboard_facturacion(admin: dict = Depends(require_admin)):
         "transacciones_24h":      (query_one(TRANSACCIONES_ULTIMAS_24H) or {}).get("n", 0),
         "ingreso_total_historico": (query_one(INGRESO_TOTAL_HISTORICO) or {}).get("total") or 0,
     }
+
+
+@router.get("/admin/transacciones-recientes")
+def transacciones_recientes(admin: dict = Depends(require_admin)):
+    return {"data": query_rows(TRANSACCIONES_RECIENTES)}
 
 
 # ─────────────────────────────────────────────────────────────────────────────

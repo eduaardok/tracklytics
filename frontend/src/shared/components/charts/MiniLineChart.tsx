@@ -2,7 +2,7 @@ import {
   LineChart, Line, CartesianGrid, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer,
 } from 'recharts'
 import { ChartTooltip } from './ChartTooltip'
-import { formatTooltipValue } from './format'
+import { formatShortDate, formatTooltipValue } from './format'
 import styles from './charts.module.css'
 
 export type LineSeries = { key: string; label: string; color: string }
@@ -12,6 +12,11 @@ type Props = {
   xKey:   string
   series: LineSeries[]
   emptyLabel?: string
+  // Series diarias con muchos puntos (ej. "14 días"): las fechas ISO
+  // completas se superponen en el eje X. Rota el tick 35° y lo abrevia a
+  // "13/7" — opt-in porque otros usos de este componente grafican por mes
+  // (ej. MRR/ARR), donde esta abreviatura sería incorrecta.
+  denseDates?: boolean
 }
 
 const AXIS_TICK = { fill: 'oklch(0.58 0.010 285)', fontSize: 10, fontFamily: 'var(--font-mono)' }
@@ -20,15 +25,23 @@ const GRID_STROKE = 'oklch(0.22 0.012 285)'
 // Line chart de 1-N series — mismo lenguaje visual que DisponibilidadInfraPage
 // (analitica), reusado aquí para no repetir la config de ejes/grid en cada
 // uno de los 6 dashboards nuevos (RT-04, S10 Día 3).
-export function MiniLineChart({ data, xKey, series, emptyLabel = 'Sin datos todavía.' }: Props) {
+export function MiniLineChart({ data, xKey, series, emptyLabel = 'Sin datos todavía.', denseDates = false }: Props) {
   if (data.length === 0) return <div className={styles.emptyChart}>{emptyLabel}</div>
 
   return (
     <div className={styles.chartBox}>
       <ResponsiveContainer width="100%" height="100%">
-        <LineChart data={data} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
+        <LineChart data={data} margin={{ top: 8, right: 12, left: 0, bottom: denseDates ? 20 : 0 }}>
           <CartesianGrid stroke={GRID_STROKE} vertical={false} />
-          <XAxis dataKey={xKey} tick={AXIS_TICK} axisLine={{ stroke: GRID_STROKE }} tickLine={false} />
+          <XAxis
+            dataKey={xKey}
+            tick={denseDates ? { ...AXIS_TICK, angle: -35, textAnchor: 'end' } : AXIS_TICK}
+            axisLine={{ stroke: GRID_STROKE }}
+            tickLine={false}
+            height={denseDates ? 50 : 30}
+            interval={denseDates ? 'preserveStartEnd' : undefined}
+            tickFormatter={denseDates ? formatShortDate : undefined}
+          />
           <YAxis tick={AXIS_TICK} axisLine={false} tickLine={false} width={40} allowDecimals={false} />
           <Tooltip
             content={({ active, label, payload }) => {

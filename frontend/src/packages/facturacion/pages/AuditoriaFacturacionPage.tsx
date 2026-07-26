@@ -60,6 +60,15 @@ export function AuditoriaFacturacionPage() {
     queryFn:  () => facturacionApi.dashboard(),
   })
 
+  // Últimas 20 transacciones globales (S12): carga sola al montar, sin
+  // depender de la búsqueda de usuario de abajo — antes la página no tenía
+  // ningún contenido de transacciones hasta buscar a alguien.
+  const recientes = useQuery({
+    queryKey: ['facturacion', 'admin', 'transacciones-recientes'],
+    queryFn:  () => facturacionApi.transaccionesRecientes(),
+  })
+  const recientesData = recientes.data?.data ?? []
+
   const transacciones = useQuery({
     queryKey: ['facturacion', 'auditoria', 'transacciones', buscado],
     queryFn:  () => facturacionApi.transacciones(buscado),
@@ -88,6 +97,7 @@ export function AuditoriaFacturacionPage() {
             data={dashboard.data?.ingreso_por_dia ?? []}
             xKey="dia"
             series={[{ key: 'total', label: 'Ingreso (USD)', color: CHART_COLORS.teal }]}
+            denseDates
           />
         </div>
         <div className={styles.kpiPanel}>
@@ -110,6 +120,50 @@ export function AuditoriaFacturacionPage() {
           onSelect={setSelectedUser}
           onClear={() => setSelectedUser(null)}
         />
+      </div>
+
+      <div className={styles.auditBlock}>
+        <p className={styles.sectionLabel}>Últimas transacciones</p>
+        <table className={styles.table}>
+          <thead>
+            <tr>
+              <th>Usuario</th>
+              <th>Monto</th>
+              <th>Moneda</th>
+              <th>Estado</th>
+              <th>Método de pago</th>
+              <th>Fecha</th>
+            </tr>
+          </thead>
+          <tbody>
+            {recientes.isError ? (
+              <tr>
+                <td colSpan={6} className={styles.tableEmpty}>
+                  No se pudieron cargar las transacciones recientes.
+                </td>
+              </tr>
+            ) : recientes.isLoading ? (
+              <SkelRows cols={6} n={6} />
+            ) : recientesData.length === 0 ? (
+              <tr>
+                <td colSpan={6} className={styles.tableEmpty}>
+                  Sin transacciones todavía.
+                </td>
+              </tr>
+            ) : (
+              recientesData.map((t) => (
+                <tr key={t.transaccion_id}>
+                  <td>{t.usuario_nombre || t.usuario_email || t.usuario_id}</td>
+                  <td>{fmt(t.monto, t.moneda)}</td>
+                  <td>{t.moneda}</td>
+                  <td><StatusBadge estado={t.estado} /></td>
+                  <td>{t.metodo_pago || '—'}</td>
+                  <td>{fmtDate(t.fecha)}</td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
       </div>
 
       {!buscado && (
