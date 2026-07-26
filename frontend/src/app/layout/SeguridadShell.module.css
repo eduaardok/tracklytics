@@ -119,6 +119,52 @@
   border-top: 1px solid var(--color-border);
 }
 
+/* Secciones colapsables del sidebar (S12) — el label de cada sección (ej.
+   "Comercial") hace de toggle; sus enlaces viven dentro de .sectionLinks,
+   colapsados vía max-height (mismo criterio de animación simple que el
+   resto del proyecto, sin librería de transición). */
+.sectionHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  padding: var(--space-sm) var(--space-md);
+  font-family: var(--font-sans);
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-muted);
+  margin-top: var(--space-xs);
+  border-top: 1px solid var(--color-border);
+  user-select: none;
+}
+
+.sectionHeader:hover {
+  color: var(--color-ink);
+}
+
+.chevron {
+  transition: transform var(--duration-fast) var(--ease-standard);
+  font-size: 0.6rem;
+}
+
+.chevronOpen {
+  transform: rotate(90deg);
+}
+
+.sectionLinks {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  max-height: 0;
+  transition: max-height 0.2s ease;
+}
+
+.sectionLinksOpen {
+  max-height: 500px;
+}
+
 .main {
   flex: 1;
   min-width: 0;

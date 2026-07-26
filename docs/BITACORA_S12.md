@@ -539,3 +539,79 @@ heading "Disponibilidad de infraestructura" renderiza, sin errores de consola.
 |---|---|
 | `frontend/src/app/router.tsx` | Ampliado — `disponibilidad` dentro de `/seguridad` |
 | `frontend/src/app/layout/SeguridadShell.tsx` | Ampliado — link "Disponibilidad" en Reportes |
+
+---
+
+## Bloque 8 — Sidebar colapsable + variación real en disponibilidad; "gráfico vacío" de creadores era otra premisa falsa (25 jul 2026)
+
+### Sidebar colapsable
+El sidebar de `SeguridadShell` había crecido a ~28 enlaces en 5 secciones fijas, todas siempre
+expandidas — mucho scroll para llegar a "Reportes". Se convirtieron las 4 secciones agrupadas
+(Comercial / Contenido / Datos y Partners / Reportes) en acordeones independientes (`useState` por
+sección, no exclusivo entre ellas — pueden estar varias abiertas a la vez), con la sección que
+contiene la ruta activa (`location.pathname.startsWith`) abierta por defecto. La primera sección
+(Usuarios/Permisos/Auditoría/Errores) se dejó sin label ni toggle, tal como ya era — es lo primero
+que ve un admin, no necesita anunciarse como grupo. Animación vía `max-height` transition (no
+`grid-template-rows`): a esta escala (una lista angosta de ~7 enlaces por sección, sin reflow del
+resto de la página) el costo de layout es despreciable y es la técnica que se pidió explícitamente.
+
+### Disponibilidad: variación real en vez de 100% plano
+El reporte decía que los 4 gráficos de `/seguridad/disponibilidad` mostraban 100% de uptime sin
+variación. Causa real: `modelo_negocio_sync` (generador semanal con 3% de probabilidad de incidente
+por día) solo había corrido para las semanas 1-4 (2026-05-14 a 2026-06-10) — casi dos meses de hueco
+hasta la fecha actual del contenedor (2026-07-26), y ningún incidente había caído en `api` por puro
+azar.
+
+Se corrieron las semanas 5-11 de `modelo_negocio_sync` (hasta la semana actual) para tener serie
+continua, y se agregó `etl/seeds/seed_disponibilidad_incidentes.py` para forzar la historia de
+negocio pedida sobre los datos ya generados (en vez de regenerar con otra semilla, que tampoco
+garantizaría la combinación exacta):
+- **PocketBase**: el generador aleatorio le había puesto incidentes en 3 semanas de junio —
+  se limpian vía `ALTER TABLE ... UPDATE hubo_incidente = 0` (debía quedar en 100% siempre).
+- **ClickHouse**: el generador ya le puso por azar un incidente el 2026-07-08 (semana del
+  2026-07-06, "hace ~2 semanas") → 85.71% esa semana. Se deja intacto, coincide con lo pedido.
+- **Api**: sin incidentes por azar. Se marca el 2026-07-18 (semana del 2026-07-16, "hace ~1
+  semana") y se inserta una fila duplicada ese mismo día para que el promedio baje a 75% (6/8) en
+  vez de 85.7% (6/7) — una caída más severa que la de ClickHouse, como pedía el enunciado.
+- **Airflow**: sin incidentes en ninguna corrida, ninguna corrección necesaria.
+
+Resultado verificado por SQL (`toMonday` + `avg(hubo_incidente)`, misma agregación que
+`DISPONIBILIDAD_POR_COMPONENTE`): Airflow 100% todas las semanas, Api 75% en 2026-07-13,
+ClickHouse 85.71% en 2026-07-06, Pocketbase 100% todas las semanas.
+
+### Creadores: el "gráfico vacío" no se reprodujo (otra premisa falsa, ver [[project_s12_disponibilidad_404_investigation]])
+Antes de tocar datos se verificó cada paso pedido por el enunciado:
+1. `DIM_CUENTA_ARTISTA` ya tenía estados variados (10 aprobadas, 1 pendiente).
+2. `FACT_SUBIDA_TRACK` ya tenía los 4 estados de `DIM_ESTADO_REVISION` representados (5 aprobado,
+   1 pendiente, 1 rechazado, 1 retirado).
+3. La query `SUBIDAS_POR_ESTADO` (mismo patrón `argMax` sobre `_SUBIDA_RESUELTA`) devuelve las 4
+   filas correctamente contra ClickHouse en vivo, y `GET /app/v1/creadores/admin/dashboard` (con
+   una cuenta admin real) responde `{"subidas_por_estado":[...4 filas...],"cuentas_artista_total":11}`.
+
+No había datos vacíos ni bug de endpoint que corregir. Se verificó en el navegador (Playwright,
+build de producción `:8082`) por si el problema era solo de render: `MiniDonutChart` muestra las 4
+porciones con su leyenda (aprobado/pendiente/rechazado/retirado) sin ningún error de consola. No se
+sembró ningún dato adicional para esta capability — habría sido ruido sin causa real que arreglar.
+
+### Verificación
+Playwright contra el build de producción (`docker compose up --build -d`, Nginx `:8082`), login real
+con cuenta de prueba nueva `s12_verify_admin@test.com` (rol `admin`, creada vía
+`pb_client.crear_usuario`, [[feedback_admin_test_accounts_and_credential_boundary]]):
+- `/seguridad/creadores`: donut con 4 porciones + leyenda, KPIs con datos reales, sin errores de
+  consola.
+- `/seguridad/disponibilidad`: 4 gráficos de línea, dip visible en Api (~75%) y ClickHouse (~85.7%),
+  Airflow/Pocketbase planos en 100% como se pedía.
+- Sidebar en `/seguridad/creadores`: "Contenido" abierta por defecto (ruta activa), "Comercial" /
+  "Datos y Partners" / "Reportes" colapsadas; clic en "Comercial" la expande sin cerrar "Contenido"
+  (acordeones independientes, no exclusivos).
+- Sin errores de consola en ninguna de las 3 rutas verificadas.
+
+### Artefactos entregados (Bloque 8)
+
+| Artefacto | Estado |
+|---|---|
+| `frontend/src/app/layout/SeguridadShell.tsx` | Reescrito — secciones colapsables (`SidebarSection`, `useState`) |
+| `frontend/src/app/layout/SeguridadShell.module.css` | Ampliado — `.sectionHeader`/`.chevron`/`.sectionLinks` |
+| `etl/seeds/seed_disponibilidad_incidentes.py` | Nuevo — corrige incidentes de `FACT_DISPONIBILIDAD` sobre datos ya generados |
+| `FACT_ADQUISICION`/`FACT_DISPONIBILIDAD` (ClickHouse) | Semanas 5-11 generadas (`modelo_negocio_sync`), hasta la fecha actual |
+| Capability `creadores` | Sin cambios — bug no reproducido |
