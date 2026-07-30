@@ -1,0 +1,62 @@
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--space-md);
+}
+
+.card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-md);
+  transition: border-color var(--duration-standard) var(--ease-standard);
+}
+
+.card:hover {
+  border-color: var(--color-primary-light);
+}
+
+.cardHead {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: var(--space-sm);
+}
+
+.icon {
+  color: var(--color-primary-light);
+}
+
+.label {
+  font-family: var(--font-sans);
+  font-size: 0.75rem;
+  color: var(--color-muted);
+}
+
+.valueRow {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-sm);
+  flex-wrap: wrap;
+}
+
+.value {
+  font-family: var(--font-sans);
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: var(--color-ink);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.trend {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.trendUp   { color: var(--color-success); }
+.trendDown { color: var(--color-error); }

@@ -1,0 +1,89 @@
+.wrap {
+  overflow-x: auto;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+}
+
+.table th {
+  text-align: left;
+  font-weight: 500;
+  color: var(--color-muted);
+  padding: var(--space-sm);
+  border-bottom: 1px solid var(--color-border);
+  white-space: nowrap;
+}
+
+.table td {
+  padding: 8px var(--space-sm);
+  color: var(--color-ink);
+  border-bottom: 1px solid var(--color-border);
+  white-space: nowrap;
+}
+
+.table tbody tr:hover { background: var(--color-surface-raised); transition: background-color 150ms ease; }
+
+.thRight, .tdRight { text-align: right; font-variant-numeric: tabular-nums; }
+
+.posBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  background: var(--color-surface-raised);
+  color: var(--color-muted);
+}
+
+.posTop1 { background: oklch(0.75 0.14 85 / 0.25); color: oklch(0.8 0.16 85); }
+.posTop2 { background: oklch(0.75 0.01 285 / 0.25); color: oklch(0.85 0.01 285); }
+.posTop3 { background: oklch(0.62 0.10 50 / 0.25); color: oklch(0.72 0.12 50); }
+
+.variacion {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.variacionUp   { color: var(--color-success); }
+.variacionDown { color: var(--color-error); }
+
+.pager {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: var(--space-sm);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--color-muted);
+}
+
+.pagerBtns {
+  display: flex;
+  gap: 6px;
+}
+
+.pagerBtn {
+  font-family: var(--font-sans);
+  font-size: 0.75rem;
+  color: var(--color-ink);
+  background: transparent;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 4px 10px;
+  cursor: pointer;
+}
+
+.pagerBtn:hover:not(:disabled) { border-color: var(--color-primary-light); }
+.pagerBtn:disabled { opacity: 0.4; cursor: not-allowed; }
