@@ -91,6 +91,11 @@ CLICKHOUSE_DB=tracklytics
 CLICKHOUSE_USER=tracklytics_user
 CLICKHOUSE_PASSWORD=cambia_esto_en_produccion
 
+# ClickHouse Gold (S13-P2) — segunda instancia, capa de agregaciones.
+# Mismo CLICKHOUSE_USER/CLICKHOUSE_PASSWORD de arriba (no es una cuenta
+# distinta, es una instancia distinta). Sin tablas todavía — ver P3.
+CLICKHOUSE_GOLD_DB=tracklytics_gold
+
 # Airflow
 AIRFLOW_USER=admin
 AIRFLOW_PASSWORD=tracklytics2026
@@ -188,6 +193,8 @@ Los volúmenes se recrean solos. No es necesario ningún paso manual adicional.
 | Frontend React (único, containerizado) | http://localhost:8082 | Según ruta, ver arriba |
 | Airflow UI | http://localhost:8080 | admin |
 | PocketBase Admin | http://localhost:8090/_/ | admin |
+| ClickHouse (catálogo) | localhost:8123 (HTTP) / 9000 (nativo) | `CLICKHOUSE_USER`/`CLICKHOUSE_PASSWORD` |
+| ClickHouse Gold (S13-P2, capa de agregaciones) | localhost:8124 (HTTP) / 9001 (nativo) | Mismas credenciales — sin tablas todavía, ver P3 |
 
 Credenciales Airflow: `admin` / valor de `AIRFLOW_PASSWORD` en `.env` (por defecto `tracklytics2026`)
 
@@ -661,6 +668,10 @@ validate --specs` en verde para las 15 capabilities).
 | S10 | Retiro del frontend legado + modelo de negocio real (regalías/publicidad) + cierre de la capa operativa | Frontend único (React); capabilities `regalias`/`publicidad` (9 tablas, DAG `finanzas_periodicas`); 6 dashboards administrativos RT-04; sesiones activas multi-dispositivo; búsqueda avanzada; feed social; playlists colaborativas + reorder — ver resumen abajo |
 | S11 | Cierre del modelo de monetización y de dinero + calidad de datos del catálogo + capability `finanzas` + tier B2B + gobierno de identidad + ciclos de vida + descubrimiento/comunidad | 9 changes de OpenSpec + 1 fix técnico directo (13 bloques); capabilities `simulacion` y `finanzas` (2 nuevas, 15 en total); publicidad display, trial + plan estudiante, churn con motivo, funnel/P&L, MRR/ARR, retiro de regalías, cambio de plan con prorrateo, dunning real, retención fiscal, país/moneda/IVA configurables; flujo de solicitud de licencia por sello; enriquecimiento de catálogo (año/país deterministas, coherencia audio-género, recalificación en bloque); gating por tier B2B (Básico/Pro/Enterprise) con 2 paneles predictivos Enterprise; 6 roles administrativos por área con gestión de usuarios (vista 360°, lockout, recuperación de contraseña, baja de cuenta); ciclos de vida de entidades de negocio (pausar/revocar/terminar/takedown/retirar, CRUD de partners, denuncias); búsqueda unificada, radio/mix diario por similitud de audio, bloqueos, strikes, verificación de email, exportación de datos — ver `docs/BITACORA_S11.md` |
 | S12 | Reportes administrativos de `seguridad`/`experiencia`/`social` | 5 endpoints de solo lectura: `GET /admin/usuarios-reporte`, `GET /admin/strikes` (`seguridad`); `GET /admin/ab-tests`, `GET /admin/familias` (`experiencia`); `GET /admin/notificaciones` (`social`); 5 páginas frontend nuevas (sección "Reportes" del sidebar admin) que los consumen — ver `docs/BITACORA_S12.md` |
+| S13-P1 | Auditoría completa del sistema + polish visual + mapa de objetivos | Auditoría de los 27 informes simples y CRUD administrativo (26/27 existen con datos reales); toggle grid/lista en catálogo con portadas por gradiente de género; `SkeletonLoader`/`EmptyState` compartidos aplicados de forma consistente; paleta violeta en gráficos Recharts (grid punteado, animación desactivada, botones con gradiente); persistencia de las secciones colapsables del sidebar admin; `docs/OBJETIVOS_TRACKLYTICS.md` (4 OE, 35 OT, 65 OO, matriz de trazabilidad completa) — ver `docs/BITACORA_S13.md` |
+| S13-P2 | Informe faltante (sesiones activas) + patrón CRUD docente + infraestructura ClickHouse Gold | `GET /admin/sesiones-activas` (`seguridad`) + página `/seguridad/sesiones-activas` (cierra Obj 30, única brecha total de S13-P1); componentes compartidos `CrudModal`/`CrudActionButtons` (modal reutilizable con foco atrapado, Escape, fieldset readonly en modo "ver"); patrón CRUD completo (Insertar/Editar/Ver detalle/Eliminar vía modal) aplicado a Partners, Campañas publicitarias y Tickets de soporte; segunda instancia de ClickHouse (`clickhouse-gold`, puerto 8124, base `tracklytics_gold` vacía — tablas y DAGs en P3) con módulo de conexión propio (`api/core/database_gold.py`) — ver `docs/BITACORA_S13.md` |
+| S13-P3a | Capa Gold: 13 tablas + DAG de agregación + 30 endpoints de informes compuestos (solo backend) | `create_gold_tables.py` (13 tablas `GOLD_*` en ClickHouse Gold, real-primero-demo-después con columna `es_estimado`); `etl/gold_ch/` (12 módulos de agregación, incluida regresión lineal para proyecciones) + `dag_gold_aggregations.py` (idempotente por período ISO-semana); paquete `api/paquetes/reportes/` con los 30 endpoints `GET /app/v1/reportes/compuestos/<departamento>/<informe>`, gateados por rol administrativo departamental — los 30 verificados con curl real, datos no vacíos. Frontend de estos informes queda para P3b — ver `docs/BITACORA_S13.md` |
+| S13-P3b | Frontend de los 30 informes compuestos (solo frontend) | 6 componentes plantilla reutilizables (`ReportLayout`/`KpiCards`/`TrendChart`/`RankingTable`/`DistributionChart`/`PredictionChart` en `shared/components/reportes/`) + hook `useCompoundReport`; 30 configuraciones (`departamento`/`informe`/`render`) agrupadas en 9 archivos por departamento en vez de 30 páginas monolíticas, servidas por una única ruta genérica `/reportes/:departamento/:informe`; submenú "Informes Compuestos" anidado en la sección "Reportes" del sidebar admin (9 grupos colapsables); verificado con Playwright (sidebar, filtro de período, badge "Datos estimados", C07/C14/C17 con datos y gráficos reales) — ver `docs/BITACORA_S13.md` |
 
 Resumen de la segunda entrega de S9 (el refactor):
 - **6 capabilities OpenSpec nuevas** cerradas: `seguridad`, `facturacion`, `creadores`,

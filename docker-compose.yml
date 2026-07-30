@@ -263,6 +263,14 @@ services:
       AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: sqlite:////opt/airflow/airflow.db
       AIRFLOW__WEBSERVER__SECRET_KEY: ${AIRFLOW_SECRET_KEY:-tracklytics2026}
       AIRFLOW__WEBSERVER__WORKERS: 1
+      # Defaults (120s/120s) son insuficientes en este entorno de desarrollo:
+      # el gunicorn master del webserver compite por CPU con el scheduler y
+      # las corridas del DAG (SequentialExecutor, mismo contenedor) y se
+      # marcaba a sí mismo como no-responsivo, forzando un auto-shutdown que
+      # NUNCA se recuperaba solo (root cause real del "unhealthy" en S13-P4,
+      # no un problema cosmético del healthcheck — ver docs/BITACORA_S13.md).
+      AIRFLOW__WEBSERVER__WEB_SERVER_MASTER_TIMEOUT: "300"
+      AIRFLOW__WEBSERVER__WEB_SERVER_WORKER_TIMEOUT: "300"
       AIRFLOW__SCHEDULER__MIN_FILE_PROCESS_INTERVAL: 60
       AIRFLOW__SCHEDULER__DAG_DIR_LIST_INTERVAL: 60
       AIRFLOW__CORE__DAGBAG_IMPORT_TIMEOUT: 60
@@ -298,7 +306,7 @@ services:
       interval: 30s
       timeout: 10s
       retries: 5
-      start_period: 30s
+      start_period: 120s
     networks:
       - tracklytics-net
 
