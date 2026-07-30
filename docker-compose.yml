@@ -88,6 +88,56 @@ services:
       - tracklytics-net
 
   # ─────────────────────────────────────────
+  # 3b. ClickHouse Gold  — segunda instancia, capa de agregaciones (S13-P2).
+  # Separada a propósito del ClickHouse de catálogo (arriba): el docente pide
+  # que Gold viva en su propia instancia, no en una base de datos adicional
+  # dentro de la misma. Puerto 8124 (HTTP) / 9001 (nativo) para no colisionar
+  # con 8123/9000 del ClickHouse de catálogo. Sin tablas todavía — solo la
+  # base de datos vacía (`init-db-gold`); P3 crea las tablas y los DAGs.
+  # ─────────────────────────────────────────
+  clickhouse-gold:
+    image: clickhouse/clickhouse-server:24.3
+    container_name: tracklytics_clickhouse_gold
+    restart: unless-stopped
+    ports:
+      - "8124:8123"   # HTTP interface
+      - "9001:9000"   # Native TCP interface
+    environment:
+      CLICKHOUSE_DB:       ${CLICKHOUSE_GOLD_DB:-tracklytics_gold}
+      CLICKHOUSE_USER:     ${CLICKHOUSE_USER}
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD}
+    volumes:
+      - ch_gold_data:/var/lib/clickhouse
+    healthcheck:
+      test: ["CMD", "clickhouse-client", "--query", "SELECT 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - tracklytics-net
+
+  # ─────────────────────────────────────────
+  # 3c. Init DB Gold  — crea la base de datos vacía en ClickHouse Gold
+  # ─────────────────────────────────────────
+  init-db-gold:
+    build:
+      context: .
+      dockerfile: init_gold_Dockerfile
+    container_name: tracklytics_init_gold
+    restart: no
+    depends_on:
+      clickhouse-gold:
+        condition: service_healthy
+    environment:
+      CLICKHOUSE_GOLD_HOST: clickhouse-gold
+      CLICKHOUSE_GOLD_PORT: 8123   # puerto INTERNO del contenedor, no el 8124 publicado al host
+      CLICKHOUSE_GOLD_DB:   ${CLICKHOUSE_GOLD_DB:-tracklytics_gold}
+      CLICKHOUSE_USER:      ${CLICKHOUSE_USER}
+      CLICKHOUSE_PASSWORD:  ${CLICKHOUSE_PASSWORD}
+    networks:
+      - tracklytics-net
+
+  # ─────────────────────────────────────────
   # 4. Init Permissions  — ajusta permisos del volumen parquet_stage
   # ─────────────────────────────────────────
   init-permissions:
@@ -152,6 +202,8 @@ services:
     depends_on:
       clickhouse:
         condition: service_healthy
+      clickhouse-gold:
+        condition: service_healthy
     ports:
       - "8000:8000"
     environment:
@@ -160,6 +212,12 @@ services:
       CLICKHOUSE_DB:       ${CLICKHOUSE_DB}
       CLICKHOUSE_USER:     ${CLICKHOUSE_USER}
       CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD}
+      # Capa Gold (S13-P2, infraestructura sin tablas todavía — ver P3) —
+      # puerto INTERNO 8123 del contenedor `clickhouse-gold`, no el 8124
+      # publicado al host.
+      CLICKHOUSE_GOLD_HOST: clickhouse-gold
+      CLICKHOUSE_GOLD_PORT: 8123
+      CLICKHOUSE_GOLD_DB:   ${CLICKHOUSE_GOLD_DB:-tracklytics_gold}
       AIRFLOW_URL:         http://airflow:8080
       AIRFLOW_USER:        ${AIRFLOW_USER:-admin}
       AIRFLOW_PASSWORD:    ${AIRFLOW_PASSWORD:-tracklytics2026}
@@ -193,6 +251,8 @@ services:
         condition: service_healthy
       clickhouse:
         condition: service_healthy
+      clickhouse-gold:
+        condition: service_healthy
       init-permissions:
         condition: service_completed_successfully
     environment:
@@ -218,6 +278,11 @@ services:
       CLICKHOUSE_DB:         ${CLICKHOUSE_DB}
       CLICKHOUSE_USER:       ${CLICKHOUSE_USER}
       CLICKHOUSE_PASSWORD:   ${CLICKHOUSE_PASSWORD}
+      # Capa Gold (S13-P3a) — puerto INTERNO 8123 del contenedor
+      # `clickhouse-gold`, no el 8124 publicado al host.
+      CLICKHOUSE_GOLD_HOST:  clickhouse-gold
+      CLICKHOUSE_GOLD_PORT:  8123
+      CLICKHOUSE_GOLD_DB:    ${CLICKHOUSE_GOLD_DB:-tracklytics_gold}
       PARQUET_DIR:           /app/parquet_stage
       WEEK_NUMBER:           ${WEEK_NUMBER:-1}
       PYTHONPATH:            /opt/airflow/etl_src
@@ -261,6 +326,7 @@ services:
 volumes:
   pb_data:
   ch_data:
+  ch_gold_data:
   parquet_stage:
   airflow_home:
 

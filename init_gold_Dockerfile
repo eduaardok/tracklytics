@@ -1,0 +1,5 @@
+FROM python:3.11-slim
+WORKDIR /app
+RUN pip install --no-cache-dir clickhouse-connect python-dotenv
+COPY init_clickhouse_gold.py create_gold_tables.py .
+CMD ["python", "init_clickhouse_gold.py"]
