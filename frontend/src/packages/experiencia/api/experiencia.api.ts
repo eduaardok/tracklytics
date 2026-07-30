@@ -35,6 +35,10 @@ export const experienciaApi = {
   ticketsAdmin: (estado?: string) =>
     apiClient.get<ApiResponse<Ticket>>(`/experiencia/tickets${estado ? `?estado=${estado}` : ''}`),
 
+  // Ver detalle (S13-P2).
+  ticketPorId: (factId: number) =>
+    apiClient.get<Ticket>(`/experiencia/tickets/${factId}`),
+
   actualizarTicket: (factId: number, estado: EstadoTicket) =>
     apiClient.put<{ status: string; fact_id: number; estado: EstadoTicket }>(`/experiencia/tickets/${factId}`, { estado }),
 

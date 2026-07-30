@@ -108,7 +108,8 @@ SELECT
     countIf(resultado = 'success')                               AS llamadas_exitosas,
     countIf(resultado != 'success')                              AS llamadas_error,
     round(countIf(resultado = 'success') / count() * 100, 2)     AS tasa_exito_pct,
-    round(avgIf(duracion_ms, resultado = 'success'), 2)          AS latencia_promedio_ms_exitosas
+    round(avgIf(duracion_ms, resultado = 'success'), 2)          AS latencia_promedio_ms_exitosas,
+    max(timestamp)                                               AS ultima_llamada
 FROM {_DB}.LOG_LLAMADAS_PARTNER
 WHERE partner_id != ''
 GROUP BY partner_id

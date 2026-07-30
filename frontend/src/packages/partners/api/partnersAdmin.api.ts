@@ -21,6 +21,16 @@ export type CrearPartnerBody = {
   email_contacto?: string
 }
 
+// S13-P2 (patrón CRUD docente): campos reales editables del partner — no
+// incluye "notas"/"contacto" (pedidos por el enunciado original) porque esos
+// campos no existen en la colección `partners` de PocketBase; no se fabrican.
+export type EditarPartnerBody = {
+  nombre?:         string
+  tier?:           PartnerTier
+  email_contacto?: string
+  estado?:         'vigente' | 'inactivo'
+}
+
 type PartnerConKey = { status: string; partner: Partner; api_key: string }
 
 export const partnersAdminApi = {
@@ -28,6 +38,9 @@ export const partnersAdminApi = {
 
   crear: (body: CrearPartnerBody) =>
     apiClient.post<PartnerConKey>('/partners/admin', body),
+
+  editar: (partnerId: string, body: EditarPartnerBody) =>
+    apiClient.patch<{ status: string; partner: Partner }>(`/partners/admin/${partnerId}`, body),
 
   rotarKey: (partnerId: string) =>
     apiClient.post<PartnerConKey>(`/partners/admin/${partnerId}/rotar-key`, undefined),

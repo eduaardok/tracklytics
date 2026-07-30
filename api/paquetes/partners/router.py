@@ -55,6 +55,7 @@ async def metricas_por_partner():
                 "llamadas_error": f["llamadas_error"],
                 "tasa_exito_pct": f["tasa_exito_pct"],
                 "latencia_promedio_ms_exitosas": f["latencia_promedio_ms_exitosas"],
+                "ultima_llamada": f["ultima_llamada"],
                 "desglose_por_tier": desglose.get(f["partner_id"], []),
             }
             for f in filas
@@ -112,6 +113,34 @@ async def desactivar_partner(partner_id: str, admin: dict = Depends(require_part
     audit.record(
         usuario_id=admin["record"]["id"], accion="desactivar_partner", tabla_afectada="pocketbase.partners",
         antes={"partner_id": partner_id, "estado": "vigente"}, despues={"partner_id": partner_id, "estado": "inactivo"},
+    )
+    return {"status": "ok", "partner": partner}
+
+
+# S13-P2 (patrón CRUD docente): al auditar en S13-P1 se encontró que Partners
+# tenía Insertar y Desactivar pero no Editar — se agrega aquí, mismo criterio
+# de auditoría (`audit.record`) que el resto de las mutaciones de este router.
+class PartnerEditarBody(BaseModel):
+    nombre: str | None = None
+    tier: Literal["basico", "pro", "enterprise"] | None = None
+    email_contacto: str | None = None
+    estado: Literal["vigente", "inactivo"] | None = None
+
+
+@v1_router.patch("/admin/{partner_id}")
+async def editar_partner(partner_id: str, body: PartnerEditarBody, admin: dict = Depends(require_partner_admin)):
+    antes = await pb_client.get_partner(partner_id)
+    if not antes:
+        raise HTTPException(status_code=404, detail="Partner no encontrado")
+    campos = {k: v for k, v in body.model_dump().items() if v is not None}
+    if not campos:
+        raise HTTPException(status_code=422, detail="No se envió ningún campo para editar")
+    if "nombre" in campos and not campos["nombre"].strip():
+        raise HTTPException(status_code=422, detail="El nombre del partner no puede estar vacío")
+    partner = await pb_client.actualizar_partner(partner_id, campos)
+    audit.record(
+        usuario_id=admin["record"]["id"], accion="editar_partner", tabla_afectada="pocketbase.partners",
+        antes={"partner_id": partner_id, **{k: antes.get(k) for k in campos}}, despues={"partner_id": partner_id, **campos},
     )
     return {"status": "ok", "partner": partner}
 

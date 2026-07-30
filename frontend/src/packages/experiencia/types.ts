@@ -13,6 +13,9 @@ export type Ticket = {
 export type TicketBody = {
   asunto:      string
   descripcion: string
+  // Admin crea el ticket en nombre de otro usuario (S13-P2) — ignorado por el
+  // backend si quien llama no es admin.
+  usuario_id?: string
 }
 
 export type TopTrackPlaylist = {

@@ -45,5 +45,6 @@ export type PartnerMetrica = {
   llamadas_error:                number
   tasa_exito_pct:                number
   latencia_promedio_ms_exitosas: number
+  ultima_llamada:                string | null
   desglose_por_tier:             PartnerMetricaTier[]
 }

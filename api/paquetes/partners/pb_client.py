@@ -142,6 +142,16 @@ async def desactivar_partner(partner_id: str) -> dict:
     return _safe(record)
 
 
+async def actualizar_partner(partner_id: str, campos: dict) -> dict:
+    """Editar partner (S13-P2): solo los campos reales del esquema de
+    PocketBase (`_SAFE_FIELDS` menos `id`/`created`, que no se editan) —
+    `notas`/`contacto` que pedía el enunciado original no existen en la
+    colección `partners` y no se fabrican acá; el formulario del frontend solo
+    ofrece nombre/tier/email_contacto/estado, que sí son reales."""
+    record = await _records_write("PATCH", f"records/{partner_id}", campos)
+    return _safe(record)
+
+
 async def list_por_ids(ids: list[str]) -> dict[str, dict]:
     """Resuelve nombre/tier de un conjunto de partners por id de PocketBase,
     para enriquecer una agregación de `LOG_LLAMADAS_PARTNER` (que solo guarda

@@ -2,7 +2,7 @@ import { apiClient, type ApiResponse } from '@shared/lib/api-client'
 import type {
   Permiso, AuditLogEntry, ErrorSistemaEntry, AsignarPermisoBody, DashboardSeguridad, CatalogoPermisos,
   UsuarioAdmin, RolAdmin, Usuario360, Strike, StrikeEmitidoResultado,
-  UsuarioReporte, StrikeGlobal,
+  UsuarioReporte, StrikeGlobal, SesionActiva,
 } from '../types'
 
 export type UsuariosAdminFiltros = {
@@ -84,4 +84,8 @@ export const seguridadApi = {
 
   strikesGlobal: () =>
     apiClient.get<{ strikes: StrikeGlobal[] }>('/seguridad/admin/strikes'),
+
+  // Obj 30 / OT-30 (S13-P2).
+  sesionesActivas: () =>
+    apiClient.get<{ sesiones: SesionActiva[] }>('/seguridad/admin/sesiones-activas'),
 }

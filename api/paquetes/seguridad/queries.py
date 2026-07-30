@@ -191,6 +191,65 @@ LEFT JOIN DIM_DISPOSITIVO d ON d.dispositivo_id = s.dispositivo_id
 ORDER BY s.fecha_inicio DESC
 """
 
+# Obj 30 (S13-P2): listado GLOBAL de sesiones abiertas (todo el sistema, no un
+# usuario puntual) — complementa a MIS_SESIONES_ABIERTAS igual que
+# STRIKES_ACTIVOS_GLOBAL complementa a STRIKES_DE_USUARIO. Reusa el mismo
+# subquery de rol_admin ya validado en USUARIOS_REPORTE (GROUP BY usuario_id
+# solamente, un rol_admin por usuario) para no multiplicar filas de sesión al
+# unir contra BRIDGE_USUARIO_ROL_ADMIN.
+#
+# Sin columna de dirección IP: ni FACT_SESION ni DIM_DISPOSITIVO la capturan
+# hoy (verificado en el schema real, init_clickhouse.py) y RT-02/la regla de
+# esta semana prohíben alterar tablas existentes del ClickHouse de catálogo
+# para agregarla — se expone `null` explícito en vez de inventar un dato que
+# el pipeline no produce.
+SESIONES_ACTIVAS_GLOBAL = """
+SELECT
+    s.sesion_id    AS sesion_id,
+    s.usuario_id   AS usuario_id,
+    u.nombre       AS nombre,
+    u.email        AS email,
+    ifNull(nullIf(r.rol_admin, ''), 'usuario') AS rol,
+    d.tipo         AS dispositivo_tipo,
+    d.os           AS dispositivo_os,
+    s.fecha_inicio AS fecha_inicio,
+    dateDiff('second', s.fecha_inicio, now()) AS duracion_segundos
+FROM (
+    SELECT
+        sesion_id,
+        anyLast(usuario_id)     AS usuario_id,
+        anyLast(dispositivo_id) AS dispositivo_id,
+        anyLast(fecha_inicio)   AS fecha_inicio,
+        argMax(fecha_fin, fecha_fin_version) AS fecha_fin
+    FROM FACT_SESION
+    GROUP BY sesion_id
+) s
+LEFT JOIN (
+    SELECT
+        usuario_id,
+        argMax(nombre, actualizado_en) AS nombre,
+        argMax(email, actualizado_en)  AS email
+    FROM DIM_USUARIO
+    GROUP BY usuario_id
+) u ON u.usuario_id = s.usuario_id
+LEFT JOIN (
+    SELECT usuario_id, rol_admin
+    FROM (
+        SELECT
+            usuario_id,
+            argMax(rol_admin, fecha) AS rol_admin,
+            argMax(revocado, fecha)  AS revocado
+        FROM BRIDGE_USUARIO_ROL_ADMIN
+        GROUP BY usuario_id
+    )
+    WHERE revocado = 0
+) r ON r.usuario_id = s.usuario_id
+LEFT JOIN DIM_DISPOSITIVO d ON d.dispositivo_id = s.dispositivo_id
+WHERE s.fecha_fin IS NULL
+ORDER BY s.fecha_inicio DESC
+LIMIT {limit:UInt32}
+"""
+
 # ── Gestión administrativa de usuarios (change roles-gestion-usuarios) ─────────
 # Listado paginado con estado_cuenta, filtrable por rol, estado y rango de
 # fecha de registro. Evoluciona usuarios_listado_sql (que no exponía estado).

@@ -4,6 +4,10 @@ import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { apiErrorMessage } from '@shared/lib/api-client'
 import { useToast } from '@shared/context/ToastContext'
 import { useConfirm } from '@shared/context/ConfirmContext'
+import { CrudModal } from '@shared/components/CrudModal'
+import { CrudActionButtons } from '@shared/components/CrudActionButtons'
+import { SkeletonTableRows } from '@shared/components/SkeletonLoader'
+import { EmptyState } from '@shared/components/EmptyState'
 import { publicidadApi } from '../api/publicidad.api'
 import type { Anunciante, Campana, FormatoCampana, IngresoCampana, TipoAnuncio } from '../types'
 import styles from './PublicidadAdminPage.module.css'
@@ -26,8 +30,10 @@ export function PublicidadAdminPage() {
   const toast = useToast()
   const confirm = useConfirm()
 
-  // Campaña en edición (change p1-ciclos-vida) — null = diálogo cerrado.
+  // Campaña en edición/vista (change p1-ciclos-vida, extendido S13-P2 con
+  // Ver detalle) — null = modal cerrado.
   const [editCampana, setEditCampana] = useState<Campana | null>(null)
+  const [viewCampana, setViewCampana] = useState<Campana | null>(null)
 
   const [nombreAnunciante, setNombreAnunciante] = useState('')
   const [sector, setSector] = useState('')
@@ -104,6 +110,11 @@ export function PublicidadAdminPage() {
       transicion.mutate({ id: c.campana_id, accion: 'finalizar' })
     }
   }
+  async function pedirPausar(c: Campana) {
+    if (await confirm(`"${c.nombre}" dejará de servir impresiones hasta que la reanudes.`, { title: 'Pausar campaña' })) {
+      transicion.mutate({ id: c.campana_id, accion: 'pausar' })
+    }
+  }
   async function pedirDesactivarAnunciante(a: Anunciante) {
     if (await confirm(`El anunciante "${a.nombre}" quedará inactivo y no se ofrecerá para campañas nuevas.`, { title: 'Desactivar anunciante', danger: true })) {
       desactivarAnunciante.mutate(a.anunciante_id)
@@ -137,8 +148,10 @@ export function PublicidadAdminPage() {
         <table className={styles.table}>
           <thead><tr><th>ID</th><th>Nombre</th><th>Sector</th><th>Estado</th><th className={styles.actionsCol}>Acciones</th></tr></thead>
           <tbody>
-            {anunciantesData.length === 0 ? (
-              <tr><td colSpan={5} className={styles.emptyState}>Sin anunciantes todavía.</td></tr>
+            {anunciantes.isLoading ? (
+              <SkeletonTableRows columns={5} />
+            ) : anunciantesData.length === 0 ? (
+              <tr><td colSpan={5}><EmptyState icon="( ∅ )" title="Sin anunciantes" body="Todavía no hay anunciantes registrados." /></td></tr>
             ) : anunciantesData.map((a) => (
               <tr key={a.anunciante_id}>
                 <td>{a.anunciante_id}</td><td>{a.nombre}</td><td>{a.sector || '—'}</td>
@@ -205,8 +218,10 @@ export function PublicidadAdminPage() {
         <table className={styles.table}>
           <thead><tr><th>ID</th><th>Nombre</th><th>Formato</th><th>CPM</th><th>Inicio</th><th>Fin</th><th>Estado</th><th className={styles.actionsCol}>Acciones</th></tr></thead>
           <tbody>
-            {campanasData.length === 0 ? (
-              <tr><td colSpan={8} className={styles.emptyState}>Sin campañas todavía.</td></tr>
+            {campanas.isLoading ? (
+              <SkeletonTableRows columns={8} />
+            ) : campanasData.length === 0 ? (
+              <tr><td colSpan={8}><EmptyState icon="( ∅ )" title="Sin campañas" body="Todavía no hay campañas publicitarias registradas." /></td></tr>
             ) : campanasData.map((c) => {
               const est = estadoCampana(c)
               const finalizada = c.estado_manual === 'finalizada'
@@ -218,13 +233,16 @@ export function PublicidadAdminPage() {
                   <td><span className={`${styles.badge} ${est.tone === 'ok' ? styles.badgeOk : est.tone === 'warn' ? styles.badgeWarn : styles.badgeOff}`}>{est.label}</span></td>
                   <td className={styles.actionsCol}>
                     <div className={styles.actions}>
+                      <CrudActionButtons
+                        onView={() => setViewCampana(c)}
+                        onEdit={!finalizada ? () => setEditCampana(c) : undefined}
+                      />
                       {!finalizada && c.estado_manual !== 'pausada' && (
-                        <button className={styles.btnGhost} onClick={() => transicion.mutate({ id: c.campana_id, accion: 'pausar' })}>Pausar</button>
+                        <button className={styles.btnGhost} onClick={() => pedirPausar(c)}>Pausar</button>
                       )}
                       {c.estado_manual === 'pausada' && (
                         <button className={styles.btnGhost} onClick={() => transicion.mutate({ id: c.campana_id, accion: 'reanudar' })}>Reanudar</button>
                       )}
-                      <button className={styles.btnGhost} onClick={() => setEditCampana(c)} disabled={finalizada}>Editar</button>
                       {!finalizada && (
                         <button className={styles.btnGhostDanger} onClick={() => pedirFinalizar(c)}>Finalizar</button>
                       )}
@@ -242,8 +260,10 @@ export function PublicidadAdminPage() {
         <table className={styles.table}>
           <thead><tr><th>Campaña</th><th>Impresiones completadas</th><th>Ingreso total</th></tr></thead>
           <tbody>
-            {ingresosData.length === 0 ? (
-              <tr><td colSpan={3} className={styles.emptyState}>Sin ingreso registrado todavía.</td></tr>
+            {ingresos.isLoading ? (
+              <SkeletonTableRows columns={3} />
+            ) : ingresosData.length === 0 ? (
+              <tr><td colSpan={3}><EmptyState icon="( ∅ )" title="Sin ingreso registrado" body="Todavía no hay impresiones completadas." /></td></tr>
             ) : ingresosData.map((i) => (
               <tr key={i.campana_id}>
                 {/* toFixed(4) (bugfix QA S10 ronda 2): único monto de la app mostrado a 4
@@ -258,20 +278,31 @@ export function PublicidadAdminPage() {
       </div>
 
       {editCampana && (
-        <CampanaEditDialog
+        <CampanaEditModal
           campana={editCampana}
           pending={guardarCampana.isPending}
           onClose={() => setEditCampana(null)}
           onSave={(vals) => guardarCampana.mutate({ id: editCampana.campana_id, ...vals })}
         />
       )}
+
+      {viewCampana && (
+        <CampanaViewModal
+          campana={viewCampana}
+          anunciante={anunciantesData.find((a) => a.anunciante_id === viewCampana.anunciante_id)}
+          ingreso={ingresosData.find((i) => i.campana_id === viewCampana.campana_id)}
+          onClose={() => setViewCampana(null)}
+        />
+      )}
     </section>
   )
 }
 
-// Diálogo de edición de campaña (change p1-ciclos-vida) — <dialog> nativo para
-// escapar el stacking context de la tabla con overflow.
-function CampanaEditDialog({ campana, pending, onClose, onSave }: {
+// Migrado a `CrudModal` compartido (S13-P2) — antes reimplementaba su propio
+// `.modalBackdrop`/`.modal`/`.modalActions` (ver `PublicidadAdminPage.module.css`,
+// ahora solo usados por sus estilos de campo `.field`/`.input`/`.select`, que
+// SÍ siguen siendo propios de esta entidad).
+function CampanaEditModal({ campana, pending, onClose, onSave }: {
   campana: Campana
   pending: boolean
   onClose: () => void
@@ -282,48 +313,99 @@ function CampanaEditDialog({ campana, pending, onClose, onSave }: {
   const [fechaInicio, setFechaInicio] = useState(campana.fecha_inicio)
   const [fechaFin, setFechaFin] = useState(campana.fecha_fin ?? '')
   const [formato, setFormato] = useState<FormatoCampana>(campana.formato)
+  const valido = nombre.trim().length > 0 && Number(presupuesto) > 0
 
   return (
-    <div className={styles.modalBackdrop} onMouseDown={onClose}>
-      <div className={styles.modal} role="dialog" aria-modal="true" aria-label="Editar campaña" onMouseDown={(e) => e.stopPropagation()}>
-        <p className={styles.modalTitle}>Editar campaña</p>
-        <form className={styles.modalForm} onSubmit={(e) => {
-          e.preventDefault()
-          if (!nombre.trim() || Number(presupuesto) <= 0) return
-          onSave({ nombre: nombre.trim(), presupuesto_total: Number(presupuesto), fecha_inicio: fechaInicio, fecha_fin: fechaFin || null, formato })
-        }}>
-          <div className={styles.field}>
-            <label className={styles.fieldLabel} htmlFor="ed-nombre">Nombre</label>
-            <input id="ed-nombre" className={styles.input} value={nombre} onChange={(e) => setNombre(e.target.value)} />
-          </div>
-          <div className={styles.field}>
-            <label className={styles.fieldLabel} htmlFor="ed-formato">Formato</label>
-            <select id="ed-formato" className={styles.select} value={formato} onChange={(e) => setFormato(e.target.value as FormatoCampana)}>
-              <option value="audio">Audio</option>
-              <option value="display">Display</option>
-              <option value="banner">Banner</option>
-            </select>
-          </div>
-          <div className={styles.field}>
-            <label className={styles.fieldLabel} htmlFor="ed-pres">Presupuesto total</label>
-            <input id="ed-pres" className={styles.input} type="number" step="0.01" min="0.01" value={presupuesto} onChange={(e) => setPresupuesto(e.target.value)} />
-          </div>
-          <div className={styles.field}>
-            <label className={styles.fieldLabel} htmlFor="ed-ini">Fecha de inicio</label>
-            <input id="ed-ini" className={styles.input} type="date" value={fechaInicio} onChange={(e) => setFechaInicio(e.target.value)} />
-          </div>
-          <div className={styles.field}>
-            <label className={styles.fieldLabel} htmlFor="ed-fin">Fecha de fin</label>
-            <input id="ed-fin" className={styles.input} type="date" value={fechaFin} onChange={(e) => setFechaFin(e.target.value)} />
-          </div>
-          <div className={styles.modalActions}>
-            <button type="button" className={styles.btnGhost} onClick={onClose}>Cancelar</button>
-            <button type="submit" className={styles.btnPrimary} disabled={pending || !nombre.trim() || Number(presupuesto) <= 0}>
-              {pending ? 'Guardando…' : 'Guardar cambios'}
-            </button>
-          </div>
-        </form>
+    <CrudModal
+      isOpen
+      mode="edit"
+      title={`Editar campaña — ${campana.nombre}`}
+      loading={pending}
+      onClose={onClose}
+      onConfirm={() => valido && onSave({ nombre: nombre.trim(), presupuesto_total: Number(presupuesto), fecha_inicio: fechaInicio, fecha_fin: fechaFin || null, formato })}
+    >
+      <div className={styles.field}>
+        <label className={styles.fieldLabel} htmlFor="ed-nombre">Nombre</label>
+        <input id="ed-nombre" className={styles.input} value={nombre} onChange={(e) => setNombre(e.target.value)} />
       </div>
-    </div>
+      <div className={styles.field}>
+        <label className={styles.fieldLabel} htmlFor="ed-formato">Formato</label>
+        <select id="ed-formato" className={styles.select} value={formato} onChange={(e) => setFormato(e.target.value as FormatoCampana)}>
+          <option value="audio">Audio</option>
+          <option value="display">Display</option>
+          <option value="banner">Banner</option>
+        </select>
+      </div>
+      <div className={styles.field}>
+        <label className={styles.fieldLabel} htmlFor="ed-pres">Presupuesto total</label>
+        <input id="ed-pres" className={styles.input} type="number" step="0.01" min="0.01" value={presupuesto} onChange={(e) => setPresupuesto(e.target.value)} />
+      </div>
+      <div className={styles.field}>
+        <label className={styles.fieldLabel} htmlFor="ed-ini">Fecha de inicio</label>
+        <input id="ed-ini" className={styles.input} type="date" value={fechaInicio} onChange={(e) => setFechaInicio(e.target.value)} />
+      </div>
+      <div className={styles.field}>
+        <label className={styles.fieldLabel} htmlFor="ed-fin">Fecha de fin</label>
+        <input id="ed-fin" className={styles.input} type="date" value={fechaFin} onChange={(e) => setFechaFin(e.target.value)} />
+      </div>
+    </CrudModal>
+  )
+}
+
+// Ver detalle (S13-P2, brecha cerrada de la auditoría S13-P1: Publicidad
+// tenía Insertar/Editar/transiciones pero no Ver detalle). Sin "historial de
+// cambios de estado" — pausar/reanudar/finalizar no dejan traza propia por
+// campaña hoy (solo auditoría por usuario/acción), así que no se fabrica un
+// historial que el sistema no produce todavía.
+function CampanaViewModal({ campana, anunciante, ingreso, onClose }: {
+  campana: Campana
+  anunciante: Anunciante | undefined
+  ingreso: IngresoCampana | undefined
+  onClose: () => void
+}) {
+  const est = estadoCampana(campana)
+  return (
+    <CrudModal isOpen mode="view" title={`Campaña — ${campana.nombre}`} onClose={onClose} onConfirm={onClose}>
+      <div className={styles.field}>
+        <label className={styles.fieldLabel}>Nombre</label>
+        <input className={styles.input} value={campana.nombre} readOnly />
+      </div>
+      <div className={styles.field}>
+        <label className={styles.fieldLabel}>Anunciante</label>
+        <input className={styles.input} value={anunciante?.nombre ?? `#${campana.anunciante_id}`} readOnly />
+      </div>
+      <div className={styles.field}>
+        <label className={styles.fieldLabel}>Formato</label>
+        <input className={styles.input} value={campana.formato} readOnly />
+      </div>
+      <div className={styles.field}>
+        <label className={styles.fieldLabel}>Estado</label>
+        <input className={styles.input} value={est.label} readOnly />
+      </div>
+      <div className={styles.field}>
+        <label className={styles.fieldLabel}>CPM (USD)</label>
+        <input className={styles.input} value={`$${campana.cpm.toFixed(2)}`} readOnly />
+      </div>
+      <div className={styles.field}>
+        <label className={styles.fieldLabel}>Presupuesto total</label>
+        <input className={styles.input} value={`$${campana.presupuesto_total.toFixed(2)}`} readOnly />
+      </div>
+      <div className={styles.field}>
+        <label className={styles.fieldLabel}>Fecha de inicio</label>
+        <input className={styles.input} value={campana.fecha_inicio} readOnly />
+      </div>
+      <div className={styles.field}>
+        <label className={styles.fieldLabel}>Fecha de fin</label>
+        <input className={styles.input} value={campana.fecha_fin ?? 'Indefinida'} readOnly />
+      </div>
+      <div className={styles.field}>
+        <label className={styles.fieldLabel}>Impresiones completadas</label>
+        <input className={styles.input} value={ingreso ? String(ingreso.impresiones) : '0'} readOnly />
+      </div>
+      <div className={styles.field}>
+        <label className={styles.fieldLabel}>Ingreso real reconocido</label>
+        <input className={styles.input} value={`$${(ingreso?.ingreso_total ?? 0).toFixed(2)}`} readOnly />
+      </div>
+    </CrudModal>
   )
 }

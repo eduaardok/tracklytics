@@ -30,6 +30,7 @@ from paquetes.seguridad.queries import (
     SESION_ABIERTA_POR_DISPOSITIVO,
     SESION_POR_ID,
     SESIONES_ABIERTAS_TOTAL,
+    SESIONES_ACTIVAS_GLOBAL,
     TOKEN_RECUPERACION_VIGENTE,
     TOKENS_VERIFICACION_ABIERTOS,
     TRANSACCIONES_RECIENTES_USUARIO,
@@ -976,3 +977,14 @@ async def usuarios_reporte(admin: dict = Depends(require_admin)):
 @router.get("/admin/strikes")
 def strikes_activos_global(admin: dict = Depends(require_comunidad_admin)):
     return {"strikes": query_rows(strikes.STRIKES_ACTIVOS_GLOBAL)}
+
+
+# Obj 30 / OT-30 (S13-P2): listado global de sesiones abiertas — la única
+# brecha total detectada en la auditoría de S13-P1 (antes solo existía un
+# conteo agregado en `dashboard_seguridad` y el detalle por usuario individual
+# en `usuario_360`). Sin filtro de rango de fecha en el backend (una sesión
+# "abierta" no tiene fecha de fin que rangear) — el frontend filtra por
+# usuario/rol client-side sobre este mismo listado, igual que ReporteUsuariosPage.
+@router.get("/admin/sesiones-activas")
+def sesiones_activas_global(limit: int = Query(200, ge=1, le=1000), admin: dict = Depends(require_admin)):
+    return {"sesiones": query_rows(SESIONES_ACTIVAS_GLOBAL, {"limit": limit})}

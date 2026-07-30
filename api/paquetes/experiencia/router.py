@@ -381,6 +381,10 @@ def mix_diario(user: dict = Depends(require_b2c_user)):
 class TicketBody(BaseModel):
     asunto: str
     descripcion: str
+    # S13-P2 (patrón CRUD docente): admin puede crear un ticket EN NOMBRE de
+    # un usuario (campo "usuario afectado" del formulario) — un usuario B2C
+    # normal lo ignora y siempre crea a nombre propio, igual que antes.
+    usuario_id: str | None = None
 
 
 class ActualizarTicketBody(BaseModel):
@@ -388,13 +392,24 @@ class ActualizarTicketBody(BaseModel):
 
 
 @router.post("/tickets", status_code=201)
-def crear_ticket(body: TicketBody, user: dict = Depends(require_b2c_user)):
+def crear_ticket(body: TicketBody, user: dict = Depends(get_current_user)):
     asunto      = body.asunto.strip()
     descripcion = body.descripcion.strip()
     if not asunto or not descripcion:
         raise HTTPException(status_code=422, detail="El asunto y la descripción son requeridos")
 
-    usuario_id = user["record"]["id"]
+    role = user.get("record", {}).get("role", "")
+    if role == "admin" and body.usuario_id:
+        # Admin crea el ticket en nombre de otro usuario (S13-P2) — no valida
+        # contra DIM_USUARIO acá: el `usuario_id` viene de UserPicker
+        # (frontend), que ya solo ofrece usuarios reales encontrados por
+        # búsqueda, mismo criterio de confianza que el resto de los formularios
+        # admin que usan ese componente (distribución, facturación, permisos).
+        usuario_id = body.usuario_id
+    elif role == "user":
+        usuario_id = user["record"]["id"]
+    else:
+        raise HTTPException(status_code=403, detail="Los tickets de soporte son exclusivos de Usuario B2C o admin")
     fact_id    = _gen_fact_id()
     get_client().insert(
         "FACT_TICKET_SOPORTE",
@@ -419,6 +434,16 @@ def listar_tickets(estado: str | None = Query(None), user: dict = Depends(get_cu
     if role != "user":
         raise HTTPException(status_code=403, detail="Los tickets de soporte son exclusivos de Usuario B2C o admin")
     return {"data": query_rows(MIS_TICKETS, {"usuario_id": user["record"]["id"]})}
+
+
+# Ver detalle (S13-P2, patrón CRUD docente) — mismo `TICKET_POR_ID` que ya
+# usaba internamente `actualizar_ticket`, ahora expuesto como consulta propia.
+@router.get("/tickets/{fact_id}")
+def obtener_ticket(fact_id: int, admin: dict = Depends(require_admin)):
+    ticket = query_one(TICKET_POR_ID, {"fact_id": fact_id})
+    if not ticket:
+        raise HTTPException(status_code=404, detail="Ticket no encontrado")
+    return ticket
 
 
 @router.put("/tickets/{fact_id}")

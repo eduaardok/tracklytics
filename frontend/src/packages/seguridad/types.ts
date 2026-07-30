@@ -130,6 +130,21 @@ export type UsuarioReporte = {
   plan_activo:       string
 }
 
+// Obj 30 / OT-30 (S13-P2): listado global de sesiones abiertas.
+// Sin `ip`: el pipeline no la captura hoy (ni FACT_SESION ni DIM_DISPOSITIVO
+// tienen esa columna) — se documenta como ausente en vez de fabricarla.
+export type SesionActiva = {
+  sesion_id:         string
+  usuario_id:        string
+  nombre:            string | null
+  email:             string | null
+  rol:               string
+  dispositivo_tipo:  string | null
+  dispositivo_os:    string | null
+  fecha_inicio:      string
+  duracion_segundos: number
+}
+
 export type StrikeGlobal = {
   strike_id:      number
   usuario_id:     string
