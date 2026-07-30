@@ -41,7 +41,7 @@ export function ReembolsosScatter({
     <div className={styles.chartBox}>
       <ResponsiveContainer width="100%" height="100%">
         <ScatterChart margin={{ top: 8, right: 16, left: 0, bottom: 4 }}>
-          <CartesianGrid stroke={GRID_STROKE} />
+          <CartesianGrid stroke={GRID_STROKE} strokeDasharray="3 3" />
           <XAxis
             dataKey="x" type="number" domain={['dataMin', 'dataMax']}
             tickFormatter={(v) => fmtDateShort(new Date(v).toISOString())}
@@ -64,8 +64,8 @@ export function ReembolsosScatter({
               )
             }}
           />
-          <Scatter data={normales} fill={CHART_COLORS.teal} fillOpacity={0.75} />
-          <Scatter data={elevados} fill={STATUS_COLORS.warning} fillOpacity={0.9} shape="diamond" />
+          <Scatter data={normales} fill={CHART_COLORS.teal} fillOpacity={0.75} isAnimationActive={false} />
+          <Scatter data={elevados} fill={STATUS_COLORS.warning} fillOpacity={0.9} shape="diamond" isAnimationActive={false} />
         </ScatterChart>
       </ResponsiveContainer>
     </div>

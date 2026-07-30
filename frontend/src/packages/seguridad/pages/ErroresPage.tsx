@@ -1,5 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
+import { SkeletonTableRows } from '@shared/components/SkeletonLoader'
+import { EmptyState } from '@shared/components/EmptyState'
 import { seguridadApi } from '../api/seguridad.api'
 import styles from './SeguridadPages.module.css'
 
@@ -33,9 +35,9 @@ export function ErroresPage() {
             </thead>
             <tbody>
               {isLoading ? (
-                <tr><td colSpan={6}>Cargando…</td></tr>
+                <SkeletonTableRows columns={6} />
               ) : errores.length === 0 ? (
-                <tr><td colSpan={6} className={styles.empty}>Sin errores registrados.</td></tr>
+                <tr><td colSpan={6}><EmptyState icon="( ∅ )" title="Sin errores registrados." /></td></tr>
               ) : (
                 errores.map((e) => (
                   <tr key={e.error_id}>

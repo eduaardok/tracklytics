@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
+import { EmptyState } from '@shared/components/EmptyState'
 import { bibliotecaApi } from '../api/biblioteca.api'
 import { LibraryTrackRow } from './LibraryTrackRow'
 import styles from '../pages/BibliotecaPage.module.css'
@@ -28,10 +29,11 @@ export function HistorialTab() {
 
   if (entries.length === 0) {
     return (
-      <div className={styles.empty}>
-        <span>⏱</span>
-        <p>Historial vacío. Las canciones que escuches aparecerán aquí.</p>
-      </div>
+      <EmptyState
+        icon="⏱"
+        title="Historial vacío."
+        body="Las canciones que escuches aparecerán aquí."
+      />
     )
   }
 

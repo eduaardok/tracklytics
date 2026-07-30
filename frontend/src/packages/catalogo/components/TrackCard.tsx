@@ -87,7 +87,7 @@ export function TrackCard({ track, position }: Props) {
         <span className={styles.position} aria-hidden="true">
           {position}
         </span>
-        <AlbumArt src={track.imagen_url} alt="" size={40} />
+        <AlbumArt src={track.imagen_url} alt="" size={56} genreSeed={track.genre_name} />
         <div className={styles.info}>
           <div className={styles.name}>{track.track_name}</div>
           <div className={styles.meta}>

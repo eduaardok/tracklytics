@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
+import { EmptyState } from '@shared/components/EmptyState'
 import { bibliotecaApi } from '../api/biblioteca.api'
 import { LibraryTrackRow } from './LibraryTrackRow'
 import styles from '../pages/BibliotecaPage.module.css'
@@ -16,10 +17,11 @@ export function FavoritosTab() {
 
   if (tracks.length === 0) {
     return (
-      <div className={styles.empty}>
-        <span>♥</span>
-        <p>Sin favoritos aún. Marca una canción como favorita para guardarla aquí.</p>
-      </div>
+      <EmptyState
+        icon="♥"
+        title="Sin favoritos aún."
+        body="Marca una canción como favorita para guardarla aquí."
+      />
     )
   }
 

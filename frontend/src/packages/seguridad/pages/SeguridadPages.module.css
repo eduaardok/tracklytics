@@ -40,6 +40,7 @@
 }
 
 .field input[type="text"],
+.field input[type="date"],
 .field select {
   background: var(--color-surface);
   color: var(--color-ink);
@@ -53,6 +54,7 @@
 }
 
 .field input[type="text"]:focus,
+.field input[type="date"]:focus,
 .field select:focus {
   border-color: var(--color-primary);
 }
@@ -103,6 +105,8 @@
   color: var(--color-ink);
 }
 
+.table tbody tr:hover { background: var(--color-surface-raised); transition: background-color 150ms ease; }
+
 /* Celda usuario en Auditoría/Errores: nombre + correo apilados en vez del
    usuario_id crudo — el id sigue disponible como fallback (usuario borrado
    del DIM, o registro de sistema sin usuario asociado). */
@@ -129,13 +133,6 @@
 
 .badgeDenied {
   color: var(--color-error);
-}
-
-.empty {
-  font-family: var(--font-sans);
-  font-size: 0.875rem;
-  color: var(--color-muted);
-  padding: var(--space-lg) 0;
 }
 
 .errorBox {

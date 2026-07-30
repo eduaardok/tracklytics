@@ -4,6 +4,7 @@ import { catalogoApi } from '../api/catalogo.api'
 import { TrackCard } from '../components/TrackCard'
 import { AlbumArt } from '@shared/components/AlbumArt'
 import { ErrorState } from '@shared/components/ErrorState'
+import { EmptyState } from '@shared/components/EmptyState'
 import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { ApiError } from '@shared/lib/api-client'
 import type { Track } from '../types'
@@ -91,7 +92,7 @@ export function AlbumDetailPage() {
       {loadingTracks ? (
         <p className={styles.loading}>// cargando…</p>
       ) : tracks.length === 0 ? (
-        <p className={styles.empty}>Sin canciones registradas para esta playlist.</p>
+        <EmptyState icon="( ∅ )" title="Sin canciones registradas para esta playlist." />
       ) : (
         <ul className={styles.trackList} aria-label="Canciones de la playlist">
           {tracks.map((track: Track, i: number) => (

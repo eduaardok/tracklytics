@@ -49,7 +49,7 @@ function TrendPanel({ title, data, dataKey, domain, formatValue, seriesLabel }: 
       <div className={styles.chartBox}>
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={data} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
-            <CartesianGrid stroke="oklch(0.22 0.012 285)" vertical={false} />
+            <CartesianGrid stroke="oklch(0.22 0.012 285)" strokeDasharray="3 3" vertical={false} />
             <XAxis
               dataKey="load_week"
               tick={{ fill: 'oklch(0.58 0.010 285)', fontSize: 10, fontFamily: 'var(--font-mono)' }}
@@ -72,6 +72,7 @@ function TrendPanel({ title, data, dataKey, domain, formatValue, seriesLabel }: 
               strokeWidth={2}
               dot={{ r: 4, fill: TREND_COLOR, strokeWidth: 0 }}
               activeDot={{ r: 5 }}
+              isAnimationActive={false}
             />
           </LineChart>
         </ResponsiveContainer>

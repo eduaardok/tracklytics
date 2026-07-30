@@ -11,6 +11,9 @@
   --color-primary:        oklch(0.48 0.15 290);
   --color-primary-light:  oklch(0.68 0.14 290);
   --color-accent:         oklch(0.70 0.14 195);
+  /* Gradiente violeta de botones primarios (S13 polish visual) — mismos dos
+     tonos de violeta ya definidos arriba, sin introducir un tercer color. */
+  --gradient-primary:     linear-gradient(135deg, var(--color-primary-light), var(--color-primary));
   --color-bg:             oklch(0.09 0.010 285);
   --color-surface:        oklch(0.14 0.012 285);
   --color-surface-raised: oklch(0.18 0.014 285);

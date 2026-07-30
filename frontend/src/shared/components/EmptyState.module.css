@@ -26,3 +26,20 @@
   color: var(--color-muted);
   margin: 0;
 }
+
+.action {
+  margin-top: var(--space-xs);
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: oklch(0.98 0 0);
+  background: var(--gradient-primary);
+  border: none;
+  border-radius: var(--radius-md);
+  padding: 8px 16px;
+  cursor: pointer;
+  transition: filter var(--duration-fast) var(--ease-standard);
+}
+
+.action:hover  { filter: brightness(1.1); }
+.action:active { transform: scale(0.98); }

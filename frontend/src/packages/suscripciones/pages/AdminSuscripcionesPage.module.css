@@ -25,6 +25,7 @@
 .table { width: 100%; border-collapse: collapse; }
 .table th { text-align: left; font-family: var(--font-sans); font-size: 0.75rem; font-weight: 500; color: var(--color-muted); padding: 10px var(--space-md); border-bottom: 1px solid var(--color-border); }
 .table td { font-family: var(--font-sans); font-size: 0.875rem; color: var(--color-ink); padding: 10px var(--space-md); }
+.table tbody tr:hover { background: var(--color-surface-raised); transition: background-color 150ms ease; }
 .table tbody tr + tr td { border-top: 1px solid var(--color-border); }
 .emptyState { padding: var(--space-lg); text-align: center; font-family: var(--font-sans); font-size: 0.875rem; color: var(--color-muted); }
 .mono { font-family: var(--font-mono, monospace); font-size: 0.8125rem; }
@@ -55,7 +56,9 @@
 .btnGhostDanger { color: #f87171; border-color: color-mix(in srgb, #f87171 35%, var(--color-border)); }
 .btnGhostDanger:hover:not(:disabled) { border-color: #f87171; background: color-mix(in srgb, #f87171 10%, transparent); }
 .btnGhostDanger:disabled { opacity: 0.4; cursor: not-allowed; }
-.btnPrimary { background: var(--color-primary); border: none; color: var(--color-ink); height: 34px; padding: 6px 14px; }
+.btnPrimary { background: var(--gradient-primary); border: none; color: var(--color-ink); height: 34px; padding: 6px 14px; }
+.btnPrimary:hover:not(:disabled) { filter: brightness(1.1); }
+.btnPrimary:active:not(:disabled) { transform: scale(0.98); }
 .btnPrimary:disabled { opacity: 0.4; cursor: not-allowed; }
 
 .modalBackdrop { position: fixed; inset: 0; z-index: 1000; display: grid; place-items: center; padding: var(--space-lg); background: color-mix(in srgb, #000 62%, transparent); backdrop-filter: blur(2px); }

@@ -32,7 +32,7 @@ export function MiniLineChart({ data, xKey, series, emptyLabel = 'Sin datos toda
     <div className={styles.chartBox}>
       <ResponsiveContainer width="100%" height="100%">
         <LineChart data={data} margin={{ top: 8, right: 12, left: 0, bottom: denseDates ? 20 : 0 }}>
-          <CartesianGrid stroke={GRID_STROKE} vertical={false} />
+          <CartesianGrid stroke={GRID_STROKE} strokeDasharray="3 3" vertical={false} />
           <XAxis
             dataKey={xKey}
             tick={denseDates ? { ...AXIS_TICK, angle: -35, textAnchor: 'end' } : AXIS_TICK}
@@ -78,6 +78,7 @@ export function MiniLineChart({ data, xKey, series, emptyLabel = 'Sin datos toda
               strokeWidth={2}
               dot={{ r: 3, fill: s.color, strokeWidth: 0 }}
               activeDot={{ r: 5 }}
+              isAnimationActive={false}
             />
           ))}
         </LineChart>

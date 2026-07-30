@@ -84,13 +84,6 @@
   text-decoration: underline;
 }
 
-.empty {
-  padding: var(--space-lg) var(--space-md);
-  text-align: center;
-  color: var(--color-muted);
-  font-size: 0.8125rem;
-}
-
 .list {
   list-style: none;
   max-height: 360px;

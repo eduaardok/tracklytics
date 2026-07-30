@@ -4,6 +4,8 @@ import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { UserPicker, type UserSearchResult } from '@shared/components/UserPicker'
 import { apiErrorMessage } from '@shared/lib/api-client'
 import { useToast } from '@shared/context/ToastContext'
+import { SkeletonTableRows } from '@shared/components/SkeletonLoader'
+import { EmptyState } from '@shared/components/EmptyState'
 import { seguridadApi } from '../api/seguridad.api'
 import type { Permiso } from '../types'
 import styles from './SeguridadPages.module.css'
@@ -78,9 +80,9 @@ export function PermisosPage() {
             </thead>
             <tbody>
               {isLoading ? (
-                <tr><td colSpan={5}>Cargando…</td></tr>
+                <SkeletonTableRows columns={5} />
               ) : permisos.length === 0 ? (
-                <tr><td colSpan={5} className={styles.empty}>Sin permisos vigentes para este usuario.</td></tr>
+                <tr><td colSpan={5}><EmptyState icon="( ∅ )" title="Sin permisos vigentes para este usuario." /></td></tr>
               ) : (
                 permisos.map((p) => (
                   <tr key={`${p.recurso}-${p.accion}`}>

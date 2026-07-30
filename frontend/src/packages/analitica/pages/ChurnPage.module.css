@@ -97,6 +97,8 @@
   font-size: 0.8125rem;
 }
 
+.table tbody tr:hover { background: var(--color-surface-raised); transition: background-color 150ms ease; }
+
 .th {
   text-align: right;
   font-weight: 600;

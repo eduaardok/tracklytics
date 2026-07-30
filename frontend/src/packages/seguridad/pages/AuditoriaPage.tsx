@@ -2,6 +2,8 @@ import { useQuery } from '@tanstack/react-query'
 import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { MiniLineChart } from '@shared/components/charts/MiniLineChart'
 import { CHART_COLORS } from '@shared/components/charts/colors'
+import { SkeletonTableRows } from '@shared/components/SkeletonLoader'
+import { EmptyState } from '@shared/components/EmptyState'
 import { seguridadApi } from '../api/seguridad.api'
 import styles from './SeguridadPages.module.css'
 
@@ -65,9 +67,9 @@ export function AuditoriaPage() {
             </thead>
             <tbody>
               {isLoading ? (
-                <tr><td colSpan={6}>Cargando…</td></tr>
+                <SkeletonTableRows columns={6} />
               ) : entradas.length === 0 ? (
-                <tr><td colSpan={6} className={styles.empty}>Sin registros de auditoría todavía.</td></tr>
+                <tr><td colSpan={6}><EmptyState icon="( ∅ )" title="Sin registros de auditoría todavía." /></td></tr>
               ) : (
                 entradas.map((e) => (
                   <tr key={e.audit_id}>

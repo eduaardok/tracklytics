@@ -1,0 +1,125 @@
+.card {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 180px;
+  cursor: pointer;
+  border-radius: var(--radius-md);
+  transition: transform var(--duration-standard) var(--ease-standard);
+}
+
+.card:hover {
+  transform: scale(1.03);
+}
+
+.card:hover .art {
+  box-shadow: 0 12px 28px -8px oklch(0.48 0.15 290 / 0.45);
+}
+
+.card:hover .overlay {
+  opacity: 1;
+}
+
+.card:focus-visible {
+  outline: none;
+}
+
+.card:focus-visible .art {
+  box-shadow: 0 0 0 2px oklch(0.68 0.14 290 / 0.7);
+}
+
+.artWrap {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  min-height: 160px;
+}
+
+.art {
+  width: 100% !important;
+  height: 100% !important;
+  border-radius: var(--radius-md);
+  transition: box-shadow var(--duration-standard) var(--ease-standard);
+}
+
+.art :global(.img) {
+  border-radius: var(--radius-md);
+}
+
+.overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-md);
+  background: oklch(0.12 0.01 285 / 0.45);
+  opacity: 0;
+  transition: opacity var(--duration-standard) var(--ease-standard);
+}
+
+.playBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-pill);
+  border: none;
+  background: var(--color-primary);
+  color: oklch(0.98 0 0);
+  cursor: pointer;
+  transition: filter var(--duration-fast) var(--ease-standard), transform var(--duration-fast) var(--ease-standard);
+}
+
+.playBtn:hover { filter: brightness(1.1); }
+.playBtn:active { transform: scale(0.96); }
+
+.popBadge {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: oklch(0.98 0 0);
+  background: oklch(0.12 0.01 285 / 0.65);
+  backdrop-filter: blur(4px);
+  border-radius: var(--radius-pill);
+  padding: 3px 7px;
+  font-variant-numeric: tabular-nums;
+}
+
+.info {
+  margin-top: var(--space-sm);
+  min-width: 0;
+}
+
+.name {
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--color-ink);
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.artist {
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+  color: var(--color-muted);
+  margin: 2px 0 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card, .art, .overlay, .playBtn { transition: none; }
+  .card:hover { transform: none; }
+}

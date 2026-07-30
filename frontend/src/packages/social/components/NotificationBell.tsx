@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { Bell } from 'lucide-react'
 import { isAuthenticated } from '@shared/lib/session'
+import { EmptyState } from '@shared/components/EmptyState'
 import { socialApi } from '../api/social.api'
 import type { Notificacion } from '../types'
 import styles from './NotificationBell.module.css'
@@ -91,7 +92,7 @@ export function NotificationBell() {
           </div>
 
           {items.length === 0 ? (
-            <p className={styles.empty}>No tienes notificaciones todavía.</p>
+            <EmptyState icon="( ∅ )" title="No tienes notificaciones todavía." />
           ) : (
             <ul className={styles.list}>
               {items.map((n) => (

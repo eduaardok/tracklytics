@@ -22,13 +22,16 @@
   font-size: 0.875rem;
   font-weight: 600;
   color: var(--color-ink);
-  background: var(--color-primary);
+  background: var(--gradient-primary);
   border: none;
   border-radius: var(--radius-md);
   padding: 9px var(--space-md);
   height: 36px;
   cursor: pointer;
 }
+
+.btnPrimary:hover { filter: brightness(1.1); }
+.btnPrimary:active { transform: scale(0.98); }
 
 .btnGhost {
   display: inline-flex;
@@ -121,6 +124,8 @@
   font-size: 0.875rem;
   color: var(--color-ink);
 }
+
+.table tbody tr:hover { background: var(--color-surface-raised); transition: background-color 150ms ease; }
 
 .table th { font-size: 0.6875rem; text-transform: uppercase; color: var(--color-muted); }
 .right { text-align: right; }

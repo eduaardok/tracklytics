@@ -6,6 +6,7 @@ import { apiErrorMessage } from '@shared/lib/api-client'
 import { useToast } from '@shared/context/ToastContext'
 import { useConfirm } from '@shared/context/ConfirmContext'
 import { ErrorState } from '@shared/components/ErrorState'
+import { EmptyState } from '@shared/components/EmptyState'
 import { bibliotecaApi } from '../api/biblioteca.api'
 import { LibraryTrackRow } from './LibraryTrackRow'
 import styles from '../pages/BibliotecaPage.module.css'
@@ -232,9 +233,11 @@ function PlaylistDetail({ playlistId, onBack }: { playlistId: string; onBack: ()
       )}
 
       {data.data.length === 0 ? (
-        <div className={styles.empty}>
-          <p>Esta playlist está vacía. Agrega canciones desde el catálogo.</p>
-        </div>
+        <EmptyState
+          icon="( ∅ )"
+          title="Esta playlist está vacía."
+          body="Agrega canciones desde el catálogo."
+        />
       ) : (
         <ul className={styles.trackList} aria-label={`Canciones de ${data.name}`}>
           {data.data.map((t, i) => (
@@ -346,9 +349,11 @@ export function PlaylistsTab() {
       )}
 
       {playlists.length === 0 ? (
-        <div className={styles.empty}>
-          <p>Aún no tienes playlists. ¡Crea una y organiza tu música!</p>
-        </div>
+        <EmptyState
+          icon="( ∅ )"
+          title="Aún no tienes playlists."
+          body="¡Crea una y organiza tu música!"
+        />
       ) : (
         <div className={styles.grid}>
           {playlists.map((pl) => (

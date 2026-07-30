@@ -12,6 +12,18 @@
   margin-bottom: var(--space-xs);
 }
 
+/* Cabecera con botón "+ Nuevo" (S13-P2, TicketsAdminPage) */
+.headRow {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-md);
+  margin-bottom: var(--space-md);
+}
+
+.headRow .heading { margin-bottom: 0; }
+
 .subtitle {
   display: block;
   font-family: var(--font-mono);
@@ -102,7 +114,7 @@
   font-size: 0.875rem;
   font-weight: 600;
   color: var(--color-ink);
-  background: var(--color-primary);
+  background: var(--gradient-primary);
   border: none;
   border-radius: var(--radius-sm);
   padding: 6px 14px;
@@ -112,7 +124,8 @@
   letter-spacing: 0.01em;
   transition: background-color var(--duration-standard) var(--ease-standard), opacity var(--duration-fast) var(--ease-standard);
 }
-.btnPrimary:hover:not(:disabled) { background: oklch(0.54 0.16 290); }
+.btnPrimary:hover:not(:disabled) { filter: brightness(1.1); }
+.btnPrimary:active:not(:disabled) { transform: scale(0.98); }
 .btnPrimary:focus-visible { outline: none; box-shadow: 0 0 0 2px oklch(0.48 0.15 290 / 0.5); }
 .btnPrimary:disabled { opacity: 0.38; cursor: not-allowed; }
 

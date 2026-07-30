@@ -40,13 +40,6 @@
   bottom: calc(100% + 4px);
 }
 
-.empty {
-  font-family: var(--font-sans);
-  font-size: 0.8125rem;
-  color: var(--color-muted);
-  padding: var(--space-xs) var(--space-sm);
-}
-
 .list {
   list-style: none;
   display: flex;

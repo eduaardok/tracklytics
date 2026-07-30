@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { isAuthenticated } from '@shared/lib/session'
 import { apiErrorMessage } from '@shared/lib/api-client'
 import { useToast } from '@shared/context/ToastContext'
+import { EmptyState } from '@shared/components/EmptyState'
 import { bibliotecaApi } from '../api/biblioteca.api'
 import styles from './AddToPlaylistMenu.module.css'
 
@@ -99,7 +100,7 @@ export function AddToPlaylistMenu({ factId }: Props) {
           onClick={(e) => e.stopPropagation()}
         >
           {playlists.length === 0 ? (
-            <p className={styles.empty}>Aún no tienes playlists.</p>
+            <EmptyState icon="( ∅ )" title="Aún no tienes playlists." />
           ) : (
             <ul className={styles.list}>
               {playlists.map((pl) => (

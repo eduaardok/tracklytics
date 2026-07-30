@@ -25,8 +25,51 @@
   color: var(--color-muted);
   line-height: 1;
   min-height: 1em;
+}
+
+.subtitleRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
   margin-bottom: var(--space-md);
 }
+
+/* ── Toggle grid/lista ── */
+.viewToggle {
+  display: flex;
+  gap: 2px;
+  flex-shrink: 0;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 2px;
+}
+
+.viewBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 26px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-muted);
+  cursor: pointer;
+  transition:
+    color var(--duration-fast) var(--ease-standard),
+    background-color var(--duration-fast) var(--ease-standard);
+}
+
+.viewBtn:hover { color: var(--color-ink); }
+
+.viewBtnActive {
+  color: oklch(0.98 0 0);
+  background: var(--color-primary);
+}
+
+.viewBtnActive:hover { color: oklch(0.98 0 0); }
 
 /* ── Search ──
    `flex-wrap`: sin esto, el `<select>` de género + el botón "limpiar" no
@@ -129,41 +172,6 @@
   gap: 2px;
   margin: 0;
   padding: 0;
-}
-
-/* ── Empty state ── */
-.empty {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: var(--space-2xl) 0 var(--space-xl);
-  text-align: center;
-  gap: var(--space-sm);
-}
-
-.emptyIcon {
-  display: block;
-  font-family: var(--font-mono);
-  font-size: 0.9375rem;
-  color: var(--color-muted);
-  letter-spacing: 0.06em;
-  margin-bottom: var(--space-xs);
-  opacity: 0.7;
-}
-
-.emptyTitle {
-  font-family: var(--font-sans);
-  font-size: 1rem;
-  font-weight: 600;
-  color: var(--color-ink);
-  margin: 0;
-}
-
-.emptyBody {
-  font-family: var(--font-sans);
-  font-size: 0.875rem;
-  color: var(--color-muted);
-  margin: 0;
 }
 
 /* ── Tabs (Canciones / Playlists / Artistas / Géneros) ── */
@@ -349,7 +357,7 @@
 .skeletonRow:nth-child(5n) .skel { animation-delay: 0.45s; }
 
 .skelNum   { width: 20px; height: 13px; }
-.skelArt   { width: 40px; height: 40px; border-radius: var(--radius-sm); }
+.skelArt   { width: 56px; height: 56px; border-radius: var(--radius-sm); }
 .skelData  { width: 62px; height: 13px; }
 .skelTitle { height: 14px; }
 .skelMeta  { height: 11px; }
@@ -374,4 +382,29 @@
     animation: none;
     opacity: 0.5;
   }
+}
+
+/* ── Vista grid de tracks ── */
+.trackGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: var(--space-lg) var(--space-md);
+}
+
+.gridSkeleton {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: var(--space-lg) var(--space-md);
+}
+
+.skeletonTile {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.skelTileArt {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  border-radius: var(--radius-md);
 }

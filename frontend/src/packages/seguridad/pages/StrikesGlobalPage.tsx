@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { ErrorState } from '@shared/components/ErrorState'
+import { SkeletonTableRows } from '@shared/components/SkeletonLoader'
 import { seguridadApi } from '../api/seguridad.api'
 import shell from './SeguridadPages.module.css'
 
@@ -108,7 +109,7 @@ export function StrikesGlobalPage() {
             </thead>
             <tbody>
               {isLoading ? (
-                <tr><td colSpan={5}>Cargando…</td></tr>
+                <SkeletonTableRows columns={5} />
               ) : filtrados.length === 0 ? (
                 <tr><td colSpan={5} className={shell.empty}>Sin strikes activos.</td></tr>
               ) : (

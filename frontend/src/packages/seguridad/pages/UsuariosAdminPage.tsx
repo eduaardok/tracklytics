@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { apiErrorMessage } from '@shared/lib/api-client'
 import { useToast } from '@shared/context/ToastContext'
+import { SkeletonTableRows } from '@shared/components/SkeletonLoader'
 import { seguridadApi } from '../api/seguridad.api'
 import type { EstadoCuenta, UsuarioAdmin } from '../types'
 import shell from './SeguridadPages.module.css'
@@ -135,7 +136,7 @@ export function UsuariosAdminPage() {
               </thead>
               <tbody>
                 {listado.isLoading ? (
-                  <tr><td colSpan={5}>Cargando…</td></tr>
+                  <SkeletonTableRows columns={5} />
                 ) : usuarios.length === 0 ? (
                   <tr><td colSpan={5} className={shell.empty}>Sin usuarios que coincidan con el filtro.</td></tr>
                 ) : (

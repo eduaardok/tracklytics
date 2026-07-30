@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { ErrorState } from '@shared/components/ErrorState'
+import { SkeletonTableRows } from '@shared/components/SkeletonLoader'
 import { seguridadApi } from '../api/seguridad.api'
 import type { EstadoCuenta } from '../types'
 import shell from './SeguridadPages.module.css'
@@ -165,7 +166,7 @@ export function ReporteUsuariosPage() {
             </thead>
             <tbody>
               {isLoading ? (
-                <tr><td colSpan={8}>Cargando…</td></tr>
+                <SkeletonTableRows columns={8} />
               ) : filtrados.length === 0 ? (
                 <tr><td colSpan={8} className={shell.empty}>Sin usuarios que coincidan con el filtro.</td></tr>
               ) : (

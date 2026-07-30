@@ -1,12 +1,17 @@
 import { useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
+import { LayoutGrid, List } from 'lucide-react'
 import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
+import { getCatalogViewMode, setCatalogViewMode, type CatalogViewMode } from '@shared/lib/ui-prefs'
+import { genreAccent } from '@shared/lib/genre-colors'
 import { catalogoApi } from '../api/catalogo.api'
 import { TrackCard } from '../components/TrackCard'
+import { TrackGridCard } from '../components/TrackGridCard'
 import { ExploreCard } from '../components/ExploreCard'
 import { MixDiarioCard } from '../components/MixDiarioCard'
 import { ErrorState } from '@shared/components/ErrorState'
+import { EmptyState } from '@shared/components/EmptyState'
 import type { Track, Album, Artist, Genre } from '../types'
 import styles from './CatalogPage.module.css'
 
@@ -31,6 +36,49 @@ function SkeletonRows() {
         </li>
       ))}
     </>
+  )
+}
+
+function SkeletonTiles() {
+  return (
+    <div className={styles.gridSkeleton} aria-hidden="true">
+      {SKELETON_WIDTHS.map(([, mw], i) => (
+        <div key={i} className={styles.skeletonTile}>
+          <span className={`${styles.skel} ${styles.skelTileArt}`} />
+          <span className={`${styles.skel} ${styles.skelTitle}`} style={{ width: '85%' }} />
+          <span className={`${styles.skel} ${styles.skelMeta}`}  style={{ width: `${mw}%` }} />
+        </div>
+      ))}
+    </div>
+  )
+}
+
+type ViewToggleProps = { mode: CatalogViewMode; onChange: (m: CatalogViewMode) => void }
+
+function ViewToggle({ mode, onChange }: ViewToggleProps) {
+  return (
+    <div className={styles.viewToggle} role="group" aria-label="Modo de vista">
+      <button
+        type="button"
+        className={mode === 'list' ? `${styles.viewBtn} ${styles.viewBtnActive}` : styles.viewBtn}
+        onClick={() => onChange('list')}
+        aria-pressed={mode === 'list'}
+        title="Vista de lista"
+        aria-label="Vista de lista"
+      >
+        <List size={16} aria-hidden="true" />
+      </button>
+      <button
+        type="button"
+        className={mode === 'grid' ? `${styles.viewBtn} ${styles.viewBtnActive}` : styles.viewBtn}
+        onClick={() => onChange('grid')}
+        aria-pressed={mode === 'grid'}
+        title="Vista de cuadrícula"
+        aria-label="Vista de cuadrícula"
+      >
+        <LayoutGrid size={16} aria-hidden="true" />
+      </button>
+    </div>
   )
 }
 
@@ -105,6 +153,12 @@ function CancionesSection({ genre, onToggleGenre }: CancionesProps) {
   const [popularityMin, setPopularityMin] = useState('')
   const [tempoMin, setTempoMin]           = useState('')
   const [energyMin, setEnergyMin]         = useState('')
+  const [viewMode, setViewMode] = useState<CatalogViewMode>(getCatalogViewMode)
+
+  function changeViewMode(mode: CatalogViewMode) {
+    setViewMode(mode)
+    setCatalogViewMode(mode)
+  }
 
   const popMin    = popularityMin ? Number(popularityMin) : undefined
   const tempMin   = tempoMin ? Number(tempoMin) : undefined
@@ -155,7 +209,10 @@ function CancionesSection({ genre, onToggleGenre }: CancionesProps) {
 
   return (
     <>
-      <span className={styles.subtitle}>{subtitle()}</span>
+      <div className={styles.subtitleRow}>
+        <span className={styles.subtitle}>{subtitle()}</span>
+        <ViewToggle mode={viewMode} onChange={changeViewMode} />
+      </div>
 
       {/* Mix diario (change p2-descubrimiento-comunidad): encabeza la pestaña
           de canciones porque es el punto de entrada personalizado al catálogo.
@@ -167,17 +224,22 @@ function CancionesSection({ genre, onToggleGenre }: CancionesProps) {
         <div className={styles.genreChipsSection} aria-label="Explorar por género">
           <span className={styles.genreChipsLabel}>Explorar por género</span>
           <div className={styles.genreChips}>
-            {genres.map((g) => (
-              <button
-                key={g.genre_id}
-                type="button"
-                className={genre === g.name ? `${styles.genreChip} ${styles.genreChipActive}` : styles.genreChip}
-                onClick={() => onToggleGenre(g.name)}
-                aria-pressed={genre === g.name}
-              >
-                {g.name}
-              </button>
-            ))}
+            {genres.map((g) => {
+              const active = genre === g.name
+              const accent = genreAccent(g.name)
+              return (
+                <button
+                  key={g.genre_id}
+                  type="button"
+                  className={active ? `${styles.genreChip} ${styles.genreChipActive}` : styles.genreChip}
+                  style={active ? { background: accent, borderColor: accent } : { borderColor: genreAccent(g.name, 0.35), color: accent }}
+                  onClick={() => onToggleGenre(g.name)}
+                  aria-pressed={active}
+                >
+                  {g.name}
+                </button>
+              )
+            })}
           </div>
         </div>
       )}
@@ -243,24 +305,34 @@ function CancionesSection({ genre, onToggleGenre }: CancionesProps) {
         />
       )}
 
-      {!isError && (
-        <ol className={styles.list} aria-label="Lista de tracks">
-          {isLoading ? (
-            <SkeletonRows />
-          ) : tracks.length === 0 ? (
-            <li className={styles.empty}>
-              <span className={styles.emptyIcon}>( ∅ )</span>
-              <p className={styles.emptyTitle}>Sin resultados</p>
-              <p className={styles.emptyBody}>Prueba con otro nombre de artista o track.</p>
-            </li>
-          ) : (
-            tracks.map((track: Track, i: number) => (
+      {!isError && isLoading && (viewMode === 'grid' ? <SkeletonTiles /> : (
+        <ol className={styles.list} aria-label="Lista de tracks"><SkeletonRows /></ol>
+      ))}
+
+      {!isError && !isLoading && tracks.length === 0 && (
+        <EmptyState
+          icon="( ∅ )"
+          title="Sin resultados"
+          body="Prueba con otro nombre de artista o track."
+        />
+      )}
+
+      {!isError && !isLoading && tracks.length > 0 && (
+        viewMode === 'grid' ? (
+          <div className={styles.trackGrid} aria-label="Cuadrícula de tracks">
+            {tracks.map((track: Track) => (
+              <TrackGridCard key={`${track.fact_id}-${track.track_id}`} track={track} />
+            ))}
+          </div>
+        ) : (
+          <ol className={styles.list} aria-label="Lista de tracks">
+            {tracks.map((track: Track, i: number) => (
               <li key={`${track.fact_id}-${track.track_id}`}>
                 <TrackCard track={track} position={i + 1} />
               </li>
-            ))
-          )}
-        </ol>
+            ))}
+          </ol>
+        )
       )}
     </>
   )
@@ -310,11 +382,11 @@ function PlaylistsSection() {
       )}
 
       {!isError && !isLoading && playlists.length === 0 && (
-        <div className={styles.empty}>
-          <span className={styles.emptyIcon}>( ∅ )</span>
-          <p className={styles.emptyTitle}>Sin resultados</p>
-          <p className={styles.emptyBody}>Prueba con otro nombre de playlist.</p>
-        </div>
+        <EmptyState
+          icon="( ∅ )"
+          title="Sin resultados"
+          body="Prueba con otro nombre de playlist."
+        />
       )}
 
       {!isError && playlists.length > 0 && (
@@ -379,11 +451,11 @@ function ArtistasSection() {
       )}
 
       {!isError && !isLoading && artists.length === 0 && (
-        <div className={styles.empty}>
-          <span className={styles.emptyIcon}>( ∅ )</span>
-          <p className={styles.emptyTitle}>Sin resultados</p>
-          <p className={styles.emptyBody}>Prueba con otro nombre de artista.</p>
-        </div>
+        <EmptyState
+          icon="( ∅ )"
+          title="Sin resultados"
+          body="Prueba con otro nombre de artista."
+        />
       )}
 
       {!isError && artists.length > 0 && (
@@ -450,11 +522,11 @@ function GenerosSection({ onSelectGenre }: GenerosProps) {
       )}
 
       {!isError && !isLoading && shown.length === 0 && (
-        <div className={styles.empty}>
-          <span className={styles.emptyIcon}>( ∅ )</span>
-          <p className={styles.emptyTitle}>Sin resultados</p>
-          <p className={styles.emptyBody}>Prueba con otro nombre de género.</p>
-        </div>
+        <EmptyState
+          icon="( ∅ )"
+          title="Sin resultados"
+          body="Prueba con otro nombre de género."
+        />
       )}
 
       {!isError && shown.length > 0 && (

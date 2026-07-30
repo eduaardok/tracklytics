@@ -194,7 +194,7 @@
 /* ── Botones ─────────────────────────────────────────────────────────────── */
 
 .btnPrimary {
-  background: var(--color-primary);
+  background: var(--gradient-primary);
   color: var(--color-ink);
   font-family: var(--font-sans);
   font-size: 0.875rem;
@@ -207,7 +207,8 @@
   transition: background-color var(--duration-standard) var(--ease-standard);
 }
 
-.btnPrimary:hover { background: var(--color-primary-light); }
+.btnPrimary:hover { filter: brightness(1.1); }
+.btnPrimary:active { transform: scale(0.98); }
 
 .btnGhost {
   background: none;
