@@ -165,6 +165,50 @@
   max-height: 500px;
 }
 
+/* Submenú anidado "Informes Compuestos" (S13-P3b, 9 departamentos × ~3
+   informes) — mismo patrón que `.sectionHeader`/`.sectionLinks` de arriba,
+   un nivel más adentro (más indent, sin el borde superior de separación de
+   sección) y un tope de altura mayor porque puede contener hasta 30 enlaces
+   si el admin expande los 9 departamentos a la vez. */
+.subSectionHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  padding: 6px var(--space-md) 6px calc(var(--space-md) + var(--space-sm));
+  font-family: var(--font-sans);
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--color-muted);
+  user-select: none;
+}
+
+.subSectionHeader:hover {
+  color: var(--color-ink);
+}
+
+.subSectionLinks {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  max-height: 0;
+  transition: max-height 0.2s ease;
+}
+
+.subSectionLinksOpen {
+  max-height: 300px;
+}
+
+.subSectionLinks .navItem,
+.subSectionLinksOpen .navItem {
+  padding-left: calc(var(--space-md) + var(--space-lg));
+  font-size: 0.75rem;
+}
+
+.informesComposuestosLinks {
+  max-height: 2000px;
+}
+
 .main {
   flex: 1;
   min-width: 0;

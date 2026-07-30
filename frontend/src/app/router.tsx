@@ -116,6 +116,12 @@ const StrikesGlobalPage        = lazyNamed(() => import('@packages/seguridad/pag
 const AbTestsPage              = lazyNamed(() => import('@packages/experiencia/pages/AbTestsPage'), 'AbTestsPage')
 const NotificacionesAdminPage  = lazyNamed(() => import('@packages/social/pages/NotificacionesAdminPage'), 'NotificacionesAdminPage')
 const FamiliasReportePage      = lazyNamed(() => import('@packages/experiencia/pages/FamiliasReportePage'), 'FamiliasReportePage')
+// Obj 30 / OT-30 (S13-P2): única brecha total detectada en S13-P1.
+const SesionesActivasPage      = lazyNamed(() => import('@packages/seguridad/pages/SesionesActivasPage'), 'SesionesActivasPage')
+// Los 30 informes compuestos (S13-P3b) — una sola página de ruta dinámica
+// (arrastra Recharts vía las plantillas de `shared/components/reportes`),
+// ver docs/BITACORA_S13.md para por qué es 1 componente y no 30.
+const InformeCompuestoPage     = lazyNamed(() => import('@packages/reportes/pages/InformeCompuestoPage'), 'InformeCompuestoPage')
 
 export const router = createBrowserRouter([
   { path: '/login',      element: <LoginPage /> },
@@ -259,10 +265,23 @@ export const router = createBrowserRouter([
       { path: 'reporte-ab-tests',       element: <AbTestsPage /> },
       { path: 'reporte-notificaciones', element: <NotificacionesAdminPage /> },
       { path: 'reporte-familias',       element: <FamiliasReportePage /> },
+      { path: 'sesiones-activas',       element: <SesionesActivasPage /> },
       // Reusa el mismo componente que `/analitica/disponibilidad` (CU-O55) —
       // ver comentario en SeguridadShell.tsx. Mismo `lazyNamed` de arriba, no
       // se vuelve a importar el módulo.
       { path: 'disponibilidad',         element: <DisponibilidadInfraPage /> },
+    ],
+  },
+  {
+    // Árbol hermano de `/seguridad` (mismo `SeguridadShell`+guard, prefijo de
+    // URL distinto): los 30 informes compuestos (S13-P3b) piden vivir bajo
+    // `/reportes/...` explícitamente — montar el mismo shell acá en vez de
+    // anidarlos bajo `/seguridad/reportes-compuestos/...` conserva el
+    // sidebar/chrome admin sin romper esa convención de ruta pedida.
+    path: '/reportes',
+    element: <RequireAuth roles={['admin']}><SeguridadShell /></RequireAuth>,
+    children: [
+      { path: ':departamento/:informe', element: <InformeCompuestoPage /> },
     ],
   },
   // Catch-all: sin esto, cualquier URL sin match (typo, enlace viejo) caía en

@@ -5,6 +5,12 @@ import { Outlet, NavLink, useLocation } from 'react-router-dom'
 import { UserMenu } from '@packages/seguridad/components/UserMenu'
 import { RouteLoadingFallback } from '@shared/components/RouteLoadingFallback'
 import { ZoneSwitcher } from '@shared/components/ZoneSwitcher'
+import { getAdminSectionsOpen, setAdminSectionOpen } from '@shared/lib/ui-prefs'
+// SOLO metadata de navegación (sin `render`/plantillas/Recharts) — importar
+// `@packages/reportes/config` (el registro completo) desde acá arrastraría
+// Recharts al bundle principal, porque `SeguridadShell` se importa eager en
+// `router.tsx` (no es lazy). Ver docs/BITACORA_S13.md, "bug de bundle 1MB".
+import { DEPARTAMENTOS_NAV } from '@packages/reportes/config/informesNav'
 import styles from './SeguridadShell.module.css'
 
 const ACTIVE_CLS   = `${styles.navItem} ${styles.navActive}`
@@ -59,13 +65,14 @@ const SECCIONES: Seccion[] = [
   },
   {
     label: 'Reportes',
-    paths: ['/seguridad/reporte-usuarios', '/seguridad/reporte-strikes', '/seguridad/reporte-ab-tests', '/seguridad/reporte-notificaciones', '/seguridad/reporte-familias', '/seguridad/disponibilidad'],
+    paths: ['/seguridad/reporte-usuarios', '/seguridad/reporte-strikes', '/seguridad/reporte-ab-tests', '/seguridad/reporte-notificaciones', '/seguridad/reporte-familias', '/seguridad/sesiones-activas', '/seguridad/disponibilidad'],
     links: [
       { to: '/seguridad/reporte-usuarios', label: 'Usuarios' },
       { to: '/seguridad/reporte-strikes', label: 'Strikes' },
       { to: '/seguridad/reporte-ab-tests', label: 'Pruebas A/B' },
       { to: '/seguridad/reporte-notificaciones', label: 'Notificaciones' },
       { to: '/seguridad/reporte-familias', label: 'Familias' },
+      { to: '/seguridad/sesiones-activas', label: 'Sesiones activas' },
       // Reusa `DisponibilidadInfraPage` (CU-O55, `/analitica/disponibilidad`)
       // — mismo componente y endpoint, sin tier gate propio, solo un
       // segundo punto de entrada para el panel de reportes admin.
@@ -74,27 +81,43 @@ const SECCIONES: Seccion[] = [
   },
 ]
 
-function SidebarSection({ seccion, defaultOpen }: { seccion: Seccion; defaultOpen: boolean }) {
+function useToggle(clave: string, defaultOpen: boolean) {
   const [open, setOpen] = useState(defaultOpen)
+  function toggle() {
+    setOpen((o) => {
+      const next = !o
+      setAdminSectionOpen(clave, next)
+      return next
+    })
+  }
+  return { open, toggle }
+}
+
+function SidebarSection({ seccion, defaultOpen, extra }: { seccion: Seccion; defaultOpen: boolean; extra?: React.ReactNode }) {
+  // Recuerda si el admin abrió/cerró esta sección a mano (S13 polish
+  // visual) — antes se olvidaba al navegar a otra ruta, solo se
+  // auto-abría si contenía la ruta activa (`defaultOpen`).
+  const { open, toggle } = useToggle(seccion.label, defaultOpen)
+
   return (
     <div>
       <div
         className={styles.sectionHeader}
-        onClick={() => setOpen((o) => !o)}
+        onClick={toggle}
         role="button"
         tabIndex={0}
         aria-expanded={open}
         onKeyDown={(e) => {
           if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault()
-            setOpen((o) => !o)
+            toggle()
           }
         }}
       >
         <span>{seccion.label}</span>
         <span className={`${styles.chevron} ${open ? styles.chevronOpen : ''}`} aria-hidden="true">▸</span>
       </div>
-      <div className={`${styles.sectionLinks} ${open ? styles.sectionLinksOpen : ''}`}>
+      <div className={`${styles.sectionLinks} ${open ? styles.sectionLinksOpen : ''} ${extra ? styles.informesComposuestosLinks : ''}`}>
         {seccion.links.map((link) => (
           <NavLink
             key={link.to}
@@ -103,6 +126,76 @@ function SidebarSection({ seccion, defaultOpen }: { seccion: Seccion; defaultOpe
             className={({ isActive }) => isActive ? ACTIVE_CLS : INACTIVE_CLS}
           >
             {link.label}
+          </NavLink>
+        ))}
+        {extra}
+      </div>
+    </div>
+  )
+}
+
+// Submenú anidado "Informes Compuestos" (S13-P3b) — 9 departamentos, cada
+// uno colapsable por separado, dentro de la sección "Reportes" ya existente.
+// Un nivel más de anidación que `SidebarSection` (que ya cubre el primer
+// nivel de colapso): mismo patrón, mismo helper `useToggle`/`setAdminSectionOpen`
+// con una clave compuesta para no chocar con las claves de nivel superior.
+function InformesCompuestosMenu() {
+  const location = useLocation()
+  const { open, toggle } = useToggle(
+    'Informes Compuestos',
+    DEPARTAMENTOS_NAV.some((d) => location.pathname.startsWith(`/reportes/${d.slug}`)),
+  )
+
+  return (
+    <div>
+      <div
+        className={styles.subSectionHeader}
+        onClick={toggle}
+        role="button"
+        tabIndex={0}
+        aria-expanded={open}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle() } }}
+      >
+        <span>Informes Compuestos</span>
+        <span className={`${styles.chevron} ${open ? styles.chevronOpen : ''}`} aria-hidden="true">▸</span>
+      </div>
+      <div className={`${styles.subSectionLinks} ${open ? styles.informesComposuestosLinks : ''}`}>
+        {DEPARTAMENTOS_NAV.map((depto) => (
+          <DepartamentoSubSection key={depto.slug} slug={depto.slug} label={depto.label} informes={depto.informes} />
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function DepartamentoSubSection({ slug, label, informes }: { slug: string; label: string; informes: { informe: string; codigo: string; labelCorto: string }[] }) {
+  const location = useLocation()
+  const { open, toggle } = useToggle(
+    `Informes Compuestos > ${label}`,
+    location.pathname.startsWith(`/reportes/${slug}`),
+  )
+
+  return (
+    <div>
+      <div
+        className={styles.subSectionHeader}
+        onClick={toggle}
+        role="button"
+        tabIndex={0}
+        aria-expanded={open}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle() } }}
+      >
+        <span>{label} ({informes.length})</span>
+        <span className={`${styles.chevron} ${open ? styles.chevronOpen : ''}`} aria-hidden="true">▸</span>
+      </div>
+      <div className={`${styles.subSectionLinks} ${open ? styles.subSectionLinksOpen : ''}`}>
+        {informes.map((inf) => (
+          <NavLink
+            key={inf.informe}
+            to={`/reportes/${slug}/${inf.informe}`}
+            className={({ isActive }) => isActive ? ACTIVE_CLS : INACTIVE_CLS}
+          >
+            {inf.codigo} · {inf.labelCorto}
           </NavLink>
         ))}
       </div>
@@ -147,7 +240,11 @@ export function SeguridadShell() {
             <SidebarSection
               key={seccion.label}
               seccion={seccion}
-              defaultOpen={seccion.paths.some((p) => location.pathname.startsWith(p))}
+              defaultOpen={
+                seccion.paths.some((p) => location.pathname.startsWith(p))
+                || (seccion.label === 'Reportes' && location.pathname.startsWith('/reportes'))
+              }
+              extra={seccion.label === 'Reportes' ? <InformesCompuestosMenu /> : undefined}
             />
           ))}
         </nav>
