@@ -6,6 +6,14 @@ CH_DB       = os.getenv("CLICKHOUSE_DB", "tracklytics")
 CH_USER     = os.getenv("CLICKHOUSE_USER", "default")
 CH_PASSWORD = os.getenv("CLICKHOUSE_PASSWORD", "")
 
+# Capa Gold (S13-P2): segunda instancia de ClickHouse, separada a propósito
+# del ClickHouse de catálogo de arriba — mismo usuario/password (no es una
+# cuenta distinta, es una instancia distinta). Sin tablas todavía (P3);
+# `core/database_gold.py` es el único módulo que debe usar estas constantes.
+CH_GOLD_HOST = os.getenv("CLICKHOUSE_GOLD_HOST", "localhost")
+CH_GOLD_PORT = int(os.getenv("CLICKHOUSE_GOLD_PORT", "8124"))
+CH_GOLD_DB   = os.getenv("CLICKHOUSE_GOLD_DB", "tracklytics_gold")
+
 AIRFLOW_URL  = os.getenv("AIRFLOW_URL",      "http://airflow:8080")
 AIRFLOW_USER = os.getenv("AIRFLOW_USER",     "admin")
 AIRFLOW_PASS = os.getenv("AIRFLOW_PASSWORD", "tracklytics2026")

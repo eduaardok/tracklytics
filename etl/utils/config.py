@@ -13,5 +13,9 @@ def get_config() -> dict:
         "ch_db":       os.getenv("CLICKHOUSE_DB", "tracklytics"),
         "ch_user":     os.getenv("CLICKHOUSE_USER", "default"),
         "ch_pass":     os.getenv("CLICKHOUSE_PASSWORD", ""),
+        # Capa Gold (S13-P3a) — instancia separada, mismo usuario/password.
+        "ch_gold_host": os.getenv("CLICKHOUSE_GOLD_HOST", "clickhouse-gold"),
+        "ch_gold_port": int(os.getenv("CLICKHOUSE_GOLD_PORT", 8123)),
+        "ch_gold_db":   os.getenv("CLICKHOUSE_GOLD_DB", "tracklytics_gold"),
         "parquet_dir": os.getenv("PARQUET_DIR", "/app/parquet_stage"),
     }
