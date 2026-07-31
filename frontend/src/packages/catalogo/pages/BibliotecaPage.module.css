@@ -173,16 +173,34 @@
   position: relative;
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding: var(--space-md);
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
+  gap: 0;
+  width: 100%;
+  max-width: 180px;
+  padding: 0;
+  background: transparent;
+  border: none;
   border-radius: var(--radius-md);
   cursor: pointer;
   text-align: left;
-  transition: background-color var(--duration-fast) var(--ease-standard);
+  transition: transform var(--duration-standard) var(--ease-standard);
 }
-.card:hover { background: var(--color-surface-raised); }
+.card:hover { transform: scale(1.03); }
+.card:focus-visible { outline: none; }
+.card:focus-visible .cardArt { box-shadow: 0 0 0 2px oklch(0.68 0.14 290 / 0.7); }
+
+.cardArt {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  min-height: 160px;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+/* PlaylistCollage recibe `size` en px (mismo patrón que AlbumArt) — acá
+   siempre debe llenar el wrapper cuadrado, no un tamaño fijo. */
+.cardArt > * {
+  width: 100% !important;
+  height: 100% !important;
+}
 
 .cardIcon {
   width: 40px;
@@ -197,9 +215,10 @@
 
 .cardName {
   font-family: var(--font-sans);
-  font-size: 0.9375rem;
+  font-size: 0.875rem;
   font-weight: 600;
   color: var(--color-ink);
+  margin: var(--space-sm) 0 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;

@@ -7,6 +7,7 @@ import { useToast } from '@shared/context/ToastContext'
 import { useConfirm } from '@shared/context/ConfirmContext'
 import { ErrorState } from '@shared/components/ErrorState'
 import { EmptyState } from '@shared/components/EmptyState'
+import { PlaylistCollage } from '@shared/components/PlaylistCollage'
 import { bibliotecaApi } from '../api/biblioteca.api'
 import { LibraryTrackRow } from './LibraryTrackRow'
 import styles from '../pages/BibliotecaPage.module.css'
@@ -363,7 +364,9 @@ export function PlaylistsTab() {
               className={styles.card}
               onClick={() => setSelectedId(pl.playlist_id)}
             >
-              <span className={styles.cardIcon} aria-hidden="true">♪</span>
+              <span className={styles.cardArt}>
+                <PlaylistCollage playlistId={pl.playlist_id} portadaUrls={pl.portada_urls} size={180} />
+              </span>
               <span className={styles.cardName}>{pl.name}</span>
               <span className={styles.cardCount}>{pl.track_count} canción{pl.track_count !== 1 ? 'es' : ''}</span>
               <span

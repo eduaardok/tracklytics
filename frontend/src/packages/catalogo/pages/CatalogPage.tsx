@@ -537,6 +537,7 @@ function GenerosSection({ onSelectGenre }: GenerosProps) {
               kind="genero"
               name={g.name}
               metric={`${g.mood ? `${g.mood} · ` : ''}${(g.track_count ?? 0).toLocaleString('es')} tracks${g.avg_popularity != null ? ` · pop ${g.avg_popularity}` : ''}`}
+              imagenUrl={g.imagen_url}
               onClick={() => onSelectGenre(g.name)}
             />
           ))}

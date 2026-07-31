@@ -13,6 +13,11 @@ export type Track = {
   // cuando no hay portada resuelta o el track no pertenece al catálogo
   // licenciado base; el frontend usa el reemplazo visual local en ese caso.
   imagen_url?:  string | null
+  // S14-P1: detección de featuring, derivada de track_name en el backend
+  // (`core/featuring.py`) — nunca se escribe a FACT_TRACKS.
+  es_featuring?:     boolean
+  artista_principal?: string
+  artistas_feat?:      string[]
 }
 
 // `danceability/energy/valence/speechiness/acousticness/instrumentalness/
@@ -72,6 +77,10 @@ export type Genre = {
   origin_decade?: number
   track_count?:   number
   avg_popularity?: number
+  // S14-P1: portada del track más popular del género que ya tenga imagen
+  // resuelta — null si ninguno la tiene aún (el frontend mantiene el color
+  // plano en ese caso).
+  imagen_url?:    string | null
 }
 
 export type TracksSearchParams = {
@@ -98,6 +107,13 @@ export type LibraryTrack = {
   artist_name:  string
   duration_ms:  number
   genre_name:   string
+  // S14-P1: antes ausente en este subconjunto (`TRACKS_BY_FACT_IDS`/
+  // `FAVORITOS_ACTUALES`/`HISTORIAL_RECIENTE` no lo seleccionaban) — cierra
+  // la brecha documentada en `LibraryTrackRow.tsx`.
+  imagen_url?:  string | null
+  es_featuring?:      boolean
+  artista_principal?: string
+  artistas_feat?:      string[]
 }
 
 export type Favoritos = {
@@ -121,6 +137,10 @@ export type Playlist = {
   name:        string
   track_count: number
   es_publica:  boolean
+  // S14-P1: hasta 4 portadas ya resueltas de sus primeras canciones (collage
+  // 2x2) — vacío si ninguna tiene portada todavía, el frontend cae al
+  // gradiente por playlist_id.
+  portada_urls: string[]
 }
 
 export type Colaborador = {

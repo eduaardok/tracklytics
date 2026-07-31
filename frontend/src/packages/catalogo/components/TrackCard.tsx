@@ -89,10 +89,16 @@ export function TrackCard({ track, position }: Props) {
         </span>
         <AlbumArt src={track.imagen_url} alt="" size={56} genreSeed={track.genre_name} />
         <div className={styles.info}>
-          <div className={styles.name}>{track.track_name}</div>
+          <div className={styles.name}>
+            {track.track_name}
+            {track.es_featuring && <span className={styles.featBadge}>feat.</span>}
+          </div>
           <div className={styles.meta}>
             {track.artist_name} · {track.genre_name}
           </div>
+          {track.es_featuring && track.artistas_feat && track.artistas_feat.length > 0 && (
+            <div className={styles.featArtists}>con {track.artistas_feat.join(', ')}</div>
+          )}
         </div>
         <div className={styles.data}>
           <span className={styles.popularity}>

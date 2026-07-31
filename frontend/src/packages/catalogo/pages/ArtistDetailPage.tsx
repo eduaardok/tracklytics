@@ -5,6 +5,7 @@ import { TrackCard } from '../components/TrackCard'
 import { AlbumArt } from '@shared/components/AlbumArt'
 import { ErrorState } from '@shared/components/ErrorState'
 import { EmptyState } from '@shared/components/EmptyState'
+import { SkeletonLoader } from '@shared/components/SkeletonLoader'
 import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { ApiError } from '@shared/lib/api-client'
 import type { Track } from '../types'
@@ -28,7 +29,18 @@ export function ArtistDetailPage() {
 
   useDocumentTitle(artist?.name ?? 'Artista')
 
-  if (loadingArtist) return <p className={styles.loading}>// cargando…</p>
+  if (loadingArtist) {
+    return (
+      <section>
+        <div className={styles.hero}>
+          <SkeletonLoader count={1} height={200} className={styles.heroSkeletonArt} />
+          <div className={styles.heroMeta}>
+            <SkeletonLoader count={2} height={16} />
+          </div>
+        </div>
+      </section>
+    )
+  }
 
   if (errorArtist || !artist) {
     const notFound = artistError instanceof ApiError && artistError.status === 404
@@ -49,7 +61,7 @@ export function ArtistDetailPage() {
   return (
     <section>
       <div className={styles.hero}>
-        <AlbumArt src={artist.imagen_url} alt="" size={96} />
+        <AlbumArt src={artist.imagen_url} alt="" size={200} genreSeed={String(id)} />
         <div className={styles.heroMeta}>
           <span className={styles.heroType}>Artista</span>
           <h1 className={styles.heroName}>{artist.name}</h1>

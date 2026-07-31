@@ -68,8 +68,14 @@ export function TrackGridCard({ track }: Props) {
         </span>
       </div>
       <div className={styles.info}>
-        <p className={styles.name} title={track.track_name}>{track.track_name}</p>
+        <p className={styles.name} title={track.track_name}>
+          {track.track_name}
+          {track.es_featuring && <span className={styles.featBadge}>feat.</span>}
+        </p>
         <p className={styles.artist} title={track.artist_name}>{track.artist_name}</p>
+        {track.es_featuring && track.artistas_feat && track.artistas_feat.length > 0 && (
+          <p className={styles.featArtists} title={track.artistas_feat.join(', ')}>con {track.artistas_feat.join(', ')}</p>
+        )}
       </div>
     </div>
   )

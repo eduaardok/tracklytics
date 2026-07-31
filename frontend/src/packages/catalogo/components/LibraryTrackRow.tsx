@@ -2,6 +2,7 @@ import type { MouseEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ListPlus } from 'lucide-react'
 import { usePlayer } from '@shared/context/PlayerContext'
+import { AlbumArt } from '@shared/components/AlbumArt'
 import { ErrorState } from '@shared/components/ErrorState'
 import { ApiError, apiErrorMessage } from '@shared/lib/api-client'
 import { useAd } from '@packages/publicidad'
@@ -38,19 +39,17 @@ export function LibraryTrackRow({ track, position, timeAgo, onRemove, removeTitl
     navigate(`/catalogo/track/${track.fact_id}`)
   }
 
-  // Nota (iteración de diseño, bug de portadas): `LibraryTrack` (favoritos/
-  // historial/tracks de playlist) no trae `imagen_url` — ninguna query de
-  // `api/paquetes/biblioteca/queries.py` la selecciona hoy. `PlayableTrack`
-  // queda con `imagen_url: undefined` para estos tracks; `AlbumArt` ya
-  // maneja ese caso con su glifo de respaldo (no rompe, solo no muestra
-  // foto). Arreglarlo del todo requeriría tocar ese backend — fuera de
-  // alcance de este cambio, que es 100% frontend.
+  // S14-P1: `imagen_url` ya viaja en `LibraryTrack` (antes no — ver
+  // `TRACKS_BY_FACT_IDS`/`FAVORITOS_ACTUALES`/`HISTORIAL_RECIENTE`, ahora la
+  // seleccionan las tres), así que la barra de reproducción también la
+  // recibe.
   function toPlayable() {
     return {
       fact_id:     track.fact_id,
       track_name:  track.track_name,
       artist_name: track.artist_name,
       duration_ms: track.duration_ms,
+      imagen_url:  track.imagen_url,
     }
   }
 
@@ -90,9 +89,16 @@ export function LibraryTrackRow({ track, position, timeAgo, onRemove, removeTitl
         tabIndex={0}
       >
         <span className={styles.position} aria-hidden="true">{position}</span>
+        <AlbumArt src={track.imagen_url} alt="" size={40} genreSeed={track.genre_name} />
         <div className={styles.info}>
-          <div className={styles.name}>{track.track_name}</div>
+          <div className={styles.name}>
+            {track.track_name}
+            {track.es_featuring && <span className={styles.featBadge}>feat.</span>}
+          </div>
           <div className={styles.meta}>{track.artist_name} · {track.genre_name}</div>
+          {track.es_featuring && track.artistas_feat && track.artistas_feat.length > 0 && (
+            <div className={styles.featArtists}>con {track.artistas_feat.join(', ')}</div>
+          )}
         </div>
         {timeAgo && <span className={styles.timeAgo}>{timeAgo}</span>}
         <span className={styles.duration}>{formatDuration(track.duration_ms)}</span>
