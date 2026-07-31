@@ -10,6 +10,10 @@ node_modules/
 .venv/
 parquet_stage/
 frontend/dist/
+# Cache de portadas resueltas (RF-EXP-009) — regenerable, crece con cada
+# corrida de reload_portadas/backfill_portadas; no es código fuente
+# (S14-P1, ver docs/BITACORA_S14.md).
+etl/gold/portadas_cache.json
 .impeccable/
 .env
 __pycache__/
