@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 
 from core.database import execute, query_one, query_rows
 from core.deps import get_current_user_optional
+from core.featuring import enriquecer_featuring
 from paquetes.biblioteca import pb_playlists
 from paquetes.catalogo.queries import (
     ALBUM_DETAIL, ALBUMS_SEARCH,
@@ -97,7 +98,7 @@ async def search_all(
 
 @router.get("/tracks/top")
 def tracks_top(limit: int = Query(20, ge=1, le=200)):
-    rows = query_rows(TRACKS_TOP, {"limit": limit})
+    rows = enriquecer_featuring(query_rows(TRACKS_TOP, {"limit": limit}))
     return {"data": rows, "total": len(rows)}
 
 
@@ -146,26 +147,26 @@ def tracks_search(
         conditions.append("ft.energy >= {energy_min:Float32}")
 
     where = f"WHERE {' AND '.join(conditions)}" if conditions else ""
-    rows = query_rows(tracks_search_sql(where), params)
+    rows = enriquecer_featuring(query_rows(tracks_search_sql(where), params))
     total = query_one(tracks_search_count_sql(where), params)["total"]
     return {"data": rows, "total": total, "limit": limit, "offset": offset}
 
 
 @router.get("/tracks/by-artist/{artist_id}")
 def tracks_by_artist(artist_id: int, limit: int = Query(20, ge=1, le=100)):
-    rows = query_rows(TRACKS_BY_ARTIST, {"artist_id": artist_id, "limit": limit})
+    rows = enriquecer_featuring(query_rows(TRACKS_BY_ARTIST, {"artist_id": artist_id, "limit": limit}))
     return {"data": rows}
 
 
 @router.get("/tracks/by-album/{album_id}")
 def tracks_by_album(album_id: int, limit: int = Query(50, ge=1, le=200)):
-    rows = query_rows(TRACKS_BY_ALBUM, {"album_id": album_id, "limit": limit})
+    rows = enriquecer_featuring(query_rows(TRACKS_BY_ALBUM, {"album_id": album_id, "limit": limit}))
     return {"data": rows}
 
 
 @router.get("/tracks/by-genre/{genre_id}")
 def tracks_by_genre(genre_id: int, limit: int = Query(50, ge=1, le=200)):
-    rows = query_rows(TRACKS_BY_GENRE, {"genre_id": genre_id, "limit": limit})
+    rows = enriquecer_featuring(query_rows(TRACKS_BY_GENRE, {"genre_id": genre_id, "limit": limit}))
     return {"data": rows}
 
 

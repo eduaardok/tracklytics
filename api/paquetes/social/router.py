@@ -7,6 +7,7 @@ from pydantic import BaseModel
 
 from core.database import execute, get_client, query_one, query_rows
 from core.deps import get_current_user, require_b2c_user
+from core.featuring import enriquecer_featuring
 from paquetes.biblioteca import pb_playlists
 from paquetes.biblioteca.queries import TRACKS_BY_FACT_IDS
 from paquetes.seguridad import audit, strikes
@@ -610,7 +611,7 @@ async def perfil_publico(usuario_id: str, viewer: dict | None = Depends(_usuario
     for pl in playlists_pb:
         items = await pb_playlists.listar_tracks_admin(pl["id"])
         fact_ids = [it["fact_id"] for it in items]
-        tracks_by_fact = {r["fact_id"]: r for r in query_rows(TRACKS_BY_FACT_IDS, {"fact_ids": fact_ids})} if fact_ids else {}
+        tracks_by_fact = {r["fact_id"]: r for r in enriquecer_featuring(query_rows(TRACKS_BY_FACT_IDS, {"fact_ids": fact_ids}))} if fact_ids else {}
         ordered = sorted(items, key=lambda it: it["position"])
         tracks  = [tracks_by_fact[it["fact_id"]] for it in ordered if it["fact_id"] in tracks_by_fact]
         playlists.append({"playlist_id": pl["id"], "name": pl["name"], "data": tracks, "total": len(tracks)})

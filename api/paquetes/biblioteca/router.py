@@ -6,6 +6,7 @@ from pydantic import BaseModel
 
 from core.database import get_client, query_one, query_rows
 from core.deps import require_b2c_user
+from core.featuring import enriquecer_featuring
 from paquetes.biblioteca import pb_playlists
 from paquetes.biblioteca.queries import (
     COUNT_FAVORITOS, FACT_ID_EXISTS, FAVORITOS_ACTUALES, HISTORIAL_RECIENTE, TRACKS_BY_FACT_IDS,
@@ -46,7 +47,7 @@ def _insert_event(user_id: str, fact_id: int, event_type: str) -> None:
 async def get_favoritos(user: dict = Depends(require_b2c_user)):
     user_id = user["record"]["id"]
     plan    = await _get_plan(user)
-    rows    = query_rows(FAVORITOS_ACTUALES, {"user_id": user_id})
+    rows    = enriquecer_featuring(query_rows(FAVORITOS_ACTUALES, {"user_id": user_id}))
     return {
         "data":       rows,
         "total":      len(rows),
@@ -87,7 +88,7 @@ async def get_historial(
     user_id         = user["record"]["id"]
     plan            = await _get_plan(user)
     effective_limit = min(limit, FREE_HISTORIAL_CAP) if plan == "free" else limit
-    rows            = query_rows(HISTORIAL_RECIENTE, {"user_id": user_id, "limit": effective_limit})
+    rows            = enriquecer_featuring(query_rows(HISTORIAL_RECIENTE, {"user_id": user_id, "limit": effective_limit}))
     return {
         "data":          rows,
         "total":         len(rows),
@@ -176,13 +177,36 @@ class PlaylistTrackBody(BaseModel):
 async def listar_playlists(user: dict = Depends(require_b2c_user)):
     user_id = user["record"]["id"]
     token   = user["token"]
-    playlists = await pb_playlists.listar(token, user_id)
-    counts    = Counter(it["playlist"] for it in await pb_playlists.listar_tracks_de_usuario(token, user_id))
+    playlists  = await pb_playlists.listar(token, user_id)
+    all_items  = await pb_playlists.listar_tracks_de_usuario(token, user_id)
+    counts     = Counter(it["playlist"] for it in all_items)
+
+    # Collage de portada (S14-P1): hasta 4 portadas ya resueltas por playlist,
+    # de sus primeras canciones por posición — sin request nuevo a PocketBase
+    # (reusa `all_items`, ya traído para los conteos) y una sola consulta batch
+    # a ClickHouse para todos los fact_ids de todas las playlists a la vez (no
+    # N+1 por playlist).
+    primeros_por_playlist: dict[str, list[int]] = {}
+    for it in sorted(all_items, key=lambda it: it["position"]):
+        lote = primeros_por_playlist.setdefault(it["playlist"], [])
+        if len(lote) < 4:
+            lote.append(it["fact_id"])
+
+    fact_ids_todos = sorted({fid for lote in primeros_por_playlist.values() for fid in lote})
+    imagen_por_fact_id: dict[int, str | None] = {}
+    if fact_ids_todos:
+        rows = query_rows(TRACKS_BY_FACT_IDS, {"fact_ids": fact_ids_todos})
+        imagen_por_fact_id = {r["fact_id"]: r.get("imagen_url") for r in rows}
+
     return {
         "data": [
             {
                 "playlist_id": p["id"], "name": p["name"], "track_count": counts.get(p["id"], 0),
                 "es_publica": bool(p.get("es_publica", False)),
+                "portada_urls": [
+                    url for fid in primeros_por_playlist.get(p["id"], [])
+                    if (url := imagen_por_fact_id.get(fid))
+                ],
             }
             for p in playlists
         ],
@@ -208,7 +232,7 @@ async def detalle_playlist(playlist_id: str, user: dict = Depends(require_b2c_us
     fact_ids = [it["fact_id"] for it in items]
     tracks_by_fact = {}
     if fact_ids:
-        rows = query_rows(TRACKS_BY_FACT_IDS, {"fact_ids": fact_ids})
+        rows = enriquecer_featuring(query_rows(TRACKS_BY_FACT_IDS, {"fact_ids": fact_ids}))
         tracks_by_fact = {r["fact_id"]: r for r in rows}
 
     ordered = sorted(items, key=lambda it: it["position"])

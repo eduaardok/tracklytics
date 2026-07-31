@@ -5,7 +5,8 @@ SELECT
     ft.track_name  AS track_name,
     a.name         AS artist_name,
     ft.duration_ms AS duration_ms,
-    ga.genre_name  AS genre_name
+    ga.genre_name  AS genre_name,
+    coalesce(ft.imagen_url, al.imagen_url, a.imagen_url) AS imagen_url
 FROM (
     SELECT
         fact_id,
@@ -17,13 +18,18 @@ FROM (
 ) fav
 JOIN FACT_TRACKS ft ON fav.fact_id  = ft.fact_id
 JOIN DIM_ARTISTS a  ON ft.artist_id = a.artist_id
+LEFT JOIN DIM_ALBUMS al ON ft.album_id = al.album_id
+-- Sin filtro de source_type en la subquery de género (S14-P1, mismo fix ya
+-- aplicado en HISTORIAL_RECIENTE): un track 100% sintético no tiene ninguna
+-- fila con otro source_type que resuelva su genre_name, y el INNER JOIN
+-- dejaba fuera el favorito completo (portada incluida) aunque el evento sí
+-- existiera.
 JOIN (
     SELECT
         ft2.track_id,
         arrayStringConcat(groupUniqArray(g2.name), ' / ') AS genre_name
     FROM FACT_TRACKS ft2
     JOIN DIM_GENRES g2 ON ft2.genre_id = g2.genre_id
-    WHERE ft2.source_type != 'synthetic'
     GROUP BY ft2.track_id
 ) ga ON ga.track_id = ft.track_id
 ORDER BY ft.fact_id
@@ -37,10 +43,12 @@ SELECT
     ft.track_name     AS track_name,
     a.name            AS artist_name,
     ft.duration_ms    AS duration_ms,
-    ga.genre_name     AS genre_name
+    ga.genre_name     AS genre_name,
+    coalesce(ft.imagen_url, al.imagen_url, a.imagen_url) AS imagen_url
 FROM FACT_ENGAGEMENT_USUARIO e
 JOIN FACT_TRACKS ft ON e.fact_id    = ft.fact_id
 JOIN DIM_ARTISTS a  ON ft.artist_id = a.artist_id
+LEFT JOIN DIM_ALBUMS al ON ft.album_id = al.album_id
 -- Sin filtro de source_type: a diferencia de FAVORITOS_ACTUALES/TRACKS_BY_FACT_IDS
 -- (que sí excluyen 'synthetic' aquí), un track 100% sintético no tiene ninguna
 -- fila con otro source_type que resuelva su genre_name, y el INNER JOIN dejaba
@@ -85,16 +93,22 @@ SELECT
     ft.track_name  AS track_name,
     a.name         AS artist_name,
     ft.duration_ms AS duration_ms,
-    ga.genre_name  AS genre_name
+    ga.genre_name  AS genre_name,
+    coalesce(ft.imagen_url, al.imagen_url, a.imagen_url) AS imagen_url
 FROM FACT_TRACKS ft
 JOIN DIM_ARTISTS a ON ft.artist_id = a.artist_id
+LEFT JOIN DIM_ALBUMS al ON ft.album_id = al.album_id
+-- Sin filtro de source_type en la subquery de género (S14-P1, mismo fix ya
+-- aplicado en HISTORIAL_RECIENTE): un track de playlist 100% sintético no
+-- tiene fila con otro source_type que resuelva su genre_name, y el INNER
+-- JOIN lo hacía desaparecer del todo de la playlist (portada incluida) en
+-- vez de solo perder el género.
 JOIN (
     SELECT
         ft2.track_id,
         arrayStringConcat(groupUniqArray(g2.name), ' / ') AS genre_name
     FROM FACT_TRACKS ft2
     JOIN DIM_GENRES g2 ON ft2.genre_id = g2.genre_id
-    WHERE ft2.source_type != 'synthetic'
     GROUP BY ft2.track_id
 ) ga ON ga.track_id = ft.track_id
 WHERE ft.fact_id IN {fact_ids:Array(UInt64)}

@@ -208,7 +208,13 @@ SELECT
     g.name                       AS name,
     g.mood                       AS mood,
     count()                      AS track_count,
-    round(avg(ft.popularity), 2) AS avg_popularity
+    round(avg(ft.popularity), 2) AS avg_popularity,
+    -- S14-P1: portada representativa = la del track más popular del género
+    -- que YA tenga imagen_url resuelta (sin requests nuevos, reusa lo que
+    -- ya dejó el ciclo normal de portadas). NULL si ninguno la tiene todavía
+    -- — el frontend mantiene el color plano en ese caso, no fuerza un
+    -- fallback feo.
+    argMaxIf(ft.imagen_url, ft.popularity, ft.imagen_url IS NOT NULL) AS imagen_url
 FROM FACT_TRACKS ft
 JOIN DIM_GENRES g ON ft.genre_id = g.genre_id
 GROUP BY g.genre_id, g.name, g.mood
