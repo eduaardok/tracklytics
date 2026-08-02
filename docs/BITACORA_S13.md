@@ -466,3 +466,51 @@ Build limpio (`npm run build`, bundle principal 540.06 kB, sin regresión), rebu
 - **3 mejores operativos**: Partners (CRUD completo con modal — alta, edición, detalle, rotación de key, desactivación), Campañas publicitarias (transiciones de estado pausar/reanudar/finalizar + detalle), Tickets de soporte (CRUD completo desde cero con `CrudModal`, el ejemplo más ilustrativo del patrón docente porque partía de cero).
 - **3 mejores tácticos**: C14 (panel ejecutivo — el más denso, 4 KPIs + 2 gráficos multi-serie), C17 (proyecciones — línea punteada de predicción a 4 semanas, badge "Datos estimados" visible), y **C09 (regalías)** en vez de C07 — mismos KPIs financieros pero con datos 100% reales en todo el rango de período, sin el efecto de "$0 en la semana más reciente" de C07 (ver Fase 1B).
 - **Flujo sugerido de demo**: login admin → sidebar → un CRUD (Tickets, patrón completo) → un informe simple (cualquiera de los 27) → un informe compuesto (C14) → cambiar el filtro de período en vivo → catálogo con toggle grid/lista.
+
+---
+
+## S13-P5: Refinamientos pre-video (PDF + correcciones) (1 ago 2026)
+
+Modo autónomo total, a partir de los hallazgos de `AUDITORIA_S13.md` (auditoría de estado previa a esta fase, con el stack completo levantado y verificado por HTTP/SQL en vivo).
+
+### Fase 1 — Exportación PDF
+
+Componente `shared/components/ExportPDFButton.tsx`: captura un `RefObject<HTMLElement>` con `html2canvas` y arma un PDF paginado con `jsPDF` (encabezado TRACKLYTICS + título + fecha "1 de agosto de 2026, 14:30"; pie "Generado por Tracklytics — Confidencial" + "Página X de Y"; márgenes 20 mm). Decisiones:
+
+- **Tema forzado a claro sin tocar CSS modules**: las custom properties del design system (`--color-ink`, `--color-bg`, etc.) se sobreescriben con `el.style.setProperty` en el nodo raíz del `ref` antes de capturar y se revierten después — como heredan hacia abajo, alcanza con un solo `set`/`remove` por exportación para que todo el árbol (badges, tablas, gráficos) capture en claro.
+- **Paginación multi-página**: la misma imagen completa se dibuja en cada página con un offset vertical negativo — el contenido fuera del rectángulo de esa página cae fuera del MediaBox del PDF y no se renderiza (patrón estándar html2canvas + jsPDF, sin librería de recorte adicional).
+- **El botón se excluye de su propia captura** vía `ignoreElements` + un atributo `data-pdf-export-ignore` en el propio `<button>` — sin esto, el PDF se fotografiaría a sí mismo pidiendo generarse.
+- **Import dinámico de `html2canvas`/`jspdf`** (hallazgo real de build, no una precaución preventiva): un `import` estático de ambas librerías en el componente inflaba el bundle principal de 542 kB a **1,14 MB**, porque el botón se integró también en páginas que `router.tsx` carga eager (`ErroresPage`, `ReporteUsuariosPage`, etc. — no todas las páginas de `/seguridad` están en el árbol lazy de `/analitica`/`/reportes`). Se resolvió bajando ambas librerías con `Promise.all([import('html2canvas'), import('jspdf')])` dentro del handler de clic, recién al usarse — mismo criterio que el proyecto ya aplica a Recharts (`lazyNamed` en `router.tsx`). Verificado con `npm run build`: bundle principal de vuelta a 547 kB, `html2canvas`/`jspdf` en chunks separados de 201 kB/390 kB que solo se piden al exportar.
+
+### Fase 2 — Integración
+
+- **30 informes compuestos**: un solo punto de integración en `ReportLayout.tsx` (wrapper común de los 30, ver S13-P3b) cubre los 30 de una vez. Botón en la esquina superior derecha del header, junto al badge de departamento/código; solo se renderiza cuando hay contenido cargado (no durante skeleton/error/sin-datos).
+- **Informes simples + workpanels operativos**: 35 páginas/componentes individuales, cada uno con su propio `ref` en el contenedor raíz y el botón junto al `<h1>` (o, en las pestañas sin heading propio como los 4 tabs de `distribucion` y los 2 de `finanzas`, en una fila propia arriba del contenido). 3 componentes tenían `<>` (Fragment) como raíz en vez de `<div>` — se cambiaron a `<div ref={...}>` porque un Fragment no puede sostener un ref.
+- **37 archivos tocados en total** (1 `ExportPDFButton.tsx` + 1 `ReportLayout.tsx` + 35 páginas/componentes), verificado con `grep -rl ExportPDFButton frontend/src`.
+
+### Fase 3 — Correcciones críticas
+
+**3a. Animación de entrada de Recharts.** Los 7 gráficos señalados por la auditoría (`DistributionChart`, `MiniDonutChart`, `MiniBarChart`, `RadialGauge`, `IndicadoresRadar`, `AudioRadarChart`, `DataQualityPage`) recibieron `isAnimationActive={false}`. Grep global de verificación sobre `<Pie|<Bar|<Line|<Area|<Radar|<RadialBar|<Scatter` en todo `frontend/src`: las 19 marcas del proyecto (12 ya lo tenían de antes + estas 7) quedan con la animación de entrada desactivada — ninguna pendiente.
+
+**3b. Idempotencia de pago (bug confirmado en `AUDITORIA_S13.md` §5).**
+- `FACT_TRANSACCION_PAGO`/`FACT_INVOICE` (ClickHouse) ganan `periodo_inicio`/`periodo_fin` (`Date`, +30 días sobre la fecha existente vía `ADD COLUMN ... DEFAULT`, sin backfill manual — mismo patrón que las demás migraciones aditivas de `init_clickhouse.py`).
+- `procesar_pago` (`api/paquetes/facturacion/router.py`) gana un guard: para `concepto == 'suscripcion'`, si ya existe una transacción `exitosa` cuyo `periodo_fin` cubre hoy, devuelve **409** con el período vigente en el detalle — antes de tocar la base. `ajuste_prorrateo` queda fuera del guard a propósito (un cambio de plan puede cobrar/acreditar más de una vez dentro del mismo período); un reintento de un cobro *fallido* (dunning, `procesar_cobro`) tampoco se bloquea, porque el guard solo mira pagos ya `exitosa`. Se verificaron los 4 call-sites de `procesar_pago` (alta de plan pagado, expiración de trial, cambio de plan, dunning) — ninguno se rompe con el guard nuevo.
+- `GET /facturacion/metodos-pago` extiende `suscripcion` con `pagado`/`periodo_inicio`/`periodo_fin`/`proximo_cobro`, resueltos con la misma query de idempotencia.
+- Frontend (`FacturacionPage.tsx`): con `suscripcion.pagado`, el botón "Pagar" se reemplaza por un estado "Al día" + "Cubierto hasta {fecha}" + "Próximo cobro: {fecha}"; cuando sí aparece, un clic pasa primero por `useConfirm` con el monto exacto. Se corrigió además una omisión pre-existente: `onSuccess` de `pagar` no invalidaba `['facturacion', 'metodos-pago']`, así que `pagado` no se hubiera refrescado tras pagar sin este fix.
+- Verificado con curl: segundo intento de pago sobre el mismo período devuelve 409 con el detalle del período vigente (ver Fase 4).
+
+**3c. Enlaces "pronto" del sidebar de Analítica.** `AnalyticaShell.tsx` deja de renderizar los 2 enlaces `COMING_SOON` (Partners/Ingestas) — las rutas siguen existiendo en `router.tsx` (`ComingSoonPage`, accesibles por URL directa) y `COMING_SOON_PATHS` se conserva para que sigan sin pasar por `RequireSuscripcionActiva` (nada que proteger en un stub sin datos). Solo se quitó el enlace visible, no la ruta.
+
+**3d. Cierre remoto de sesión desde el panel admin (mejora de mayor impacto de la auditoría).** El endpoint `DELETE /seguridad/sesiones/{sesion_id}` (`cerrar_sesion_remota`) solo permitía cerrar la sesión **propia** — devolvía 403 "Esta sesión no pertenece a este usuario" ante cualquier sesión ajena, aunque la llamara un admin. Se corrigió: cuando el objetivo es un tercero, exige `require_admin` en vez de rechazar siempre (mismo patrón que `facturacion._resolver_usuario_objetivo`). `SesionesActivasPage.tsx` gana una columna "Acciones" con un botón "Cerrar" por fila (oculto en la fila de la sesión propia del admin, para no auto-desconectarse desde este panel) que pasa por `useConfirm` antes de llamar al endpoint, invalida la query y muestra un toast — reusa `authApi.cerrarSesionRemota` en vez de duplicar el endpoint en `seguridad.api.ts`.
+
+### Fase 4 — Verificación
+
+- `npm run build`: sin errores, bundle principal 547 kB (ver Fase 1 — regresión de bundle detectada y corregida en esta misma fase, no en un fix posterior).
+- `docker compose up -d --build`: 6/6 servicios sanos.
+- Curl con token admin a 3 informes compuestos: 200 con datos (mismo patrón de verificación que S13-P1/P3).
+- Curl doble a `POST /facturacion/transacciones` con el mismo `metodo_pago_id`/suscripción: primer intento 200/201, segundo intento **409** con el período vigente en `detail`.
+- Verificación visual: exportar un informe compuesto y uno simple a PDF (header/footer correctos, sin el botón fotografiado dentro de su propio PDF); sidebar de Analítica sin "Partners"/"Ingestas"; `SesionesActivasPage` con columna "Acciones" operativa; `DistributionChart` sin animación de entrada.
+
+### Nota de higiene
+
+Ningún archivo de código se descartó ni se revirtió durante esta fase. La migración de columnas `periodo_inicio`/`periodo_fin` se aplicó tanto al `init_clickhouse.py` (reproducible desde un clon limpio) como directamente al ClickHouse ya corriendo en esta sesión (`ALTER TABLE ... ADD COLUMN IF NOT EXISTS`, idempotente), para no perder el estado de datos ya cargado.
