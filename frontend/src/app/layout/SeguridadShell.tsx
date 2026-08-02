@@ -165,7 +165,15 @@ function SidebarSection({ seccion, defaultOpen, extra, collapsed }: { seccion: S
           <span className={`${styles.chevron} ${open ? styles.chevronOpen : ''}`} aria-hidden="true">▸</span>
         </div>
       )}
-      <div className={`${styles.sectionLinks} ${mostrarLinks ? styles.sectionLinksOpen : ''} ${extra && !collapsed ? styles.informesComposuestosLinks : ''}`}>
+      {/* `informesComposuestosLinks` (max-height más alto, para caber los 30
+          informes anidados) reemplaza a `sectionLinksOpen`, no se suma aparte
+          de `mostrarLinks` — antes se aplicaba con solo comprobar `extra`,
+          sin mirar el estado abierto/cerrado, así que "Reportes" (la única
+          sección con `extra`) quedaba SIEMPRE con max-height:2000px sin
+          importar el toggle: el chevron rotaba pero el contenido nunca se
+          ocultaba. Bug real, heredado de S13-P3b (no introducido en S13-P8),
+          reportado por el usuario ("lo despliego y no pasa nada"). */}
+      <div className={`${styles.sectionLinks} ${mostrarLinks ? (extra && !collapsed ? styles.informesComposuestosLinks : styles.sectionLinksOpen) : ''}`}>
         {seccion.links.map((link) => (
           <NavLink
             key={link.to}
