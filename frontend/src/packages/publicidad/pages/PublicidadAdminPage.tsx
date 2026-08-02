@@ -1,5 +1,6 @@
 import { useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { Pause, Play } from 'lucide-react'
 import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { apiErrorMessage } from '@shared/lib/api-client'
 import { useToast } from '@shared/context/ToastContext'
@@ -26,6 +27,15 @@ function estadoCampana(c: Campana): { label: string; tone: 'ok' | 'warn' | 'off'
 
 function fmtMoney(n: number): string {
   return `$${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+}
+
+// dd/mm/yy en vez del ISO completo (yyyy-mm-dd) — la columna "Vigencia" junta
+// 2 fechas (o fecha + "indefinida"), y el formato largo era el mayor
+// contribuyente a que la tabla no entrara en viewports de ~1024px sin
+// scroll horizontal (ver fix de overflow de la tabla de campañas).
+function fmtFechaCorta(iso: string): string {
+  const [y, m, d] = iso.split('-')
+  return y && m && d ? `${d}/${m}/${y.slice(2)}` : iso
 }
 
 // 4 estados posibles de `estadoCampana`, 4 colores distinguibles del donut —
@@ -276,40 +286,61 @@ export function PublicidadAdminPage() {
             <table className={styles.table}>
               <thead>
                 <tr>
-                  <th>ID</th><th>Nombre</th><th>Formato</th><th>CPM</th><th>Ingreso</th>
-                  <th>Inicio</th><th>Fin</th><th>Estado</th><th className={styles.actionsCol}>Acciones</th>
+                  <th>ID</th><th>Nombre</th><th>CPM</th><th>Ingreso</th>
+                  <th>Inicio</th><th>Estado</th><th className={styles.actionsCol}>Acciones</th>
                 </tr>
               </thead>
               <tbody>
                 {campanas.isLoading ? (
-                  <SkeletonTableRows columns={9} />
+                  <SkeletonTableRows columns={7} />
                 ) : campanasFiltradas.length === 0 ? (
-                  <tr><td colSpan={9}><EmptyState icon="( ∅ )" title="Sin campañas" body={campanasData.length === 0 ? 'Todavía no hay campañas publicitarias registradas.' : 'Prueba con otro filtro.'} /></td></tr>
+                  <tr><td colSpan={7}><EmptyState icon="( ∅ )" title="Sin campañas" body={campanasData.length === 0 ? 'Todavía no hay campañas publicitarias registradas.' : 'Prueba con otro filtro.'} /></td></tr>
                 ) : campanasFiltradas.map((c) => {
                   const est = estadoCampana(c)
                   const finalizada = c.estado_manual === 'finalizada'
+                  const pausada = c.estado_manual === 'pausada'
                   const ingreso = ingresosData.find((i) => i.campana_id === c.campana_id)
                   return (
                     <tr key={c.campana_id}>
-                      <td>{c.campana_id}</td><td>{c.nombre}</td>
-                      <td style={{ textTransform: 'capitalize' }}>{c.formato}</td><td>${c.cpm.toFixed(2)}</td>
+                      <td>{c.campana_id}</td>
+                      <td>
+                        {c.nombre}
+                        {/* Formato ya no es columna propia (medido: la tabla completa
+                            necesitaba 923px en viewports de 1024px, que solo tienen
+                            722px — sin ninguna pista visual de que hacía falta
+                            scrollear). Se agrega como texto secundario junto al
+                            nombre en vez de una 7ª/8ª columna aparte. */}
+                        <span className={styles.muted} style={{ textTransform: 'capitalize' }}> · {c.formato}</span>
+                      </td>
+                      <td>${c.cpm.toFixed(2)}</td>
                       <td>{ingreso ? `$${ingreso.ingreso_total.toFixed(2)}` : '—'}</td>
-                      <td>{c.fecha_inicio}</td><td>{c.fecha_fin ?? 'indefinida'}</td>
+                      {/* Antes "Inicio"+"Fin" en columnas separadas, luego combinadas
+                          en "Vigencia" — seguía sin caber. Solo el inicio en la tabla;
+                          el fin sigue disponible en "Ver detalle"/"Editar". */}
+                      <td style={{ whiteSpace: 'nowrap' }}>{fmtFechaCorta(c.fecha_inicio)}</td>
                       <td><span className={`${styles.badge} ${est.tone === 'ok' ? styles.badgeOk : est.tone === 'warn' ? styles.badgeWarn : styles.badgeOff}`}>{est.label}</span></td>
                       <td className={styles.actionsCol}>
                         <div className={styles.actions}>
                           <CrudActionButtons
                             onView={() => setCampanaModal({ mode: 'view', campana: c })}
                             onEdit={!finalizada ? () => setCampanaModal({ mode: 'edit', campana: c }) : undefined}
+                            // Reusa el slot rojo "terminal" de CrudActionButtons con una
+                            // etiqueta propia (mismo patrón que TicketsAdminPage: "Resolver"
+                            // en vez de "Eliminar") en vez de un 4º botón de texto aparte —
+                            // ahorra el ancho que antes se llevaba "Finalizar" como texto.
+                            onDelete={!finalizada ? () => pedirFinalizar(c) : undefined}
+                            deleteLabel="Finalizar"
                           />
-                          {!finalizada && c.estado_manual !== 'pausada' && (
-                            <button className={styles.btnGhost} onClick={() => pedirPausar(c)}>Pausar</button>
-                          )}
-                          {c.estado_manual === 'pausada' && (
-                            <button className={styles.btnGhost} onClick={() => transicion.mutate({ id: c.campana_id, accion: 'reanudar' })}>Reanudar</button>
-                          )}
                           {!finalizada && (
-                            <button className={styles.btnGhostDanger} onClick={() => pedirFinalizar(c)}>Finalizar</button>
+                            <button
+                              type="button"
+                              className={styles.btnIcon}
+                              onClick={pausada ? () => transicion.mutate({ id: c.campana_id, accion: 'reanudar' }) : () => pedirPausar(c)}
+                              title={pausada ? 'Reanudar' : 'Pausar'}
+                              aria-label={pausada ? 'Reanudar' : 'Pausar'}
+                            >
+                              {pausada ? <Play size={15} aria-hidden="true" /> : <Pause size={15} aria-hidden="true" />}
+                            </button>
                           )}
                         </div>
                       </td>

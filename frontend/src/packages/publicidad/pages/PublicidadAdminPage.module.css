@@ -251,6 +251,35 @@
 .btnGhostDanger:hover { border-color: #f87171; background: color-mix(in srgb, #f87171 10%, transparent); }
 .btnGhostDanger:disabled { opacity: 0.4; cursor: not-allowed; }
 
+/* Pausar/Reanudar (tabla de campañas) — ícono compacto 28×28, mismo tamaño
+   que `.btn` de CrudActionButtons.module.css (no importado entre paquetes,
+   mismo criterio de duplicación local que el resto de esta hoja) — antes
+   era un botón de texto ("Pausar"/"Reanudar") que, sumado a "Finalizar" y
+   los 2 íconos Ver/Editar, hacía que la fila necesitara más ancho del que
+   cabía en viewports normales (~1024-1280px) sin scroll horizontal. */
+.btnIcon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+  background: transparent;
+  color: var(--color-muted);
+  cursor: pointer;
+  transition:
+    color var(--duration-fast) var(--ease-standard),
+    border-color var(--duration-fast) var(--ease-standard),
+    background-color var(--duration-fast) var(--ease-standard);
+}
+
+.btnIcon:hover {
+  color: var(--color-primary-light);
+  border-color: var(--color-primary-light);
+  background: oklch(0.48 0.15 290 / 0.08);
+}
+
 /* ── Modal de edición ──────────────────────────────────────────────────────── */
 .modalBackdrop {
   position: fixed;
