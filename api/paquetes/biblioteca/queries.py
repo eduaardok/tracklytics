@@ -6,7 +6,8 @@ SELECT
     a.name         AS artist_name,
     ft.duration_ms AS duration_ms,
     ga.genre_name  AS genre_name,
-    coalesce(ft.imagen_url, al.imagen_url, a.imagen_url) AS imagen_url
+    coalesce(ft.imagen_url, al.imagen_url, a.imagen_url) AS imagen_url,
+    ft.source_type AS source_type
 FROM (
     SELECT
         fact_id,
@@ -44,7 +45,8 @@ SELECT
     a.name            AS artist_name,
     ft.duration_ms    AS duration_ms,
     ga.genre_name     AS genre_name,
-    coalesce(ft.imagen_url, al.imagen_url, a.imagen_url) AS imagen_url
+    coalesce(ft.imagen_url, al.imagen_url, a.imagen_url) AS imagen_url,
+    ft.source_type    AS source_type
 FROM FACT_ENGAGEMENT_USUARIO e
 JOIN FACT_TRACKS ft ON e.fact_id    = ft.fact_id
 JOIN DIM_ARTISTS a  ON ft.artist_id = a.artist_id
@@ -94,7 +96,8 @@ SELECT
     a.name         AS artist_name,
     ft.duration_ms AS duration_ms,
     ga.genre_name  AS genre_name,
-    coalesce(ft.imagen_url, al.imagen_url, a.imagen_url) AS imagen_url
+    coalesce(ft.imagen_url, al.imagen_url, a.imagen_url) AS imagen_url,
+    ft.source_type AS source_type
 FROM FACT_TRACKS ft
 JOIN DIM_ARTISTS a ON ft.artist_id = a.artist_id
 LEFT JOIN DIM_ALBUMS al ON ft.album_id = al.album_id

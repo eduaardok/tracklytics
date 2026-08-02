@@ -34,7 +34,11 @@ SELECT
     any(ft.valence)                                   AS valence,
     a.name                                            AS artist_name,
     coalesce(any(ft.imagen_url), any(al.imagen_url), a.imagen_url) AS imagen_url,
-    arrayStringConcat(groupUniqArray(g.name), ' / ') AS genre_name
+    arrayStringConcat(groupUniqArray(g.name), ' / ') AS genre_name,
+    -- S13-P6: marcador visual de catálogo (frontend-only, nunca escribe a
+    -- FACT_TRACKS) — un track es N filas (una por género), `any()` alcanza
+    -- porque source_type no varía entre las filas de un mismo track_id.
+    any(ft.source_type)                               AS source_type
 FROM FACT_TRACKS ft
 JOIN DIM_ARTISTS a ON ft.artist_id = a.artist_id
 JOIN DIM_ALBUMS  al ON ft.album_id = al.album_id
@@ -57,7 +61,8 @@ SELECT
     any(ft.valence)                              AS valence,
     a.name                                       AS artist_name,
     coalesce(any(ft.imagen_url), al.imagen_url, a.imagen_url) AS imagen_url,
-    arrayStringConcat(groupUniqArray(g.name), ' / ') AS genre_name
+    arrayStringConcat(groupUniqArray(g.name), ' / ') AS genre_name,
+    any(ft.source_type)                          AS source_type
 FROM FACT_TRACKS ft
 JOIN DIM_ARTISTS a ON ft.artist_id = a.artist_id
 JOIN DIM_ALBUMS  al ON ft.album_id = al.album_id
@@ -71,7 +76,7 @@ LIMIT {limit:UInt32}
 TRACKS_BY_GENRE = """
 SELECT
     ft.fact_id, ft.track_id, ft.track_name, ft.popularity, ft.duration_ms,
-    ft.danceability, ft.energy, ft.valence,
+    ft.danceability, ft.energy, ft.valence, ft.source_type,
     a.name AS artist_name,
     coalesce(ft.imagen_url, al.imagen_url, a.imagen_url) AS imagen_url,
     g.name AS genre_name
@@ -92,12 +97,13 @@ SELECT
     any(ft.danceability)                              AS danceability,
     any(ft.energy)                                    AS energy,
     any(ft.loudness)                                  AS loudness,
-    any(ft.speechiness)                               AS speechiness,
+    any(ft.speechiness)                                AS speechiness,
     any(ft.acousticness)                              AS acousticness,
     any(ft.instrumentalness)                          AS instrumentalness,
     any(ft.liveness)                                  AS liveness,
     any(ft.valence)                                   AS valence,
     any(ft.tempo)                                     AS tempo,
+    any(ft.source_type)                               AS source_type,
     a.name                                            AS artist_name,
     ft.artist_id                                      AS artist_id,
     al.name                                           AS album_name,
@@ -252,6 +258,7 @@ SELECT
     any(ft.liveness)                                  AS liveness,
     any(ft.valence)                                   AS valence,
     any(ft.tempo)                                     AS tempo,
+    any(ft.source_type)                               AS source_type,
     a.name                                            AS artist_name,
     ft.artist_id                                      AS artist_id,
     al.name                                           AS album_name,
@@ -308,7 +315,8 @@ SELECT
     any(ft.duration_ms)                               AS duration_ms,
     any(ft.danceability)                              AS danceability,
     any(ft.energy)                                    AS energy,
-    any(ft.valence)                                   AS valence
+    any(ft.valence)                                   AS valence,
+    any(ft.source_type)                               AS source_type
 FROM (SELECT * FROM FACT_TRACKS WHERE disponible = 1) ft
 JOIN DIM_ARTISTS a ON ft.artist_id = a.artist_id
 JOIN DIM_ALBUMS  al ON ft.album_id = al.album_id
@@ -347,7 +355,8 @@ SELECT
     coalesce(any(ft.imagen_url), any(al.imagen_url), a.imagen_url) AS imagen_url,
     arrayStringConcat(groupUniqArray(g.name), ' / ')  AS genre_name,
     any(ft.popularity)                                AS popularity,
-    any(ft.duration_ms)                               AS duration_ms
+    any(ft.duration_ms)                               AS duration_ms,
+    any(ft.source_type)                               AS source_type
 FROM (SELECT * FROM FACT_TRACKS WHERE disponible = 1) ft
 JOIN DIM_ARTISTS a  ON ft.artist_id = a.artist_id
 JOIN DIM_ALBUMS  al ON ft.album_id  = al.album_id

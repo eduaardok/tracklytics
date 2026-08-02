@@ -63,7 +63,10 @@ async def search_all(
 
     pattern = f"%{termino}%"
     params = {"pattern": pattern, "limit": limit}
-    tracks = query_rows(SEARCH_TRACKS_GRUPO, params)
+    # S13-P6: la búsqueda unificada no marcaba featuring/sintético — era la
+    # única vista de tracks que se saltaba `enriquecer_featuring` (brecha
+    # verificada en AUDITORIA_S13.md, no una precaución preventiva).
+    tracks = enriquecer_featuring(query_rows(SEARCH_TRACKS_GRUPO, params))
     artistas = query_rows(SEARCH_ARTISTAS_GRUPO, params)
     albumes = query_rows(SEARCH_ALBUMES_GRUPO, params)
 
@@ -180,7 +183,11 @@ def track_detail_by_fact(fact_id: int):
     # existía solo del lado del cliente (auditoría 2026-07-10).
     for field in AUDIO_FEATURE_FIELDS:
         row.pop(field, None)
-    return row
+    # S13-P6: el detalle de track era la única vista de un track individual
+    # que no marcaba featuring — TrackCard/TrackGridCard/LibraryTrackRow ya
+    # lo hacían, TrackDetailPage no tenía el dato porque este endpoint nunca
+    # llamaba a `enriquecer_featuring` (brecha verificada, AUDITORIA_S13.md).
+    return enriquecer_featuring([row])[0]
 
 
 @router.get("/tracks/fact/{fact_id}/audio-features")
@@ -196,7 +203,7 @@ def track_detail(track_id: str):
     row = query_one(TRACK_DETAIL, {"track_id": track_id})
     if not row:
         raise HTTPException(status_code=404, detail="Track not found")
-    return row
+    return enriquecer_featuring([row])[0]
 
 
 # ── Takedown administrativo de tracks (change p1-ciclos-vida) ─────────────────
