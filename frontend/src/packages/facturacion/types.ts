@@ -48,10 +48,18 @@ export type PagarSuscripcionBody = {
   metodo_pago_id: string
 }
 
+// `pagado`/`periodo_*`/`proximo_cobro` (S13-P5, AUDITORIA_S13.md §5):
+// antes solo traía `tipo_plan`/`monto`/`moneda` — el frontend no tenía forma
+// de saber si el período en curso ya estaba cubierto y mostraba "Pagar"
+// siempre, incluso con una factura ya pagada vigente.
 export type SuscripcionActiva = {
-  tipo_plan: string
-  monto:     number
-  moneda:    string
+  tipo_plan:      string
+  monto:          number
+  moneda:         string
+  pagado:         boolean
+  periodo_inicio: string | null
+  periodo_fin:    string | null
+  proximo_cobro:  string | null
 }
 
 export type MetodosPagoResponse = {

@@ -6,6 +6,7 @@ import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { apiErrorMessage } from '@shared/lib/api-client'
 import { getRole } from '@shared/lib/session'
 import { useToast } from '@shared/context/ToastContext'
+import { useConfirm } from '@shared/context/ConfirmContext'
 import { distribucionApi } from '@packages/distribucion/api/distribucion.api'
 import type { Pais } from '@packages/distribucion/types'
 import { facturacionApi } from '../api/facturacion.api'
@@ -87,6 +88,7 @@ export function FacturacionPage() {
 
   const queryClient = useQueryClient()
   const toast = useToast()
+  const confirm = useConfirm()
 
   const ultimos4 = numeroTarjeta.replace(/\D/g, '').slice(-4)
   const tipoInferido = inferirMarcaTarjeta(numeroTarjeta)
@@ -159,11 +161,26 @@ export function FacturacionPage() {
     onSuccess: (res) => {
       queryClient.invalidateQueries({ queryKey: ['facturacion', 'transacciones'] })
       queryClient.invalidateQueries({ queryKey: ['facturacion', 'invoices'] })
+      // Sin esto, `suscripcion.pagado` quedaba con el valor de antes del pago
+      // — el botón "Pagar" no desaparecía hasta el siguiente refresh manual
+      // de la página (bug S13-P5, ver AUDITORIA_S13.md §5).
+      queryClient.invalidateQueries({ queryKey: ['facturacion', 'metodos-pago'] })
       if (res.estado === 'exitosa') toast.success('Pago procesado correctamente')
       else toast.error('El pago fue rechazado')
     },
     onError: (err) => toast.error(apiErrorMessage(err, 'No se pudo procesar el pago.')),
   })
+
+  // Confirmación antes de cobrar (S13-P5): antes el clic ejecutaba el cargo
+  // directo, sin ningún paso intermedio — ver AUDITORIA_S13.md §5.
+  async function handlePagarClick() {
+    if (!suscripcion) return
+    const ok = await confirm(
+      `Vas a cargar ${fmt(suscripcion.monto, suscripcion.moneda)} a tu método de pago. ¿Confirmar?`,
+      { title: 'Confirmar pago', confirmLabel: 'Pagar' },
+    )
+    if (ok) pagar.mutate()
+  }
 
   const metodosData: MetodoPago[] = metodos.data?.data ?? []
   const suscripcion               = metodos.data?.suscripcion ?? null
@@ -420,15 +437,32 @@ export function FacturacionPage() {
           "Pagar — 0,00 US$/mes" para cualquier usuario free, sin nada real que
           cobrar. Solo tiene sentido mostrar el flujo de pago cuando hay un
           monto real pendiente (plan pagado) — un plan free se actualiza desde
-          Mi Plan, no "pagando" $0 acá. */}
-      {suscripcion && suscripcion.monto > 0 ? (
+          Mi Plan, no "pagando" $0 acá.
+
+          S13-P5 (AUDITORIA_S13.md §5): el botón "Pagar" también se
+          mostraba siempre para un plan pagado, sin importar si el período en
+          curso ya estaba cobrado — permitía generar invoices duplicadas a
+          fuerza de clics (el backend ahora lo rechaza con 409, pero acá
+          además se oculta el botón para no ofrecer la acción). Con el
+          período cubierto se muestra un estado "Al día" en su lugar. */}
+      {suscripcion && suscripcion.monto > 0 && suscripcion.pagado ? (
+        <div className={styles.paySection}>
+          <div className={styles.payRow}>
+            <span className={`${styles.badge} ${styles.badgeOk}`}>Al día</span>
+            <span className={styles.sectionLabel} style={{ marginBottom: 0 }}>
+              Cubierto hasta {fmtDate(suscripcion.periodo_fin ?? '')}
+              {suscripcion.proximo_cobro && ` · Próximo cobro: ${fmtDate(suscripcion.proximo_cobro)}`}
+            </span>
+          </div>
+        </div>
+      ) : suscripcion && suscripcion.monto > 0 ? (
         <div className={styles.paySection}>
           <div className={styles.payRow}>
             <button
               className={styles.btnPrimary}
               type="button"
               disabled={!selectedMethodId || pagar.isPending}
-              onClick={() => pagar.mutate()}
+              onClick={handlePagarClick}
             >
               {payLabel}
             </button>
@@ -452,7 +486,7 @@ export function FacturacionPage() {
             </div>
           )}
           {pagar.isError && (
-            <ErrorState message="No se pudo procesar el pago — verifica que tengas una suscripción activa." />
+            <ErrorState message={apiErrorMessage(pagar.error, 'No se pudo procesar el pago — verifica que tengas una suscripción activa.')} />
           )}
         </div>
       ) : suscripcion ? (
