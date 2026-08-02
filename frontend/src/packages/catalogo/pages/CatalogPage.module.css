@@ -210,11 +210,30 @@
   border-bottom-color: var(--color-primary);
 }
 
-/* ── Grid de descubrimiento (destacados/resultados de playlists, artistas y géneros) ── */
-.exploreGrid {
+/* ── Vista dual de descubrimiento (playlists/artistas/géneros, S13-P6) ──
+   4 columnas en desktop, 2 en móvil — mismo patrón de vista dual que ya
+   usaba Canciones (`.trackGrid`/`.list`), replicado acá. */
+.exploreGridCards {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: var(--space-sm);
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--space-lg) var(--space-md);
+}
+
+@media (max-width: 900px) {
+  .exploreGridCards { grid-template-columns: repeat(3, 1fr); }
+}
+
+@media (max-width: 640px) {
+  .exploreGridCards { grid-template-columns: repeat(2, 1fr); }
+}
+
+.exploreList {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
 }
 
 /* ── Explorar por género (chips, filtro funcional) ── */

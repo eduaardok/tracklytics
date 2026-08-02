@@ -8,7 +8,8 @@ import { genreAccent } from '@shared/lib/genre-colors'
 import { catalogoApi } from '../api/catalogo.api'
 import { TrackCard } from '../components/TrackCard'
 import { TrackGridCard } from '../components/TrackGridCard'
-import { ExploreCard } from '../components/ExploreCard'
+import { ExploreGridCard } from '../components/ExploreGridCard'
+import { ExploreRow } from '../components/ExploreRow'
 import { MixDiarioCard } from '../components/MixDiarioCard'
 import { ErrorState } from '@shared/components/ErrorState'
 import { EmptyState } from '@shared/components/EmptyState'
@@ -82,6 +83,19 @@ function ViewToggle({ mode, onChange }: ViewToggleProps) {
   )
 }
 
+// Preferencia de vista compartida por las 4 secciones (S13-P6: antes solo
+// Canciones la usaba) — un solo toggle grid/lista para todo el catálogo, no
+// una preferencia por pestaña, mismo criterio que el resto de `ui-prefs`
+// (persistente entre sesiones).
+function useCatalogViewMode() {
+  const [mode, setMode] = useState<CatalogViewMode>(getCatalogViewMode)
+  function change(next: CatalogViewMode) {
+    setMode(next)
+    setCatalogViewMode(next)
+  }
+  return [mode, change] as const
+}
+
 function SearchIcon() {
   return (
     <svg
@@ -153,12 +167,7 @@ function CancionesSection({ genre, onToggleGenre }: CancionesProps) {
   const [popularityMin, setPopularityMin] = useState('')
   const [tempoMin, setTempoMin]           = useState('')
   const [energyMin, setEnergyMin]         = useState('')
-  const [viewMode, setViewMode] = useState<CatalogViewMode>(getCatalogViewMode)
-
-  function changeViewMode(mode: CatalogViewMode) {
-    setViewMode(mode)
-    setCatalogViewMode(mode)
-  }
+  const [viewMode, changeViewMode] = useCatalogViewMode()
 
   const popMin    = popularityMin ? Number(popularityMin) : undefined
   const tempMin   = tempoMin ? Number(tempoMin) : undefined
@@ -344,6 +353,7 @@ function PlaylistsSection() {
   const navigate = useNavigate()
   const [search, setSearch]       = useState('')
   const [committed, setCommitted] = useState('')
+  const [viewMode, changeViewMode] = useCatalogViewMode()
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ['albums', committed],
@@ -361,9 +371,12 @@ function PlaylistsSection() {
 
   return (
     <>
-      <span className={styles.subtitle}>
-        {isLoading ? '// cargando…' : isError ? '// error al cargar' : committed ? `// ${playlists.length} resultado${playlists.length !== 1 ? 's' : ''} para "${committed}"` : '// playlists destacadas'}
-      </span>
+      <div className={styles.subtitleRow}>
+        <span className={styles.subtitle}>
+          {isLoading ? '// cargando…' : isError ? '// error al cargar' : committed ? `// ${playlists.length} resultado${playlists.length !== 1 ? 's' : ''} para "${committed}"` : '// playlists destacadas'}
+        </span>
+        <ViewToggle mode={viewMode} onChange={changeViewMode} />
+      </div>
 
       <SearchBox
         value={search}
@@ -390,18 +403,33 @@ function PlaylistsSection() {
       )}
 
       {!isError && playlists.length > 0 && (
-        <div className={styles.exploreGrid}>
-          {playlists.map((p: Album) => (
-            <ExploreCard
-              key={p.album_id}
-              kind="playlist"
-              name={p.name}
-              imagenUrl={p.imagen_url}
-              metric={`${(p.track_count ?? 0).toLocaleString('es')} canciones${p.release_year ? ` · ${p.release_year}` : ''}`}
-              onClick={() => navigate(`/catalogo/album/${p.album_id}`)}
-            />
-          ))}
-        </div>
+        viewMode === 'grid' ? (
+          <div className={styles.exploreGridCards} aria-label="Cuadrícula de playlists">
+            {playlists.map((p: Album) => (
+              <ExploreGridCard
+                key={p.album_id}
+                kind="playlist"
+                name={p.name}
+                imagenUrl={p.imagen_url}
+                metric={`${(p.track_count ?? 0).toLocaleString('es')} canciones${p.release_year ? ` · ${p.release_year}` : ''}`}
+                onClick={() => navigate(`/catalogo/album/${p.album_id}`)}
+              />
+            ))}
+          </div>
+        ) : (
+          <div className={styles.exploreList} aria-label="Lista de playlists">
+            {playlists.map((p: Album) => (
+              <ExploreRow
+                key={p.album_id}
+                kind="playlist"
+                name={p.name}
+                imagenUrl={p.imagen_url}
+                metric={`${(p.track_count ?? 0).toLocaleString('es')} canciones${p.release_year ? ` · ${p.release_year}` : ''}`}
+                onClick={() => navigate(`/catalogo/album/${p.album_id}`)}
+              />
+            ))}
+          </div>
+        )
       )}
     </>
   )
@@ -413,6 +441,7 @@ function ArtistasSection() {
   const navigate = useNavigate()
   const [search, setSearch]       = useState('')
   const [committed, setCommitted] = useState('')
+  const [viewMode, changeViewMode] = useCatalogViewMode()
 
   const { data, isLoading, isError } = useQuery({
     queryKey: committed ? ['artists', 'search', committed] : ['artists', 'top', 12],
@@ -428,11 +457,22 @@ function ArtistasSection() {
     setCommitted('')
   }
 
+  // "pop {n}" (bugfix QA S10 ronda 2): abreviaba "popularidad", pero "pop"
+  // también es un género musical real — un usuario razonablemente lo lee
+  // como género (confirmado con artistas no-pop en la QA). El dashboard de
+  // Analítica ya resuelve la misma ambigüedad con ★, mismo criterio acá.
+  function metricDe(a: Artist): string {
+    return `${a.track_count.toLocaleString('es')} tracks${a.avg_popularity != null ? ` · ★ ${a.avg_popularity}` : ''}`
+  }
+
   return (
     <>
-      <span className={styles.subtitle}>
-        {isLoading ? '// cargando…' : isError ? '// error al cargar' : committed ? `// ${artists.length} resultado${artists.length !== 1 ? 's' : ''} para "${committed}"` : '// artistas destacados'}
-      </span>
+      <div className={styles.subtitleRow}>
+        <span className={styles.subtitle}>
+          {isLoading ? '// cargando…' : isError ? '// error al cargar' : committed ? `// ${artists.length} resultado${artists.length !== 1 ? 's' : ''} para "${committed}"` : '// artistas destacados'}
+        </span>
+        <ViewToggle mode={viewMode} onChange={changeViewMode} />
+      </div>
 
       <SearchBox
         value={search}
@@ -459,23 +499,33 @@ function ArtistasSection() {
       )}
 
       {!isError && artists.length > 0 && (
-        <div className={styles.exploreGrid}>
-          {artists.map((a: Artist) => (
-            <ExploreCard
-              key={a.artist_id}
-              kind="artista"
-              name={a.name}
-              imagenUrl={a.imagen_url}
-              // "pop {n}" (bugfix QA S10 ronda 2): abreviaba "popularidad", pero
-              // "pop" también es un género musical real — un usuario razonablemente
-              // lo lee como género (confirmado con artistas no-pop en la QA). El
-              // dashboard de Analítica ya resuelve la misma ambigüedad con ★, mismo
-              // criterio acá.
-              metric={`${a.track_count.toLocaleString('es')} tracks${a.avg_popularity != null ? ` · ★ ${a.avg_popularity}` : ''}`}
-              onClick={() => navigate(`/catalogo/artista/${a.artist_id}`)}
-            />
-          ))}
-        </div>
+        viewMode === 'grid' ? (
+          <div className={styles.exploreGridCards} aria-label="Cuadrícula de artistas">
+            {artists.map((a: Artist) => (
+              <ExploreGridCard
+                key={a.artist_id}
+                kind="artista"
+                name={a.name}
+                imagenUrl={a.imagen_url}
+                metric={metricDe(a)}
+                onClick={() => navigate(`/catalogo/artista/${a.artist_id}`)}
+              />
+            ))}
+          </div>
+        ) : (
+          <div className={styles.exploreList} aria-label="Lista de artistas">
+            {artists.map((a: Artist) => (
+              <ExploreRow
+                key={a.artist_id}
+                kind="artista"
+                name={a.name}
+                imagenUrl={a.imagen_url}
+                metric={metricDe(a)}
+                onClick={() => navigate(`/catalogo/artista/${a.artist_id}`)}
+              />
+            ))}
+          </div>
+        )
       )}
     </>
   )
@@ -487,6 +537,7 @@ type GenerosProps = { onSelectGenre: (name: string) => void }
 
 function GenerosSection({ onSelectGenre }: GenerosProps) {
   const [search, setSearch] = useState('')
+  const [viewMode, changeViewMode] = useCatalogViewMode()
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ['genres', 'list'],
@@ -499,11 +550,18 @@ function GenerosSection({ onSelectGenre }: GenerosProps) {
   const filtered = q ? all.filter((g) => g.name.toLowerCase().includes(q)) : all
   const shown = q ? filtered : [...filtered].sort((a, b) => (b.track_count ?? 0) - (a.track_count ?? 0)).slice(0, 12)
 
+  function metricDe(g: Genre): string {
+    return `${g.mood ? `${g.mood} · ` : ''}${(g.track_count ?? 0).toLocaleString('es')} tracks${g.avg_popularity != null ? ` · pop ${g.avg_popularity}` : ''}`
+  }
+
   return (
     <>
-      <span className={styles.subtitle}>
-        {isLoading ? '// cargando…' : isError ? '// error al cargar' : q ? `// ${filtered.length} resultado${filtered.length !== 1 ? 's' : ''} para "${search.trim()}"` : '// géneros destacados'}
-      </span>
+      <div className={styles.subtitleRow}>
+        <span className={styles.subtitle}>
+          {isLoading ? '// cargando…' : isError ? '// error al cargar' : q ? `// ${filtered.length} resultado${filtered.length !== 1 ? 's' : ''} para "${search.trim()}"` : '// géneros destacados'}
+        </span>
+        <ViewToggle mode={viewMode} onChange={changeViewMode} />
+      </div>
 
       <SearchBox
         value={search}
@@ -530,18 +588,33 @@ function GenerosSection({ onSelectGenre }: GenerosProps) {
       )}
 
       {!isError && shown.length > 0 && (
-        <div className={styles.exploreGrid}>
-          {shown.map((g: Genre) => (
-            <ExploreCard
-              key={g.genre_id}
-              kind="genero"
-              name={g.name}
-              metric={`${g.mood ? `${g.mood} · ` : ''}${(g.track_count ?? 0).toLocaleString('es')} tracks${g.avg_popularity != null ? ` · pop ${g.avg_popularity}` : ''}`}
-              imagenUrl={g.imagen_url}
-              onClick={() => onSelectGenre(g.name)}
-            />
-          ))}
-        </div>
+        viewMode === 'grid' ? (
+          <div className={styles.exploreGridCards} aria-label="Cuadrícula de géneros">
+            {shown.map((g: Genre) => (
+              <ExploreGridCard
+                key={g.genre_id}
+                kind="genero"
+                name={g.name}
+                metric={metricDe(g)}
+                imagenUrl={g.imagen_url}
+                onClick={() => onSelectGenre(g.name)}
+              />
+            ))}
+          </div>
+        ) : (
+          <div className={styles.exploreList} aria-label="Lista de géneros">
+            {shown.map((g: Genre) => (
+              <ExploreRow
+                key={g.genre_id}
+                kind="genero"
+                name={g.name}
+                metric={metricDe(g)}
+                imagenUrl={g.imagen_url}
+                onClick={() => onSelectGenre(g.name)}
+              />
+            ))}
+          </div>
+        )
       )}
     </>
   )
