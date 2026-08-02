@@ -86,6 +86,7 @@ export function DataQualityPage() {
                         outerRadius="80%"
                         paddingAngle={2}
                         strokeWidth={0}
+                        isAnimationActive={false}
                       >
                         {donutData.map((d) => <Cell key={d.name} fill={d.color} />)}
                       </Pie>

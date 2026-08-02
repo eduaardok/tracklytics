@@ -17,7 +17,7 @@ export function MiniDonutChart({ data, emptyLabel = 'Sin datos suficientes.' }: 
     <div className={styles.chartBox}>
       <ResponsiveContainer width="100%" height="100%">
         <PieChart>
-          <Pie data={filtered} dataKey="value" nameKey="name" innerRadius="55%" outerRadius="80%" paddingAngle={2} strokeWidth={0}>
+          <Pie data={filtered} dataKey="value" nameKey="name" innerRadius="55%" outerRadius="80%" paddingAngle={2} strokeWidth={0} isAnimationActive={false}>
             {filtered.map((d) => <Cell key={d.name} fill={d.color} />)}
           </Pie>
           <Tooltip

@@ -37,7 +37,7 @@ export function DistributionChart({ datos, tipo, altura = 280 }: Props) {
       <div style={{ width: '100%', height: altura }}>
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
-            <Pie data={conColor} dataKey="valor" nameKey="nombre" innerRadius="50%" outerRadius="80%" paddingAngle={2} strokeWidth={0}>
+            <Pie data={conColor} dataKey="valor" nameKey="nombre" innerRadius="50%" outerRadius="80%" paddingAngle={2} strokeWidth={0} isAnimationActive={false}>
               {conColor.map((d) => <Cell key={d.nombre} fill={d.color} />)}
             </Pie>
             <Tooltip

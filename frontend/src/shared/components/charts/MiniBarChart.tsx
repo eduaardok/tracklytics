@@ -29,7 +29,7 @@ export function MiniBarChart({ data, color, emptyLabel = 'Sin datos todavía.' }
               return <ChartTooltip rows={[{ label: p.name, color, value: formatTooltipValue(p.value) }]} />
             }}
           />
-          <Bar dataKey="value" radius={[0, 4, 4, 0]}>
+          <Bar dataKey="value" radius={[0, 4, 4, 0]} isAnimationActive={false}>
             {data.map((d) => <Cell key={d.name} fill={color} />)}
           </Bar>
         </BarChart>
