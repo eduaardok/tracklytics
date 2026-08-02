@@ -1,3 +1,4 @@
+import secrets
 import time
 
 import httpx
@@ -58,6 +59,29 @@ async def admin_cambiar_password(usuario_id: str, nueva_password: str) -> None:
             f"{PB_URL}/api/collections/{COLLECTION}/records/{usuario_id}",
             headers={"Authorization": f"Bearer {token}"},
             json={"password": nueva_password, "passwordConfirm": nueva_password},
+        )
+    resp.raise_for_status()
+
+
+async def revocar_tokens(usuario_id: str) -> None:
+    """Cierre de sesión REAL (S13, hallazgo: "cerrar sesión" en el panel de
+    admin solo escribía en FACT_SESION — un reporte, no la autenticación de
+    verdad — y el usuario cerrado seguía navegando con su token intacto).
+    PocketBase firma cada token con el `tokenKey` oculto del registro;
+    rotarlo invalida TODOS los tokens ya emitidos para ese usuario de una vez
+    (verificado empíricamente: token viejo -> 401, login normal con la misma
+    contraseña -> sigue funcionando). Efecto de todo-o-nada por diseño
+    (decisión del usuario): cerrar cualquier sesión de una cuenta cierra
+    TODOS sus dispositivos, no uno solo — la alternativa (revocar por
+    dispositivo) exige guardar y verificar un hash de token en cada request
+    autenticado de la app, no solo en este panel."""
+    token = await _get_admin_token()
+    nuevo_token_key = secrets.token_hex(24)  # 48 chars, mínimo exigido por PocketBase: 30
+    async with httpx.AsyncClient(timeout=10) as client:
+        resp = await client.patch(
+            f"{PB_URL}/api/collections/{COLLECTION}/records/{usuario_id}",
+            headers={"Authorization": f"Bearer {token}"},
+            json={"tokenKey": nuevo_token_key},
         )
     resp.raise_for_status()
 

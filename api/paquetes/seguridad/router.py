@@ -320,7 +320,7 @@ def mis_sesiones(user: dict = Depends(get_current_user)):
 
 
 @router.delete("/sesiones/{sesion_id}")
-def cerrar_sesion_remota(sesion_id: str, user: dict = Depends(get_current_user)):
+async def cerrar_sesion_remota(sesion_id: str, user: dict = Depends(get_current_user)):
     sesion = query_one(SESION_POR_ID, {"sesion_id": sesion_id})
     if not sesion or sesion["fecha_fin"] is not None:
         raise HTTPException(status_code=404, detail="Sesión no encontrada o ya cerrada")
@@ -328,13 +328,37 @@ def cerrar_sesion_remota(sesion_id: str, user: dict = Depends(get_current_user))
     # panel "Sesiones activas" (S13-P5) — mismo patrón que
     # `facturacion._resolver_usuario_objetivo`: solo cuando el objetivo es un
     # tercero se exige el rol, la propia sesión sigue sin necesitarlo.
-    if sesion["usuario_id"] != user["record"]["id"]:
+    es_terceros = sesion["usuario_id"] != user["record"]["id"]
+    if es_terceros:
         require_admin(user)
-    _cerrar_sesion(sesion_id, sesion["usuario_id"], sesion["dispositivo_id"], sesion["fecha_inicio"])
+
+    # Hallazgo real (S13, reportado por el usuario: "cerré la sesión pero la
+    # ventana sigue funcionando"): esto solo marcaba la fila en FACT_SESION
+    # (un reporte analítico) — nunca tocaba PocketBase, así que el token del
+    # usuario cerrado seguía siendo válido y su sesión real nunca terminaba.
+    # Al cerrar la sesión de UN TERCERO (admin forzando el cierre), ahora
+    # también se rota el `tokenKey` de PocketBase (`pb_client.revocar_tokens`)
+    # — invalida TODOS los tokens ya emitidos para ese usuario de una sola
+    # vez (decisión del usuario: cerrar cualquier dispositivo cierra todos,
+    # no uno solo — ver comentario en `pb_client.revocar_tokens`). Se cierran
+    # también el resto de sus sesiones "abiertas" en FACT_SESION para que el
+    # panel no siga mostrándolas como activas cuando en los hechos ya no lo
+    # están. No se aplica cuando un usuario cierra una sesión PROPIA de otro
+    # dispositivo (self-service, "Mis sesiones") — eso lo dejaría desconectado
+    # también a él mismo en su dispositivo actual, un efecto sorpresa que
+    # nadie pidió para ese caso.
+    if es_terceros:
+        otras_abiertas = query_rows(MIS_SESIONES_ABIERTAS, {"usuario_id": sesion["usuario_id"]})
+        for s in otras_abiertas:
+            _cerrar_sesion(s["sesion_id"], sesion["usuario_id"], s["dispositivo_id"], s["fecha_inicio"])
+        await pb_client.revocar_tokens(sesion["usuario_id"])
+    else:
+        _cerrar_sesion(sesion_id, sesion["usuario_id"], sesion["dispositivo_id"], sesion["fecha_inicio"])
+
     audit.record(
         usuario_id=user["record"]["id"], accion="cerrar_sesion_remota",
         tabla_afectada="FACT_SESION",
-        antes={"sesion_id": sesion_id, "usuario_objetivo": sesion["usuario_id"]}, despues=None,
+        antes={"sesion_id": sesion_id, "usuario_objetivo": sesion["usuario_id"], "todos_los_dispositivos": es_terceros}, despues=None,
     )
     return {"status": "ok"}
 
