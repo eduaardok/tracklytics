@@ -1,9 +1,16 @@
-import { useMemo, useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useMemo, useRef, useState } from 'react'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { LogOut } from 'lucide-react'
 import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { ErrorState } from '@shared/components/ErrorState'
 import { SkeletonTableRows } from '@shared/components/SkeletonLoader'
 import { EmptyState } from '@shared/components/EmptyState'
+import { ExportPDFButton } from '@shared/components/ExportPDFButton'
+import { useConfirm } from '@shared/context/ConfirmContext'
+import { useToast } from '@shared/context/ToastContext'
+import { apiErrorMessage } from '@shared/lib/api-client'
+import { getUser } from '@shared/lib/session'
+import { authApi } from '../api/auth.api'
 import { seguridadApi } from '../api/seguridad.api'
 import shell from './SeguridadPages.module.css'
 
@@ -31,10 +38,15 @@ function opcionesUnicas(valores: (string | null | undefined)[]): string[] {
 // lo justifica, igual que AbTestsPage).
 export function SesionesActivasPage() {
   useDocumentTitle('Sesiones activas')
+  const reportRef = useRef<HTMLElement>(null)
   const [busqueda, setBusqueda] = useState('')
   const [rol, setRol]           = useState('')
   const [desde, setDesde]       = useState('')
   const [hasta, setHasta]       = useState('')
+  const confirm      = useConfirm()
+  const toast        = useToast()
+  const queryClient   = useQueryClient()
+  const propioUsuarioId = getUser()?.id
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ['seguridad', 'sesiones-activas'],
@@ -43,6 +55,27 @@ export function SesionesActivasPage() {
   })
 
   const sesiones = data?.sesiones ?? []
+
+  // Cierre remoto (S13-P5, AUDITORIA_S13.md §4e.1) — reusa el mismo
+  // endpoint que "Mis sesiones" (`authApi.cerrarSesionRemota`); el backend
+  // ahora deja pasar a un admin cerrando la sesión de un tercero
+  // (`cerrar_sesion_remota`, seguridad/router.py).
+  const cerrarSesion = useMutation({
+    mutationFn: (sesionId: string) => authApi.cerrarSesionRemota(sesionId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['seguridad', 'sesiones-activas'] })
+      toast.success('Sesión cerrada')
+    },
+    onError: (err) => toast.error(apiErrorMessage(err, 'No se pudo cerrar la sesión.')),
+  })
+
+  async function handleCerrarSesion(s: { sesion_id: string; nombre: string | null; email: string | null }) {
+    const ok = await confirm(
+      '¿Cerrar esta sesión? El usuario será desconectado inmediatamente.',
+      { title: s.nombre || s.email || 'Cerrar sesión', confirmLabel: 'Cerrar sesión', danger: true },
+    )
+    if (ok) cerrarSesion.mutate(s.sesion_id)
+  }
 
   const roles = useMemo(() => opcionesUnicas(sesiones.map((s) => s.rol)), [sesiones])
 
@@ -58,8 +91,11 @@ export function SesionesActivasPage() {
   })
 
   return (
-    <section className={shell.page}>
-      <h1 className={shell.heading}>Sesiones activas</h1>
+    <section className={shell.page} ref={reportRef}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--space-md)', flexWrap: 'wrap' }}>
+        <h1 className={shell.heading}>Sesiones activas</h1>
+        <ExportPDFButton targetRef={reportRef} fileName="sesiones-activas" title="Sesiones activas" />
+      </div>
       <span className={shell.subtitle}>
         Sesiones abiertas ahora mismo en todo el sistema — usuario, dispositivo e inicio.
       </span>
@@ -121,14 +157,15 @@ export function SesionesActivasPage() {
                 <th>Dispositivo</th>
                 <th>Inicio</th>
                 <th>Duración</th>
+                <th>Acciones</th>
               </tr>
             </thead>
             <tbody>
               {isLoading ? (
-                <SkeletonTableRows columns={5} />
+                <SkeletonTableRows columns={6} />
               ) : filtradas.length === 0 ? (
                 <tr>
-                  <td colSpan={5}>
+                  <td colSpan={6}>
                     <EmptyState
                       icon="( ∅ )"
                       title="Sin sesiones abiertas"
@@ -149,6 +186,23 @@ export function SesionesActivasPage() {
                     <td>{s.dispositivo_tipo || '—'} · {s.dispositivo_os || '—'}</td>
                     <td>{fmtFecha(s.fecha_inicio)}</td>
                     <td>{fmtDuracion(s.duracion_segundos)}</td>
+                    <td>
+                      {/* No se ofrece cerrar la propia sesión desde este panel
+                          (efecto sorpresa: te desconectarías a ti mismo del
+                          admin de sesiones) — para eso ya existe "Cerrar sesión"
+                          en el menú de usuario. */}
+                      {s.usuario_id !== propioUsuarioId && (
+                        <button
+                          type="button"
+                          className={shell.btnIconDanger}
+                          disabled={cerrarSesion.isPending}
+                          onClick={() => handleCerrarSesion(s)}
+                        >
+                          <LogOut size={14} aria-hidden="true" />
+                          Cerrar
+                        </button>
+                      )}
+                    </td>
                   </tr>
                 ))
               )}

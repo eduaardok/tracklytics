@@ -324,12 +324,17 @@ def cerrar_sesion_remota(sesion_id: str, user: dict = Depends(get_current_user))
     sesion = query_one(SESION_POR_ID, {"sesion_id": sesion_id})
     if not sesion or sesion["fecha_fin"] is not None:
         raise HTTPException(status_code=404, detail="Sesión no encontrada o ya cerrada")
+    # Un admin puede forzar el cierre de la sesión de OTRO usuario desde el
+    # panel "Sesiones activas" (S13-P5) — mismo patrón que
+    # `facturacion._resolver_usuario_objetivo`: solo cuando el objetivo es un
+    # tercero se exige el rol, la propia sesión sigue sin necesitarlo.
     if sesion["usuario_id"] != user["record"]["id"]:
-        raise HTTPException(status_code=403, detail="Esta sesión no pertenece a este usuario")
+        require_admin(user)
     _cerrar_sesion(sesion_id, sesion["usuario_id"], sesion["dispositivo_id"], sesion["fecha_inicio"])
     audit.record(
         usuario_id=user["record"]["id"], accion="cerrar_sesion_remota",
-        tabla_afectada="FACT_SESION", antes={"sesion_id": sesion_id}, despues=None,
+        tabla_afectada="FACT_SESION",
+        antes={"sesion_id": sesion_id, "usuario_objetivo": sesion["usuario_id"]}, despues=None,
     )
     return {"status": "ok"}
 
