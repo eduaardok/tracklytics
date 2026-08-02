@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
+import { AlertTriangle } from 'lucide-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { getRole } from '@shared/lib/session'
 import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
@@ -278,7 +279,8 @@ export function PlanesPage() {
           {activa.estado === 'pago_pendiente' && (
             <div className={styles.dunningBanner} role="alert">
               <p className={styles.dunningText}>
-                ⚠ Tu último cobro falló ({activa.intentos_fallidos ?? 1} de 3 intentos) — tu plan
+                <AlertTriangle size={14} className={styles.warnIcon} aria-hidden="true" />
+                Tu último cobro falló ({activa.intentos_fallidos ?? 1} de 3 intentos) — tu plan
                 seguirá activo mientras reintentas, pero se degradará si se agotan los intentos.
               </p>
               <button
@@ -458,11 +460,14 @@ export function PlanesPage() {
 
       {confirmar.isSuccess && !onboarding && (
         <div className={confirmar.data?.pago?.estado === 'fallida' ? styles.formError : styles.bannerOk}>
+          {confirmar.data?.pago?.estado === 'fallida' && (
+            <AlertTriangle size={14} className={styles.warnIcon} aria-hidden="true" />
+          )}
           {confirmar.data?.pago?.estado === 'fallida'
-            ? '⚠ El plan se activó pero el cobro fue rechazado — verifica tu método de pago.'
+            ? 'El plan se activó pero el cobro fue rechazado — verifica tu método de pago.'
             : confirmar.data?.data?.en_prueba
-            ? '✓ Suscripción confirmada — período de prueba de 7 días, sin cobro por ahora.'
-            : '✓ Suscripción confirmada' + (confirmar.data?.pago ? ' y cobro procesado.' : '.')}
+            ? 'Suscripción confirmada — período de prueba de 7 días, sin cobro por ahora.'
+            : 'Suscripción confirmada' + (confirmar.data?.pago ? ' y cobro procesado.' : '.')}
         </div>
       )}
     </section>

@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { AlertTriangle } from 'lucide-react'
 import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { MiniLineChart } from '@shared/components/charts/MiniLineChart'
 import { CHART_COLORS } from '@shared/components/charts/colors'
@@ -109,7 +110,8 @@ export function ProyeccionGeneroPage() {
 
           {proyeccion.alerta && (
             <div className={styles.alertBanner} role="alert">
-              ⚠ Tendencia sostenida a la baja — este género muestra una caída acumulada proyectada
+              <AlertTriangle size={15} aria-hidden="true" />
+              Tendencia sostenida a la baja — este género muestra una caída acumulada proyectada
               relevante en las próximas semanas.
             </div>
           )}

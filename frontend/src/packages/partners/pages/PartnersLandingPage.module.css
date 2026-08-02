@@ -6,6 +6,10 @@
 }
 
 .banner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
   background: oklch(0.78 0.18 70 / 0.15);
   border-bottom: 1px solid oklch(0.78 0.18 70 / 0.4);
   color: var(--color-warning);

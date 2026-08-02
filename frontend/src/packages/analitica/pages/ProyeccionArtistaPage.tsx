@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { AlertTriangle } from 'lucide-react'
 import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { ArtistPicker, type ArtistSearchResult } from '@shared/components/ArtistPicker'
 import { MiniLineChart } from '@shared/components/charts/MiniLineChart'
@@ -112,7 +113,8 @@ export function ProyeccionArtistaPage() {
 
           {proyeccion.proyeccion_artista.alerta && (
             <div className={styles.alertBanner} role="alert">
-              ⚠ Este artista muestra una caída acumulada proyectada relevante en las próximas semanas.
+              <AlertTriangle size={15} aria-hidden="true" />
+              Este artista muestra una caída acumulada proyectada relevante en las próximas semanas.
             </div>
           )}
 

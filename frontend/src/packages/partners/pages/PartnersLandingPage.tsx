@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { AlertTriangle } from 'lucide-react'
 import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import styles from './PartnersLandingPage.module.css'
 
@@ -33,7 +34,8 @@ export function PartnersLandingPage() {
   return (
     <div className={styles.page}>
       <div className={styles.banner}>
-        ⚠ Esta página es una demostración previa a producción del programa de Partners de Tracklytics — no representa una oferta comercial activa.
+        <AlertTriangle size={14} aria-hidden="true" />
+        Esta página es una demostración previa a producción del programa de Partners de Tracklytics — no representa una oferta comercial activa.
       </div>
 
       <header className={styles.header}>
