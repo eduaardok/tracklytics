@@ -55,6 +55,16 @@ export function SesionesActivasPage() {
   })
 
   const sesiones = data?.sesiones ?? []
+  // Bug real detectado (2 ago 2026): el backend limita `sesiones` a 200 filas
+  // (`limit`, ver router.py), pero el KPI usaba `filtradas.length` como si
+  // fuera el total — con más de 200 sesiones abiertas (caso real: 314
+  // huérfanas de pruebas QA), cerrar una no bajaba el número: otra ocupaba el
+  // cupo liberado en el siguiente refetch. `total` viene del backend sin ese
+  // límite (`SESIONES_ABIERTAS_TOTAL`); se usa para el KPI cuando no hay
+  // filtros activos, y se avisa si la lista cargada quedó truncada.
+  const totalReal = data?.total ?? sesiones.length
+  const hayFiltrosActivos = !!(busqueda.trim() || rol || desde || hasta)
+  const listaTruncada = sesiones.length < totalReal
 
   // Cierre remoto (S13-P5, AUDITORIA_S13.md §4e.1) — reusa el mismo
   // endpoint que "Mis sesiones" (`authApi.cerrarSesionRemota`); el backend
@@ -103,14 +113,17 @@ export function SesionesActivasPage() {
       <div className={shell.statsRow}>
         <div className={shell.kpiPanel}>
           <div className={shell.kpiRow}>
-            <span className={shell.kpiValue}>{filtradas.length}</span>
+            <span className={shell.kpiValue}>{hayFiltrosActivos ? filtradas.length : totalReal}</span>
             <span className={shell.kpiLabel}>Sesiones abiertas</span>
           </div>
+          {listaTruncada && (
+            <span className={shell.kpiLabel}>Mostrando {sesiones.length} de {totalReal}</span>
+          )}
         </div>
         <div className={shell.kpiPanel}>
           <div className={shell.kpiRow}>
             <span className={shell.kpiValue}>{new Set(filtradas.map((s) => s.usuario_id)).size}</span>
-            <span className={shell.kpiLabel}>Usuarios únicos</span>
+            <span className={shell.kpiLabel}>Usuarios únicos {listaTruncada ? '(en la página cargada)' : ''}</span>
           </div>
         </div>
       </div>

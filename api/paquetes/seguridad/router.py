@@ -992,4 +992,12 @@ def strikes_activos_global(admin: dict = Depends(require_comunidad_admin)):
 # usuario/rol client-side sobre este mismo listado, igual que ReporteUsuariosPage.
 @router.get("/admin/sesiones-activas")
 def sesiones_activas_global(limit: int = Query(200, ge=1, le=1000), admin: dict = Depends(require_admin)):
-    return {"sesiones": query_rows(SESIONES_ACTIVAS_GLOBAL, {"limit": limit})}
+    # `total` real (sin el LIMIT de la lista) — sin esto, el KPI "Sesiones
+    # abiertas" del frontend usaba `sesiones.length`, que en los hechos era
+    # el tamaño de página, no el total. Con más sesiones abiertas que `limit`
+    # (caso real detectado: 314 sesiones huérfanas de pruebas QA vs. limit=200),
+    # cerrar una desde el panel no bajaba el contador — otra sesión ocupaba el
+    # cupo liberado en el siguiente refetch, dando la falsa impresión de que
+    # cerrar "no hacía nada".
+    total = query_one(SESIONES_ABIERTAS_TOTAL)["n"]
+    return {"sesiones": query_rows(SESIONES_ACTIVAS_GLOBAL, {"limit": limit}), "total": total}

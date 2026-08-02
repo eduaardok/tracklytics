@@ -85,7 +85,8 @@ export const seguridadApi = {
   strikesGlobal: () =>
     apiClient.get<{ strikes: StrikeGlobal[] }>('/seguridad/admin/strikes'),
 
-  // Obj 30 / OT-30 (S13-P2).
+  // Obj 30 / OT-30 (S13-P2). `total` es el conteo real (sin el LIMIT de
+  // `sesiones`) — necesario para no mostrar un KPI capado a la página.
   sesionesActivas: () =>
-    apiClient.get<{ sesiones: SesionActiva[] }>('/seguridad/admin/sesiones-activas'),
+    apiClient.get<{ sesiones: SesionActiva[]; total: number }>('/seguridad/admin/sesiones-activas'),
 }
