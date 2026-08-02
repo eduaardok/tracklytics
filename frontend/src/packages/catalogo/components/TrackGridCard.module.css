@@ -3,6 +3,9 @@
   flex-direction: column;
   width: 100%;
   max-width: 180px;
+  /* Mismo fix que ExploreGridCard.module.css: sin min-width:0 un track_name
+     largo puede forzar su columna de grid más ancha que las demás. */
+  min-width: 0;
   cursor: pointer;
   border-radius: var(--radius-md);
   transition: transform var(--duration-standard) var(--ease-standard);

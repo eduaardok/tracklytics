@@ -2,6 +2,14 @@
   display: flex;
   flex-direction: column;
   width: 100%;
+  /* Sin esto, un nombre de género largo (mucho más variable en longitud que
+     artista/álbum) fuerza su celda de grid más ancha que las demás — un
+     grid item conserva `min-width: auto` por defecto, así que su tamaño
+     mínimo de contenido (con .name en `white-space: nowrap`) se propaga
+     hacia arriba hasta la columna aunque .info ya tenga min-width:0 (eso
+     solo resuelve el overflow DENTRO de .card, no el tamaño que .card le
+     pide al grid). Bug real: cuadrículas asimétricas en Géneros. */
+  min-width: 0;
   cursor: pointer;
   border-radius: var(--radius-md);
   transition: transform var(--duration-standard) var(--ease-standard);
