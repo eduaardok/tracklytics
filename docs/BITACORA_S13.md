@@ -568,3 +568,43 @@ Búsqueda de texto informal ("Oops", "¡Wow!", coloquialismos) sobre errores/pla
 ### Nota de higiene
 
 `ExploreCard.tsx`/`ExploreCard.module.css` se eliminaron por completo (reemplazados por `ExploreGridCard`/`ExploreRow`) — verificado con grep que no queda ninguna referencia colgante al nombre viejo ni a la clase `exploreGrid` retirada.
+
+## S13-P7: Optimización de rendimiento del catálogo (2 ago 2026)
+
+Pedido: "siento que demoran un poco la carga de canciones, generos y asi... recuerda que tenemos base de datos columnar y nuestras consultas deben ser rápidas". Diagnóstico antes de tocar código: medido con `clickhouse-client --time` (tiempo puro de motor, sin red/Python) contra la query real de `/tracks/search` sin filtro — **2.9s**. La hipótesis inicial ("no es ClickHouse, es overhead de red/Python") se descartó al medir la query real completa, no una simplificada.
+
+### Causa raíz
+
+`TRACKS_TOP`, `tracks_search_sql`, `SEARCH_TRACKS_GRUPO` hacían `GROUP BY track_id + groupUniqArray(genre_name)` (dedup de los N géneros por track) **sobre todo el resultado filtrado antes de aplicar `ORDER BY`/`LIMIT`** — hasta 1.1M filas de `FACT_TRACKS` (un track = una fila por género). Verificado en SQL: 98.5% de los tracks tienen exactamente 1 género (1.073.448 de 1.089.747), así que el array-agg casi nunca dedupea nada real, pero su costo (más el `JOIN` a `DIM_ALBUMS`, que solo hace falta para la portada) se pagaba en cada fila de la tabla completa, no solo en las que terminan en el resultado.
+
+### Fix: ranking barato + enriquecido solo de los ganadores
+
+Las 3 queries se separan en dos pasos:
+1. Sub-consulta que rankea por popularidad con agregados escalares (`max()`), solo con los `JOIN`s estrictamente necesarios para sus filtros de texto/género — nunca `DIM_ALBUMS` ni `groupUniqArray`.
+2. Consulta externa: `WHERE track_id IN (paso 1)`, ahí sí con el `JOIN` completo + `groupUniqArray`, pero acotado a los ganadores (limit/offset), no a la tabla completa.
+
+Filtrar por `track_id` (no `fact_id`) en el paso 2 es lo que preserva la lista completa de géneros de los tracks multi-género. Primer intento de restructuración (CTE + re-`JOIN` por `track_id` sobre las 1.1M filas completas) midió **3.575s — peor que el original** porque escaneaba la tabla dos veces; el fix real fue `WHERE track_id IN (subquery)` en vez de un segundo `JOIN` completo, que ClickHouse resuelve como semi-join en vez de reescanear.
+
+Se agregó además `SETTINGS use_query_cache = 1, query_cache_ttl = 120, query_cache_share_between_users = 1` a las 14 queries de catálogo que no lo tenían (ya existía en `TRACKS_TOP` desde antes) — zero-risk, ayuda a peticiones repetidas/concurrentes típicas de una UI de navegación.
+
+### Hallazgo adicional: `/search` unificado hacía 4 llamadas independientes en serie
+
+`search_all()` (`GET /search`) llamaba a 3 queries de ClickHouse + 1 búsqueda en PocketBase (playlists) una tras otra, ~0.4s cada una, ~1.3s en total, aunque las 4 no dependen entre sí. `query_rows` usa un cliente ClickHouse síncrono (bloqueante), así que cada query se manda a un hilo (`asyncio.to_thread`) y las 4 se esperan en paralelo con `asyncio.gather` — el tiempo total pasa a ser el de la más lenta, no la suma.
+
+### Medición end-to-end (HTTP real, contenedor `api` reiniciado, no solo SQL aislado)
+
+| Endpoint | Antes (frío) | Después (frío) | Después (cache tibia) |
+|---|---|---|---|
+| `/tracks/search` sin filtro | 2.2–2.9s | ~0.8s | ~0.03s |
+| `/tracks/search` con texto | hasta 17.7s | ~0.3–0.4s | ~0.03s |
+| `/search?q=...` (unificado) | ~1.1–1.3s | ~0.3–0.5s | ~0.04s |
+| `/tracks/top`, `/genres`, `/artists/top`, `/albums/search` | sin medir antes (ya rápidas) | 0.05–0.4s | ~0.02s |
+
+### Verificación de correctez (no solo velocidad)
+
+- Track multi-género real (`6S3JlDAGk3uu3NtZbPnuhS`, 9 géneros) verificado antes/después: `/tracks/{id}` y `/tracks/search?q=...` devuelven los 9 géneros completos (`songwriter / power-pop / j-pop / country / blues / singer-songwriter / folk / psych-rock / j-rock`), sin pérdida por el filtro por `track_id`.
+- `/search` tras paralelizar: shape de respuesta sin cambios (`tracks`/`artistas`/`albumes`/`playlists`), `enriquecer_featuring` (`es_featuring`/`artista_principal`) sigue aplicándose correctamente sobre `tracks`.
+- `system.query_cache` en ClickHouse: 30 entradas tras el sweep de pruebas, confirma que el cache se activa de verdad (no solo el `SETTINGS`, sino su efecto real).
+- Sin cambios de contrato en ningún endpoint (mismos parámetros, misma forma de respuesta) — solo la query SQL interna y la concurrencia de `/search` cambiaron.
+
+Archivos tocados: `api/paquetes/catalogo/queries.py` (reestructuración de 4 queries + cache en 14), `api/paquetes/catalogo/router.py` (paralelización de `/search`).

@@ -1,3 +1,4 @@
+import asyncio
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -63,31 +64,45 @@ async def search_all(
 
     pattern = f"%{termino}%"
     params = {"pattern": pattern, "limit": limit}
-    # S13-P6: la búsqueda unificada no marcaba featuring/sintético — era la
-    # única vista de tracks que se saltaba `enriquecer_featuring` (brecha
-    # verificada en AUDITORIA_S13.md, no una precaución preventiva).
-    tracks = enriquecer_featuring(query_rows(SEARCH_TRACKS_GRUPO, params))
-    artistas = query_rows(SEARCH_ARTISTAS_GRUPO, params)
-    albumes = query_rows(SEARCH_ALBUMES_GRUPO, params)
+    usuario_id = (user or {}).get("record", {}).get("id")
 
     # Las playlists viven en PocketBase, no en ClickHouse (design.md, Decisión
     # 9). Un fallo de PocketBase degrada ese grupo a vacío en vez de tumbar toda
     # la búsqueda: los tres grupos de catálogo ya son un resultado útil.
-    usuario_id = (user or {}).get("record", {}).get("id")
-    try:
-        crudas = await pb_playlists.buscar(termino, usuario_id, limit)
-        playlists = [
-            {
-                "playlist_id": p.get("id"),
-                "name": p.get("name"),
-                "es_publica": bool(p.get("es_publica")),
-                "es_propia": bool(usuario_id) and p.get("user") == usuario_id,
-            }
-            for p in crudas
-        ]
-    except Exception as exc:
-        logger.warning("Búsqueda de playlists no disponible: %s", exc)
-        playlists = []
+    async def _playlists():
+        try:
+            crudas = await pb_playlists.buscar(termino, usuario_id, limit)
+            return [
+                {
+                    "playlist_id": p.get("id"),
+                    "name": p.get("name"),
+                    "es_publica": bool(p.get("es_publica")),
+                    "es_propia": bool(usuario_id) and p.get("user") == usuario_id,
+                }
+                for p in crudas
+            ]
+        except Exception as exc:
+            logger.warning("Búsqueda de playlists no disponible: %s", exc)
+            return []
+
+    # PERF (revisión de rendimiento): las 3 queries a ClickHouse + la llamada
+    # a PocketBase son independientes entre sí, pero se ejecutaban en
+    # secuencia (~0.4s cada una, ~1.3s en total). `query_rows` es síncrono
+    # (cliente ClickHouse bloqueante) así que se manda a un hilo por query
+    # (`asyncio.to_thread`) para no bloquear el loop de eventos, y las 4 se
+    # esperan en paralelo con `gather` -- el tiempo total pasa a ser el de la
+    # más lenta, no la suma de las 4.
+    #
+    # S13-P6: la búsqueda unificada no marcaba featuring/sintético — era la
+    # única vista de tracks que se saltaba `enriquecer_featuring` (brecha
+    # verificada en AUDITORIA_S13.md, no una precaución preventiva).
+    tracks_rows, artistas, albumes, playlists = await asyncio.gather(
+        asyncio.to_thread(query_rows, SEARCH_TRACKS_GRUPO, params),
+        asyncio.to_thread(query_rows, SEARCH_ARTISTAS_GRUPO, params),
+        asyncio.to_thread(query_rows, SEARCH_ALBUMES_GRUPO, params),
+        _playlists(),
+    )
+    tracks = enriquecer_featuring(tracks_rows)
 
     return {
         "tracks": tracks,
