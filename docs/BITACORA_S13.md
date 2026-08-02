@@ -514,3 +514,57 @@ Componente `shared/components/ExportPDFButton.tsx`: captura un `RefObject<HTMLEl
 ### Nota de higiene
 
 Ningún archivo de código se descartó ni se revirtió durante esta fase. La migración de columnas `periodo_inicio`/`periodo_fin` se aplicó tanto al `init_clickhouse.py` (reproducible desde un clon limpio) como directamente al ClickHouse ya corriendo en esta sesión (`ALTER TABLE ... ADD COLUMN IF NOT EXISTS`, idempotente), para no perder el estado de datos ya cargado.
+
+---
+
+## S13-P6: Mejoras de catálogo B2C (2 ago 2026)
+
+Modo autónomo total. Arrancó con el quirk conocido de Docker Desktop (procesos WSL zombie de una sesión anterior conviviendo con el arranque nuevo) — mismo fix ya documentado: matar procesos + `wsl --shutdown` + relanzar.
+
+### Hallazgo que reencuadra todo el resto: 1M de tracks sintéticos vs. 113k reales
+
+Antes de tocar nada se verificó con SQL directo la premisa de la sección 6 del pedido (marcador visual de tracks sintéticos): `SELECT source_type, count() FROM FACT_TRACKS GROUP BY source_type` devuelve **1.000.000 `synthetic`**, **113.550 `real`**, 6 `user_uploaded`. Los sintéticos son la mayoría abrumadora del catálogo — el marcador no es un nice-to-have cosmético, es necesario para poder navegar el catálogo con criterio. Además se confirmó que **`/tracks/top` ya excluye `synthetic`** (`WHERE ft.source_type != 'synthetic'`) pero **ningún otro endpoint de tracks lo hace** — por diseño (`disponible=1` es el único filtro real en los demás), así que un sintético aparece en artista/álbum/género/búsqueda igual que uno real.
+
+### Sección 1 — Vista dual grid/lista en Artistas, Playlists y Géneros
+
+Antes, las 3 secciones (`ArtistasSection`/`PlaylistsSection`/`GenerosSection` en `CatalogPage.tsx`) solo tenían una card compacta horizontal (`ExploreCard`, ícono 44px + texto) sin alternativa de grid ni toggle — Canciones sí tenía el patrón completo (`ViewToggle` + `TrackCard`/`TrackGridCard`).
+
+- `ExploreCard` se reemplaza por un par parametrizado por `kind` ('artista'|'playlist'|'genero'), igual que el original pero separado en dos vistas: `ExploreGridCard` (portada prominente 160px arriba, nombre/métrica debajo — mismo patrón que `TrackGridCard`) y `ExploreRow` (fila con thumbnail 48px a la izquierda — mismo patrón que `TrackCard`).
+- Preferencia de vista **compartida** entre las 4 secciones (un solo toggle para todo el catálogo, no una por pestaña) — se extrajo el hook `useCatalogViewMode()` (antes 4 líneas duplicadas solo en Canciones, ahora una función reusada 4 veces).
+- Grid: `repeat(4, 1fr)` en desktop, `repeat(3, 1fr)` en tablet (900px), `repeat(2, 1fr)` en móvil (640px) — pedido explícito de 4/2 columnas.
+- El buscador por nombre ya existía en las 3 secciones (no había que agregarlo); Canciones no tiene paginación/infinite scroll tampoco, así que no se agregó a las otras 3 (replicar el patrón real de Canciones, no uno idealizado).
+- Efecto colateral esperado: envolver el subtítulo + `ViewToggle` en `.subtitleRow` (mismo layout que ya usaba Canciones) resuelve por sí solo la inconsistencia de alineación de la sección 2 del pedido — no había ningún header "Artistas destacados"/"Géneros populares" en una página "home" separada (no existe tal página: `CatalogPage` es la landing B2C); los 4 subtítulos ya compartían la misma clase CSS antes de este cambio, la única diferencia real era que 3 de los 4 no estaban en la fila flex con el toggle.
+
+### Sección 3 + 6 — Featuring y marcador de sintético, consolidados en un solo componente
+
+Se creó `shared/components/TrackName.tsx` (`TrackName` + `FeaturingCaption`) — antes la condición `es_featuring && <span>feat.</span>` estaba copiada literalmente en `TrackCard`/`TrackGridCard`/`LibraryTrackRow` y **faltaba por completo** en `TrackDetailPage` y `SearchResultsPage` (no un descuido del frontend: ver hallazgo de backend abajo). Migrar los 3 componentes existentes a `TrackName` y agregarlo a los 2 que no lo tenían cierra la brecha de consistencia pedida en la sección 3, y de paso deja el badge "(Sint)" disponible en cualquier vista de tracks con un solo import — se agregó también en `PlayerBar`/`QueuePanel` (reproductor y cola, explícitamente pedidos).
+
+**Backend — brechas reales encontradas, no hipotéticas** (verificadas leyendo `catalogo/router.py` antes de tocar nada):
+- `GET /tracks/{track_id}` y `GET /tracks/fact/{fact_id}` (los dos endpoints de detalle de un track individual) **nunca llamaban a `enriquecer_featuring`** — por eso `TrackDetailPage` no mostraba el badge, no porque el frontend lo omitiera.
+- La búsqueda unificada (`GET /search`) tampoco llamaba a `enriquecer_featuring` sobre `SEARCH_TRACKS_GRUPO` — los resultados de tracks en el buscador no traían `es_featuring`/`artistas_feat` en absoluto.
+- Se agregó `source_type` al `SELECT` de las queries que faltaban (`TRACKS_BY_ARTIST`, `TRACKS_BY_ALBUM`, `TRACKS_BY_GENRE`, `TRACK_DETAIL`, `TRACK_DETAIL_BY_FACT_ID`, `tracks_search_sql`, `SEARCH_TRACKS_GRUPO`, y las 3 de `biblioteca/queries.py` — favoritos/historial/tracks-por-fact-id) — antes ninguna lo seleccionaba.
+- Verificado con curl: "Unholy (feat. Kim Petras)" devuelve `es_featuring: true, artistas_feat: ["Kim Petras"], source_type: "real"` en `/tracks/search`, `/tracks/by-artist/{id}`, `/tracks/fact/{fact_id}` y `/search?q=`; un track cualquiera del millón sintético devuelve `source_type: "synthetic"`.
+
+**Frontend**: `Track`/`TrackDetail`/`LibraryTrack`/`SearchTrack`/`PlayableTrack` ganan el campo opcional `source_type` (y `SearchTrack` gana además `es_featuring`/`artistas_feat`, que no tenía). El badge "(Sint)" es puramente de navegación — nunca se usa para filtrar, nunca se envía a ClickHouse, y no aparece en los informes compuestos ni en las exportaciones PDF (esas vistas no pasan por `TrackName`).
+
+### Sección 4 — Limpieza de emojis
+
+Grep completo de rango Unicode emoji (`\u{1F300}-\u{1FAFF}`, `\u{2600}-\u{27BF}`, etc.) sobre todo `frontend/src` con un script de Node (el `grep -P` de Git Bash en este entorno no reconoce escapes `\x{...}` de 4+ dígitos, así que se hizo con `node -e` en su lugar) — 66 líneas con matches. La inmensa mayoría (★ ♥ ✕ ✓ ← → ↑ ↓ ♪) son glifos tipográficos monocromos, no emoji a color, usados como iconografía ligera consistente en decenas de archivos desde antes de esta capability — no se tocaron (reportados, no removidos, como pide el punto 4 del prompt para "contexto decorativo que no desentona").
+
+Se removieron los 2 casos que sí calzan con el ejemplo explícito del pedido (emoji a color en feedback serio):
+- **🔒** en el paywall de `TrackDetailPage` ("Sección exclusiva Premium") → ícono `Lock` de lucide-react.
+- **⚠** en 5 banners `role="alert"`/de error real: `ProyeccionArtistaPage`, `ProyeccionGeneroPage` (alertas de caída proyectada), `PartnersLandingPage` (disclaimer de demo), `PlanesPage` ×2 (cobro fallido en dunning, cobro rechazado al confirmar plan) → ícono `AlertTriangle`. De paso, en el banner de éxito de `PlanesPage` que compartía el mismo bloque condicional que el de cobro rechazado, se quitó también el prefijo "✓" del texto para que ambas ramas del mismo banner queden visualmente consistentes (antes mezclaban glifo-en-texto y ahora ícono-como-elemento) — no se tocó el "✓" en ningún otro archivo.
+
+Búsqueda de texto informal ("Oops", "¡Wow!", coloquialismos) sobre errores/placeholders: 0 resultados.
+
+### Verificación
+
+- `npm run build`: sin errores, bundle principal 552 kB (línea base 547 kB — el incremento es el peso de `TrackName`/`AlertTriangle`/`Lock` en páginas que ya cargaban eager, no una regresión de code-splitting).
+- `npm run type-check`: 0 errores nuevos (el único error reportado, en `EngagementPage.tsx`, es preexistente y no se tocó ese archivo en esta sesión).
+- Curl verificado en vivo contra los 6 endpoints de tracks + `/search`: featuring y `source_type` viajan correctamente en los 3 casos de prueba (track real con feat., track sintético, track real sin feat.).
+- Grep post-limpieza de 🔒/⚠: 0 resultados en `frontend/src`.
+- `docker compose up -d --build` (api + frontend-react): reconstruido con el código de esta fase.
+
+### Nota de higiene
+
+`ExploreCard.tsx`/`ExploreCard.module.css` se eliminaron por completo (reemplazados por `ExploreGridCard`/`ExploreRow`) — verificado con grep que no queda ninguna referencia colgante al nombre viejo ni a la clase `exploreGrid` retirada.
