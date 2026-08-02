@@ -17,14 +17,19 @@ import styles from './AnalyticaShell.module.css'
 
 const ACTIVE_CLS    = `${styles.navItem} ${styles.navActive}`
 const INACTIVE_CLS  = styles.navItem
-const DIMMED_CLS    = `${styles.navItem} ${styles.navDimmed}`
-const DIMMED_ACT    = `${styles.navItem} ${styles.navActive}`
 
 // completar-modelo-base: "Adquisición" y "Disponibilidad" salieron de esta
 // lista — ya no son placeholders (FACT_ADQUISICION/FACT_DISPONIBILIDAD
 // existen), pasan a la nav real de arriba con el mismo gating que el resto.
 // monetizacion-retencion-mejoras: "Suscripciones" también sale — pasa a ser
 // el dashboard de churn real (admin-only), no un placeholder.
+// S13-P5: se dejaron de renderizar como enlaces del sidebar (quedaban
+// "pronto" visibles en el menú, se veían vacíos si el cursor pasaba por ahí
+// en el video — AUDITORIA_S13.md §6.3). Las rutas siguen existiendo en
+// router.tsx (`ComingSoonPage`, accesibles por URL directa) — este array
+// se conserva solo como fuente de `COMING_SOON_PATHS`, para que esas dos
+// rutas sigan bypasseando `RequireSuscripcionActiva` (no hay nada que
+// proteger en un stub sin datos).
 const COMING_SOON = [
   { label: 'Partners',       to: '/analitica/partners'       },
   { label: 'Ingestas',       to: '/analitica/ingestas'       },
@@ -171,18 +176,6 @@ export function AnalyticaShell() {
             </>
           )}
 
-          <div className={styles.divider} role="separator" />
-
-          {COMING_SOON.map(({ label, to }) => (
-            <NavLink
-              key={to}
-              to={to}
-              className={({ isActive }) => isActive ? DIMMED_ACT : DIMMED_CLS}
-            >
-              {label}
-              <span className={styles.comingSoonTag} aria-hidden="true">pronto</span>
-            </NavLink>
-          ))}
         </nav>
 
         <main className={styles.main}>
