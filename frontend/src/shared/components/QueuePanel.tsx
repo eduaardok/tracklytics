@@ -1,6 +1,7 @@
 import { ChevronUp, ChevronDown, X } from 'lucide-react'
 import type { PlayableTrack } from '@shared/context/PlayerContext'
 import { AlbumArt } from './AlbumArt'
+import { TrackName } from './TrackName'
 import styles from './QueuePanel.module.css'
 
 type Props = {
@@ -26,7 +27,9 @@ export function QueuePanel({ currentTrack, queue, onRemove, onMove, onClose }: P
           <div className={styles.row}>
             <AlbumArt src={currentTrack.imagen_url} alt="" size={32} />
             <div className={styles.rowMeta}>
-              <span className={styles.rowName}>{currentTrack.track_name}</span>
+              <span className={styles.rowName}>
+                <TrackName name={currentTrack.track_name} esFeaturing={currentTrack.es_featuring} sourceType={currentTrack.source_type} />
+              </span>
               <span className={styles.rowArtist}>{currentTrack.artist_name}</span>
             </div>
           </div>
@@ -42,7 +45,9 @@ export function QueuePanel({ currentTrack, queue, onRemove, onMove, onClose }: P
                 <li key={`${track.fact_id}-${i}`} className={styles.row}>
                   <AlbumArt src={track.imagen_url} alt="" size={32} />
                   <div className={styles.rowMeta}>
-                    <span className={styles.rowName}>{track.track_name}</span>
+                    <span className={styles.rowName}>
+                      <TrackName name={track.track_name} esFeaturing={track.es_featuring} sourceType={track.source_type} />
+                    </span>
                     <span className={styles.rowArtist}>{track.artist_name}</span>
                   </div>
                   <div className={styles.rowActions}>

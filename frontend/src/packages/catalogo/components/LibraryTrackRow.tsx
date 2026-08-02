@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { ListPlus } from 'lucide-react'
 import { usePlayer } from '@shared/context/PlayerContext'
 import { AlbumArt } from '@shared/components/AlbumArt'
+import { TrackName, FeaturingCaption } from '@shared/components/TrackName'
 import { ErrorState } from '@shared/components/ErrorState'
 import { ApiError, apiErrorMessage } from '@shared/lib/api-client'
 import { useAd } from '@packages/publicidad'
@@ -45,11 +46,14 @@ export function LibraryTrackRow({ track, position, timeAgo, onRemove, removeTitl
   // recibe.
   function toPlayable() {
     return {
-      fact_id:     track.fact_id,
-      track_name:  track.track_name,
-      artist_name: track.artist_name,
-      duration_ms: track.duration_ms,
-      imagen_url:  track.imagen_url,
+      fact_id:       track.fact_id,
+      track_name:    track.track_name,
+      artist_name:   track.artist_name,
+      duration_ms:   track.duration_ms,
+      imagen_url:    track.imagen_url,
+      es_featuring:  track.es_featuring,
+      artistas_feat: track.artistas_feat,
+      source_type:   track.source_type,
     }
   }
 
@@ -92,13 +96,15 @@ export function LibraryTrackRow({ track, position, timeAgo, onRemove, removeTitl
         <AlbumArt src={track.imagen_url} alt="" size={40} genreSeed={track.genre_name} />
         <div className={styles.info}>
           <div className={styles.name}>
-            {track.track_name}
-            {track.es_featuring && <span className={styles.featBadge}>feat.</span>}
+            <TrackName
+              name={track.track_name}
+              esFeaturing={track.es_featuring}
+              sourceType={track.source_type}
+              featBadgeClassName={styles.featBadge}
+            />
           </div>
           <div className={styles.meta}>{track.artist_name} · {track.genre_name}</div>
-          {track.es_featuring && track.artistas_feat && track.artistas_feat.length > 0 && (
-            <div className={styles.featArtists}>con {track.artistas_feat.join(', ')}</div>
-          )}
+          <FeaturingCaption esFeaturing={track.es_featuring} artistasFeat={track.artistas_feat} className={styles.featArtists} />
         </div>
         {timeAgo && <span className={styles.timeAgo}>{timeAgo}</span>}
         <span className={styles.duration}>{formatDuration(track.duration_ms)}</span>

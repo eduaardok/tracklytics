@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { Play } from 'lucide-react'
 import { usePlayer } from '@shared/context/PlayerContext'
 import { AlbumArt } from '@shared/components/AlbumArt'
+import { TrackName, FeaturingCaption } from '@shared/components/TrackName'
 import { useAd } from '@packages/publicidad'
 import { bibliotecaApi } from '../api/biblioteca.api'
 import { ApiError, apiErrorMessage } from '@shared/lib/api-client'
@@ -69,8 +70,12 @@ export function TrackGridCard({ track }: Props) {
       </div>
       <div className={styles.info}>
         <p className={styles.name} title={track.track_name}>
-          {track.track_name}
-          {track.es_featuring && <span className={styles.featBadge}>feat.</span>}
+          <TrackName
+            name={track.track_name}
+            esFeaturing={track.es_featuring}
+            sourceType={track.source_type}
+            featBadgeClassName={styles.featBadge}
+          />
         </p>
         <p className={styles.artist} title={track.artist_name}>{track.artist_name}</p>
         {track.es_featuring && track.artistas_feat && track.artistas_feat.length > 0 && (

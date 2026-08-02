@@ -18,6 +18,10 @@ export type Track = {
   es_featuring?:     boolean
   artista_principal?: string
   artistas_feat?:      string[]
+  // S13-P6: marcador de catálogo (frontend-only) — 'synthetic' identifica
+  // los ~1M tracks generados sintéticamente (vs. ~113k reales), nunca se
+  // usa para filtrar ni se persiste ningún cambio a partir de este campo.
+  source_type?: 'real' | 'synthetic' | 'user_uploaded'
 }
 
 // `danceability/energy/valence/speechiness/acousticness/instrumentalness/
@@ -114,6 +118,7 @@ export type LibraryTrack = {
   es_featuring?:      boolean
   artista_principal?: string
   artistas_feat?:      string[]
+  source_type?: 'real' | 'synthetic' | 'user_uploaded'
 }
 
 export type Favoritos = {
@@ -170,6 +175,9 @@ export type SearchTrack = {
   genre_name:  string
   popularity:  number
   duration_ms: number
+  es_featuring?:  boolean
+  artistas_feat?: string[]
+  source_type?:   'real' | 'synthetic' | 'user_uploaded'
 }
 
 export type SearchArtista = {

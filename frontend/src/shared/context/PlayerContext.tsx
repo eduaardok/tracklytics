@@ -13,6 +13,13 @@ export type PlayableTrack = {
   // tipo lo descartaba estructuralmente — causa raíz de que el reproductor
   // nunca mostrara portada.
   imagen_url?: string | null
+  // S13-P6: mismos campos opcionales de `Track` (packages/catalogo/types.ts)
+  // — cuando el llamador los tiene disponibles, el reproductor/cola también
+  // muestran el badge "feat."/"(Sint)" vía `TrackName`. Sin ellos (ej. mix
+  // diario, que no los expone hoy) el badge simplemente no aparece.
+  es_featuring?:  boolean
+  artistas_feat?: string[]
+  source_type?:   string | null
 }
 
 type PlayerContextValue = {

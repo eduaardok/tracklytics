@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { ListPlus, Radio } from 'lucide-react'
 import { usePlayer } from '@shared/context/PlayerContext'
 import { AlbumArt } from '@shared/components/AlbumArt'
+import { TrackName, FeaturingCaption } from '@shared/components/TrackName'
 import { ErrorState } from '@shared/components/ErrorState'
 import { ApiError, apiErrorMessage } from '@shared/lib/api-client'
 import { useAd } from '@packages/publicidad'
@@ -90,15 +91,17 @@ export function TrackCard({ track, position }: Props) {
         <AlbumArt src={track.imagen_url} alt="" size={56} genreSeed={track.genre_name} />
         <div className={styles.info}>
           <div className={styles.name}>
-            {track.track_name}
-            {track.es_featuring && <span className={styles.featBadge}>feat.</span>}
+            <TrackName
+              name={track.track_name}
+              esFeaturing={track.es_featuring}
+              sourceType={track.source_type}
+              featBadgeClassName={styles.featBadge}
+            />
           </div>
           <div className={styles.meta}>
             {track.artist_name} · {track.genre_name}
           </div>
-          {track.es_featuring && track.artistas_feat && track.artistas_feat.length > 0 && (
-            <div className={styles.featArtists}>con {track.artistas_feat.join(', ')}</div>
-          )}
+          <FeaturingCaption esFeaturing={track.es_featuring} artistasFeat={track.artistas_feat} className={styles.featArtists} />
         </div>
         <div className={styles.data}>
           <span className={styles.popularity}>

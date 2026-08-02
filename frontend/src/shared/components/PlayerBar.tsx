@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import { ListMusic, Volume2, VolumeX } from 'lucide-react'
 import { usePlayer } from '@shared/context/PlayerContext'
 import { AlbumArt } from './AlbumArt'
+import { TrackName } from './TrackName'
 import { QueuePanel } from './QueuePanel'
 import styles from './PlayerBar.module.css'
 
@@ -70,7 +71,9 @@ export function PlayerBar({ actions }: Props) {
           <span className={styles.eqBadge}><Equalizer animated={isPlaying} /></span>
         </span>
         <div className={styles.meta}>
-          <span className={styles.name}>{currentTrack.track_name}</span>
+          <span className={styles.name}>
+            <TrackName name={currentTrack.track_name} esFeaturing={currentTrack.es_featuring} sourceType={currentTrack.source_type} />
+          </span>
           <span className={styles.artist}>{currentTrack.artist_name}</span>
         </div>
       </div>

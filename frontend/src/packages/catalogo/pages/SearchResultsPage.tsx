@@ -3,6 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom'
 import { Search } from 'lucide-react'
 
 import { AlbumArt } from '@shared/components/AlbumArt'
+import { TrackName, FeaturingCaption } from '@shared/components/TrackName'
 import { EmptyState } from '@shared/components/EmptyState'
 import { ErrorState } from '@shared/components/ErrorState'
 import { usePlayer } from '@shared/context/PlayerContext'
@@ -169,20 +170,24 @@ function MejorResultado({ track }: { track: SearchTrack }) {
         <AlbumArt src={track.imagen_url} alt="" size={88} />
         <div className={styles.bestInfo}>
           <Link to={`/catalogo/track/${track.fact_id}`} className={styles.bestName}>
-            {track.track_name}
+            <TrackName name={track.track_name} esFeaturing={track.es_featuring} sourceType={track.source_type} featBadgeClassName={styles.featBadge} />
           </Link>
           <span className={styles.bestMeta}>{track.artist_name}</span>
           <span className={styles.bestGenre}>{track.genre_name}</span>
+          <FeaturingCaption esFeaturing={track.es_featuring} artistasFeat={track.artistas_feat} className={styles.featArtists} />
         </div>
         <button
           type="button"
           className={styles.btnPrimary}
           onClick={() => play({
-            fact_id:     track.fact_id,
-            track_name:  track.track_name,
-            artist_name: track.artist_name,
-            duration_ms: track.duration_ms,
-            imagen_url:  track.imagen_url,
+            fact_id:       track.fact_id,
+            track_name:    track.track_name,
+            artist_name:   track.artist_name,
+            duration_ms:   track.duration_ms,
+            imagen_url:    track.imagen_url,
+            es_featuring:  track.es_featuring,
+            artistas_feat: track.artistas_feat,
+            source_type:   track.source_type,
           })}
         >
           Reproducir
@@ -199,19 +204,23 @@ function TrackRow({ track }: { track: SearchTrack }) {
       <AlbumArt src={track.imagen_url} alt="" size={40} />
       <div className={styles.rowInfo}>
         <Link to={`/catalogo/track/${track.fact_id}`} className={styles.rowName}>
-          {track.track_name}
+          <TrackName name={track.track_name} esFeaturing={track.es_featuring} sourceType={track.source_type} featBadgeClassName={styles.featBadge} />
         </Link>
         <span className={styles.rowMeta}>{track.artist_name} · {track.genre_name}</span>
+        <FeaturingCaption esFeaturing={track.es_featuring} artistasFeat={track.artistas_feat} className={styles.featArtists} />
       </div>
       <button
         type="button"
         className={styles.btnGhost}
         onClick={() => play({
-          fact_id:     track.fact_id,
-          track_name:  track.track_name,
-          artist_name: track.artist_name,
-          duration_ms: track.duration_ms,
-          imagen_url:  track.imagen_url,
+          fact_id:       track.fact_id,
+          track_name:    track.track_name,
+          artist_name:   track.artist_name,
+          duration_ms:   track.duration_ms,
+          imagen_url:    track.imagen_url,
+          es_featuring:  track.es_featuring,
+          artistas_feat: track.artistas_feat,
+          source_type:   track.source_type,
         })}
       >
         Reproducir

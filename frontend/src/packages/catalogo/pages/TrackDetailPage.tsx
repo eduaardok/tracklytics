@@ -1,9 +1,10 @@
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { ListPlus } from 'lucide-react'
+import { ListPlus, Lock } from 'lucide-react'
 import { catalogoApi } from '../api/catalogo.api'
 import { usePlayer } from '@shared/context/PlayerContext'
 import { AlbumArt } from '@shared/components/AlbumArt'
+import { TrackName, FeaturingCaption } from '@shared/components/TrackName'
 import { ErrorState } from '@shared/components/ErrorState'
 import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { ApiError, apiErrorMessage } from '@shared/lib/api-client'
@@ -88,7 +89,10 @@ export function TrackDetailPage() {
         <AlbumArt src={track.imagen_url} alt="" size={96} />
         <div className={styles.heroMeta}>
           <span className={styles.heroType}>Canción</span>
-          <h1 className={styles.heroName}>{track.track_name}</h1>
+          <h1 className={styles.heroName}>
+            <TrackName name={track.track_name} esFeaturing={track.es_featuring} sourceType={track.source_type} featBadgeClassName={styles.featBadge} />
+          </h1>
+          <FeaturingCaption esFeaturing={track.es_featuring} artistasFeat={track.artistas_feat} className={styles.featArtists} />
           <div className={styles.heroSub}>
             <Link to={`/catalogo/artista/${track.artist_id}`} className={styles.heroLink}>
               {track.artist_name}
@@ -183,7 +187,7 @@ export function TrackDetailPage() {
         </div>
       ) : (
         <div className={styles.paywall}>
-          <span className={styles.paywallIcon} aria-hidden="true">🔒</span>
+          <Lock size={24} className={styles.paywallIcon} aria-hidden="true" />
           <p className={styles.paywallText}>Sección exclusiva Premium.</p>
           <Link to="/suscripciones" className={styles.btnPrimary}>Actualizar a Premium</Link>
         </div>

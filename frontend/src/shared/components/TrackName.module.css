@@ -1,0 +1,11 @@
+/* Marcador visual de track sintético (S13-P6) — ayuda de navegación del
+   catálogo, nunca persistida ni exportada (no aparece en informes/PDF). */
+.syntheticBadge {
+  display: inline-block;
+  margin-left: 6px;
+  font-size: 0.75em;
+  font-weight: 400;
+  color: var(--color-muted);
+  opacity: 0.7;
+  vertical-align: middle;
+}

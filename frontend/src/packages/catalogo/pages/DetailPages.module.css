@@ -42,6 +42,28 @@
   text-wrap: balance;
 }
 
+.featBadge {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 2px 8px;
+  border-radius: var(--radius-pill);
+  background: oklch(1 0 0 / 0.14);
+  border: 1px solid oklch(1 0 0 / 0.3);
+  font-family: var(--font-mono);
+  font-size: 0.625rem;
+  font-weight: 600;
+  color: oklch(1 0 0 / 0.9);
+  text-transform: uppercase;
+  vertical-align: middle;
+}
+
+.featArtists {
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  color: oklch(1 0 0 / 0.75);
+  margin: 2px 0 4px;
+}
+
 .heroSub {
   font-family: var(--font-sans);
   font-size: 0.875rem;
@@ -219,7 +241,7 @@
 }
 
 .paywallIcon {
-  font-size: 1.5rem;
+  color: var(--color-muted);
 }
 
 .paywallText {
