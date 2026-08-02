@@ -30,6 +30,10 @@
   color: var(--color-muted);
 }
 
+.exportSlot {
+  margin-left: auto;
+}
+
 .heading {
   font-family: var(--font-sans);
   font-size: 1.5rem;

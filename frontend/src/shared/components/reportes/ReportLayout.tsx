@@ -1,7 +1,8 @@
-import type { ReactNode } from 'react'
+import { useRef, type ReactNode } from 'react'
 import { AlertCircle, BarChart3 } from 'lucide-react'
 import { SkeletonLoader } from '@shared/components/SkeletonLoader'
 import { EmptyState } from '@shared/components/EmptyState'
+import { ExportPDFButton } from '@shared/components/ExportPDFButton'
 import { genreAccent } from '@shared/lib/genre-colors'
 import styles from './ReportLayout.module.css'
 
@@ -38,15 +39,22 @@ export function ReportLayout({
   loading, error, sinDatos, hayEstimados, ultimaActualizacion,
 }: Props) {
   const colorDepto = genreAccent(departamento)
+  const reportRef = useRef<HTMLElement>(null)
+  const hayContenido = !loading && !error && !sinDatos
 
   return (
-    <section className={styles.page}>
+    <section className={styles.page} ref={reportRef}>
       <header className={styles.head}>
         <div className={styles.headTop}>
           <span className={styles.badgeDepto} style={{ color: colorDepto, borderColor: colorDepto }}>
             {departamento}
           </span>
           <span className={styles.codigos}>{codigoInforme} · {codigoObjetivo}</span>
+          {hayContenido && (
+            <span className={styles.exportSlot}>
+              <ExportPDFButton targetRef={reportRef} fileName={`informe-${codigoInforme}`} title={titulo} />
+            </span>
+          )}
         </div>
         <h1 className={styles.heading}>{titulo}</h1>
 
