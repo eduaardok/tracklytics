@@ -1,7 +1,7 @@
 import random
 import re
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -26,12 +26,20 @@ from paquetes.facturacion.queries import (
     TRANSACCIONES_POR_USUARIO,
     TRANSACCIONES_RECIENTES,
     TRANSACCIONES_ULTIMAS_24H,
+    ULTIMA_TRANSACCION_SUSCRIPCION_VIGENTE,
     USUARIO_PAIS,
 )
 from paquetes.seguridad import audit
 from paquetes.suscripciones.planes import PLANES
 
 router = APIRouter(prefix="/app/v1/facturacion", tags=["Facturacion"])
+
+# Duplica `suscripciones.router.DIAS_CICLO_FACTURACION` a propósito (S13-P5):
+# `suscripciones/router.py` importa `procesar_pago` de este módulo, así que
+# importar en la otra dirección crearía un ciclo de imports. Mismo valor,
+# mismo criterio que el resto de constantes duplicadas entre paquetes
+# (`IVA_RATE`/`TASA_EXITO_DEFAULT` arriba).
+DIAS_CICLO_FACTURACION = 30
 
 
 def resolver_iva_pct(usuario_id: str) -> float:
@@ -157,10 +165,30 @@ async def listar_metodos_pago(user: dict = Depends(get_current_user)):
     usuario_id = user["record"]["id"]
     methods = query_rows(METODOS_PAGO_POR_USUARIO, {"usuario_id": usuario_id})
     activas = await pb_client.list_activas(user["token"], usuario_id)
-    suscripcion = (
-        {"tipo_plan": activas[0]["tipo_plan"], "monto": activas[0]["monto"], "moneda": activas[0]["moneda"]}
-        if activas else None
-    )
+    suscripcion = None
+    if activas:
+        activa = activas[0]
+        monto = float(activa.get("monto") or 0)
+        # `pagado`/`periodo_fin`/`proximo_cobro` (S13-P5, AUDITORIA_S13.md
+        # §5): antes el frontend no tenía forma de saber si el período en
+        # curso ya estaba cubierto, así que el botón "Pagar" se mostraba
+        # siempre — mismo guard que `procesar_pago` usa para la idempotencia.
+        vigente = (
+            query_one(ULTIMA_TRANSACCION_SUSCRIPCION_VIGENTE, {"suscripcion_id": activa["id"]})
+            if monto > 0 else None
+        )
+        suscripcion = {
+            "tipo_plan":      activa["tipo_plan"],
+            "monto":          activa["monto"],
+            "moneda":         activa["moneda"],
+            "pagado":         bool(vigente),
+            "periodo_inicio": str(vigente["periodo_inicio"]) if vigente else None,
+            "periodo_fin":    str(vigente["periodo_fin"]) if vigente else None,
+            # Próximo cobro = fin del período ya cubierto (o `None` si el
+            # período actual todavía no se pagó — ahí el "próximo cobro" es
+            # el propio botón "Pagar").
+            "proximo_cobro":  str(vigente["periodo_fin"]) if vigente else None,
+        }
     return {"data": methods, "suscripcion": suscripcion}
 
 
@@ -209,6 +237,24 @@ def procesar_pago(
     if not metodo_pago_existe(usuario_id, metodo_pago_id):
         raise HTTPException(status_code=404, detail="Método de pago no encontrado para este usuario")
 
+    suscripcion_id = suscripcion["id"]
+
+    # Idempotencia (S13-P5, AUDITORIA_S13.md §5): un pago 'suscripcion'
+    # no puede duplicar un período ya cubierto. Bug confirmado con datos
+    # reales antes de este guard: cada clic en "Pagar" insertaba una
+    # transacción e invoice nuevas aunque el período en curso ya estuviera
+    # pagado. `ajuste_prorrateo` queda fuera a propósito (cambiar de plan
+    # puede cobrar/acreditar más de una vez dentro del mismo período); un
+    # reintento de un cobro fallido (dunning) tampoco se bloquea, porque el
+    # guard solo mira pagos ya `exitosa`.
+    if concepto == "suscripcion":
+        vigente = query_one(ULTIMA_TRANSACCION_SUSCRIPCION_VIGENTE, {"suscripcion_id": suscripcion_id})
+        if vigente:
+            raise HTTPException(
+                status_code=409,
+                detail=f"Ya existe un pago vigente para este período (cubre hasta {vigente['periodo_fin']}).",
+            )
+
     if forzar_resultado is not None:
         estado = forzar_resultado
     else:
@@ -217,12 +263,21 @@ def procesar_pago(
     transaccion_id = str(uuid.uuid4())
     monto = float(suscripcion["monto"])
     moneda = suscripcion["moneda"]
-    suscripcion_id = suscripcion["id"]
+
+    ahora = datetime.now(timezone.utc)
+    periodo_inicio = ahora.date()
+    periodo_fin = (ahora + timedelta(days=DIAS_CICLO_FACTURACION)).date()
 
     get_client().insert(
         "FACT_TRANSACCION_PAGO",
-        [(transaccion_id, usuario_id, metodo_pago_id, suscripcion_id, monto, moneda, estado, concepto)],
-        column_names=["transaccion_id", "usuario_id", "metodo_pago_id", "suscripcion_id", "monto", "moneda", "estado", "concepto"],
+        [(
+            transaccion_id, usuario_id, metodo_pago_id, suscripcion_id, monto, moneda, estado, concepto,
+            periodo_inicio, periodo_fin,
+        )],
+        column_names=[
+            "transaccion_id", "usuario_id", "metodo_pago_id", "suscripcion_id", "monto", "moneda", "estado",
+            "concepto", "periodo_inicio", "periodo_fin",
+        ],
     )
 
     invoice_id = None
@@ -232,8 +287,8 @@ def procesar_pago(
         iva = round(monto * (iva_pct / 100), 2)
         get_client().insert(
             "FACT_INVOICE",
-            [(invoice_id, usuario_id, transaccion_id, monto, iva, "emitido")],
-            column_names=["invoice_id", "usuario_id", "transaccion_id", "monto", "iva", "estado"],
+            [(invoice_id, usuario_id, transaccion_id, monto, iva, "emitido", periodo_inicio, periodo_fin)],
+            column_names=["invoice_id", "usuario_id", "transaccion_id", "monto", "iva", "estado", "periodo_inicio", "periodo_fin"],
         )
         _registrar_notificacion_factura(usuario_id, invoice_id, monto, iva, moneda)
 
@@ -249,6 +304,8 @@ def procesar_pago(
             "moneda": moneda,
             "estado": estado,
             "invoice_id": invoice_id,
+            "periodo_inicio": str(periodo_inicio),
+            "periodo_fin": str(periodo_fin),
         },
     )
 
@@ -257,6 +314,8 @@ def procesar_pago(
         "transaccion_id": transaccion_id,
         "estado": estado,
         "invoice_id": invoice_id,
+        "periodo_inicio": str(periodo_inicio),
+        "periodo_fin": str(periodo_fin),
     }
 
 

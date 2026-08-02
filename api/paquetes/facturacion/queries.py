@@ -119,3 +119,23 @@ FROM FACT_EMAIL_ENVIADO
 WHERE usuario_id = {usuario_id:String}
 ORDER BY fecha_envio DESC
 """
+
+# ── Idempotencia de pago (S13-P5, AUDITORIA_S13.md §5) ────────────────
+# Último pago EXITOSO de concepto 'suscripcion' para esta suscripción cuyo
+# `periodo_fin` todavía cubre hoy — si existe, el período en curso ya está
+# pagado y un segundo cobro sería una factura duplicada. Se excluye
+# 'ajuste_prorrateo' a propósito (ver `procesar_pago`): un cambio de plan
+# legítimo puede cobrar/acreditar más de una vez dentro del mismo período.
+# `estado = 'exitosa'` también deja pasar los reintentos de un cobro
+# fallido (dunning, `procesar_cobro`) — solo un pago que sí se cobró bloquea.
+ULTIMA_TRANSACCION_SUSCRIPCION_VIGENTE = """
+SELECT t.transaccion_id AS transaccion_id, t.periodo_inicio AS periodo_inicio,
+       t.periodo_fin AS periodo_fin, i.invoice_id AS invoice_id
+FROM FACT_TRANSACCION_PAGO t
+LEFT JOIN FACT_INVOICE i ON i.transaccion_id = t.transaccion_id
+WHERE t.suscripcion_id = {suscripcion_id:String}
+  AND t.estado = 'exitosa' AND t.concepto = 'suscripcion'
+  AND t.periodo_fin >= today()
+ORDER BY t.fecha DESC
+LIMIT 1
+"""

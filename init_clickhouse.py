@@ -1351,6 +1351,20 @@ DDL_STATEMENTS = [
     # (Decisión 6). El DEFAULT deja las filas de P0 bien clasificadas sin
     # backfill. `proposito` no está en la ORDER KEY (token, created_at).
     f"ALTER TABLE {DB}.FACT_TOKEN_RECUPERACION ADD COLUMN IF NOT EXISTS proposito String DEFAULT 'recuperacion'",
+
+    # ── S13-P5 (refinamientos pre-video): idempotencia de pago de suscripción ──
+    # Bug confirmado en AUDITORIA_S13.md §5: `procesar_pago` no tenía
+    # forma de saber si el período en curso ya estaba cobrado — cada clic en
+    # "Pagar" generaba una transacción y una invoice nuevas, aunque la
+    # anterior ya cubriera el ciclo de 30 días vigente (verificado con datos
+    # reales: usuarios con hasta 8 invoices en un día). `periodo_fin` es la
+    # columna que `procesar_pago` consulta para decidir si ya hay un pago
+    # vigente; el DEFAULT (+30 días sobre la fecha ya existente) deja las
+    # filas históricas con un período aproximado sin necesitar backfill.
+    f"ALTER TABLE {DB}.FACT_TRANSACCION_PAGO ADD COLUMN IF NOT EXISTS periodo_inicio Date DEFAULT toDate(fecha)",
+    f"ALTER TABLE {DB}.FACT_TRANSACCION_PAGO ADD COLUMN IF NOT EXISTS periodo_fin Date DEFAULT toDate(fecha) + 30",
+    f"ALTER TABLE {DB}.FACT_INVOICE ADD COLUMN IF NOT EXISTS periodo_inicio Date DEFAULT toDate(fecha_emision)",
+    f"ALTER TABLE {DB}.FACT_INVOICE ADD COLUMN IF NOT EXISTS periodo_fin Date DEFAULT toDate(fecha_emision) + 30",
 ]
 
 # ── Runner ────────────────────────────────────────────────────────────────────
