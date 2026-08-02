@@ -608,3 +608,60 @@ Se agregó además `SETTINGS use_query_cache = 1, query_cache_ttl = 120, query_c
 - Sin cambios de contrato en ningún endpoint (mismos parámetros, misma forma de respuesta) — solo la query SQL interna y la concurrencia de `/search` cambiaron.
 
 Archivos tocados: `api/paquetes/catalogo/queries.py` (reestructuración de 4 queries + cache en 14), `api/paquetes/catalogo/router.py` (paralelización de `/search`).
+
+## S13-P8: Sidebar admin + performance ingesta + fix PDF (2 ago 2026)
+
+Modo autónomo total. El pedido traía su propia numeración ("S13-P7: Sidebar admin + performance ingesta"), pero P7 ya estaba tomado por la optimización de catálogo de la sección anterior (mismo día) — se continúa la numeración real como P8 en vez de crear un P7 duplicado.
+
+### 1 — Sidebar de administración: rediseño con iconos + collapse completo
+
+**Análisis previo** (`SeguridadShell.tsx`, contrastado con `router.tsx`): la premisa del pedido ("items sueltos sin agrupar", "¿REPORTES vacío?") no coincidía con el estado real — S12 ya había agrupado casi todo en 4 secciones colapsables (Comercial/Contenido/Datos y Partners/Reportes), y "Reportes" ya tenía contenido real (7 links + el submenú de 30 informes compuestos). Lo único suelto de verdad eran los 4 links "core" (Usuarios/Permisos/Auditoría/Errores), sin agrupar ni colapsar. Tampoco tenía iconos ni collapse del sidebar completo — ahí sí coincidía el diagnóstico del pedido.
+
+Inventario cruzado contra `router.tsx`: **30 rutas reales bajo `/seguridad/*`**, todas con link en el sidebar, ninguna huérfana. La propuesta orientativa del pedido omitía 2 rutas reales (`/seguridad/finanzas`, `/seguridad/simulacion`) — se agregaron igual (Finanzas y Simulación → grupo Comercial, por ser herramientas de negocio/dinero) en vez de dejarlas fuera como pedía la propuesta al pie de la letra.
+
+**Rediseño aplicado** (`SeguridadShell.tsx`/`.module.css`):
+- Los 4 links core pasan a ser una 5ª sección colapsable más ("Seguridad"), por consistencia con el resto — ya no hay ningún link fuera de un grupo.
+- Reagrupación en 6 secciones temáticas (Seguridad/Comercial/Contenido/Producto/Datos y Partners/Reportes) siguiendo la propuesta del pedido, con las 2 rutas agregadas.
+- Icono `lucide-react` por sección (chevron + ícono antes del label) y por cada uno de los 30 links.
+- Collapse del sidebar completo a riel de solo-iconos (64px), mismo patrón `--sidebar-w` + `transition: width` que `AppShell.module.css` (reutilizado, no reinventado) — persistido en `localStorage` con la misma clave que el sidebar B2C (`getSidebarCollapsed`/`setSidebarCollapsed`).
+- El submenú anidado "Informes Compuestos" (30 informes en 9 departamentos) se oculta en modo colapsado — 30 rutas hoja no caben como riel de iconos y no hay un índice único al que un solo ícono pudiera llevar; se navega ahí expandiendo el sidebar.
+- Limpieza de `.sectionLabel` en el CSS (dead code, ya sin uso desde antes de esta sesión).
+
+### 1d — Sidebar de Analítica
+
+`AnalyticaShell.tsx`/`.module.css`: mismo tratamiento — 16 items (9 base + 5 staff admin-only + 2 predictivo Enterprise/admin) migrados de JSX repetido a un array `NavItem[]` con ícono `lucide-react` por item (mismo patrón `renderNavItem` que `AppShell`), más el collapse completo del sidebar. Confirmado que no quedan links a `ComingSoonPage` visibles (el array `COMING_SOON` de S13-P5 ya solo se usaba para el bypass de gating, nunca se renderizaba — verificado en el código antes de tocar nada). Limpieza de `.navDimmed`/`.comingSoonTag` en el CSS (dead code de cuando sí se renderizaban esos 2 stubs).
+
+### 2 — Error de exportación de PDF en ingesta
+
+Reproducido con Playwright contra un admin de prueba (`perftest.admin@tracklytics.local`, creado con `pb_client.crear_usuario`, sin tocar `.env`): clic en "Exportar PDF" en `/seguridad/ingesta` mostraba el toast "No se pudo generar el PDF" sin más detalle (el `catch` original no logueaba el error real). Se agregó un `console.error` temporal y se corrió la página contra `vite dev` (HMR instantáneo, evita rebuild de Docker por iteración) para capturar el error real:
+
+```
+Attempting to parse an unsupported color function "oklch"
+  at parseBackgroundColor (html2canvas.js)
+```
+
+**Causa raíz real — no es un bug de `EtlPage`, es un bug de librería que afecta a cualquier página con gráficos**: `html2canvas` 1.4.1 (el motor de captura detrás de `ExportPDFButton`) no reconoce la sintaxis CSS Color 4 `oklch(...)`, que es la que usa toda la paleta del proyecto — tanto las custom properties de `index.css` (parcialmente cubiertas por el override a claro de `aplicarTemaClaro`) como los `fill`/`stroke` literales de Recharts en `shared/components/charts/colors.ts` (`CHART_COLORS`/`STATUS_COLORS`), que a propósito NO usan `var()` (comentario ya existente en ese archivo: los atributos SVG de Recharts no siempre resuelven custom properties). `EtlPage` fue donde se detectó porque tiene 4 gráficos con esos colores, pero el mismo error rompería cualquier informe con Recharts o con un badge de estado.
+
+**Fix**: reemplazo de `html2canvas` por `html2canvas-pro` (fork mantenido, mismo API, soporte para `oklch`/`lab`/`lch`/`color()`) en `ExportPDFButton.tsx` — un solo cambio de import, sin tocar el resto de la lógica de captura/paginación. `npm uninstall html2canvas && npm install html2canvas-pro`.
+
+Verificado: exportación de PDF en `/seguridad/ingesta` genera `ingesta-etl-<fecha>.pdf` sin error, confirmado con Playwright (evento `download` real) tanto contra `vite dev` como contra el build de producción reconstruido.
+
+### 3 — Performance de la página de ingesta
+
+**Diagnóstico real (no el reportado)**: medido con curl + Playwright contra el stack real (13 semanas de datos, 1.3M filas insertadas), ningún endpoint individual de `/ingesta/*` tomó más de ~1s, ni siquiera en frío — nada remotamente cerca de los "~2 minutos" del pedido. La cifra probablemente confunde la carga de la página con la duración real de una ejecución del pipeline (el propio historial muestra corridas de 1-6 minutos, ej. "5m 49s" — eso sí es esperable para extraer+transformar+cargar ~100k filas reales por semana, y está fuera del alcance de "la página tarda en cargar").
+
+Aun así, se encontraron y corrigieron 2 ineficiencias reales:
+
+- **Waterfall evitable en el frontend** (`EtlPage.tsx`): `etlMuestra`/`etlDistribucion` esperaban a que `cargas` resolviera para poder fijar `selectedWeek` desde `weekOptions[0]`, aunque el backend YA sabe resolver "la semana más reciente" solo (`_resolve_week_number`, sin `week_number` explícito). Se quitó el `useEffect` que forzaba esa espera: ahora las 3 queries se disparan en paralelo desde el primer render: `selectedWeek === null` = "que el backend resuelva la más reciente", y solo se refetchea con un número explícito cuando el admin cambia el selector a mano.
+- **N+1 secuencial en el backend** (`gestion_datos/router.py`): `historial_cargas` (3 queries) y `etl_distribucion` (1 + 3 queries, una por atributo energy/valence/danceability) mandaban sus consultas a ClickHouse una detrás de otra. Se paralelizaron con `asyncio.gather`/`asyncio.to_thread`, mismo patrón que `/search` en `catalogo/router.py` (S13-P7).
+
+**Medido con Playwright contra el build de producción** (Performance API, no solo curl aislado): antes, `etl/muestra`/`etl/distribucion` arrancaban ~1s después que `cargas` (esperando su resolución); después, las 3 arrancan al mismo tiempo (~136-210ms). Tiempo total de carga de la página (los 3 requests + render): **~1.5-2.7s**, bien por debajo del objetivo de 5s pedido — aunque, como se documentó arriba, la cifra de partida real ya estaba en ese rango, no en 2 minutos.
+
+### Verificación final
+
+- `npx tsc --noEmit`: 0 errores nuevos (el único error reportado sigue siendo el preexistente de `EngagementPage.tsx`, no tocado).
+- `npm run build`: sin errores.
+- `docker compose up -d --build frontend-react`: reconstruido con todos los cambios de esta fase.
+- Playwright contra `localhost:8082` (producción): `AppShell` (B2C) sin regresión (10 links, 11 iconos, igual que antes); `SeguridadShell` con 30 links + 30 informes anidados, 30 iconos, 6 secciones colapsables confirmadas (incluye el submenú "Informes Compuestos" con sus 9 departamentos); collapse a 64px confirmado por medición real del DOM; `AnalyticaShell` con 16 links/16 iconos; exportación de PDF genera el archivo real; 0 errores de página en toda la corrida.
+
+Archivos tocados: `frontend/src/app/layout/SeguridadShell.tsx`/`.module.css`, `frontend/src/app/layout/AnalyticaShell.tsx`/`.module.css`, `frontend/src/shared/components/ExportPDFButton.tsx`, `frontend/package.json` (swap de dependencia), `frontend/src/packages/ingesta/pages/EtlPage.tsx`, `api/paquetes/gestion_datos/router.py`.

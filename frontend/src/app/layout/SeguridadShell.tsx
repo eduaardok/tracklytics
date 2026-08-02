@@ -1,11 +1,19 @@
 import { Suspense, useState } from 'react'
 import { Outlet, NavLink, useLocation } from 'react-router-dom'
+import {
+  Users, KeyRound, FileSearch, AlertTriangle, Radio, Flag,
+  TrendingUp, Receipt, Building2, CreditCard, Coins, Megaphone, Wallet, FlaskConical,
+  Music, Mic2, Globe, Disc3, MessagesSquare,
+  Sparkles, LifeBuoy, Users2, GitBranch, Bell, Activity,
+  Database, Handshake, UserCog, BarChart3, Table2, CheckCircle2,
+  FileBarChart, PanelLeftClose, PanelLeftOpen, type LucideIcon,
+} from 'lucide-react'
 // Import directo, no vía el barrel `@packages/seguridad` (arrastraría los
 // dashboards con Recharts de ese paquete al bundle principal — ver router.tsx).
 import { UserMenu } from '@packages/seguridad/components/UserMenu'
 import { RouteLoadingFallback } from '@shared/components/RouteLoadingFallback'
 import { ZoneSwitcher } from '@shared/components/ZoneSwitcher'
-import { getAdminSectionsOpen, setAdminSectionOpen } from '@shared/lib/ui-prefs'
+import { getAdminSectionsOpen, setAdminSectionOpen, getSidebarCollapsed, setSidebarCollapsed } from '@shared/lib/ui-prefs'
 // SOLO metadata de navegación (sin `render`/plantillas/Recharts) — importar
 // `@packages/reportes/config` (el registro completo) desde acá arrastraría
 // Recharts al bundle principal, porque `SeguridadShell` se importa eager en
@@ -16,67 +24,97 @@ import styles from './SeguridadShell.module.css'
 const ACTIVE_CLS   = `${styles.navItem} ${styles.navActive}`
 const INACTIVE_CLS = styles.navItem
 
+type Link = { to: string; label: string; icon: LucideIcon; end?: boolean }
+
 type Seccion = {
   label: string
+  icon: LucideIcon
   paths: string[]
-  links: Array<{ to: string; label: string; end?: boolean }>
+  links: Link[]
 }
 
-// Secciones colapsables (S12): la sección "Seguridad" (Usuarios/Permisos/
-// Auditoría/Errores) queda fuera de este arreglo — es la sección principal,
-// siempre visible, sin label ni toggle (ver SeguridadShell original).
+// Secciones colapsables (S13-P8: rediseño con iconos + collapse completo,
+// igualando las capacidades de AppShell — ver BITACORA_S13.md). Reagrupa las
+// 30 rutas reales de `/seguridad/*` (inventario verificado contra router.tsx,
+// ninguna quedó huérfana) en 6 grupos temáticos — incluye `Finanzas` y
+// `Simulación`, que no estaban en la propuesta orientativa del pedido pero sí
+// existen como rutas reales. "Seguridad" pasa a ser una sección colapsable
+// más (antes eran 4 links sueltos sin agrupar, S12) por consistencia con el
+// resto — mismo criterio "ninguna ruta fuera de un grupo" pedido en S13-P8.
 const SECCIONES: Seccion[] = [
   {
-    label: 'Comercial',
-    paths: ['/seguridad/facturacion', '/seguridad/suscripciones', '/seguridad/regalias', '/seguridad/publicidad', '/seguridad/finanzas'],
+    label: 'Seguridad',
+    icon: Users,
+    paths: ['/seguridad/usuarios', '/seguridad/permisos', '/seguridad/auditoria', '/seguridad/errores', '/seguridad/sesiones-activas', '/seguridad/reporte-strikes'],
     links: [
-      { to: '/seguridad/facturacion', label: 'Facturación', end: true },
-      { to: '/seguridad/facturacion/empresa', label: 'Info. empresa' },
-      { to: '/seguridad/suscripciones', label: 'Suscripciones' },
-      { to: '/seguridad/regalias', label: 'Regalías' },
-      { to: '/seguridad/publicidad', label: 'Publicidad' },
-      { to: '/seguridad/finanzas', label: 'Finanzas' },
+      { to: '/seguridad/usuarios', label: 'Usuarios', icon: Users },
+      { to: '/seguridad/permisos', label: 'Permisos', icon: KeyRound },
+      { to: '/seguridad/auditoria', label: 'Auditoría', icon: FileSearch },
+      { to: '/seguridad/errores', label: 'Errores', icon: AlertTriangle },
+      { to: '/seguridad/sesiones-activas', label: 'Sesiones activas', icon: Radio },
+      { to: '/seguridad/reporte-strikes', label: 'Strikes', icon: Flag },
+    ],
+  },
+  {
+    label: 'Comercial',
+    icon: TrendingUp,
+    paths: ['/seguridad/facturacion', '/seguridad/suscripciones', '/seguridad/regalias', '/seguridad/publicidad', '/seguridad/finanzas', '/seguridad/simulacion'],
+    links: [
+      { to: '/seguridad/facturacion', label: 'Facturación', icon: Receipt, end: true },
+      { to: '/seguridad/facturacion/empresa', label: 'Info. empresa', icon: Building2 },
+      { to: '/seguridad/suscripciones', label: 'Suscripciones', icon: CreditCard },
+      { to: '/seguridad/regalias', label: 'Regalías', icon: Coins },
+      { to: '/seguridad/publicidad', label: 'Publicidad', icon: Megaphone },
+      { to: '/seguridad/finanzas', label: 'Finanzas', icon: Wallet },
+      { to: '/seguridad/simulacion', label: 'Simulación', icon: FlaskConical },
     ],
   },
   {
     label: 'Contenido',
-    paths: ['/seguridad/creadores', '/seguridad/social', '/seguridad/distribucion', '/seguridad/catalogo', '/seguridad/soporte', '/seguridad/familia'],
+    icon: Music,
+    paths: ['/seguridad/creadores', '/seguridad/distribucion', '/seguridad/catalogo', '/seguridad/social'],
     links: [
-      { to: '/seguridad/creadores', label: 'Creadores' },
-      { to: '/seguridad/social', label: 'Social' },
-      { to: '/seguridad/distribucion', label: 'Distribución' },
-      { to: '/seguridad/catalogo', label: 'Catálogo · Takedown' },
-      { to: '/seguridad/soporte', label: 'Soporte' },
-      { to: '/seguridad/familia', label: 'Plan familiar' },
+      { to: '/seguridad/creadores', label: 'Creadores', icon: Mic2 },
+      { to: '/seguridad/distribucion', label: 'Distribución', icon: Globe },
+      { to: '/seguridad/catalogo', label: 'Catálogo · Takedown', icon: Disc3 },
+      { to: '/seguridad/social', label: 'Moderación social', icon: MessagesSquare },
+    ],
+  },
+  {
+    label: 'Producto',
+    icon: Sparkles,
+    paths: ['/seguridad/soporte', '/seguridad/familia', '/seguridad/reporte-ab-tests', '/seguridad/reporte-notificaciones', '/seguridad/disponibilidad'],
+    links: [
+      { to: '/seguridad/soporte', label: 'Tickets soporte', icon: LifeBuoy },
+      { to: '/seguridad/familia', label: 'Plan familiar', icon: Users2 },
+      { to: '/seguridad/reporte-ab-tests', label: 'Pruebas A/B', icon: GitBranch },
+      { to: '/seguridad/reporte-notificaciones', label: 'Notificaciones', icon: Bell },
+      // Reusa `DisponibilidadInfraPage` (CU-O55, `/analitica/disponibilidad`)
+      // — mismo componente y endpoint, sin tier gate propio, solo un
+      // segundo punto de entrada para el panel de reportes admin.
+      { to: '/seguridad/disponibilidad', label: 'Disponibilidad', icon: Activity },
     ],
   },
   {
     label: 'Datos y Partners',
-    paths: ['/seguridad/partners', '/seguridad/ingesta', '/seguridad/simulacion'],
+    icon: Database,
+    paths: ['/seguridad/partners', '/seguridad/ingesta'],
     links: [
-      { to: '/seguridad/partners', label: 'Partners', end: true },
-      { to: '/seguridad/partners/gestion', label: 'Gestión de partners' },
-      { to: '/seguridad/partners/metricas', label: 'Métricas de partners' },
-      { to: '/seguridad/ingesta', label: 'Ingesta ETL', end: true },
-      { to: '/seguridad/ingesta/dimensiones', label: 'Dimensiones' },
-      { to: '/seguridad/ingesta/calidad', label: 'Calidad de datos' },
-      { to: '/seguridad/simulacion', label: 'Simulación' },
+      { to: '/seguridad/partners', label: 'Partners', icon: Handshake, end: true },
+      { to: '/seguridad/partners/gestion', label: 'Gestión de partners', icon: UserCog },
+      { to: '/seguridad/partners/metricas', label: 'Métricas de partners', icon: BarChart3 },
+      { to: '/seguridad/ingesta', label: 'Ingesta ETL', icon: Database, end: true },
+      { to: '/seguridad/ingesta/dimensiones', label: 'Dimensiones', icon: Table2 },
+      { to: '/seguridad/ingesta/calidad', label: 'Calidad de datos', icon: CheckCircle2 },
     ],
   },
   {
     label: 'Reportes',
-    paths: ['/seguridad/reporte-usuarios', '/seguridad/reporte-strikes', '/seguridad/reporte-ab-tests', '/seguridad/reporte-notificaciones', '/seguridad/reporte-familias', '/seguridad/sesiones-activas', '/seguridad/disponibilidad'],
+    icon: FileBarChart,
+    paths: ['/seguridad/reporte-usuarios', '/seguridad/reporte-familias'],
     links: [
-      { to: '/seguridad/reporte-usuarios', label: 'Usuarios' },
-      { to: '/seguridad/reporte-strikes', label: 'Strikes' },
-      { to: '/seguridad/reporte-ab-tests', label: 'Pruebas A/B' },
-      { to: '/seguridad/reporte-notificaciones', label: 'Notificaciones' },
-      { to: '/seguridad/reporte-familias', label: 'Familias' },
-      { to: '/seguridad/sesiones-activas', label: 'Sesiones activas' },
-      // Reusa `DisponibilidadInfraPage` (CU-O55, `/analitica/disponibilidad`)
-      // — mismo componente y endpoint, sin tier gate propio, solo un
-      // segundo punto de entrada para el panel de reportes admin.
-      { to: '/seguridad/disponibilidad', label: 'Disponibilidad' },
+      { to: '/seguridad/reporte-usuarios', label: 'Usuarios', icon: Users },
+      { to: '/seguridad/reporte-familias', label: 'Familias', icon: Users2 },
     ],
   },
 ]
@@ -93,42 +131,54 @@ function useToggle(clave: string, defaultOpen: boolean) {
   return { open, toggle }
 }
 
-function SidebarSection({ seccion, defaultOpen, extra }: { seccion: Seccion; defaultOpen: boolean; extra?: React.ReactNode }) {
-  // Recuerda si el admin abrió/cerró esta sección a mano (S13 polish
-  // visual) — antes se olvidaba al navegar a otra ruta, solo se
-  // auto-abría si contenía la ruta activa (`defaultOpen`).
+// `collapsed` (sidebar entero reducido a solo iconos, S13-P8) hace bypass del
+// plegado por sección: no hay espacio para chevron+label de sección en 64px,
+// así que en ese modo se listan los links de TODAS las secciones directo,
+// como un único riel de iconos (mismo criterio que AppShell, que no tiene
+// niveles de sección) — el estado abierto/cerrado de cada sección se conserva
+// en localStorage y vuelve a aplicarse tal cual al expandir de nuevo.
+function SidebarSection({ seccion, defaultOpen, extra, collapsed }: { seccion: Seccion; defaultOpen: boolean; extra?: React.ReactNode; collapsed: boolean }) {
   const { open, toggle } = useToggle(seccion.label, defaultOpen)
+  const Icon = seccion.icon
+  const mostrarLinks = collapsed || open
 
   return (
     <div>
-      <div
-        className={styles.sectionHeader}
-        onClick={toggle}
-        role="button"
-        tabIndex={0}
-        aria-expanded={open}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault()
-            toggle()
-          }
-        }}
-      >
-        <span>{seccion.label}</span>
-        <span className={`${styles.chevron} ${open ? styles.chevronOpen : ''}`} aria-hidden="true">▸</span>
-      </div>
-      <div className={`${styles.sectionLinks} ${open ? styles.sectionLinksOpen : ''} ${extra ? styles.informesComposuestosLinks : ''}`}>
+      {!collapsed && (
+        <div
+          className={styles.sectionHeader}
+          onClick={toggle}
+          role="button"
+          tabIndex={0}
+          aria-expanded={open}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault()
+              toggle()
+            }
+          }}
+        >
+          <span className={styles.sectionHeaderLabel}>
+            <Icon size={14} className={styles.sectionIcon} aria-hidden="true" />
+            <span>{seccion.label}</span>
+          </span>
+          <span className={`${styles.chevron} ${open ? styles.chevronOpen : ''}`} aria-hidden="true">▸</span>
+        </div>
+      )}
+      <div className={`${styles.sectionLinks} ${mostrarLinks ? styles.sectionLinksOpen : ''} ${extra && !collapsed ? styles.informesComposuestosLinks : ''}`}>
         {seccion.links.map((link) => (
           <NavLink
             key={link.to}
             to={link.to}
             end={link.end}
+            title={collapsed ? link.label : undefined}
             className={({ isActive }) => isActive ? ACTIVE_CLS : INACTIVE_CLS}
           >
-            {link.label}
+            <link.icon size={16} className={styles.navIcon} aria-hidden="true" />
+            <span className={styles.navText}>{link.label}</span>
           </NavLink>
         ))}
-        {extra}
+        {!collapsed && extra}
       </div>
     </div>
   )
@@ -136,9 +186,9 @@ function SidebarSection({ seccion, defaultOpen, extra }: { seccion: Seccion; def
 
 // Submenú anidado "Informes Compuestos" (S13-P3b) — 9 departamentos, cada
 // uno colapsable por separado, dentro de la sección "Reportes" ya existente.
-// Un nivel más de anidación que `SidebarSection` (que ya cubre el primer
-// nivel de colapso): mismo patrón, mismo helper `useToggle`/`setAdminSectionOpen`
-// con una clave compuesta para no chocar con las claves de nivel superior.
+// No se renderiza en modo `collapsed` (S13-P8): 30 rutas hoja no caben como
+// riel de iconos, y no hay un índice único al que un solo ícono pudiera
+// llevar — se navega a esta sección expandiendo el sidebar completo.
 function InformesCompuestosMenu() {
   const location = useLocation()
   const { open, toggle } = useToggle(
@@ -205,6 +255,16 @@ function DepartamentoSubSection({ slug, label, informes }: { slug: string; label
 
 export function SeguridadShell() {
   const location = useLocation()
+  const [collapsed, setCollapsed] = useState(getSidebarCollapsed)
+
+  function toggleCollapsed() {
+    setCollapsed((prev) => {
+      const next = !prev
+      setSidebarCollapsed(next)
+      return next
+    })
+  }
+
   return (
     <div className={styles.shell}>
       <header className={styles.brandBar}>
@@ -218,35 +278,33 @@ export function SeguridadShell() {
       </header>
 
       <div className={styles.body}>
-        <nav className={styles.sidebar} aria-label="Navegación de seguridad">
-          {/* Sección por defecto (S12): sin label ni toggle — es lo primero que ve un
-              admin al entrar al panel, no necesita anunciarse como grupo colapsable. */}
-          <NavLink to="/seguridad/usuarios" className={({ isActive }) => isActive ? ACTIVE_CLS : INACTIVE_CLS}>
-            Usuarios
-          </NavLink>
-          <NavLink to="/seguridad/permisos" className={({ isActive }) => isActive ? ACTIVE_CLS : INACTIVE_CLS}>
-            Permisos
-          </NavLink>
-          <NavLink to="/seguridad/auditoria" className={({ isActive }) => isActive ? ACTIVE_CLS : INACTIVE_CLS}>
-            Auditoría
-          </NavLink>
-          <NavLink to="/seguridad/errores" className={({ isActive }) => isActive ? ACTIVE_CLS : INACTIVE_CLS}>
-            Errores
-          </NavLink>
+        <nav className={[styles.sidebar, collapsed ? styles.sidebarCollapsed : ''].join(' ').trim()} aria-label="Navegación de seguridad">
+          <div className={styles.navGroups}>
+            {SECCIONES.map((seccion) => (
+              <SidebarSection
+                key={seccion.label}
+                seccion={seccion}
+                collapsed={collapsed}
+                defaultOpen={
+                  seccion.paths.some((p) => location.pathname.startsWith(p))
+                  || (seccion.label === 'Reportes' && location.pathname.startsWith('/reportes'))
+                }
+                extra={seccion.label === 'Reportes' ? <InformesCompuestosMenu /> : undefined}
+              />
+            ))}
+          </div>
 
-          {/* Resto de secciones (S12): colapsables, abiertas por defecto solo
-              si contienen la ruta activa — ver SidebarSection arriba. */}
-          {SECCIONES.map((seccion) => (
-            <SidebarSection
-              key={seccion.label}
-              seccion={seccion}
-              defaultOpen={
-                seccion.paths.some((p) => location.pathname.startsWith(p))
-                || (seccion.label === 'Reportes' && location.pathname.startsWith('/reportes'))
-              }
-              extra={seccion.label === 'Reportes' ? <InformesCompuestosMenu /> : undefined}
-            />
-          ))}
+          <button
+            type="button"
+            className={styles.collapseBtn}
+            onClick={toggleCollapsed}
+            title={collapsed ? 'Expandir navegación' : 'Colapsar navegación'}
+            aria-label={collapsed ? 'Expandir navegación' : 'Colapsar navegación'}
+            aria-pressed={collapsed}
+          >
+            {collapsed ? <PanelLeftOpen size={18} aria-hidden="true" /> : <PanelLeftClose size={18} aria-hidden="true" />}
+            <span className={styles.navText}>Colapsar</span>
+          </button>
         </nav>
 
         <main className={styles.main}>

@@ -112,8 +112,20 @@ async function exportarComoPdf(el: HTMLElement, fileName: string, title: string 
   // su tamaño (542 kB → 1,14 MB, verificado con `npm run build`). Se bajan
   // recién al primer clic, mismo criterio que el resto del proyecto usa para
   // Recharts (ver comentarios de `lazyNamed` en `router.tsx`).
+  //
+  // `html2canvas-pro` (no `html2canvas`) — S13-P8: el `html2canvas` original
+  // no reconoce la sintaxis CSS Color 4 (`oklch(...)`), que es la que usa
+  // TODA la paleta del proyecto (custom properties de index.css, y los
+  // fill/stroke literales de Recharts en `charts/colors.ts`, que además
+  // están literales a propósito, no vía `var()` — ver comentario ahí). El
+  // error real: "Attempting to parse an unsupported color function 'oklch'"
+  // en `parseBackgroundColor`, reproducido en la página de ingesta (charts +
+  // badges), pero afecta a CUALQUIER página con un gráfico Recharts o un
+  // badge de estado, no solo a esta. `html2canvas-pro` es un fork mantenido
+  // con soporte para oklch/lab/lch/color(), mismo API — drop-in replacement,
+  // sin tocar el resto de este archivo.
   const [{ default: html2canvas }, { jsPDF }] = await Promise.all([
-    import('html2canvas'),
+    import('html2canvas-pro'),
     import('jspdf'),
   ])
 
@@ -185,7 +197,8 @@ export function ExportPDFButton({ targetRef, fileName, title }: Props) {
     setLoading(true)
     try {
       await exportarComoPdf(el, fileName, title)
-    } catch {
+    } catch (err) {
+      console.error('DIAG export pdf error:', err)
       toast.error('No se pudo generar el PDF. Intenta de nuevo.')
     } finally {
       setLoading(false)

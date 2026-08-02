@@ -1,5 +1,10 @@
-import { Suspense } from 'react'
+import { Suspense, useState } from 'react'
 import { Outlet, NavLink, useLocation } from 'react-router-dom'
+import {
+  LayoutDashboard, Activity, Music, GitCompare, Target, TrendingUp, ListMusic,
+  UserPlus, ServerCog, CalendarDays, UserMinus, Filter, Scale, CircleDollarSign,
+  LineChart, AreaChart, PanelLeftClose, PanelLeftOpen, type LucideIcon,
+} from 'lucide-react'
 import { RequireSuscripcionActiva } from '@packages/analitica'
 // Import directo, no vía el barrel `@packages/seguridad` (arrastraría los
 // dashboards con Recharts de ese paquete al chunk de AnalyticaShell).
@@ -13,10 +18,13 @@ import { usePlanActivo } from '@packages/suscripciones'
 import { getRole } from '@shared/lib/session'
 import { RouteLoadingFallback } from '@shared/components/RouteLoadingFallback'
 import { ZoneSwitcher } from '@shared/components/ZoneSwitcher'
+import { getSidebarCollapsed, setSidebarCollapsed } from '@shared/lib/ui-prefs'
 import styles from './AnalyticaShell.module.css'
 
 const ACTIVE_CLS    = `${styles.navItem} ${styles.navActive}`
 const INACTIVE_CLS  = styles.navItem
+
+type NavItem = { to: string; label: string; icon: LucideIcon; end?: boolean }
 
 // completar-modelo-base: "Adquisición" y "Disponibilidad" salieron de esta
 // lista — ya no son placeholders (FACT_ADQUISICION/FACT_DISPONIBILIDAD
@@ -37,19 +45,75 @@ const COMING_SOON = [
 
 const COMING_SOON_PATHS: string[] = COMING_SOON.map(({ to }) => to)
 
+// Nav base, visible para cualquier cliente con acceso al panel de analítica
+// (S13-P8: rediseño con iconos + collapse completo, igualando a AppShell).
+const NAV_BASE: NavItem[] = [
+  { to: '/analitica',                  label: 'Dashboard',      icon: LayoutDashboard, end: true },
+  { to: '/analitica/engagement',       label: 'Engagement',     icon: Activity },
+  { to: '/analitica/generos',          label: 'Géneros',        icon: Music },
+  { to: '/analitica/comparacion',      label: 'Comparación',    icon: GitCompare },
+  { to: '/analitica/benchmark',        label: 'Benchmark',      icon: Target },
+  { to: '/analitica/tendencias',       label: 'Tendencias',     icon: TrendingUp },
+  { to: '/analitica/playlists-top',    label: 'Playlists',      icon: ListMusic },
+  { to: '/analitica/adquisicion',      label: 'Adquisición',    icon: UserPlus },
+  { to: '/analitica/disponibilidad',   label: 'Disponibilidad', icon: ServerCog },
+]
+
+// Backend exige `require_staff` (role=admin) en /reporte-diario, /churn,
+// /funnel-conversion, /pnl y /mrr-arr — se ocultan para el resto en vez de
+// mostrar un link que siempre rebota, mismo criterio que el chequeo de rol
+// del legacy.
+const NAV_STAFF: NavItem[] = [
+  { to: '/analitica/reporte-diario',     label: 'Reporte diario',        icon: CalendarDays },
+  { to: '/analitica/suscripciones',      label: 'Churn de suscripciones', icon: UserMinus },
+  { to: '/analitica/funnel-conversion',  label: 'Funnel de conversión',   icon: Filter },
+  { to: '/analitica/pnl',                label: 'P&L consolidado',        icon: Scale },
+  { to: '/analitica/mrr-arr',            label: 'MRR / ARR',              icon: CircleDollarSign },
+]
+
+// Sección "Predictivo" (b2b-tier-access-analitica): visible solo para tier
+// Enterprise o admin — se oculta para el resto en vez de mostrar un link que
+// siempre rebota con el estado "disponible desde plan Enterprise".
+const NAV_PREDICTIVO: NavItem[] = [
+  { to: '/analitica/proyeccion-genero',  label: 'Proyección de género',  icon: LineChart },
+  { to: '/analitica/proyeccion-artista', label: 'Proyección de artista', icon: AreaChart },
+]
+
 export function AnalyticaShell() {
   const location = useLocation()
   const { tipoPlan } = usePlanActivo()
+  const [collapsed, setCollapsed] = useState(getSidebarCollapsed)
   // Los stubs "pronto" (incluido /analitica/suscripciones, destino del
   // redirect) no llaman a ningún endpoint gateado por `require_b2b_panel_access`
   // — nada que proteger ahí, y gatearlos causaría un loop de redirect contra
   // su propio destino.
   const sinGating = COMING_SOON_PATHS.includes(location.pathname)
-  // Sección "Predictivo" (b2b-tier-access-analitica): visible solo para tier
-  // Enterprise o admin (mismo criterio que la sección staff de abajo) — se
-  // oculta para el resto en vez de mostrar un link que siempre rebota con
-  // el estado "disponible desde plan Enterprise".
   const esEnterprise = tipoPlan === 'enterprise' || getRole() === 'admin'
+  const esAdmin = getRole() === 'admin'
+
+  function toggleCollapsed() {
+    setCollapsed((prev) => {
+      const next = !prev
+      setSidebarCollapsed(next)
+      return next
+    })
+  }
+
+  function renderNavItem(item: NavItem) {
+    const Icon = item.icon
+    return (
+      <NavLink
+        key={item.to}
+        to={item.to}
+        end={item.end}
+        title={collapsed ? item.label : undefined}
+        className={({ isActive }) => isActive ? ACTIVE_CLS : INACTIVE_CLS}
+      >
+        <Icon size={16} className={styles.navIcon} aria-hidden="true" />
+        <span className={styles.navText}>{item.label}</span>
+      </NavLink>
+    )
+  }
 
   return (
     <div className={styles.shell}>
@@ -64,118 +128,36 @@ export function AnalyticaShell() {
       </header>
 
       <div className={styles.body}>
-        <nav className={styles.sidebar} aria-label="Navegación analítica">
-          <NavLink
-            to="/analitica"
-            end
-            className={({ isActive }) => isActive ? ACTIVE_CLS : INACTIVE_CLS}
-          >
-            Dashboard
-          </NavLink>
-          <NavLink
-            to="/analitica/engagement"
-            className={({ isActive }) => isActive ? ACTIVE_CLS : INACTIVE_CLS}
-          >
-            Engagement
-          </NavLink>
-          <NavLink
-            to="/analitica/generos"
-            className={({ isActive }) => isActive ? ACTIVE_CLS : INACTIVE_CLS}
-          >
-            Géneros
-          </NavLink>
-          <NavLink
-            to="/analitica/comparacion"
-            className={({ isActive }) => isActive ? ACTIVE_CLS : INACTIVE_CLS}
-          >
-            Comparación
-          </NavLink>
-          <NavLink
-            to="/analitica/benchmark"
-            className={({ isActive }) => isActive ? ACTIVE_CLS : INACTIVE_CLS}
-          >
-            Benchmark
-          </NavLink>
-          <NavLink
-            to="/analitica/tendencias"
-            className={({ isActive }) => isActive ? ACTIVE_CLS : INACTIVE_CLS}
-          >
-            Tendencias
-          </NavLink>
-          <NavLink
-            to="/analitica/playlists-top"
-            className={({ isActive }) => isActive ? ACTIVE_CLS : INACTIVE_CLS}
-          >
-            Playlists
-          </NavLink>
-          <NavLink
-            to="/analitica/adquisicion"
-            className={({ isActive }) => isActive ? ACTIVE_CLS : INACTIVE_CLS}
-          >
-            Adquisición
-          </NavLink>
-          <NavLink
-            to="/analitica/disponibilidad"
-            className={({ isActive }) => isActive ? ACTIVE_CLS : INACTIVE_CLS}
-          >
-            Disponibilidad
-          </NavLink>
-          {/* Backend exige `require_staff` (role=admin) en /reporte-diario,
-              /churn, /funnel-conversion, /pnl y /mrr-arr — se ocultan para el
-              resto en vez de mostrar un link que siempre rebota, mismo
-              criterio que el chequeo de rol del legacy. */}
-          {getRole() === 'admin' && (
-            <>
-              <NavLink
-                to="/analitica/reporte-diario"
-                className={({ isActive }) => isActive ? ACTIVE_CLS : INACTIVE_CLS}
-              >
-                Reporte diario
-              </NavLink>
-              <NavLink
-                to="/analitica/suscripciones"
-                className={({ isActive }) => isActive ? ACTIVE_CLS : INACTIVE_CLS}
-              >
-                Churn de suscripciones
-              </NavLink>
-              <NavLink
-                to="/analitica/funnel-conversion"
-                className={({ isActive }) => isActive ? ACTIVE_CLS : INACTIVE_CLS}
-              >
-                Funnel de conversión
-              </NavLink>
-              <NavLink
-                to="/analitica/pnl"
-                className={({ isActive }) => isActive ? ACTIVE_CLS : INACTIVE_CLS}
-              >
-                P&amp;L consolidado
-              </NavLink>
-              <NavLink
-                to="/analitica/mrr-arr"
-                className={({ isActive }) => isActive ? ACTIVE_CLS : INACTIVE_CLS}
-              >
-                MRR / ARR
-              </NavLink>
-            </>
-          )}
+        <nav className={[styles.sidebar, collapsed ? styles.sidebarCollapsed : ''].join(' ').trim()} aria-label="Navegación analítica">
+          <div className={styles.navGroups}>
+            {NAV_BASE.map(renderNavItem)}
 
-          {esEnterprise && (
-            <>
-              <NavLink
-                to="/analitica/proyeccion-genero"
-                className={({ isActive }) => isActive ? ACTIVE_CLS : INACTIVE_CLS}
-              >
-                Proyección de género
-              </NavLink>
-              <NavLink
-                to="/analitica/proyeccion-artista"
-                className={({ isActive }) => isActive ? ACTIVE_CLS : INACTIVE_CLS}
-              >
-                Proyección de artista
-              </NavLink>
-            </>
-          )}
+            {esAdmin && (
+              <>
+                <div className={styles.divider} role="separator" />
+                {NAV_STAFF.map(renderNavItem)}
+              </>
+            )}
 
+            {esEnterprise && (
+              <>
+                <div className={styles.divider} role="separator" />
+                {NAV_PREDICTIVO.map(renderNavItem)}
+              </>
+            )}
+          </div>
+
+          <button
+            type="button"
+            className={styles.collapseBtn}
+            onClick={toggleCollapsed}
+            title={collapsed ? 'Expandir navegación' : 'Colapsar navegación'}
+            aria-label={collapsed ? 'Expandir navegación' : 'Colapsar navegación'}
+            aria-pressed={collapsed}
+          >
+            {collapsed ? <PanelLeftOpen size={18} aria-hidden="true" /> : <PanelLeftClose size={18} aria-hidden="true" />}
+            <span className={styles.navText}>Colapsar</span>
+          </button>
         </nav>
 
         <main className={styles.main}>

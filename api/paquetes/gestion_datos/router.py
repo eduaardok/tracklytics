@@ -526,19 +526,26 @@ async def estado_recalificacion(ejecucion_id: str):
 
 
 @v1_router.get("/cargas")
-def historial_cargas(
+async def historial_cargas(
     page:  int = Query(1,  ge=1),
     limit: int = Query(20, ge=1, le=200),
 ):
     """RF-ING-005/RF-ING-006/RN-ING-002: historial de cargas con tasa de
     rechazo, señal de "requiere revisión" (>1%) e indicador de última carga."""
     offset = (page - 1) * limit
-    rows   = query_rows(CARGAS_HISTORIAL, {"limit": limit, "offset": offset})
+    # PERF (revisión de rendimiento): las 3 consultas son independientes entre
+    # sí (ETL_LOGS es una tabla de log chica, no el cuello de botella real) —
+    # se mandan en paralelo con `asyncio.gather`/`to_thread` en vez de en
+    # secuencia, mismo patrón que `/search` en `catalogo/router.py`.
+    rows, total_row, ultima = await asyncio.gather(
+        asyncio.to_thread(query_rows, CARGAS_HISTORIAL, {"limit": limit, "offset": offset}),
+        asyncio.to_thread(query_one, ETL_LOGS_TOTAL),
+        asyncio.to_thread(query_one, CARGAS_ULTIMA),
+    )
     for row in rows:
         row["requiere_revision"] = (row.get("tasa_rechazo_pct") or 0) > 1.0
-    total  = query_one(ETL_LOGS_TOTAL)["n"]
+    total = total_row["n"]
 
-    ultima = query_one(CARGAS_ULTIMA)
     if ultima:
         ultima["requiere_revision"] = (ultima.get("tasa_rechazo_pct") or 0) > 1.0
 
@@ -574,18 +581,27 @@ def etl_muestra(
 
 
 @v1_router.get("/etl/distribucion")
-def etl_distribucion(
+async def etl_distribucion(
     week_number: Optional[int] = Query(None, description="Semana de load_week; por defecto, la más reciente cargada"),
 ):
     """Agregados sobre el set COMPLETO de filas de una semana (no la muestra):
     distribución por género y bins de 0.2 (5 bins, 0.0–1.0) para energy/valence/
     danceability."""
     week = _resolve_week_number(week_number)
-    generos = query_rows(ETL_DISTRIBUCION_GENEROS, {"week_number": week})
+    # PERF (revisión de rendimiento): 4 agregados independientes (géneros +
+    # 3 columnas de atributo) sobre la misma semana se mandaban en secuencia,
+    # 4 round-trips a ClickHouse uno detrás del otro. En paralelo con
+    # `asyncio.gather`/`to_thread` — mismo patrón que `/search` y `/cargas`.
+    generos, *bin_rows_por_col = await asyncio.gather(
+        asyncio.to_thread(query_rows, ETL_DISTRIBUCION_GENEROS, {"week_number": week}),
+        *(
+            asyncio.to_thread(query_rows, etl_distribucion_atributo_sql(col), {"week_number": week})
+            for col in _ATTR_COLUMNS
+        ),
+    )
 
     atributos: dict[str, list[dict[str, Any]]] = {}
-    for col in _ATTR_COLUMNS:
-        bin_rows = query_rows(etl_distribucion_atributo_sql(col), {"week_number": week})
+    for col, bin_rows in zip(_ATTR_COLUMNS, bin_rows_por_col):
         by_bin = {row["bin"]: row["n"] for row in bin_rows}
         atributos[col] = [
             {"bin": i, "rango": f"{i * 0.2:.1f}–{i * 0.2 + 0.2:.1f}", "n": by_bin.get(i, 0)}

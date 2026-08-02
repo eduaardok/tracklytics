@@ -59,34 +59,76 @@
   align-items: flex-start;
 }
 
-/* ── Sidebar ── */
+/* ── Sidebar ──
+   Ancho vía custom property (S13-P8, mismo patrón que AppShell/SeguridadShell)
+   para poder animar el colapso con una sola transition de `width`. */
 .sidebar {
-  width: 220px;
+  --sidebar-w: 220px;
+  width: var(--sidebar-w);
   flex-shrink: 0;
   position: sticky;
   top: 56px;
   height: calc(100vh - 56px);
+  overflow-x: hidden;
   overflow-y: auto;
   background: var(--color-surface);
   border-right: 1px solid var(--color-border);
   padding: var(--space-sm) 0;
   display: flex;
   flex-direction: column;
+  transition: width var(--duration-standard) var(--ease-standard);
+}
+
+.sidebarCollapsed {
+  --sidebar-w: 64px;
+}
+
+.navGroups {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
 }
 
 .navItem {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: var(--space-sm);
   padding: 7px var(--space-md);
   font-family: var(--font-sans);
   font-size: 0.8125rem;
   font-weight: 500;
   color: var(--color-muted);
   text-decoration: none;
+  white-space: nowrap;
   transition:
     color var(--duration-fast) var(--ease-standard),
     background-color var(--duration-fast) var(--ease-standard);
+}
+
+.navIcon {
+  flex-shrink: 0;
+}
+
+.navText {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Colapsado: ícono centrado, texto oculto (no `display:none` — el tooltip
+   nativo `title` y el foco de teclado siguen funcionando igual). */
+.sidebarCollapsed .navItem {
+  justify-content: center;
+  padding: 7px 0;
+}
+
+.sidebarCollapsed .navText {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
 }
 
 .navItem:hover {
@@ -110,28 +152,46 @@
   background-color: oklch(0.48 0.15 290 / 0.14);
 }
 
-.navDimmed {
-  color: oklch(0.38 0.008 285);
-}
-
-.navDimmed:hover {
-  color: oklch(0.50 0.008 285);
-  background-color: var(--color-surface-raised);
-}
-
-.comingSoonTag {
-  font-family: var(--font-mono);
-  font-size: 0.5625rem;
-  color: oklch(0.38 0.008 285);
-  letter-spacing: 0.04em;
-  flex-shrink: 0;
-}
-
 .divider {
   height: 1px;
   background: var(--color-border);
   margin: var(--space-sm) var(--space-md);
   flex-shrink: 0;
+}
+
+/* Botón de colapso del sidebar completo (S13-P8) — mismo tratamiento visual
+   que `.collapseBtn` en AppShell/SeguridadShell. */
+.collapseBtn {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  margin: var(--space-sm) var(--space-sm) 0;
+  padding: 7px var(--space-sm);
+  background: transparent;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-muted);
+  font-family: var(--font-sans);
+  font-size: 0.75rem;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  transition:
+    color var(--duration-fast) var(--ease-standard),
+    background-color var(--duration-fast) var(--ease-standard);
+}
+
+.collapseBtn:hover { color: var(--color-ink); background-color: var(--color-surface-raised); }
+
+.collapseBtn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px oklch(0.48 0.15 290 / 0.4);
+}
+
+.sidebarCollapsed .collapseBtn {
+  justify-content: center;
+  margin: var(--space-sm) var(--space-xs) 0;
 }
 
 /* ── Main content ── */

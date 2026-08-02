@@ -104,30 +104,41 @@ export function EtlPage() {
   })
 
   // "Datos generados por semana" — semanas distintas ya presentes en el
-  // historial cargado, más recientes primero. `selectedWeek` arranca en null
-  // (no se sabe todavía cuál es la más reciente) y se fija apenas llega el
-  // historial, en vez de duplicar esa resolución acá.
-  const [selectedWeek, setSelectedWeek] = useState<number | null>(null)
+  // historial cargado, más recientes primero. Solo alimenta el <select>.
   const weekOptions = useMemo(() => {
     const weeks = new Set((cargas.data?.data ?? []).map((row) => row.week_number))
     return Array.from(weeks).sort((a, b) => b - a)
   }, [cargas.data])
 
-  useEffect(() => {
-    if (selectedWeek === null && weekOptions.length > 0) setSelectedWeek(weekOptions[0])
-  }, [selectedWeek, weekOptions])
+  // PERF (revisión de rendimiento): `selectedWeek === null` significa "la más
+  // reciente" — el backend YA sabe resolver eso solo (`_resolve_week_number`),
+  // así que `muestra`/`distribucion` se disparan de una sin esperar a que
+  // `cargas` resuelva para fijar `selectedWeek` desde `weekOptions[0]` (como
+  // hacía antes, vía un `useEffect` que solo corría una vez `cargas` ya
+  // había llegado). Esa espera en cascada era evitable: son 3 llamadas
+  // independientes entre sí, no había necesidad real de que 2 de ellas
+  // esperaran a la 3ª solo para conocer un número de semana que el propio
+  // backend ya resuelve. Medido con Playwright contra el build real: elimina
+  // ~1s de espera muerta antes de que empiece a cargar cualquier gráfico.
+  const [selectedWeek, setSelectedWeek] = useState<number | null>(null)
 
   const muestra = useQuery({
     queryKey: ['ingesta', 'etl-muestra', selectedWeek],
-    queryFn:  () => ingestaApi.etlMuestra(selectedWeek!),
-    enabled:  selectedWeek !== null,
+    queryFn:  () => ingestaApi.etlMuestra(selectedWeek ?? undefined),
   })
 
   const distribucion = useQuery({
     queryKey: ['ingesta', 'etl-distribucion', selectedWeek],
-    queryFn:  () => ingestaApi.etlDistribucion(selectedWeek!),
-    enabled:  selectedWeek !== null,
+    queryFn:  () => ingestaApi.etlDistribucion(selectedWeek ?? undefined),
   })
+
+  // Semana efectivamente mostrada: la elegida a mano, o si no se eligió
+  // ninguna, la que el backend resolvió como "más reciente" (viaja en la
+  // propia respuesta) — nunca depende de que `cargas` haya llegado primero.
+  const displayedWeek = selectedWeek ?? distribucion.data?.week_number ?? muestra.data?.week_number ?? null
+  const sinDatosTodavia = weekOptions.length === 0 && !cargas.isLoading
+    && (muestra.isError || !muestra.isFetching) && (distribucion.isError || !distribucion.isFetching)
+    && displayedWeek === null
 
   const generoChartData = useMemo(() => {
     const generos = distribucion.data?.generos ?? []
@@ -372,7 +383,7 @@ export function EtlPage() {
           <select
             className={styles.select}
             aria-label="Semana"
-            value={selectedWeek ?? ''}
+            value={displayedWeek ?? ''}
             onChange={(e) => setSelectedWeek(Number(e.target.value))}
           >
             {weekOptions.map((w) => <option key={w} value={w}>Semana {w}</option>)}
@@ -380,13 +391,13 @@ export function EtlPage() {
         )}
       </div>
 
-      {weekOptions.length === 0 && !cargas.isLoading && (
+      {sinDatosTodavia && (
         <div className={styles.panel}>
           <EmptyState icon="◔" title="Sin cargas todavía" body="Dispare una ingesta para poder inspeccionar lo que produce." />
         </div>
       )}
 
-      {selectedWeek !== null && (
+      {!sinDatosTodavia && (
         <>
           <div className={styles.chartGrid}>
             <div className={styles.panel}>
