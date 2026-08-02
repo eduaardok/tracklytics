@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { apiErrorMessage } from '@shared/lib/api-client'
@@ -6,11 +6,13 @@ import { useToast } from '@shared/context/ToastContext'
 import { useConfirm } from '@shared/context/ConfirmContext'
 import { CrudModal } from '@shared/components/CrudModal'
 import { CrudActionButtons } from '@shared/components/CrudActionButtons'
+import { MiniDonutChart } from '@shared/components/charts/MiniDonutChart'
+import { STATUS_COLORS } from '@shared/components/charts/colors'
 import { SkeletonTableRows } from '@shared/components/SkeletonLoader'
 import { EmptyState } from '@shared/components/EmptyState'
 import { ExportPDFButton } from '@shared/components/ExportPDFButton'
 import { publicidadApi } from '../api/publicidad.api'
-import type { Anunciante, Campana, FormatoCampana, IngresoCampana, TipoAnuncio } from '../types'
+import type { Anunciante, Campana, CampanaBody, FormatoCampana, IngresoCampana, TipoAnuncio } from '../types'
 import styles from './PublicidadAdminPage.module.css'
 
 // Estado de negocio legible de una campaña (change p1-ciclos-vida): el eje
@@ -22,9 +24,46 @@ function estadoCampana(c: Campana): { label: string; tone: 'ok' | 'warn' | 'off'
   return { label: 'Activa', tone: 'ok' }
 }
 
+function fmtMoney(n: number): string {
+  return `$${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+}
+
+// 4 estados posibles de `estadoCampana`, 4 colores distinguibles del donut —
+// mismo criterio que TicketsAdminPage (STATUS_COLORS reservados, nunca dos
+// categorías comparten color).
+const ESTADO_COLOR: Record<string, string> = {
+  Activa:            STATUS_COLORS.good,
+  Pausada:           STATUS_COLORS.warning,
+  Finalizada:        STATUS_COLORS.neutral,
+  'Sin presupuesto': STATUS_COLORS.error,
+}
+
+const ESTADOS_FILTRO = ['Activa', 'Pausada', 'Finalizada', 'Sin presupuesto']
+
+type Tab = 'campanas' | 'anunciantes'
+const TABS: { id: Tab; label: string }[] = [
+  { id: 'campanas',    label: 'Campañas' },
+  { id: 'anunciantes', label: 'Anunciantes' },
+]
+
+type CampanaModalState =
+  | { mode: 'create' }
+  | { mode: 'edit'; campana: Campana }
+  | { mode: 'view'; campana: Campana }
+  | null
+
+type AnuncianteModalState = { mode: 'create' } | null
+
 // CU-O66/CU-O68: admin registra anunciantes y campañas con CPM real, y
 // consulta el ingreso publicitario real ya reconocido por impresión
 // completada (no un valor simulado — ver capability `publicidad`, spec.md).
+//
+// S13 (rediseño): antes era un único scroll vertical de 2 formularios inline
+// + 3 tablas, sin KPIs ni filtros — llevado al mismo estándar que
+// TicketsAdminPage/AdminPartnersPage (S13-P2): tabs por entidad, KPIs con
+// donut, filtros de tabla, alta vía `CrudModal` compartido. La tabla de
+// "ingreso por campaña" (antes una 3ª sección aparte) se integra como
+// columna de la tabla de campañas — misma información, sin la tabla extra.
 export function PublicidadAdminPage() {
   useDocumentTitle('Publicidad')
   const queryClient = useQueryClient()
@@ -32,45 +71,34 @@ export function PublicidadAdminPage() {
   const confirm = useConfirm()
   const reportRef = useRef<HTMLElement>(null)
 
-  // Campaña en edición/vista (change p1-ciclos-vida, extendido S13-P2 con
-  // Ver detalle) — null = modal cerrado.
-  const [editCampana, setEditCampana] = useState<Campana | null>(null)
-  const [viewCampana, setViewCampana] = useState<Campana | null>(null)
+  const [tab, setTab] = useState<Tab>('campanas')
 
-  const [nombreAnunciante, setNombreAnunciante] = useState('')
-  const [sector, setSector] = useState('')
+  const [campanaModal, setCampanaModal]       = useState<CampanaModalState>(null)
+  const [anuncianteModal, setAnuncianteModal] = useState<AnuncianteModalState>(null)
 
-  const [anuncianteId, setAnuncianteId] = useState('')
-  const [nombreCampana, setNombreCampana] = useState('')
-  const [cpm, setCpm] = useState('')
-  const [presupuesto, setPresupuesto] = useState('')
-  const [fechaInicio, setFechaInicio] = useState(() => new Date().toISOString().slice(0, 10))
-  const [tipoAnuncio, setTipoAnuncio] = useState<TipoAnuncio>('audio')
-  const [urlDestino, setUrlDestino] = useState('')
+  const [filtroEstadoCampana, setFiltroEstadoCampana] = useState('')
+  const [filtroTipoCampana, setFiltroTipoCampana]     = useState('')
+  const [busquedaCampana, setBusquedaCampana]         = useState('')
 
   const anunciantes = useQuery({ queryKey: ['publicidad', 'anunciantes'], queryFn: () => publicidadApi.anunciantes() })
   const campanas    = useQuery({ queryKey: ['publicidad', 'campanas'],    queryFn: () => publicidadApi.campanas() })
   const ingresos    = useQuery({ queryKey: ['publicidad', 'ingresos'],    queryFn: () => publicidadApi.ingresos() })
 
   const crearAnunciante = useMutation({
-    mutationFn: () => publicidadApi.crearAnunciante({ nombre: nombreAnunciante, sector }),
+    mutationFn: (vals: { nombre: string; sector: string }) => publicidadApi.crearAnunciante(vals),
     onSuccess: () => {
-      setNombreAnunciante(''); setSector('')
       queryClient.invalidateQueries({ queryKey: ['publicidad', 'anunciantes'] })
+      setAnuncianteModal(null)
       toast.success('Anunciante creado')
     },
     onError: (err) => toast.error(apiErrorMessage(err, 'No se pudo crear el anunciante.')),
   })
 
   const crearCampana = useMutation({
-    mutationFn: () => publicidadApi.crearCampana({
-      anunciante_id: Number(anuncianteId), nombre: nombreCampana, cpm: Number(cpm),
-      presupuesto_total: Number(presupuesto), fecha_inicio: fechaInicio,
-      tipo_anuncio: tipoAnuncio, url_destino: urlDestino,
-    }),
+    mutationFn: (vals: CampanaBody) => publicidadApi.crearCampana(vals),
     onSuccess: () => {
-      setNombreCampana(''); setCpm(''); setPresupuesto(''); setUrlDestino('')
       queryClient.invalidateQueries({ queryKey: ['publicidad', 'campanas'] })
+      setCampanaModal(null)
       toast.success('Campaña creada')
     },
     onError: (err) => toast.error(apiErrorMessage(err, 'No se pudo crear la campaña.')),
@@ -91,7 +119,7 @@ export function PublicidadAdminPage() {
       nombre: string; presupuesto_total: number; fecha_inicio: string; fecha_fin: string | null; formato: FormatoCampana
     }) => publicidadApi.editarCampana(id, { nombre, presupuesto_total, fecha_inicio, fecha_fin, formato }),
     onSuccess: () => {
-      setEditCampana(null)
+      setCampanaModal(null)
       queryClient.invalidateQueries({ queryKey: ['publicidad', 'campanas'] })
       toast.success('Campaña actualizada')
     },
@@ -124,8 +152,44 @@ export function PublicidadAdminPage() {
   }
 
   const anunciantesData: Anunciante[] = anunciantes.data?.data ?? []
-  const campanasData: Campana[] = campanas.data?.data ?? []
+  const campanasData: Campana[]       = campanas.data?.data ?? []
   const ingresosData: IngresoCampana[] = ingresos.data?.data ?? []
+
+  const campanasFiltradas = useMemo(() => campanasData.filter((c) => {
+    const est = estadoCampana(c)
+    const q = busquedaCampana.trim().toLowerCase()
+    const coincideEstado   = !filtroEstadoCampana || est.label === filtroEstadoCampana
+    const coincideTipo     = !filtroTipoCampana || c.tipo_anuncio === filtroTipoCampana
+    const coincideBusqueda = !q || c.nombre.toLowerCase().includes(q)
+    return coincideEstado && coincideTipo && coincideBusqueda
+  }), [campanasData, filtroEstadoCampana, filtroTipoCampana, busquedaCampana])
+
+  const kpisCampanas = useMemo(() => ({
+    total:      campanasData.length,
+    activas:    campanasData.filter((c) => estadoCampana(c).label === 'Activa').length,
+    presupuesto: campanasData.reduce((sum, c) => sum + c.presupuesto_total, 0),
+    ingreso:     ingresosData.reduce((sum, i) => sum + i.ingreso_total, 0),
+  }), [campanasData, ingresosData])
+
+  const donutCampanas = useMemo(() => {
+    const conteo: Record<string, number> = {}
+    for (const c of campanasData) {
+      const label = estadoCampana(c).label
+      conteo[label] = (conteo[label] ?? 0) + 1
+    }
+    return ESTADOS_FILTRO.map((label) => ({ name: label, value: conteo[label] ?? 0, color: ESTADO_COLOR[label] }))
+  }, [campanasData])
+
+  const kpisAnunciantes = useMemo(() => ({
+    total:   anunciantesData.length,
+    activos: anunciantesData.filter((a) => a.activo).length,
+  }), [anunciantesData])
+
+  const campanasPorAnunciante = useMemo(() => {
+    const conteo: Record<number, number> = {}
+    for (const c of campanasData) conteo[c.anunciante_id] = (conteo[c.anunciante_id] ?? 0) + 1
+    return conteo
+  }, [campanasData])
 
   return (
     <section className={styles.page} ref={reportRef}>
@@ -134,172 +198,314 @@ export function PublicidadAdminPage() {
         <ExportPDFButton targetRef={reportRef} fileName="publicidad" title="Publicidad" />
       </div>
 
-      <p className={styles.sectionLabel}>Nuevo anunciante</p>
-      <form className={styles.form} onSubmit={(e) => { e.preventDefault(); if (nombreAnunciante.trim()) crearAnunciante.mutate() }}>
-        <div className={styles.field}>
-          <label className={styles.fieldLabel} htmlFor="an-nombre">Nombre</label>
-          <input id="an-nombre" className={styles.input} value={nombreAnunciante} onChange={(e) => setNombreAnunciante(e.target.value)} placeholder="Acme Corp" />
-        </div>
-        <div className={styles.field}>
-          <label className={styles.fieldLabel} htmlFor="an-sector">Sector</label>
-          <input id="an-sector" className={styles.input} value={sector} onChange={(e) => setSector(e.target.value)} placeholder="retail" />
-        </div>
-        <button type="submit" className={styles.btnPrimary} disabled={crearAnunciante.isPending || !nombreAnunciante.trim()}>
-          {crearAnunciante.isPending ? 'Creando…' : 'Crear anunciante'}
-        </button>
-      </form>
-
-      <div className={styles.tablePanel}>
-        <table className={styles.table}>
-          <thead><tr><th>ID</th><th>Nombre</th><th>Sector</th><th>Estado</th><th className={styles.actionsCol}>Acciones</th></tr></thead>
-          <tbody>
-            {anunciantes.isLoading ? (
-              <SkeletonTableRows columns={5} />
-            ) : anunciantesData.length === 0 ? (
-              <tr><td colSpan={5}><EmptyState icon="( ∅ )" title="Sin anunciantes" body="Todavía no hay anunciantes registrados." /></td></tr>
-            ) : anunciantesData.map((a) => (
-              <tr key={a.anunciante_id}>
-                <td>{a.anunciante_id}</td><td>{a.nombre}</td><td>{a.sector || '—'}</td>
-                <td><span className={`${styles.badge} ${a.activo ? styles.badgeOk : styles.badgeOff}`}>{a.activo ? 'Activo' : 'Inactivo'}</span></td>
-                <td className={styles.actionsCol}>
-                  {a.activo ? (
-                    <button className={styles.btnGhostDanger} onClick={() => pedirDesactivarAnunciante(a)}>Desactivar</button>
-                  ) : <span className={styles.muted}>—</span>}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      <div className={styles.tabBar} role="tablist" aria-label="Secciones de publicidad">
+        {TABS.map((t) => (
+          <button
+            key={t.id}
+            type="button"
+            role="tab"
+            aria-selected={tab === t.id}
+            className={tab === t.id ? `${styles.tab} ${styles.tabActive}` : styles.tab}
+            onClick={() => setTab(t.id)}
+          >
+            {t.label}
+          </button>
+        ))}
       </div>
 
-      <p className={styles.sectionLabel} style={{ marginTop: 'var(--space-xl)' }}>Nueva campaña</p>
-      <form className={styles.form} onSubmit={(e) => {
-        e.preventDefault()
-        const urlOk = tipoAnuncio === 'audio' || urlDestino.trim().length > 0
-        if (anuncianteId && nombreCampana.trim() && cpm && presupuesto && urlOk) crearCampana.mutate()
-      }}>
-        <div className={styles.field}>
-          <label className={styles.fieldLabel} htmlFor="camp-anunciante">Anunciante</label>
-          <select id="camp-anunciante" className={styles.select} value={anuncianteId} onChange={(e) => setAnuncianteId(e.target.value)}>
-            <option value="">Selecciona…</option>
-            {anunciantesData.map((a) => <option key={a.anunciante_id} value={a.anunciante_id}>{a.nombre}</option>)}
-          </select>
-        </div>
-        <div className={styles.field}>
-          <label className={styles.fieldLabel} htmlFor="camp-nombre">Nombre</label>
-          <input id="camp-nombre" className={styles.input} value={nombreCampana} onChange={(e) => setNombreCampana(e.target.value)} placeholder="Verano 2026" />
-        </div>
-        <div className={styles.field}>
-          <label className={styles.fieldLabel} htmlFor="camp-tipo">Tipo de anuncio</label>
-          <select id="camp-tipo" className={styles.select} value={tipoAnuncio} onChange={(e) => setTipoAnuncio(e.target.value as TipoAnuncio)}>
-            <option value="audio">Audio (entre canciones)</option>
-            <option value="display">Display (banner)</option>
-          </select>
-        </div>
-        <div className={styles.field}>
-          <label className={styles.fieldLabel} htmlFor="camp-cpm">CPM (USD)</label>
-          <input id="camp-cpm" className={styles.input} type="number" step="0.01" min="0.01" value={cpm} onChange={(e) => setCpm(e.target.value)} placeholder="8.00" />
-        </div>
-        <div className={styles.field}>
-          <label className={styles.fieldLabel} htmlFor="camp-presupuesto">Presupuesto total</label>
-          <input id="camp-presupuesto" className={styles.input} type="number" step="0.01" min="0" value={presupuesto} onChange={(e) => setPresupuesto(e.target.value)} placeholder="1000" />
-        </div>
-        <div className={styles.field}>
-          <label className={styles.fieldLabel} htmlFor="camp-fecha">Fecha de inicio</label>
-          <input id="camp-fecha" className={styles.input} type="date" value={fechaInicio} onChange={(e) => setFechaInicio(e.target.value)} />
-        </div>
-        {tipoAnuncio === 'display' && (
-          <div className={styles.field}>
-            <label className={styles.fieldLabel} htmlFor="camp-url">URL de destino</label>
-            <input id="camp-url" className={styles.input} type="url" value={urlDestino} onChange={(e) => setUrlDestino(e.target.value)} placeholder="https://anunciante.com/promo" />
+      {tab === 'campanas' ? (
+        <>
+          <div className={styles.statsRow}>
+            <div className={styles.kpiPanel}>
+              <div className={styles.kpiRow}>
+                <span className={styles.kpiValue}>{kpisCampanas.total}</span>
+                <span className={styles.kpiLabel}>Total campañas</span>
+              </div>
+            </div>
+            <div className={styles.kpiPanel}>
+              <div className={styles.kpiRow}>
+                <span className={`${styles.kpiValue} ${styles.kpiValueOk}`}>{kpisCampanas.activas}</span>
+                <span className={styles.kpiLabel}>Activas</span>
+              </div>
+            </div>
+            <div className={styles.kpiPanel}>
+              <div className={styles.kpiRow}>
+                <span className={styles.kpiValue}>{fmtMoney(kpisCampanas.presupuesto)}</span>
+                <span className={styles.kpiLabel}>Presupuesto acumulado</span>
+              </div>
+            </div>
+            <div className={styles.kpiPanel}>
+              <div className={styles.kpiRow}>
+                <span className={styles.kpiValue}>{fmtMoney(kpisCampanas.ingreso)}</span>
+                <span className={styles.kpiLabel}>Ingreso total reconocido</span>
+              </div>
+            </div>
           </div>
-        )}
-        <button type="submit" className={styles.btnPrimary} disabled={crearCampana.isPending}>
-          {crearCampana.isPending ? 'Creando…' : 'Crear campaña'}
-        </button>
-      </form>
 
-      <div className={styles.tablePanel}>
-        <table className={styles.table}>
-          <thead><tr><th>ID</th><th>Nombre</th><th>Formato</th><th>CPM</th><th>Inicio</th><th>Fin</th><th>Estado</th><th className={styles.actionsCol}>Acciones</th></tr></thead>
-          <tbody>
-            {campanas.isLoading ? (
-              <SkeletonTableRows columns={8} />
-            ) : campanasData.length === 0 ? (
-              <tr><td colSpan={8}><EmptyState icon="( ∅ )" title="Sin campañas" body="Todavía no hay campañas publicitarias registradas." /></td></tr>
-            ) : campanasData.map((c) => {
-              const est = estadoCampana(c)
-              const finalizada = c.estado_manual === 'finalizada'
-              return (
-                <tr key={c.campana_id}>
-                  <td>{c.campana_id}</td><td>{c.nombre}</td>
-                  <td style={{ textTransform: 'capitalize' }}>{c.formato}</td><td>${c.cpm.toFixed(2)}</td>
-                  <td>{c.fecha_inicio}</td><td>{c.fecha_fin ?? 'indefinida'}</td>
-                  <td><span className={`${styles.badge} ${est.tone === 'ok' ? styles.badgeOk : est.tone === 'warn' ? styles.badgeWarn : styles.badgeOff}`}>{est.label}</span></td>
-                  <td className={styles.actionsCol}>
-                    <div className={styles.actions}>
-                      <CrudActionButtons
-                        onView={() => setViewCampana(c)}
-                        onEdit={!finalizada ? () => setEditCampana(c) : undefined}
-                      />
-                      {!finalizada && c.estado_manual !== 'pausada' && (
-                        <button className={styles.btnGhost} onClick={() => pedirPausar(c)}>Pausar</button>
-                      )}
-                      {c.estado_manual === 'pausada' && (
-                        <button className={styles.btnGhost} onClick={() => transicion.mutate({ id: c.campana_id, accion: 'reanudar' })}>Reanudar</button>
-                      )}
-                      {!finalizada && (
-                        <button className={styles.btnGhostDanger} onClick={() => pedirFinalizar(c)}>Finalizar</button>
-                      )}
-                    </div>
-                  </td>
+          <div className={styles.chartPanel} style={{ marginBottom: 'var(--space-lg)' }}>
+            <p className={styles.panelTitle}>Campañas por estado</p>
+            <MiniDonutChart data={donutCampanas} />
+          </div>
+
+          <div className={styles.form}>
+            <div className={styles.field}>
+              <label className={styles.fieldLabel} htmlFor="f-estado">Estado</label>
+              <select id="f-estado" className={styles.select} value={filtroEstadoCampana} onChange={(e) => setFiltroEstadoCampana(e.target.value)}>
+                <option value="">Todos</option>
+                {ESTADOS_FILTRO.map((e) => <option key={e} value={e}>{e}</option>)}
+              </select>
+            </div>
+            <div className={styles.field}>
+              <label className={styles.fieldLabel} htmlFor="f-tipo">Tipo de anuncio</label>
+              <select id="f-tipo" className={styles.select} value={filtroTipoCampana} onChange={(e) => setFiltroTipoCampana(e.target.value)}>
+                <option value="">Todos</option>
+                <option value="audio">Audio</option>
+                <option value="display">Display</option>
+              </select>
+            </div>
+            <div className={styles.field}>
+              <label className={styles.fieldLabel} htmlFor="f-busqueda">Buscar</label>
+              <input id="f-busqueda" className={styles.input} type="text" placeholder="Nombre de campaña…" value={busquedaCampana} onChange={(e) => setBusquedaCampana(e.target.value)} />
+            </div>
+            <button type="button" className={styles.btnPrimary} onClick={() => setCampanaModal({ mode: 'create' })}>
+              + Nueva campaña
+            </button>
+          </div>
+
+          <div className={styles.tablePanel}>
+            <table className={styles.table}>
+              <thead>
+                <tr>
+                  <th>ID</th><th>Nombre</th><th>Formato</th><th>CPM</th><th>Ingreso</th>
+                  <th>Inicio</th><th>Fin</th><th>Estado</th><th className={styles.actionsCol}>Acciones</th>
                 </tr>
-              )
-            })}
-          </tbody>
-        </table>
-      </div>
+              </thead>
+              <tbody>
+                {campanas.isLoading ? (
+                  <SkeletonTableRows columns={9} />
+                ) : campanasFiltradas.length === 0 ? (
+                  <tr><td colSpan={9}><EmptyState icon="( ∅ )" title="Sin campañas" body={campanasData.length === 0 ? 'Todavía no hay campañas publicitarias registradas.' : 'Prueba con otro filtro.'} /></td></tr>
+                ) : campanasFiltradas.map((c) => {
+                  const est = estadoCampana(c)
+                  const finalizada = c.estado_manual === 'finalizada'
+                  const ingreso = ingresosData.find((i) => i.campana_id === c.campana_id)
+                  return (
+                    <tr key={c.campana_id}>
+                      <td>{c.campana_id}</td><td>{c.nombre}</td>
+                      <td style={{ textTransform: 'capitalize' }}>{c.formato}</td><td>${c.cpm.toFixed(2)}</td>
+                      <td>{ingreso ? `$${ingreso.ingreso_total.toFixed(2)}` : '—'}</td>
+                      <td>{c.fecha_inicio}</td><td>{c.fecha_fin ?? 'indefinida'}</td>
+                      <td><span className={`${styles.badge} ${est.tone === 'ok' ? styles.badgeOk : est.tone === 'warn' ? styles.badgeWarn : styles.badgeOff}`}>{est.label}</span></td>
+                      <td className={styles.actionsCol}>
+                        <div className={styles.actions}>
+                          <CrudActionButtons
+                            onView={() => setCampanaModal({ mode: 'view', campana: c })}
+                            onEdit={!finalizada ? () => setCampanaModal({ mode: 'edit', campana: c }) : undefined}
+                          />
+                          {!finalizada && c.estado_manual !== 'pausada' && (
+                            <button className={styles.btnGhost} onClick={() => pedirPausar(c)}>Pausar</button>
+                          )}
+                          {c.estado_manual === 'pausada' && (
+                            <button className={styles.btnGhost} onClick={() => transicion.mutate({ id: c.campana_id, accion: 'reanudar' })}>Reanudar</button>
+                          )}
+                          {!finalizada && (
+                            <button className={styles.btnGhostDanger} onClick={() => pedirFinalizar(c)}>Finalizar</button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        </>
+      ) : (
+        <>
+          <div className={styles.statsRow}>
+            <div className={styles.kpiPanel}>
+              <div className={styles.kpiRow}>
+                <span className={styles.kpiValue}>{kpisAnunciantes.total}</span>
+                <span className={styles.kpiLabel}>Total anunciantes</span>
+              </div>
+            </div>
+            <div className={styles.kpiPanel}>
+              <div className={styles.kpiRow}>
+                <span className={`${styles.kpiValue} ${styles.kpiValueOk}`}>{kpisAnunciantes.activos}</span>
+                <span className={styles.kpiLabel}>Activos</span>
+              </div>
+            </div>
+          </div>
 
-      <p className={styles.sectionLabel} style={{ marginTop: 'var(--space-xl)' }}>Ingreso publicitario real por campaña</p>
-      <div className={styles.tablePanel}>
-        <table className={styles.table}>
-          <thead><tr><th>Campaña</th><th>Impresiones completadas</th><th>Ingreso total</th></tr></thead>
-          <tbody>
-            {ingresos.isLoading ? (
-              <SkeletonTableRows columns={3} />
-            ) : ingresosData.length === 0 ? (
-              <tr><td colSpan={3}><EmptyState icon="( ∅ )" title="Sin ingreso registrado" body="Todavía no hay impresiones completadas." /></td></tr>
-            ) : ingresosData.map((i) => (
-              <tr key={i.campana_id}>
-                {/* toFixed(4) (bugfix QA S10 ronda 2): único monto de la app mostrado a 4
-                    decimales en vez de 2 — inconsistente aunque cada impresión individual
-                    (cpm/1000) sí puede valer fracciones de centavo, la vista es un total
-                    agregado y debe leerse como dinero normal. */}
-                <td>{i.campana_id}</td><td>{i.impresiones}</td><td>${i.ingreso_total.toFixed(2)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+          <div className={styles.actionsRow}>
+            <button type="button" className={styles.btnPrimary} onClick={() => setAnuncianteModal({ mode: 'create' })}>
+              + Nuevo anunciante
+            </button>
+          </div>
 
-      {editCampana && (
-        <CampanaEditModal
-          campana={editCampana}
-          pending={guardarCampana.isPending}
-          onClose={() => setEditCampana(null)}
-          onSave={(vals) => guardarCampana.mutate({ id: editCampana.campana_id, ...vals })}
+          <div className={styles.tablePanel}>
+            <table className={styles.table}>
+              <thead><tr><th>ID</th><th>Nombre</th><th>Sector</th><th>Campañas</th><th>Estado</th><th className={styles.actionsCol}>Acciones</th></tr></thead>
+              <tbody>
+                {anunciantes.isLoading ? (
+                  <SkeletonTableRows columns={6} />
+                ) : anunciantesData.length === 0 ? (
+                  <tr><td colSpan={6}><EmptyState icon="( ∅ )" title="Sin anunciantes" body="Todavía no hay anunciantes registrados." /></td></tr>
+                ) : anunciantesData.map((a) => (
+                  <tr key={a.anunciante_id}>
+                    <td>{a.anunciante_id}</td><td>{a.nombre}</td><td>{a.sector || '—'}</td>
+                    <td>{campanasPorAnunciante[a.anunciante_id] ?? 0}</td>
+                    <td><span className={`${styles.badge} ${a.activo ? styles.badgeOk : styles.badgeOff}`}>{a.activo ? 'Activo' : 'Inactivo'}</span></td>
+                    <td className={styles.actionsCol}>
+                      {a.activo ? (
+                        <button className={styles.btnGhostDanger} onClick={() => pedirDesactivarAnunciante(a)}>Desactivar</button>
+                      ) : <span className={styles.muted}>—</span>}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+
+      {campanaModal?.mode === 'create' && (
+        <CampanaCreateModal
+          anunciantesData={anunciantesData}
+          pending={crearCampana.isPending}
+          onClose={() => setCampanaModal(null)}
+          onSave={(vals) => crearCampana.mutate(vals)}
         />
       )}
 
-      {viewCampana && (
+      {campanaModal?.mode === 'edit' && (
+        <CampanaEditModal
+          campana={campanaModal.campana}
+          pending={guardarCampana.isPending}
+          onClose={() => setCampanaModal(null)}
+          onSave={(vals) => guardarCampana.mutate({ id: campanaModal.campana.campana_id, ...vals })}
+        />
+      )}
+
+      {campanaModal?.mode === 'view' && (
         <CampanaViewModal
-          campana={viewCampana}
-          anunciante={anunciantesData.find((a) => a.anunciante_id === viewCampana.anunciante_id)}
-          ingreso={ingresosData.find((i) => i.campana_id === viewCampana.campana_id)}
-          onClose={() => setViewCampana(null)}
+          campana={campanaModal.campana}
+          anunciante={anunciantesData.find((a) => a.anunciante_id === campanaModal.campana.anunciante_id)}
+          ingreso={ingresosData.find((i) => i.campana_id === campanaModal.campana.campana_id)}
+          onClose={() => setCampanaModal(null)}
+        />
+      )}
+
+      {anuncianteModal?.mode === 'create' && (
+        <AnuncianteCreateModal
+          pending={crearAnunciante.isPending}
+          onClose={() => setAnuncianteModal(null)}
+          onSave={(vals) => crearAnunciante.mutate(vals)}
         />
       )}
     </section>
+  )
+}
+
+function CampanaCreateModal({ anunciantesData, pending, onClose, onSave }: {
+  anunciantesData: Anunciante[]
+  pending: boolean
+  onClose: () => void
+  onSave: (vals: CampanaBody) => void
+}) {
+  const [anuncianteId, setAnuncianteId] = useState('')
+  const [nombre, setNombre]             = useState('')
+  const [tipoAnuncio, setTipoAnuncio]   = useState<TipoAnuncio>('audio')
+  const [cpm, setCpm]                   = useState('')
+  const [presupuesto, setPresupuesto]   = useState('')
+  const [fechaInicio, setFechaInicio]   = useState(() => new Date().toISOString().slice(0, 10))
+  const [urlDestino, setUrlDestino]     = useState('')
+
+  const urlOk = tipoAnuncio === 'audio' || urlDestino.trim().length > 0
+  const valido = !!anuncianteId && nombre.trim().length > 0 && !!cpm && !!presupuesto && urlOk
+
+  return (
+    <CrudModal
+      isOpen
+      mode="create"
+      title="Nueva campaña"
+      confirmLabel="Crear campaña"
+      loading={pending}
+      onClose={onClose}
+      onConfirm={() => valido && onSave({
+        anunciante_id: Number(anuncianteId), nombre: nombre.trim(), cpm: Number(cpm),
+        presupuesto_total: Number(presupuesto), fecha_inicio: fechaInicio,
+        tipo_anuncio: tipoAnuncio, url_destino: urlDestino,
+      })}
+    >
+      <div className={styles.field}>
+        <label className={styles.fieldLabel} htmlFor="camp-anunciante">Anunciante</label>
+        <select id="camp-anunciante" className={styles.select} value={anuncianteId} onChange={(e) => setAnuncianteId(e.target.value)}>
+          <option value="">Selecciona…</option>
+          {anunciantesData.map((a) => <option key={a.anunciante_id} value={a.anunciante_id}>{a.nombre}</option>)}
+        </select>
+      </div>
+      <div className={styles.field}>
+        <label className={styles.fieldLabel} htmlFor="camp-nombre">Nombre</label>
+        <input id="camp-nombre" className={styles.input} value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Verano 2026" />
+      </div>
+      <div className={styles.field}>
+        <label className={styles.fieldLabel} htmlFor="camp-tipo">Tipo de anuncio</label>
+        <select id="camp-tipo" className={styles.select} value={tipoAnuncio} onChange={(e) => setTipoAnuncio(e.target.value as TipoAnuncio)}>
+          <option value="audio">Audio (entre canciones)</option>
+          <option value="display">Display (banner)</option>
+        </select>
+      </div>
+      <div className={styles.field}>
+        <label className={styles.fieldLabel} htmlFor="camp-cpm">CPM (USD)</label>
+        <input id="camp-cpm" className={styles.input} type="number" step="0.01" min="0.01" value={cpm} onChange={(e) => setCpm(e.target.value)} placeholder="8.00" />
+      </div>
+      <div className={styles.field}>
+        <label className={styles.fieldLabel} htmlFor="camp-presupuesto">Presupuesto total</label>
+        <input id="camp-presupuesto" className={styles.input} type="number" step="0.01" min="0" value={presupuesto} onChange={(e) => setPresupuesto(e.target.value)} placeholder="1000" />
+      </div>
+      <div className={styles.field}>
+        <label className={styles.fieldLabel} htmlFor="camp-fecha">Fecha de inicio</label>
+        <input id="camp-fecha" className={styles.input} type="date" value={fechaInicio} onChange={(e) => setFechaInicio(e.target.value)} />
+      </div>
+      {tipoAnuncio === 'display' && (
+        <div className={styles.field}>
+          <label className={styles.fieldLabel} htmlFor="camp-url">URL de destino</label>
+          <input id="camp-url" className={styles.input} type="url" value={urlDestino} onChange={(e) => setUrlDestino(e.target.value)} placeholder="https://anunciante.com/promo" />
+        </div>
+      )}
+    </CrudModal>
+  )
+}
+
+function AnuncianteCreateModal({ pending, onClose, onSave }: {
+  pending: boolean
+  onClose: () => void
+  onSave: (vals: { nombre: string; sector: string }) => void
+}) {
+  const [nombre, setNombre] = useState('')
+  const [sector, setSector] = useState('')
+  const valido = nombre.trim().length > 0
+
+  return (
+    <CrudModal
+      isOpen
+      mode="create"
+      title="Nuevo anunciante"
+      confirmLabel="Crear anunciante"
+      loading={pending}
+      onClose={onClose}
+      onConfirm={() => valido && onSave({ nombre: nombre.trim(), sector: sector.trim() })}
+    >
+      <div className={styles.field}>
+        <label className={styles.fieldLabel} htmlFor="an-nombre">Nombre</label>
+        <input id="an-nombre" className={styles.input} value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Acme Corp" />
+      </div>
+      <div className={styles.field}>
+        <label className={styles.fieldLabel} htmlFor="an-sector">Sector</label>
+        <input id="an-sector" className={styles.input} value={sector} onChange={(e) => setSector(e.target.value)} placeholder="retail" />
+      </div>
+    </CrudModal>
   )
 }
 

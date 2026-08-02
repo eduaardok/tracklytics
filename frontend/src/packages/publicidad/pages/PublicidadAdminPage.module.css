@@ -16,6 +16,99 @@
   margin-bottom: var(--space-sm);
 }
 
+/* ── Tabs (S13: Campañas/Anunciantes) — mismo patrón que CatalogPage.module.css. ── */
+.tabBar {
+  display: flex;
+  gap: var(--space-xs);
+  margin-bottom: var(--space-lg);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.tab {
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--color-muted);
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: var(--space-sm) var(--space-xs);
+  margin-bottom: -1px;
+  cursor: pointer;
+  transition: color var(--duration-fast) var(--ease-standard), border-color var(--duration-fast) var(--ease-standard);
+}
+
+.tab:hover { color: var(--color-ink); }
+
+.tab:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px oklch(0.48 0.15 290 / 0.5);
+}
+
+.tabActive {
+  color: var(--color-ink);
+  border-bottom-color: var(--color-primary);
+}
+
+/* ── KPIs (S13) — mismo patrón que SeguridadPages/ExperienciaPages.module.css
+   (`.statsRow`/`.kpiPanel`/`.kpiRow`/`.kpiValue`/`.kpiLabel`), replicado acá
+   en vez de importar ese módulo — ninguna página admin existente cruza
+   imports de `.module.css` entre paquetes, cada una mantiene su propia copia
+   del mismo lenguaje visual (confirmado en Tickets/Partners antes de tocar
+   esto). ── */
+.statsRow {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--space-md);
+  margin-bottom: var(--space-lg);
+}
+
+.kpiPanel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  justify-content: center;
+  padding: var(--space-md);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.kpiRow {
+  display: flex;
+  flex-direction: column;
+}
+
+.kpiValue {
+  font-family: var(--font-sans);
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: var(--color-ink);
+}
+
+.kpiValueOk { color: #34d399; }
+
+.kpiLabel {
+  font-family: var(--font-sans);
+  font-size: 0.75rem;
+  color: var(--color-muted);
+}
+
+.chartPanel {
+  padding: var(--space-md);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.panelTitle {
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--color-muted);
+  margin-bottom: var(--space-sm);
+}
+
 .form {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
@@ -26,6 +119,15 @@
   border-radius: var(--radius-md);
   margin-bottom: var(--space-xl);
   align-items: end;
+}
+
+/* Fila de acciones sin campos de filtro (tab Anunciantes: solo el botón
+   "Nuevo anunciante") — `.form` es un grid `auto-fit` pensado para varios
+   campos; con un único hijo lo estiraría a lo ancho de todo el contenedor. */
+.actionsRow {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: var(--space-lg);
 }
 
 .field {
