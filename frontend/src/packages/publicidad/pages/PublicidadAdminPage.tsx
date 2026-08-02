@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { apiErrorMessage } from '@shared/lib/api-client'
@@ -8,6 +8,7 @@ import { CrudModal } from '@shared/components/CrudModal'
 import { CrudActionButtons } from '@shared/components/CrudActionButtons'
 import { SkeletonTableRows } from '@shared/components/SkeletonLoader'
 import { EmptyState } from '@shared/components/EmptyState'
+import { ExportPDFButton } from '@shared/components/ExportPDFButton'
 import { publicidadApi } from '../api/publicidad.api'
 import type { Anunciante, Campana, FormatoCampana, IngresoCampana, TipoAnuncio } from '../types'
 import styles from './PublicidadAdminPage.module.css'
@@ -29,6 +30,7 @@ export function PublicidadAdminPage() {
   const queryClient = useQueryClient()
   const toast = useToast()
   const confirm = useConfirm()
+  const reportRef = useRef<HTMLElement>(null)
 
   // Campaña en edición/vista (change p1-ciclos-vida, extendido S13-P2 con
   // Ver detalle) — null = modal cerrado.
@@ -126,8 +128,11 @@ export function PublicidadAdminPage() {
   const ingresosData: IngresoCampana[] = ingresos.data?.data ?? []
 
   return (
-    <section className={styles.page}>
-      <h1 className={styles.heading}>Publicidad</h1>
+    <section className={styles.page} ref={reportRef}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--space-md)', flexWrap: 'wrap' }}>
+        <h1 className={styles.heading}>Publicidad</h1>
+        <ExportPDFButton targetRef={reportRef} fileName="publicidad" title="Publicidad" />
+      </div>
 
       <p className={styles.sectionLabel}>Nuevo anunciante</p>
       <form className={styles.form} onSubmit={(e) => { e.preventDefault(); if (nombreAnunciante.trim()) crearAnunciante.mutate() }}>

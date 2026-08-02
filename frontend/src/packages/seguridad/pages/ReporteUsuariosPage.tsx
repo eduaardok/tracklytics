@@ -1,8 +1,9 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { ErrorState } from '@shared/components/ErrorState'
 import { SkeletonTableRows } from '@shared/components/SkeletonLoader'
+import { ExportPDFButton } from '@shared/components/ExportPDFButton'
 import { seguridadApi } from '../api/seguridad.api'
 import type { EstadoCuenta } from '../types'
 import shell from './SeguridadPages.module.css'
@@ -35,6 +36,7 @@ function EstadoBadge({ estado }: { estado: EstadoCuenta }) {
 // opciones se derivan del propio dataset ya cargado, no de un catálogo aparte.
 export function ReporteUsuariosPage() {
   useDocumentTitle('Reporte de usuarios')
+  const reportRef = useRef<HTMLElement>(null)
   const [pais, setPais]     = useState('')
   const [plan, setPlan]     = useState('')
   const [rol, setRol]       = useState('')
@@ -75,8 +77,11 @@ export function ReporteUsuariosPage() {
   }, [filtrados])
 
   return (
-    <section className={shell.page}>
-      <h1 className={shell.heading}>Reporte de usuarios</h1>
+    <section className={shell.page} ref={reportRef}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--space-md)', flexWrap: 'wrap' }}>
+        <h1 className={shell.heading}>Reporte de usuarios</h1>
+        <ExportPDFButton targetRef={reportRef} fileName="reporte-usuarios" title="Reporte de usuarios" />
+      </div>
       <span className={shell.subtitle}>
         Captación y registro — canal de adquisición, plan activo y rol administrativo por usuario.
       </span>

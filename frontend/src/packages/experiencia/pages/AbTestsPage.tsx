@@ -1,8 +1,9 @@
-import { useMemo } from 'react'
+import { useMemo, useRef } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { ErrorState } from '@shared/components/ErrorState'
 import { EmptyState } from '@shared/components/EmptyState'
+import { ExportPDFButton } from '@shared/components/ExportPDFButton'
 import { experienciaApi } from '../api/experiencia.api'
 import styles from './ExperienciaPages.module.css'
 
@@ -15,6 +16,7 @@ function fmtFecha(iso: string) {
 // justifica paginar ni filtrar todavía.
 export function AbTestsPage() {
   useDocumentTitle('Pruebas A/B')
+  const reportRef = useRef<HTMLElement>(null)
   const { data, isLoading, isError } = useQuery({
     queryKey: ['experiencia', 'admin', 'ab-tests'],
     queryFn:  () => experienciaApi.abTests(),
@@ -29,8 +31,11 @@ export function AbTestsPage() {
   }), [tests])
 
   return (
-    <section className={styles.page}>
-      <h1 className={styles.heading}>Pruebas A/B</h1>
+    <section className={styles.page} ref={reportRef}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--space-md)', flexWrap: 'wrap' }}>
+        <h1 className={styles.heading}>Pruebas A/B</h1>
+        <ExportPDFButton targetRef={reportRef} fileName="pruebas-ab" title="Pruebas A/B" />
+      </div>
       <span className={styles.subtitle}>Exposiciones por experimento y variante.</span>
 
       <div className={styles.statsRow}>

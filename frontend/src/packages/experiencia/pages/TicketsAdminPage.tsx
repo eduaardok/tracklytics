@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ErrorState } from '@shared/components/ErrorState'
 import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
@@ -10,6 +10,7 @@ import { CrudModal } from '@shared/components/CrudModal'
 import { CrudActionButtons } from '@shared/components/CrudActionButtons'
 import { SkeletonLoader } from '@shared/components/SkeletonLoader'
 import { EmptyState } from '@shared/components/EmptyState'
+import { ExportPDFButton } from '@shared/components/ExportPDFButton'
 import { UserPicker, type UserSearchResult } from '@shared/components/UserPicker'
 import { experienciaApi } from '../api/experiencia.api'
 import type { EstadoTicket, Ticket } from '../types'
@@ -58,6 +59,7 @@ export function TicketsAdminPage() {
   useDocumentTitle('Soporte — administración')
   const queryClient = useQueryClient()
   const toast = useToast()
+  const reportRef = useRef<HTMLElement>(null)
   const [estado, setEstado] = useState('')
   const [modal, setModal]   = useState<ModalState>(null)
 
@@ -94,12 +96,15 @@ export function TicketsAdminPage() {
   const data: Ticket[] = tickets.data?.data ?? []
 
   return (
-    <section className={styles.page}>
+    <section className={styles.page} ref={reportRef}>
       <div className={styles.headRow}>
         <h1 className={styles.heading}>Soporte — administración</h1>
-        <button type="button" className={styles.btnPrimary} onClick={() => setModal({ mode: 'create' })}>
-          + Nuevo ticket
-        </button>
+        <div style={{ display: 'flex', gap: 'var(--space-sm)' }}>
+          <ExportPDFButton targetRef={reportRef} fileName="soporte-tickets" title="Soporte — administración" />
+          <button type="button" className={styles.btnPrimary} onClick={() => setModal({ mode: 'create' })}>
+            + Nuevo ticket
+          </button>
+        </div>
       </div>
 
       <div className={styles.dashboardGrid}>

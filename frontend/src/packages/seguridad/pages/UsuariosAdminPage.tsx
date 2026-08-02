@@ -1,9 +1,10 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { apiErrorMessage } from '@shared/lib/api-client'
 import { useToast } from '@shared/context/ToastContext'
 import { SkeletonTableRows } from '@shared/components/SkeletonLoader'
+import { ExportPDFButton } from '@shared/components/ExportPDFButton'
 import { seguridadApi } from '../api/seguridad.api'
 import type { EstadoCuenta, UsuarioAdmin } from '../types'
 import shell from './SeguridadPages.module.css'
@@ -27,6 +28,7 @@ export function UsuariosAdminPage() {
   useDocumentTitle('Usuarios')
   const toast = useToast()
   const queryClient = useQueryClient()
+  const reportRef = useRef<HTMLElement>(null)
 
   const [rol, setRol]         = useState('')
   const [estado, setEstado]   = useState('')
@@ -95,8 +97,11 @@ export function UsuariosAdminPage() {
   )
 
   return (
-    <section className={shell.page}>
-      <h1 className={shell.heading}>Usuarios</h1>
+    <section className={shell.page} ref={reportRef}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--space-md)', flexWrap: 'wrap' }}>
+        <h1 className={shell.heading}>Usuarios</h1>
+        <ExportPDFButton targetRef={reportRef} fileName="usuarios-admin" title="Usuarios" />
+      </div>
       <span className={shell.subtitle}>Gestión de cuentas, roles administrativos y estado de acceso.</span>
 
       <div className={styles.layout}>

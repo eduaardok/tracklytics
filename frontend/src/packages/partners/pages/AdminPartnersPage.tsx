@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { apiErrorMessage } from '@shared/lib/api-client'
@@ -7,6 +7,7 @@ import { CrudModal } from '@shared/components/CrudModal'
 import { CrudActionButtons } from '@shared/components/CrudActionButtons'
 import { SkeletonTableRows } from '@shared/components/SkeletonLoader'
 import { EmptyState } from '@shared/components/EmptyState'
+import { ExportPDFButton } from '@shared/components/ExportPDFButton'
 import { partnersAdminApi, type Partner, type EditarPartnerBody } from '../api/partnersAdmin.api'
 import { metricasApi } from '../api/metricas.api'
 import type { PartnerTier } from '../types'
@@ -37,6 +38,7 @@ export function AdminPartnersPage() {
   useDocumentTitle('Partners · Gestión')
   const queryClient = useQueryClient()
   const toast = useToast()
+  const reportRef = useRef<HTMLElement>(null)
 
   const [modal, setModal] = useState<ModalState>(null)
   const [filtroTier, setFiltroTier]     = useState('')
@@ -89,8 +91,11 @@ export function AdminPartnersPage() {
   const estados = useMemo(() => Array.from(new Set(data.map((p) => p.estado))), [data])
 
   return (
-    <section className={styles.page}>
-      <h1 className={styles.heading}>Partners B2B</h1>
+    <section className={styles.page} ref={reportRef}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--space-md)', flexWrap: 'wrap' }}>
+        <h1 className={styles.heading}>Partners B2B</h1>
+        <ExportPDFButton targetRef={reportRef} fileName="partners-gestion" title="Partners B2B" />
+      </div>
       <p className={styles.intro}>Alta y ciclo de vida de partners de la API. La API key se guarda hasheada y solo se muestra una vez — al crear o rotar. Guárdala en ese momento.</p>
 
       {revealKey && (

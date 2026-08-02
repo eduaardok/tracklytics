@@ -1,12 +1,15 @@
+import { useRef } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { SkeletonTableRows } from '@shared/components/SkeletonLoader'
 import { EmptyState } from '@shared/components/EmptyState'
+import { ExportPDFButton } from '@shared/components/ExportPDFButton'
 import { seguridadApi } from '../api/seguridad.api'
 import styles from './SeguridadPages.module.css'
 
 export function ErroresPage() {
   useDocumentTitle('Errores de sistema')
+  const reportRef = useRef<HTMLElement>(null)
   const { data, isLoading, isError } = useQuery({
     queryKey: ['seguridad', 'errores'],
     queryFn:  () => seguridadApi.errores(50),
@@ -15,8 +18,11 @@ export function ErroresPage() {
   const errores = data?.data ?? []
 
   return (
-    <section className={styles.page}>
-      <h1 className={styles.heading}>Errores de sistema</h1>
+    <section className={styles.page} ref={reportRef}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--space-md)', flexWrap: 'wrap' }}>
+        <h1 className={styles.heading}>Errores de sistema</h1>
+        <ExportPDFButton targetRef={reportRef} fileName="errores-sistema" title="Errores de sistema" />
+      </div>
 
       {isError && <div className={styles.errorBox}>No se pudieron cargar los errores (¿sesión de admin?).</div>}
 

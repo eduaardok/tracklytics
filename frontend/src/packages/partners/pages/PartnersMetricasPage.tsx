@@ -1,8 +1,10 @@
+import { useRef } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { metricasApi } from '../api/metricas.api'
 import { ErrorState } from '@shared/components/ErrorState'
 import { EmptyState } from '@shared/components/EmptyState'
+import { ExportPDFButton } from '@shared/components/ExportPDFButton'
 import styles from './PartnersMetricasPage.module.css'
 
 // CU-O56: agregación de `LOG_LLAMADAS_PARTNER` por partner — vista de solo
@@ -17,6 +19,7 @@ function tasaClass(pct: number): string {
 
 export function PartnersMetricasPage() {
   useDocumentTitle('Métricas de partners')
+  const reportRef = useRef<HTMLElement>(null)
   const { data, isLoading, isError } = useQuery({
     queryKey: ['partners', 'metricas'],
     queryFn:  () => metricasApi.porPartner(),
@@ -25,8 +28,11 @@ export function PartnersMetricasPage() {
   const partners = data?.data ?? []
 
   return (
-    <section className={styles.page}>
-      <h1 className={styles.heading}>Métricas de partners</h1>
+    <section className={styles.page} ref={reportRef}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--space-md)', flexWrap: 'wrap' }}>
+        <h1 className={styles.heading}>Métricas de partners</h1>
+        <ExportPDFButton targetRef={reportRef} fileName="partners-metricas" title="Métricas de partners" />
+      </div>
 
       {isError && (
         <ErrorState

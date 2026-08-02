@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
+import { ExportPDFButton } from '@shared/components/ExportPDFButton'
 import { analiticaApi } from '../api/analitica.api'
 import styles from './FunnelConversionPage.module.css'
 
@@ -15,6 +16,7 @@ function isoMesesAtras(n: number): string {
 // suscribió — solo staff/admin (`require_staff` en backend).
 export function FunnelConversionPage() {
   useDocumentTitle('Funnel de conversión')
+  const reportRef = useRef<HTMLElement>(null)
   const [desde, setDesde] = useState(() => isoMesesAtras(1))
   const [hasta, setHasta] = useState(() => new Date().toISOString().slice(0, 10))
 
@@ -32,8 +34,11 @@ export function FunnelConversionPage() {
     : []
 
   return (
-    <section className={styles.page}>
-      <h1 className={styles.heading}>Funnel de conversión</h1>
+    <section className={styles.page} ref={reportRef}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--space-md)', flexWrap: 'wrap' }}>
+        <h1 className={styles.heading}>Funnel de conversión</h1>
+        <ExportPDFButton targetRef={reportRef} fileName="analitica-funnel-conversion" title="Funnel de conversión" />
+      </div>
       <span className={styles.subtitle}>// free → vio anuncio → se suscribió</span>
 
       <div className={styles.filters}>

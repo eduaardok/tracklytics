@@ -1,7 +1,8 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { ErrorState } from '@shared/components/ErrorState'
+import { ExportPDFButton } from '@shared/components/ExportPDFButton'
 import { experienciaApi } from '../api/experiencia.api'
 import styles from './ExperienciaPages.module.css'
 
@@ -19,6 +20,7 @@ function opcionesUnicas(valores: string[]): string[] {
 // PocketBase en el propio endpoint (ver api/paquetes/experiencia/router.py).
 export function FamiliasReportePage() {
   useDocumentTitle('Planes familiares')
+  const reportRef = useRef<HTMLElement>(null)
   const [plan, setPlan] = useState('')
 
   const { data, isLoading, isError } = useQuery({
@@ -42,8 +44,11 @@ export function FamiliasReportePage() {
   }, [filtradas])
 
   return (
-    <section className={styles.page}>
-      <h1 className={styles.heading}>Planes familiares</h1>
+    <section className={styles.page} ref={reportRef}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--space-md)', flexWrap: 'wrap' }}>
+        <h1 className={styles.heading}>Planes familiares</h1>
+        <ExportPDFButton targetRef={reportRef} fileName="planes-familiares" title="Planes familiares" />
+      </div>
       <span className={styles.subtitle}>Familias activas, titular y cantidad de miembros.</span>
 
       <div className={styles.statsRow}>

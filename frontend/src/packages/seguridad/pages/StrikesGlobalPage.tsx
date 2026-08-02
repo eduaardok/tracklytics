@@ -1,8 +1,9 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { ErrorState } from '@shared/components/ErrorState'
 import { SkeletonTableRows } from '@shared/components/SkeletonLoader'
+import { ExportPDFButton } from '@shared/components/ExportPDFButton'
 import { seguridadApi } from '../api/seguridad.api'
 import shell from './SeguridadPages.module.css'
 
@@ -33,6 +34,7 @@ const UMBRAL_RIESGO = 2
 // ficha buscando quién está sancionado ahora mismo.
 export function StrikesGlobalPage() {
   useDocumentTitle('Strikes activos')
+  const reportRef = useRef<HTMLElement>(null)
   const [origen, setOrigen] = useState('')
 
   const { data, isLoading, isError } = useQuery({
@@ -56,8 +58,11 @@ export function StrikesGlobalPage() {
   }, [filtrados])
 
   return (
-    <section className={shell.page}>
-      <h1 className={shell.heading}>Strikes activos</h1>
+    <section className={shell.page} ref={reportRef}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--space-md)', flexWrap: 'wrap' }}>
+        <h1 className={shell.heading}>Strikes activos</h1>
+        <ExportPDFButton targetRef={reportRef} fileName="strikes-activos" title="Strikes activos" />
+      </div>
       <span className={shell.subtitle}>Sanciones vigentes de todo el sistema (panel de moderación transversal).</span>
 
       <div className={shell.statsRow}>

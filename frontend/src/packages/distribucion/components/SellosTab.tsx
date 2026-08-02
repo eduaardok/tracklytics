@@ -1,16 +1,18 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ErrorState } from '@shared/components/ErrorState'
 import { apiErrorMessage } from '@shared/lib/api-client'
 import { useToast } from '@shared/context/ToastContext'
 import { ArtistPicker, type ArtistSearchResult } from '@shared/components/ArtistPicker'
 import { AlbumPicker, type AlbumSearchResult } from '@shared/components/AlbumPicker'
+import { ExportPDFButton } from '@shared/components/ExportPDFButton'
 import { distribucionApi } from '../api/distribucion.api'
 import styles from '../pages/DistribucionPages.module.css'
 
 export function SellosTab() {
   const queryClient = useQueryClient()
   const toast = useToast()
+  const reportRef = useRef<HTMLDivElement>(null)
   const [nombre, setNombre] = useState('')
   const [pais, setPais] = useState('')
   const [editId, setEditId] = useState<number | null>(null)
@@ -69,7 +71,10 @@ export function SellosTab() {
   const data = sellos.data?.data ?? []
 
   return (
-    <div>
+    <div ref={reportRef}>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 'var(--space-sm)' }}>
+        <ExportPDFButton targetRef={reportRef} fileName="distribucion-sellos" title="Distribución — Sellos" />
+      </div>
       <p className={styles.sectionLabel}>Nuevo sello</p>
       <form
         className={styles.form}

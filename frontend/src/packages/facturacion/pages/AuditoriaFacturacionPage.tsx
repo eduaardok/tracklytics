@@ -1,10 +1,11 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { ErrorState } from '@shared/components/ErrorState'
 import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { UserPicker, type UserSearchResult } from '@shared/components/UserPicker'
 import { MiniLineChart } from '@shared/components/charts/MiniLineChart'
 import { CHART_COLORS } from '@shared/components/charts/colors'
+import { ExportPDFButton } from '@shared/components/ExportPDFButton'
 import { facturacionApi } from '../api/facturacion.api'
 import styles from './FacturacionPages.module.css'
 
@@ -52,6 +53,7 @@ function SkelRows({ cols, n = 4 }: { cols: number; n?: number }) {
 
 export function AuditoriaFacturacionPage() {
   useDocumentTitle('Auditoría de facturación')
+  const reportRef = useRef<HTMLElement>(null)
   const [selectedUser, setSelectedUser] = useState<UserSearchResult | null>(null)
   const buscado = selectedUser?.usuario_id ?? ''
 
@@ -87,8 +89,11 @@ export function AuditoriaFacturacionPage() {
   const isError           = transacciones.isError   || invoices.isError
 
   return (
-    <section className={styles.page}>
-      <h1 className={styles.heading}>Auditoría de facturación</h1>
+    <section className={styles.page} ref={reportRef}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--space-md)', flexWrap: 'wrap' }}>
+        <h1 className={styles.heading}>Auditoría de facturación</h1>
+        <ExportPDFButton targetRef={reportRef} fileName="auditoria-facturacion" title="Auditoría de facturación" />
+      </div>
 
       <div className={styles.dashboardGrid}>
         <div className={styles.chartPanel}>

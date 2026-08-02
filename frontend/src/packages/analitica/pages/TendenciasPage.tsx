@@ -1,9 +1,10 @@
-import { useState, type FormEvent } from 'react'
+import { useRef, useState, type FormEvent } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
   LineChart, Line, CartesianGrid, XAxis, YAxis, Tooltip, ResponsiveContainer,
 } from 'recharts'
 import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
+import { ExportPDFButton } from '@shared/components/ExportPDFButton'
 import { analiticaApi } from '../api/analitica.api'
 import type { TendenciaSemana } from '../types'
 import styles from './TendenciasPage.module.css'
@@ -83,6 +84,7 @@ function TrendPanel({ title, data, dataKey, domain, formatValue, seriesLabel }: 
 
 export function TendenciasPage() {
   useDocumentTitle('Tendencias semanales')
+  const reportRef = useRef<HTMLElement>(null)
   const [desde, setDesde] = useState('')
   const [hasta, setHasta] = useState('')
   const [range, setRange] = useState<{ desde?: number; hasta?: number }>({})
@@ -109,8 +111,11 @@ export function TendenciasPage() {
   const data = tendencias.data?.data ?? []
 
   return (
-    <section className={styles.page}>
-      <h1 className={styles.heading}>Tendencias semanales</h1>
+    <section className={styles.page} ref={reportRef}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--space-md)', flexWrap: 'wrap' }}>
+        <h1 className={styles.heading}>Tendencias semanales</h1>
+        <ExportPDFButton targetRef={reportRef} fileName="analitica-tendencias" title="Tendencias semanales" />
+      </div>
       <span className={styles.subtitle}>
         {data.length > 0 ? `// ${data.length} semanas` : '// serie temporal por load_week'}
       </span>

@@ -1,10 +1,11 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ErrorState } from '@shared/components/ErrorState'
 import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { UserPicker, type UserSearchResult } from '@shared/components/UserPicker'
 import { apiErrorMessage } from '@shared/lib/api-client'
 import { useToast } from '@shared/context/ToastContext'
+import { ExportPDFButton } from '@shared/components/ExportPDFButton'
 import { experienciaApi } from '../api/experiencia.api'
 import styles from './ExperienciaPages.module.css'
 
@@ -19,6 +20,7 @@ function fmtDate(iso: string) {
 // cualquier otro plan con 403.
 export function FamiliaAdminPage() {
   useDocumentTitle('Plan familiar')
+  const reportRef = useRef<HTMLElement>(null)
   const queryClient = useQueryClient()
   const toast = useToast()
   const [titularUser, setTitularUser] = useState<UserSearchResult | null>(null)
@@ -84,8 +86,11 @@ export function FamiliaAdminPage() {
   const limite   = plan.data?.limite ?? 5
 
   return (
-    <section className={styles.page}>
-      <h1 className={styles.heading}>Plan familiar</h1>
+    <section className={styles.page} ref={reportRef}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--space-md)', flexWrap: 'wrap' }}>
+        <h1 className={styles.heading}>Plan familiar</h1>
+        <ExportPDFButton targetRef={reportRef} fileName="plan-familiar" title="Plan familiar" />
+      </div>
 
       <p className={styles.sectionLabel}>Designar titular</p>
       <form

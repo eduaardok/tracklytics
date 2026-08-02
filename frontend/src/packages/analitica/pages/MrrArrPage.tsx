@@ -1,8 +1,9 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { MiniLineChart } from '@shared/components/charts/MiniLineChart'
 import { CHART_COLORS } from '@shared/components/charts/colors'
+import { ExportPDFButton } from '@shared/components/ExportPDFButton'
 import { analiticaApi } from '../api/analitica.api'
 import styles from './MrrArrPage.module.css'
 
@@ -21,6 +22,7 @@ function fmt(n: number): string {
 // (`require_staff` en backend).
 export function MrrArrPage() {
   useDocumentTitle('MRR / ARR')
+  const reportRef = useRef<HTMLElement>(null)
   const [desde, setDesde] = useState(() => isoMesesAtras(5))
   const [hasta, setHasta] = useState(() => new Date().toISOString().slice(0, 10))
 
@@ -32,8 +34,11 @@ export function MrrArrPage() {
   const tendencia = (mrr.data?.tendencia_mensual ?? []).map((t) => ({ mes: t.mes, ingreso: t.ingreso }))
 
   return (
-    <section className={styles.page}>
-      <h1 className={styles.heading}>MRR / ARR</h1>
+    <section className={styles.page} ref={reportRef}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--space-md)', flexWrap: 'wrap' }}>
+        <h1 className={styles.heading}>MRR / ARR</h1>
+        <ExportPDFButton targetRef={reportRef} fileName="analitica-mrr-arr" title="MRR / ARR" />
+      </div>
       <span className={styles.subtitle}>// ingreso recurrente mensual y proyección anual</span>
 
       <div className={styles.filters}>

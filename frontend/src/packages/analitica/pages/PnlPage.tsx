@@ -1,8 +1,9 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { MiniBarChart, type BarDatum } from '@shared/components/charts/MiniBarChart'
 import { CHART_COLORS } from '@shared/components/charts/colors'
+import { ExportPDFButton } from '@shared/components/ExportPDFButton'
 import { analiticaApi } from '../api/analitica.api'
 import styles from './PnlPage.module.css'
 
@@ -22,6 +23,7 @@ function fmt(n: number): string {
 // dashboards admin del proyecto.
 export function PnlPage() {
   useDocumentTitle('P&L consolidado')
+  const reportRef = useRef<HTMLElement>(null)
   const [desde, setDesde] = useState(() => isoMesesAtras(1))
   const [hasta, setHasta] = useState(() => new Date().toISOString().slice(0, 10))
 
@@ -40,8 +42,11 @@ export function PnlPage() {
     : []
 
   return (
-    <section className={styles.page}>
-      <h1 className={styles.heading}>P&L consolidado</h1>
+    <section className={styles.page} ref={reportRef}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--space-md)', flexWrap: 'wrap' }}>
+        <h1 className={styles.heading}>P&L consolidado</h1>
+        <ExportPDFButton targetRef={reportRef} fileName="analitica-pnl" title="P&L consolidado" />
+      </div>
       <span className={styles.subtitle}>// ingresos, regalías pagadas y margen neto del período</span>
 
       <div className={styles.filters}>

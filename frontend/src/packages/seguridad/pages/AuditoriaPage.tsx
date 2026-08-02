@@ -1,9 +1,11 @@
+import { useRef } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { MiniLineChart } from '@shared/components/charts/MiniLineChart'
 import { CHART_COLORS } from '@shared/components/charts/colors'
 import { SkeletonTableRows } from '@shared/components/SkeletonLoader'
 import { EmptyState } from '@shared/components/EmptyState'
+import { ExportPDFButton } from '@shared/components/ExportPDFButton'
 import { seguridadApi } from '../api/seguridad.api'
 import styles from './SeguridadPages.module.css'
 
@@ -12,6 +14,7 @@ import styles from './SeguridadPages.module.css'
 // (14 días) más 2 KPI reales, sin tocar la tabla existente debajo.
 export function AuditoriaPage() {
   useDocumentTitle('Auditoría')
+  const reportRef = useRef<HTMLElement>(null)
   const { data, isLoading, isError } = useQuery({
     queryKey: ['seguridad', 'auditoria'],
     queryFn:  () => seguridadApi.auditoria(50),
@@ -24,8 +27,11 @@ export function AuditoriaPage() {
   const entradas = data?.data ?? []
 
   return (
-    <section className={styles.page}>
-      <h1 className={styles.heading}>Auditoría</h1>
+    <section className={styles.page} ref={reportRef}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--space-md)', flexWrap: 'wrap' }}>
+        <h1 className={styles.heading}>Auditoría</h1>
+        <ExportPDFButton targetRef={reportRef} fileName="auditoria" title="Auditoría" />
+      </div>
 
       <div className={styles.dashboardGrid}>
         <div className={styles.chartPanel}>

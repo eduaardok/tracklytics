@@ -1,7 +1,8 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiErrorMessage } from '@shared/lib/api-client'
 import { useToast } from '@shared/context/ToastContext'
+import { ExportPDFButton } from '@shared/components/ExportPDFButton'
 import { finanzasApi } from '../api/finanzas.api'
 import { CategoriaTreemap } from './charts/CategoriaTreemap'
 import { fmtMoney, fmtDate, isoToday, CATEGORIA_LABEL } from '../lib/format'
@@ -18,6 +19,7 @@ const emptyForm: GastoBody = { concepto: '', categoria: 'infraestructura', monto
 export function GastosTab() {
   const queryClient = useQueryClient()
   const toast = useToast()
+  const reportRef = useRef<HTMLDivElement>(null)
 
   const [filtroCategoria, setFiltroCategoria] = useState('')
   const [filtroEstado, setFiltroEstado] = useState('activo')
@@ -80,7 +82,10 @@ export function GastosTab() {
   }, [data])
 
   return (
-    <>
+    <div ref={reportRef}>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 'var(--space-sm)' }}>
+        <ExportPDFButton targetRef={reportRef} fileName="finanzas-gastos" title="Finanzas — Gastos operativos" />
+      </div>
       <div className={styles.dashboardGrid}>
         <div className={styles.chartPanel}>
           <p className={styles.panelTitle}>Gasto activo por categoría (filtro actual)</p>
@@ -189,6 +194,6 @@ export function GastosTab() {
           </tbody>
         </table>
       </div>
-    </>
+    </div>
   )
 }

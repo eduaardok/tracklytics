@@ -1,8 +1,9 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ErrorState } from '@shared/components/ErrorState'
 import { apiErrorMessage } from '@shared/lib/api-client'
 import { useToast } from '@shared/context/ToastContext'
+import { ExportPDFButton } from '@shared/components/ExportPDFButton'
 import { distribucionApi } from '../api/distribucion.api'
 import type { EstadoLicencia, Licencia } from '../types'
 import styles from '../pages/DistribucionPages.module.css'
@@ -24,6 +25,7 @@ function EstadoBadge({ estado }: { estado: EstadoLicencia }) {
 export function LicenciasTab() {
   const queryClient = useQueryClient()
   const toast = useToast()
+  const reportRef = useRef<HTMLDivElement>(null)
   const [selloId, setSelloId] = useState('')
   const [paisId, setPaisId] = useState('')
   const [fechaInicio, setFechaInicio] = useState('')
@@ -75,7 +77,10 @@ export function LicenciasTab() {
   const data = licencias.data?.data ?? []
 
   return (
-    <div>
+    <div ref={reportRef}>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 'var(--space-sm)' }}>
+        <ExportPDFButton targetRef={reportRef} fileName="distribucion-licencias" title="Distribución — Licencias" />
+      </div>
       <p className={styles.sectionLabel}>Nueva licencia</p>
       <form
         className={styles.form}

@@ -1,8 +1,10 @@
+import { useRef } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { analiticaApi } from '../api/analitica.api'
 import { TierUpsell } from '../components/TierUpsell'
 import { tierInsuficienteInfo } from '../lib/tierError'
+import { ExportPDFButton } from '@shared/components/ExportPDFButton'
 import type { AdquisicionCanal } from '../types'
 import styles from './AdquisicionPage.module.css'
 
@@ -24,6 +26,7 @@ function pivotByCanal(rows: AdquisicionCanal[]) {
 
 export function AdquisicionPage() {
   useDocumentTitle('Adquisición de usuarios')
+  const reportRef = useRef<HTMLElement>(null)
   const adquisicion = useQuery({
     queryKey: ['analitica', 'adquisicion'],
     queryFn:  () => analiticaApi.adquisicion(),
@@ -34,8 +37,11 @@ export function AdquisicionPage() {
   const tierInfo = tierInsuficienteInfo(adquisicion.error)
 
   return (
-    <section className={styles.page}>
-      <h1 className={styles.heading}>Adquisición de usuarios</h1>
+    <section className={styles.page} ref={reportRef}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--space-md)', flexWrap: 'wrap' }}>
+        <h1 className={styles.heading}>Adquisición de usuarios</h1>
+        <ExportPDFButton targetRef={reportRef} fileName="analitica-adquisicion" title="Adquisición de usuarios" />
+      </div>
       <span className={styles.subtitle}>
         {semanas.length > 0 ? `// ${semanas.length} semanas` : '// usuarios nuevos por canal de marketing'}
       </span>

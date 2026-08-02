@@ -1,7 +1,8 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { ErrorState } from '@shared/components/ErrorState'
+import { ExportPDFButton } from '@shared/components/ExportPDFButton'
 import { socialApi } from '../api/social.api'
 import styles from './SocialPages.module.css'
 
@@ -22,6 +23,7 @@ function opcionesUnicas(valores: string[]): string[] {
 // admin hasta ahora).
 export function NotificacionesAdminPage() {
   useDocumentTitle('Notificaciones — administración')
+  const reportRef = useRef<HTMLElement>(null)
   const [tipo, setTipo]     = useState('')
   const [leido, setLeido]   = useState('')
 
@@ -51,8 +53,11 @@ export function NotificacionesAdminPage() {
   }, [filtradas])
 
   return (
-    <section className={styles.page}>
-      <h1 className={styles.heading}>Notificaciones — administración</h1>
+    <section className={styles.page} ref={reportRef}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--space-md)', flexWrap: 'wrap' }}>
+        <h1 className={styles.heading}>Notificaciones — administración</h1>
+        <ExportPDFButton targetRef={reportRef} fileName="notificaciones-admin" title="Notificaciones — administración" />
+      </div>
       <span className={styles.subtitle}>Últimas 200 notificaciones emitidas por el sistema.</span>
 
       <div className={styles.statsRow}>

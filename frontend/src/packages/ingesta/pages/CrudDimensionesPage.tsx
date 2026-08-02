@@ -1,7 +1,8 @@
-import { useState, type FormEvent } from 'react'
+import { useRef, useState, type FormEvent } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { useConfirm } from '@shared/context/ConfirmContext'
+import { ExportPDFButton } from '@shared/components/ExportPDFButton'
 import { ingestaApi, IngestaApiError } from '../api/ingesta.api'
 import { DIM_TABLE_OPTIONS, type DimRow } from '../types'
 import styles from './CrudDimensionesPage.module.css'
@@ -109,6 +110,7 @@ function ConfirmModal({ title, body, onConfirm, onCancel }: { title: string; bod
 
 export function CrudDimensionesPage() {
   useDocumentTitle('Dimensiones del catálogo')
+  const reportRef = useRef<HTMLElement>(null)
   const queryClient = useQueryClient()
   const confirm = useConfirm()
   const [table, setTable]   = useState<string>(DIM_TABLE_OPTIONS[0].key)
@@ -207,8 +209,11 @@ export function CrudDimensionesPage() {
   }
 
   return (
-    <section className={styles.page}>
-      <h1 className={styles.heading}>Dimensiones del catálogo</h1>
+    <section className={styles.page} ref={reportRef}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--space-md)', flexWrap: 'wrap' }}>
+        <h1 className={styles.heading}>Dimensiones del catálogo</h1>
+        <ExportPDFButton targetRef={reportRef} fileName="dimensiones-catalogo" title="Dimensiones del catálogo" />
+      </div>
 
       <div className={styles.controls}>
         <div className={styles.field}>

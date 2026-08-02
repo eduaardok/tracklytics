@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { MiniLineChart } from '@shared/components/charts/MiniLineChart'
@@ -6,6 +6,7 @@ import { MiniBarChart } from '@shared/components/charts/MiniBarChart'
 import { CHART_COLORS } from '@shared/components/charts/colors'
 import { apiErrorMessage } from '@shared/lib/api-client'
 import { useToast } from '@shared/context/ToastContext'
+import { ExportPDFButton } from '@shared/components/ExportPDFButton'
 import { socialApi } from '../api/social.api'
 import type { Comentario, Denuncia, EstadoModeracion } from '../types'
 import styles from './SocialPages.module.css'
@@ -31,6 +32,7 @@ export function ModeracionSocialPage() {
   useDocumentTitle('Moderación social')
   const queryClient = useQueryClient()
   const toast = useToast()
+  const reportRef = useRef<HTMLElement>(null)
   const [estado, setEstado] = useState('')
 
   const comentarios = useQuery({
@@ -70,8 +72,11 @@ export function ModeracionSocialPage() {
   const data: Comentario[] = comentarios.data?.data ?? []
 
   return (
-    <section className={styles.page}>
-      <h1 className={styles.heading}>Moderación social</h1>
+    <section className={styles.page} ref={reportRef}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--space-md)', flexWrap: 'wrap' }}>
+        <h1 className={styles.heading}>Moderación social</h1>
+        <ExportPDFButton targetRef={reportRef} fileName="moderacion-social" title="Moderación social" />
+      </div>
 
       <div className={styles.dashboardGrid}>
         <div className={styles.chartPanel}>

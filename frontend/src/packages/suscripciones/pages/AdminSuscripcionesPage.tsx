@@ -1,8 +1,9 @@
-import { Fragment, useState } from 'react'
+import { Fragment, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { apiErrorMessage } from '@shared/lib/api-client'
 import { useToast } from '@shared/context/ToastContext'
+import { ExportPDFButton } from '@shared/components/ExportPDFButton'
 import { suscripcionesApi, type SuscripcionAdminRecord } from '../api/suscripciones.api'
 import styles from './AdminSuscripcionesPage.module.css'
 
@@ -24,6 +25,7 @@ export function AdminSuscripcionesPage() {
   useDocumentTitle('Suscripciones')
   const queryClient = useQueryClient()
   const toast = useToast()
+  const reportRef = useRef<HTMLElement>(null)
 
   const [estado, setEstado] = useState('')
   const [planId, setPlanId] = useState('')
@@ -48,8 +50,11 @@ export function AdminSuscripcionesPage() {
   const planesData = planes.data?.data ?? []
 
   return (
-    <section className={styles.page}>
-      <h1 className={styles.heading}>Suscripciones</h1>
+    <section className={styles.page} ref={reportRef}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--space-md)', flexWrap: 'wrap' }}>
+        <h1 className={styles.heading}>Suscripciones</h1>
+        <ExportPDFButton targetRef={reportRef} fileName="suscripciones-admin" title="Suscripciones" />
+      </div>
       <p className={styles.intro}>Todas las suscripciones de usuarios. Filtra, revisa el historial de cobros, cancela por incidencia o extiende como cortesía.</p>
 
       <div className={styles.filters}>

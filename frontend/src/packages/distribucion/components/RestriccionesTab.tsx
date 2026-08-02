@@ -1,9 +1,10 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ErrorState } from '@shared/components/ErrorState'
 import { apiErrorMessage } from '@shared/lib/api-client'
 import { useToast } from '@shared/context/ToastContext'
 import { TrackPicker, type TrackSearchResult } from '@shared/components/TrackPicker'
+import { ExportPDFButton } from '@shared/components/ExportPDFButton'
 import { distribucionApi } from '../api/distribucion.api'
 import styles from '../pages/DistribucionPages.module.css'
 
@@ -15,6 +16,7 @@ function fmtDate(iso: string) {
 export function RestriccionesTab() {
   const queryClient = useQueryClient()
   const toast = useToast()
+  const reportRef = useRef<HTMLDivElement>(null)
   const [track, setTrack] = useState<TrackSearchResult | null>(null)
   const consultado = track?.fact_id ?? null
   const [paisId, setPaisId] = useState('')
@@ -62,7 +64,10 @@ export function RestriccionesTab() {
   const data = restricciones.data?.data ?? []
 
   return (
-    <div>
+    <div ref={reportRef}>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 'var(--space-sm)' }}>
+        <ExportPDFButton targetRef={reportRef} fileName="distribucion-restricciones" title="Distribución — Restricciones geográficas" />
+      </div>
       <TrackPicker
         label="Track"
         selected={track}

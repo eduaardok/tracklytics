@@ -1,3 +1,4 @@
+import { useRef } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ErrorState } from '@shared/components/ErrorState'
 import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
@@ -5,6 +6,7 @@ import { MiniDonutChart } from '@shared/components/charts/MiniDonutChart'
 import { STATUS_COLORS } from '@shared/components/charts/colors'
 import { apiErrorMessage } from '@shared/lib/api-client'
 import { useToast } from '@shared/context/ToastContext'
+import { ExportPDFButton } from '@shared/components/ExportPDFButton'
 import { creadoresApi } from '../api/creadores.api'
 import type { CuentaArtista, SubidaTrack } from '../types'
 import styles from './CreadoresPages.module.css'
@@ -72,6 +74,7 @@ export function RevisionCreadoresPage() {
   useDocumentTitle('Revisión de creadores')
   const queryClient = useQueryClient()
   const toast = useToast()
+  const reportRef = useRef<HTMLElement>(null)
 
   const cuentas = useQuery({
     queryKey: ['creadores', 'admin', 'cuentas', 'pendiente'],
@@ -117,8 +120,11 @@ export function RevisionCreadoresPage() {
   const tracksData: SubidaTrack[]   = tracks.data?.data ?? []
 
   return (
-    <section className={styles.page}>
-      <h1 className={styles.heading}>Revisión de creadores</h1>
+    <section className={styles.page} ref={reportRef}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--space-md)', flexWrap: 'wrap' }}>
+        <h1 className={styles.heading}>Revisión de creadores</h1>
+        <ExportPDFButton targetRef={reportRef} fileName="revision-creadores" title="Revisión de creadores" />
+      </div>
 
       <div className={styles.dashboardGrid}>
         <div className={styles.chartPanel}>

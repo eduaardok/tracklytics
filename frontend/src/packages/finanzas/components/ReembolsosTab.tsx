@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiErrorMessage } from '@shared/lib/api-client'
 import { useToast } from '@shared/context/ToastContext'
+import { ExportPDFButton } from '@shared/components/ExportPDFButton'
 import { finanzasApi } from '../api/finanzas.api'
 import { ReembolsosScatter } from './charts/ReembolsosScatter'
 import { fmtMoney, fmtDate, isoDaysAgo, isoToday } from '../lib/format'
@@ -18,6 +19,7 @@ const emptyForm: ReembolsoBody = { transaccion_id: '', monto: 0, tipo: 'total', 
 export function ReembolsosTab() {
   const queryClient = useQueryClient()
   const toast = useToast()
+  const reportRef = useRef<HTMLDivElement>(null)
 
   const [form, setForm] = useState<ReembolsoBody>(emptyForm)
   const procesar = useMutation({
@@ -40,7 +42,10 @@ export function ReembolsosTab() {
   const procesados = data.filter((r) => r.estado === 'procesado')
 
   return (
-    <>
+    <div ref={reportRef}>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 'var(--space-sm)' }}>
+        <ExportPDFButton targetRef={reportRef} fileName="finanzas-reembolsos" title="Finanzas — Reembolsos" />
+      </div>
       <p className={styles.sectionLabel}>Procesar reembolso</p>
       <form
         className={styles.form}
@@ -126,6 +131,6 @@ export function ReembolsosTab() {
           </tbody>
         </table>
       </div>
-    </>
+    </div>
   )
 }

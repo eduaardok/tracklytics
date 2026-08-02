@@ -1,8 +1,9 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ErrorState } from '@shared/components/ErrorState'
 import { apiErrorMessage } from '@shared/lib/api-client'
 import { useToast } from '@shared/context/ToastContext'
+import { ExportPDFButton } from '@shared/components/ExportPDFButton'
 import { distribucionApi } from '../api/distribucion.api'
 import type { EstadoSolicitudLicencia } from '../types'
 import styles from '../pages/DistribucionPages.module.css'
@@ -21,6 +22,7 @@ function EstadoBadge({ estado }: { estado: EstadoSolicitudLicencia }) {
 export function SolicitudesLicenciaTab() {
   const queryClient = useQueryClient()
   const toast = useToast()
+  const reportRef = useRef<HTMLDivElement>(null)
 
   // ── Nueva solicitud ──────────────────────────────────────────────────────
   const [selloId, setSelloId] = useState('')
@@ -105,7 +107,10 @@ export function SolicitudesLicenciaTab() {
   const puedeCrear = selloId !== '' && paisesSel.length > 0 && canalesSel.length > 0 && fechaInicio !== ''
 
   return (
-    <div>
+    <div ref={reportRef}>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 'var(--space-sm)' }}>
+        <ExportPDFButton targetRef={reportRef} fileName="distribucion-solicitudes-licencia" title="Distribución — Solicitudes de licencia" />
+      </div>
       <p className={styles.sectionLabel}>Nueva solicitud de licencia</p>
       <p className={styles.emptyBody} style={{ marginBottom: 'var(--space-sm)' }}>
         Todavía no existe un login propio de sello: el admin la registra en nombre del sello. Un admin la aprueba

@@ -1,9 +1,10 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { apiErrorMessage } from '@shared/lib/api-client'
 import { useToast } from '@shared/context/ToastContext'
 import { useConfirm } from '@shared/context/ConfirmContext'
+import { ExportPDFButton } from '@shared/components/ExportPDFButton'
 import { catalogoApi } from '../api/catalogo.api'
 import type { Track } from '../types'
 import styles from './AdminTracksPage.module.css'
@@ -14,6 +15,7 @@ import styles from './AdminTracksPage.module.css'
 // se listan aparte para poder restaurarlos.
 export function AdminTracksPage() {
   useDocumentTitle('Catálogo · Takedown')
+  const reportRef = useRef<HTMLElement>(null)
   const queryClient = useQueryClient()
   const toast = useToast()
   const confirm = useConfirm()
@@ -57,8 +59,11 @@ export function AdminTracksPage() {
   const ocultosData: Track[] = ocultos.data?.data ?? []
 
   return (
-    <section className={styles.page}>
-      <h1 className={styles.heading}>Takedown de catálogo</h1>
+    <section className={styles.page} ref={reportRef}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--space-md)', flexWrap: 'wrap' }}>
+        <h1 className={styles.heading}>Takedown de catálogo</h1>
+        <ExportPDFButton targetRef={reportRef} fileName="catalogo-takedown" title="Takedown de catálogo" />
+      </div>
       <p className={styles.intro}>Oculta un track del catálogo público (DMCA, error editorial) o restaura uno retirado. El track nunca se borra: solo cambia su disponibilidad.</p>
 
       <p className={styles.sectionLabel}>Buscar un track para ocultar</p>

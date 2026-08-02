@@ -246,3 +246,26 @@
 .badgeManual   { background: oklch(0.35 0.02 0 / 0.2);   color: oklch(0.65 0.02 0);  }
 .badgeDenuncia { background: oklch(0.45 0.12 60 / 0.15); color: oklch(0.7 0.15 60);  }
 
+/* Botón destructivo compacto con ícono (SesionesActivasPage: "Cerrar sesión"
+   por fila) — distinto de `.button` (relleno, para la acción primaria de la
+   página), este es de borde para una acción secundaria dentro de una celda. */
+.btnIconDanger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  color: var(--color-error);
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  padding: 5px 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid oklch(0.65 0.22 25 / 0.35);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background-color var(--duration-standard) var(--ease-standard);
+}
+
+.btnIconDanger:hover:not(:disabled) { background: oklch(0.65 0.22 25 / 0.1); }
+.btnIconDanger:disabled { opacity: 0.5; cursor: not-allowed; }
+

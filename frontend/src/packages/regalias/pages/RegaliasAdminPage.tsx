@@ -1,8 +1,9 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { TrackPicker, type TrackSearchResult } from '@shared/components/TrackPicker'
 import { UserPicker, type UserSearchResult } from '@shared/components/UserPicker'
+import { ExportPDFButton } from '@shared/components/ExportPDFButton'
 import { apiErrorMessage } from '@shared/lib/api-client'
 import { useToast } from '@shared/context/ToastContext'
 import { useConfirm } from '@shared/context/ConfirmContext'
@@ -29,6 +30,7 @@ export function RegaliasAdminPage() {
   const queryClient = useQueryClient()
   const toast = useToast()
   const confirm = useConfirm()
+  const reportRef = useRef<HTMLElement>(null)
 
   // Contrato en edición (change p1-ciclos-vida) — null = diálogo cerrado.
   const [editContrato, setEditContrato] = useState<Contrato | null>(null)
@@ -163,8 +165,11 @@ export function RegaliasAdminPage() {
   const artistasData = artistas.data?.data ?? []
 
   return (
-    <section className={styles.page}>
-      <h1 className={styles.heading}>Regalías</h1>
+    <section className={styles.page} ref={reportRef}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--space-md)', flexWrap: 'wrap' }}>
+        <h1 className={styles.heading}>Regalías</h1>
+        <ExportPDFButton targetRef={reportRef} fileName="regalias-admin" title="Regalías" />
+      </div>
 
       <p className={styles.sectionLabel}>Nuevo productor</p>
       <form className={styles.form} onSubmit={(e) => { e.preventDefault(); if (nombreProductor.trim()) crearProductor.mutate() }}>

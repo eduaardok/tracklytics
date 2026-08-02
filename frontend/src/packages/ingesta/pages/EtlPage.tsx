@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { MiniBarChart } from '@shared/components/charts/MiniBarChart'
 import { EmptyState } from '@shared/components/EmptyState'
+import { ExportPDFButton } from '@shared/components/ExportPDFButton'
 import { ingestaApi, IngestaApiError } from '../api/ingesta.api'
 import type { SyntheticMode, EjecucionEstado, RecalificacionEstado } from '../types'
 import styles from './EtlPage.module.css'
@@ -77,6 +78,7 @@ function StageBadge({ etapa, estado }: { etapa: string; estado: string | null })
 // legacy, no una simulación.
 export function EtlPage() {
   useDocumentTitle('Ingesta de catálogo')
+  const reportRef = useRef<HTMLElement>(null)
   const queryClient = useQueryClient()
   const [weekNumber, setWeekNumber]   = useState('1')
   const [forzarRecarga, setForzar]    = useState(false)
@@ -216,8 +218,11 @@ export function EtlPage() {
   const historial    = cargas.data?.data ?? []
 
   return (
-    <section className={styles.page}>
-      <h1 className={styles.heading}>Ingesta de catálogo</h1>
+    <section className={styles.page} ref={reportRef}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--space-md)', flexWrap: 'wrap' }}>
+        <h1 className={styles.heading}>Ingesta de catálogo</h1>
+        <ExportPDFButton targetRef={reportRef} fileName="ingesta-etl" title="Ingesta de catálogo" />
+      </div>
 
       {ultimaCarga && (
         <div className={styles.lastRunBar}>

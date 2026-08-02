@@ -1,8 +1,10 @@
+import { useRef } from 'react'
 import {
   LineChart, Line, CartesianGrid, XAxis, YAxis, Tooltip, ResponsiveContainer,
 } from 'recharts'
 import { useQuery } from '@tanstack/react-query'
 import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
+import { ExportPDFButton } from '@shared/components/ExportPDFButton'
 import { analiticaApi } from '../api/analitica.api'
 import type { DisponibilidadComponente } from '../types'
 import styles from './DisponibilidadInfraPage.module.css'
@@ -73,6 +75,7 @@ function ComponentePanel({ componente, data }: { componente: string; data: Dispo
 
 export function DisponibilidadInfraPage() {
   useDocumentTitle('Disponibilidad de infraestructura')
+  const reportRef = useRef<HTMLElement>(null)
   const disponibilidad = useQuery({
     queryKey: ['analitica', 'disponibilidad'],
     queryFn:  () => analiticaApi.disponibilidad(),
@@ -82,8 +85,11 @@ export function DisponibilidadInfraPage() {
   const componentes = Array.from(new Set(data.map((r) => r.componente))).sort()
 
   return (
-    <section className={styles.page}>
-      <h1 className={styles.heading}>Disponibilidad de infraestructura</h1>
+    <section className={styles.page} ref={reportRef}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--space-md)', flexWrap: 'wrap' }}>
+        <h1 className={styles.heading}>Disponibilidad de infraestructura</h1>
+        <ExportPDFButton targetRef={reportRef} fileName="analitica-disponibilidad-infra" title="Disponibilidad de infraestructura" />
+      </div>
       <span className={styles.subtitle}>
         {componentes.length > 0 ? `// ${componentes.length} componentes` : '// % de disponibilidad por componente y semana'}
       </span>
