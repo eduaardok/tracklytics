@@ -1,25 +1,32 @@
 """GOLD_PRODUCTO_PERIODO — C28/C29/C30 (OT-32/33/34, Producto).
 
-Real: `FACT_IMPRESION_RECOMENDACION` (fue_reproducido, 495 filas reales) para
-conversión de recomendaciones; `FACT_AB_TEST_EXPOSICION` (136 filas reales,
-por experimento/variante) para A/B; `FACT_NOTIFICACION` (tipo/leido) para
-notificaciones — escasa en filas reales (4 al momento de escribir este
-módulo), se completa con demo donde falta.
+100% real desde el catálogo (8123), sin relleno demo (S14-P3): `FACT_
+IMPRESION_RECOMENDACION` (fue_reproducido) para conversión de recomendaciones;
+`FACT_AB_TEST_EXPOSICION` (por experimento/variante) para A/B; `FACT_
+NOTIFICACION` (tipo/leido) para notificaciones.
 
 `categoria` discrimina qué sub-informe llena la fila ('recomendaciones',
 'ab_test', 'notificacion'); `dimension` guarda el experimento o el tipo de
 notificación según corresponda.
 
-S14-P2: granularidad configurable. El relleno demo de cada sub-categoría
-solo cubre los `PERIODOS_RELLENO_DEMO` períodos más recientes.
+`metrica_impacto` (OT-33, impacto de un experimento A/B): `FACT_
+AB_TEST_EXPOSICION` no tiene una columna de resultado/conversión propia —
+antes de S14-P3 este valor se fabricaba con `rng_for()` incluso en filas con
+`es_estimado=0` (bug: el flag decía "real" sobre una columna inventada). Se
+deriva ahora de una señal real correlacionada: reproducciones por usuario
+expuesto en el mismo período (`FACT_ENGAGEMENT_USUARIO`), agrupadas por
+variante — `metrica_impacto` es la diferencia % entre la variante con más
+reproducciones promedio por usuario y la que tiene menos, dentro del mismo
+experimento y período. Con una sola variante (o sin reproducciones
+posteriores todavía), no hay base de comparación real: queda en 0.0, no se
+inventa (mismo criterio que la excepción de proyecciones de
+`consumo_genero.py` en S14-P2).
 """
 
 import time
+from statistics import mean
 
-from gold_ch.base import (
-    VENTANA_ORIGEN_DIAS, fecha_inicio_sql, get_catalog_client, get_gold_client,
-    log_run, periodo_sql, periodos_ventana, permite_relleno_demo, rng_for, write_gold,
-)
+from gold_ch.base import VENTANA_ORIGEN_DIAS, get_catalog_client, get_gold_client, log_run, periodo_sql, periodos_ventana, write_gold
 
 TABLE = "GOLD_PRODUCTO_PERIODO"
 COLUMNS = [
@@ -44,20 +51,31 @@ def run_gold_producto(granularidad: str = "semana") -> None:
         f"WHERE fecha >= now() - INTERVAL {VENTANA_ORIGEN_DIAS} DAY GROUP BY periodo"
     ).named_results()}
 
-    ab = list(catalog.query(
+    ab_detalle = list(catalog.query(
         f"""
-        SELECT {periodo_sql('fecha', granularidad)} AS periodo, experimento, variante, count() AS n
+        SELECT {periodo_sql('fecha', granularidad)} AS periodo, experimento, variante, usuario_id
         FROM FACT_AB_TEST_EXPOSICION WHERE fecha >= now() - INTERVAL {VENTANA_ORIGEN_DIAS} DAY
-        GROUP BY periodo, experimento, variante
         """
     ).named_results())
     ab_por_periodo_exp: dict[tuple, dict] = {}
-    for r in ab:
+    for r in ab_detalle:
         key = (r["periodo"], r["experimento"])
-        ab_por_periodo_exp.setdefault(key, {"total": 0, "variantes": set()})
-        ab_por_periodo_exp[key]["total"] += r["n"]
-        ab_por_periodo_exp[key]["variantes"].add(r["variante"])
-    experimentos_reales = sorted({r["experimento"] for r in ab}) or ["exp-demo-1"]
+        grupo = ab_por_periodo_exp.setdefault(key, {"total": 0, "variantes": set(), "usuarios_por_variante": {}})
+        grupo["total"] += 1
+        grupo["variantes"].add(r["variante"])
+        grupo["usuarios_por_variante"].setdefault(r["variante"], set()).add(r["usuario_id"])
+    experimentos_reales = sorted({r["experimento"] for r in ab_detalle})
+
+    # Reproducciones por usuario y período — para derivar metrica_impacto por
+    # correlación real (ver docstring), no un número al azar.
+    repros_por_usuario_periodo = {
+        (r["usuario_id"], r["periodo"]): r["n"]
+        for r in catalog.query(
+            f"SELECT user_id AS usuario_id, {periodo_sql('event_timestamp', granularidad)} AS periodo, count() AS n "
+            f"FROM FACT_ENGAGEMENT_USUARIO WHERE event_type = 'reproduccion' "
+            f"AND event_timestamp >= now() - INTERVAL {VENTANA_ORIGEN_DIAS} DAY GROUP BY usuario_id, periodo"
+        ).named_results()
+    } if ab_detalle else {}
 
     notifs = list(catalog.query(
         f"""
@@ -68,55 +86,46 @@ def run_gold_producto(granularidad: str = "semana") -> None:
         """
     ).named_results())
     notifs_por_periodo_tipo = {(r["periodo"], r["tipo"]): r for r in notifs}
-    tipos_notif = sorted({r["tipo"] for r in notifs}) or [
-        "nuevo_track_artista_seguido", "comentario_en_tu_contenido", "nuevo_colaborador_playlist",
-    ]
+    tipos_notif = sorted({r["tipo"] for r in notifs})
+
+    def _metrica_impacto(periodo: str, usuarios_por_variante: dict[str, set]) -> float:
+        promedios = []
+        for _variante, usuarios in usuarios_por_variante.items():
+            repros = [repros_por_usuario_periodo.get((u, periodo), 0) for u in usuarios]
+            if repros:
+                promedios.append(mean(repros))
+        if len(promedios) < 2:
+            return 0.0
+        mayor, menor = max(promedios), min(promedios)
+        if menor <= 0:
+            return 0.0
+        return round((mayor - menor) / menor * 100, 2)
 
     rows: list[tuple] = []
     for periodo in periodos:
         fi = fecha_inicio_de[periodo]
-        permite_demo = permite_relleno_demo(periodos, periodo)
 
         r = recos.get(periodo)
         if r:
-            total, repro, es_reco = r["total"], r["reproducidas"], 0
-        elif permite_demo:
-            rnd = rng_for(TABLE, periodo, "reco")
-            total = rnd.randint(10, 120)
-            repro = int(total * rnd.uniform(0.1, 0.4))
-            es_reco = 1
-        else:
-            total = None
-        if total is not None:
+            total, repro = r["total"], r["reproducidas"]
             tasa_reco = round((repro / total * 100) if total else 0, 2)
-            rows.append((granularidad, fi, periodo, "recomendaciones", "", total, repro, tasa_reco, 0, 0, 0.0, 0, 0, 0.0, es_reco))
+            rows.append((granularidad, fi, periodo, "recomendaciones", "", total, repro, tasa_reco, 0, 0, 0.0, 0, 0, 0.0, 0))
 
         for exp in experimentos_reales:
             info = ab_por_periodo_exp.get((periodo, exp))
-            es_ab = 0 if info else 1
-            if info:
-                exposiciones, n_variantes = info["total"], len(info["variantes"])
-            elif permite_demo:
-                rnd = rng_for(TABLE, periodo, exp)
-                exposiciones, n_variantes = rnd.randint(5, 80), rnd.choice([2, 2, 3])
-            else:
+            if not info:
                 continue
-            impacto = round(rng_for(TABLE, periodo, exp, "impacto").uniform(-8.0, 15.0), 2)
-            rows.append((granularidad, fi, periodo, "ab_test", exp, 0, 0, 0.0, n_variantes, exposiciones, impacto, 0, 0, 0.0, es_ab))
+            exposiciones, n_variantes = info["total"], len(info["variantes"])
+            impacto = _metrica_impacto(periodo, info["usuarios_por_variante"])
+            rows.append((granularidad, fi, periodo, "ab_test", exp, 0, 0, 0.0, n_variantes, exposiciones, impacto, 0, 0, 0.0, 0))
 
         for tipo in tipos_notif:
             n = notifs_por_periodo_tipo.get((periodo, tipo))
-            es_notif = 0 if n else 1
-            if n:
-                enviadas, leidas = n["total"], n["leidas"]
-            elif permite_demo:
-                rnd = rng_for(TABLE, periodo, tipo)
-                enviadas = rnd.randint(3, 50)
-                leidas = int(enviadas * rnd.uniform(0.3, 0.8))
-            else:
+            if not n:
                 continue
+            enviadas, leidas = n["total"], n["leidas"]
             tasa_lectura = round((leidas / enviadas * 100) if enviadas else 0, 2)
-            rows.append((granularidad, fi, periodo, "notificacion", tipo, 0, 0, 0.0, 0, 0, 0.0, enviadas, leidas, tasa_lectura, es_notif))
+            rows.append((granularidad, fi, periodo, "notificacion", tipo, 0, 0, 0.0, 0, 0, 0.0, enviadas, leidas, tasa_lectura, 0))
 
     write_gold(gold, TABLE, COLUMNS, rows, periodos, granularidad)
     log_run(gold, TABLE, periodos, len(rows), time.time() - t0, granularidad=granularidad)

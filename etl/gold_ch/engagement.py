@@ -12,19 +12,18 @@ Se limita a los 10 géneros con más reproducciones reales (más una fila de
 rollup `genero=''` con el total del período) — desglosar los 114 géneros
 reales del catálogo por período infla la tabla sin aportar señal.
 
-S14-P2: granularidad configurable. `retenidos` compara usuarios activos del
-período actual contra el período INMEDIATAMENTE anterior de la MISMA
-granularidad (no necesariamente la semana calendario anterior cuando la
-granularidad es 'mes'/'trimestre'/'anio') — el relleno demo solo cubre los
-`PERIODOS_RELLENO_DEMO` períodos más recientes.
+`retenidos` compara usuarios activos del período actual contra el período
+INMEDIATAMENTE anterior de la MISMA granularidad (no necesariamente la
+semana calendario anterior cuando la granularidad es 'mes'/'trimestre'/
+'anio'). S14-P3 eliminó el relleno demo (`rng_for`):
+`etl/gold/backfill_negocio.py` genera reproducciones/favoritos reales para
+los 24 meses de historia — un período o género sin actividad real no tiene
+fila.
 """
 
 import time
 
-from gold_ch.base import (
-    VENTANA_ORIGEN_DIAS, fecha_inicio_sql, get_catalog_client, get_gold_client,
-    log_run, periodo_sql, periodos_ventana, permite_relleno_demo, rng_for, write_gold,
-)
+from gold_ch.base import VENTANA_ORIGEN_DIAS, get_catalog_client, get_gold_client, log_run, periodo_sql, periodos_ventana, write_gold
 
 TABLE = "GOLD_ENGAGEMENT_PERIODO"
 COLUMNS = [
@@ -104,7 +103,6 @@ def run_gold_engagement(granularidad: str = "semana") -> None:
     prev_users: set[str] = set()
     for periodo in periodos:
         fi = fecha_inicio_de[periodo]
-        permite_demo = permite_relleno_demo(periodos, periodo)
         r = rollup.get(periodo)
         adds = playlist_adds.get(periodo, 0)
         nuevos_n = nuevos.get(periodo, 0)
@@ -121,32 +119,16 @@ def run_gold_engagement(granularidad: str = "semana") -> None:
                 granularidad, fi, periodo, "", r["repros"], favs, adds,
                 score(r["repros"], favs, adds, r["activos"]), 0.0, r["activos"], nuevos_n, retenidos, 0,
             ))
-        elif permite_demo:
-            rnd = rng_for(TABLE, periodo, "rollup")
-            activos_n = rnd.randint(30, 150)
-            repros_n = activos_n * rnd.randint(5, 20)
-            favs_n = int(repros_n * rnd.uniform(0.05, 0.15))
-            rows.append((
-                granularidad, fi, periodo, "", repros_n, favs_n, rnd.randint(5, 40),
-                score(repros_n, favs_n, adds, activos_n), 0.0, activos_n, nuevos_n, int(activos_n * rnd.uniform(0.3, 0.6)), 1,
-            ))
 
         for genero in top_generos:
             g = por_genero.get((periodo, genero))
-            if g:
-                rows.append((
-                    granularidad, fi, periodo, genero, g["repros"], max(g["favs"], 0), 0,
-                    score(g["repros"], max(g["favs"], 0), 0, g["activos"]),
-                    round(g["pop"] or 0, 2), g["activos"], 0, 0, 0,
-                ))
-            elif permite_demo:
-                rnd = rng_for(TABLE, periodo, genero)
-                repros_n = rnd.randint(50, 800)
-                rows.append((
-                    granularidad, fi, periodo, genero, repros_n, int(repros_n * 0.08), 0,
-                    round(repros_n / max(1, rnd.randint(10, 40)), 2),
-                    round(rnd.uniform(40, 85), 2), rnd.randint(10, 60), 0, 0, 1,
-                ))
+            if not g:
+                continue
+            rows.append((
+                granularidad, fi, periodo, genero, g["repros"], max(g["favs"], 0), 0,
+                score(g["repros"], max(g["favs"], 0), 0, g["activos"]),
+                round(g["pop"] or 0, 2), g["activos"], 0, 0, 0,
+            ))
 
     write_gold(gold, TABLE, COLUMNS, rows, periodos, granularidad)
     log_run(gold, TABLE, periodos, len(rows), time.time() - t0, granularidad=granularidad)

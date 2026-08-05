@@ -10,21 +10,18 @@ Real desde el catálogo:
   "/app/v1/biblioteca/playlists") como dimensión "componente" de negocio,
   distinta de la de infraestructura pero igual de real.
 
-Demo: `errores_criticos` (FACT_ERROR_SISTEMA no tiene columna de severidad —
+`errores_criticos` (FACT_ERROR_SISTEMA no tiene columna de severidad —
 documentado, no fabricado en el catálogo) y `tiempo_resolucion_promedio_h`
-(no hay timestamp de resolución, solo un booleano `resolved`).
-
-S14-P2: granularidad configurable. El relleno demo de componentes/períodos
-sin dato de disponibilidad solo cubre los `PERIODOS_RELLENO_DEMO` períodos
-más recientes.
+(no hay timestamp de resolución, solo un booleano `resolved`) quedan en 0:
+no hay señal real para ninguna de las dos en el esquema actual, y desde
+S14-P3 ya no se fabrican con `rng_for()`. `etl/gold/backfill_negocio.py`
+genera disponibilidad real para los 24 meses de historia, así que un
+período sin fila de disponibilidad real simplemente no aparece.
 """
 
 import time
 
-from gold_ch.base import (
-    VENTANA_ORIGEN_DIAS, fecha_inicio_sql, get_catalog_client, get_gold_client,
-    log_run, periodo_sql, periodos_ventana, permite_relleno_demo, rng_for, write_gold,
-)
+from gold_ch.base import VENTANA_ORIGEN_DIAS, fecha_inicio_sql, get_catalog_client, get_gold_client, log_run, periodo_sql, periodos_ventana, write_gold
 
 TABLE = "GOLD_INFRAESTRUCTURA_PERIODO"
 COLUMNS = [
@@ -67,7 +64,6 @@ def run_gold_infraestructura(granularidad: str = "semana") -> None:
     }
 
     componentes_infra = sorted({r["componente"] for r in disponibilidad}) or ["api", "clickhouse", "pocketbase", "airflow"]
-    cubiertos_infra = {(r["periodo"], r["componente"]) for r in disponibilidad}
 
     rows: list[tuple] = []
     for r in disponibilidad:
@@ -82,18 +78,6 @@ def run_gold_infraestructura(granularidad: str = "semana") -> None:
         if componente in componentes_infra or periodo not in fecha_inicio_de:
             continue
         rows.append((granularidad, fecha_inicio_de[periodo], periodo, componente, 100.0, 0, 0.0, n_err, 0, 0))
-
-    for periodo in periodos:
-        if not permite_relleno_demo(periodos, periodo):
-            continue
-        fi = fecha_inicio_de[periodo]
-        for componente in componentes_infra:
-            if (periodo, componente) in cubiertos_infra:
-                continue
-            rnd = rng_for(TABLE, periodo, componente)
-            uptime = round(rnd.uniform(98.5, 100.0), 2)
-            incidentes = 0 if uptime > 99.5 else rnd.randint(1, 3)
-            rows.append((granularidad, fi, periodo, componente, uptime, incidentes, round(rnd.uniform(0.3, 4.0), 2), 0, 0, 1))
 
     write_gold(gold, TABLE, COLUMNS, rows, periodos, granularidad)
     log_run(gold, TABLE, periodos, len(rows), time.time() - t0, granularidad=granularidad)

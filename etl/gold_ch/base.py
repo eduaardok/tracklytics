@@ -1,20 +1,18 @@
 """etl/gold_ch/base.py — utilidades compartidas por los 12 módulos de agregación
 de la capa Gold: conexión a ambas instancias de ClickHouse, cálculo de
-períodos por granularidad configurable (S14-P2), relleno de demostración con
-seed fijo, y escritura idempotente (DELETE + INSERT por granularidad+período).
+períodos por granularidad configurable (S14-P2), y escritura idempotente
+(DELETE + INSERT por granularidad+período).
 
-Ver docs/BITACORA_S13.md, entrada P3a, para la política de "real primero,
-demo si falta": cada módulo de dominio agrega lo que el catálogo (8123)
-realmente tiene, y solo rellena con `gold_ch.base.rng_for(...)` los períodos
-donde el catálogo no tiene filas — nunca al revés.
-
-Ver docs/BITACORA_S14.md, entrada P2, para la extensión a 5 granularidades
-(día/semana/mes/trimestre/año) y el acotamiento del relleno demo a los
-últimos `PERIODOS_RELLENO_DEMO` períodos de cada granularidad — ampliar el
-horizonte no debe multiplicar el volumen de datos inventados.
+Hasta S14-P2 cada módulo rellenaba con `gold_ch.base.rng_for(...)` los
+períodos donde el catálogo no tenía filas ("real primero, demo si falta",
+ver docs/BITACORA_S13.md P3a). S14-P3 eliminó ese mecanismo por completo:
+`etl/gold/backfill_negocio.py` genera 24 meses de eventos de negocio reales
+directamente en el catálogo, así que los 12 módulos ya no necesitan
+fabricar nada — un período sin dato real simplemente no se escribe. `rng_for`
+y `permite_relleno_demo` (S14-P2) se retiraron de este módulo junto con sus
+últimos llamadores (ver docs/BITACORA_S14.md, P3).
 """
 
-import random
 from datetime import date, datetime, timedelta, timezone
 
 import clickhouse_connect
@@ -38,12 +36,6 @@ HORIZONTE_POR_GRANULARIDAD = {
 # grano semanal fijo (12 semanas). Ya no gobierna el horizonte real (ver
 # HORIZONTE_POR_GRANULARIDAD) — se conserva solo para no romper imports.
 PERIODOS_VENTANA = HORIZONTE_POR_GRANULARIDAD["semana"]
-
-# El relleno demo (rng_for) solo se aplica a los N períodos más recientes de
-# cada granularidad. Los períodos más antiguos de la ventana se escriben
-# ÚNICAMENTE si el catálogo tiene datos reales — si no los tiene, no se
-# escribe la fila (en vez de inventar historia hacia atrás).
-PERIODOS_RELLENO_DEMO = 12
 
 # Ventana única de lectura del catálogo origen (8123) — reemplaza los
 # `INTERVAL 90 DAY` / `today() - 90` (y el `INTERVAL 180 DAY` de
@@ -157,31 +149,12 @@ def periodos_ventana(granularidad: str = "semana") -> list[tuple[str, date]]:
     return list(reversed(periodos))
 
 
-def permite_relleno_demo(etiquetas: list[str], periodo: str) -> bool:
-    """True si `periodo` está entre los `PERIODOS_RELLENO_DEMO` períodos más
-    recientes de `etiquetas` (la lista completa de la ventana, más antiguo
-    primero) — solo esos períodos aceptan relleno con `rng_for()` cuando el
-    catálogo no tiene el dato real. Los períodos más antiguos que no tengan
-    dato real simplemente no se escriben."""
-    idx = etiquetas.index(periodo)
-    return idx >= len(etiquetas) - PERIODOS_RELLENO_DEMO
-
-
 def get_gold_client() -> clickhouse_connect.driver.Client:
     cfg = get_config()
     return clickhouse_connect.get_client(
         host=cfg["ch_gold_host"], port=cfg["ch_gold_port"],
         database=cfg["ch_gold_db"], username=cfg["ch_user"], password=cfg["ch_pass"],
     )
-
-
-def rng_for(*parts: str) -> random.Random:
-    """Random determinista por combinación de partes (tabla + período +
-    dimensión, típicamente) — misma corrida, mismo resultado, sin depender
-    de un seed global compartido entre módulos (que acoplaría su orden de
-    ejecución)."""
-    seed = "|".join(str(p) for p in parts)
-    return random.Random(seed)
 
 
 def write_gold(client: clickhouse_connect.driver.Client, table: str, columns: list[str],

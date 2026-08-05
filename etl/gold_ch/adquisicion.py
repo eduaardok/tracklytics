@@ -1,28 +1,36 @@
 """GOLD_ADQUISICION_PERIODO — C01/C02/C03 (OT-01/02/03, Comercial).
 
-Real desde el catálogo (8123):
-- `registros_nuevos` por país: DIM_USUARIO.fecha_registro (real, 101 filas al
-  momento de escribir este módulo).
-- `deserciones`: FACT_CANCELACION_SUSCRIPCION.fecha (real, aunque escasa).
+100% real desde el catálogo (8123), sin relleno demo (S14-P3 — ver
+docs/BITACORA_S14.md, P3):
+- `registros_nuevos` por país: DIM_USUARIO.fecha_registro.
+- `deserciones`: FACT_CANCELACION_SUSCRIPCION.fecha.
 - `cac_estimado`: FACT_GASTO_OPERATIVO categoria='marketing' del período /
-  registros_nuevos del mismo período — real cuando ambos existen.
+  registros_nuevos del mismo período.
+- `suscripciones_activas`/`conversiones_free_to_paid` por plan: derivadas de
+  FACT_TRANSACCION_PAGO (concepto='suscripcion', estado='exitosa'), mapeando
+  cada transacción a su plan por el monto (coincide con DIM_PLAN.precio_usd —
+  no hay columna `plan_id` en FACT_TRANSACCION_PAGO, así que el monto es la
+  única señal real disponible para identificar el plan). Antes de S14-P3 esto
+  se rellenaba con `rng_for()` (docstring histórico: "PocketBase es la fuente
+  real, no hay forma de derivarlo del catálogo") — el backfill de negocio de
+  S14-P3 (`etl/gold/backfill_negocio.py`) generó estas transacciones
+  directamente en ClickHouse, así que ahora sí hay evento real que agregar.
+  "suscripciones_activas" cuenta usuarios cuyo ciclo de facturación
+  (`periodo_inicio`/`periodo_fin` de la transacción) se solapa con el período
+  Gold; "conversiones_free_to_paid" cuenta usuarios cuya PRIMERA transacción
+  paga cae dentro del período.
 
-Demo (marcado `es_estimado=1`, documentado en BITACORA_S13.md): las
-suscripciones activas no viven en ClickHouse (PocketBase es la fuente real,
-ver `paquetes.suscripciones.pb_client`) y las "conversiones free→paid" no
-tienen un evento propio registrado — no hay forma de derivarlas del
-catálogo sin inventar un dato que el pipeline no produce.
-
-S14-P2: granularidad configurable (día/semana/mes/trimestre/año). El relleno
-demo (`rng_for`) solo cubre los `PERIODOS_RELLENO_DEMO` períodos más
-recientes de la ventana — ver `gold_ch.base.permite_relleno_demo`.
+Sin período con datos reales, la fila/dimensión simplemente no se escribe —
+`es_estimado` se conserva en el esquema (garantía a futuro) pero vale 0 en
+todas las filas que este módulo escribe.
 """
 
 import time
+from datetime import timedelta
 
 from gold_ch.base import (
     VENTANA_ORIGEN_DIAS, fecha_inicio_sql, get_catalog_client, get_gold_client,
-    log_run, periodo_sql, periodos_ventana, permite_relleno_demo, rng_for, write_gold,
+    log_run, periodo_sql, periodos_ventana, write_gold,
 )
 
 TABLE = "GOLD_ADQUISICION_PERIODO"
@@ -30,7 +38,6 @@ COLUMNS = [
     "granularidad", "fecha_inicio", "periodo", "pais", "plan", "registros_nuevos",
     "conversiones_free_to_paid", "deserciones", "suscripciones_activas", "cac_estimado", "es_estimado",
 ]
-PLANES = ["free", "premium", "familiar", "estudiante"]
 
 
 def run_gold_adquisicion(granularidad: str = "semana") -> None:
@@ -38,6 +45,11 @@ def run_gold_adquisicion(granularidad: str = "semana") -> None:
     ventana = periodos_ventana(granularidad)
     periodos = [p for p, _ in ventana]
     fecha_inicio_de = dict(ventana)
+    fechas_ordenadas = [fi for _, fi in ventana]
+    fecha_fin_de = {
+        p: (fechas_ordenadas[i + 1] if i + 1 < len(fechas_ordenadas) else fechas_ordenadas[i] + timedelta(days=3650))
+        for i, (p, _) in enumerate(ventana)
+    }
     catalog = get_catalog_client()
     gold = get_gold_client()
 
@@ -83,56 +95,60 @@ def run_gold_adquisicion(granularidad: str = "semana") -> None:
 
     paises_reales = sorted({p for (_, p) in registros.keys()}) or ["Ecuador", "México", "Colombia"]
 
+    # Mapeo monto -> plan_id: FACT_TRANSACCION_PAGO no guarda plan_id, el
+    # monto de la transacción es la única señal real que lo identifica.
+    precio_a_plan = {
+        round(float(r["precio_usd"]), 2): r["plan_id"]
+        for r in catalog.query("SELECT plan_id, precio_usd FROM DIM_PLAN WHERE activo = 1").named_results()
+    }
+    transacciones_susc = list(catalog.query(
+        f"SELECT usuario_id, monto, periodo_inicio, periodo_fin, fecha FROM FACT_TRANSACCION_PAGO "
+        f"WHERE concepto = 'suscripcion' AND estado = 'exitosa' AND monto > 0 "
+        f"AND fecha >= now() - INTERVAL {VENTANA_ORIGEN_DIAS} DAY"
+    ).named_results())
+    primera_transaccion_por_usuario: dict[str, dict] = {}
+    for t in sorted(transacciones_susc, key=lambda r: r["fecha"]):
+        primera_transaccion_por_usuario.setdefault(t["usuario_id"], t)
+
     rows: list[tuple] = []
     for periodo in periodos:
         fi = fecha_inicio_de[periodo]
-        permite_demo = permite_relleno_demo(periodos, periodo)
+        ff = fecha_fin_de[periodo]
         total_registros_periodo = 0
         for pais in paises_reales:
             n = registros.get((periodo, pais))
             if n is None:
-                if not permite_demo:
-                    continue
-                n = rng_for(TABLE, periodo, pais).randint(2, 40)
-                es_est = 1
-            else:
-                es_est = 0
+                continue
             total_registros_periodo += n
-            rows.append((granularidad, fi, periodo, pais, "", n, 0, 0, 0, 0.0, es_est))
+            rows.append((granularidad, fi, periodo, pais, "", n, 0, 0, 0, 0.0, 0))
 
         desercion_n = deserciones.get(periodo)
-        es_est_deser = 0 if desercion_n is not None else 1
-        if desercion_n is None:
-            if permite_demo:
-                desercion_n = rng_for(TABLE, periodo, "deserciones").randint(0, 4)
-
         gasto = gasto_marketing.get(periodo)
-        if gasto is not None and total_registros_periodo > 0:
-            cac = round(gasto / total_registros_periodo, 2)
-            es_est_cac = 0
-        elif permite_demo:
-            cac = round(rng_for(TABLE, periodo, "cac").uniform(8.0, 45.0), 2)
-            es_est_cac = 1
-        else:
-            cac = None
-
+        cac = round(gasto / total_registros_periodo, 2) if (gasto is not None and total_registros_periodo > 0) else None
         if desercion_n is not None or cac is not None:
-            rows.append((
-                granularidad, fi, periodo, "", "", 0, 0, desercion_n or 0, 0, cac or 0.0,
-                max(es_est_deser, es_est_cac if cac is not None else 0),
-            ))
+            rows.append((granularidad, fi, periodo, "", "", 0, 0, desercion_n or 0, 0, cac or 0.0, 0))
 
-        # Conversiones y suscripciones activas por plan: sin evento propio en
-        # el catálogo (ver docstring) — siempre demo, coherente entre planes
-        # (suman ~lo mismo período a período con una tendencia suave). Solo
-        # se escribe para los períodos que aceptan relleno demo.
-        if permite_demo:
-            base = 40 + periodos.index(periodo) * 3
-            for plan in PLANES:
-                rnd = rng_for(TABLE, periodo, plan)
-                activos = max(0, int(base * rnd.uniform(0.7, 1.3)) if plan != "free" else int(base * rnd.uniform(2.5, 3.5)))
-                conversiones = rnd.randint(0, 6) if plan != "free" else 0
-                rows.append((granularidad, fi, periodo, "", plan, 0, conversiones, 0, activos, 0.0, 1))
+        # Activos por plan: transacciones cuyo ciclo de facturación
+        # (periodo_inicio..periodo_fin) se solapa con [fi, ff).
+        activos_por_plan: dict[str, set] = {}
+        for t in transacciones_susc:
+            if t["periodo_inicio"] < ff and t["periodo_fin"] >= fi:
+                plan_id = precio_a_plan.get(round(float(t["monto"]), 2))
+                if plan_id:
+                    activos_por_plan.setdefault(plan_id, set()).add(t["usuario_id"])
+
+        # Conversiones: primera transacción paga de cada usuario, si cae en [fi, ff).
+        conversiones_por_plan: dict[str, int] = {}
+        for usuario_id, t in primera_transaccion_por_usuario.items():
+            if fi <= t["fecha"].date() < ff:
+                plan_id = precio_a_plan.get(round(float(t["monto"]), 2))
+                if plan_id:
+                    conversiones_por_plan[plan_id] = conversiones_por_plan.get(plan_id, 0) + 1
+
+        for plan_id in sorted(set(activos_por_plan) | set(conversiones_por_plan)):
+            activos = len(activos_por_plan.get(plan_id, ()))
+            conversiones = conversiones_por_plan.get(plan_id, 0)
+            rows.append((granularidad, fi, periodo, "", plan_id, 0, conversiones, 0, activos, 0.0, 0))
 
     write_gold(gold, TABLE, COLUMNS, rows, periodos, granularidad)
     log_run(gold, TABLE, periodos, len(rows), time.time() - t0, granularidad=granularidad)

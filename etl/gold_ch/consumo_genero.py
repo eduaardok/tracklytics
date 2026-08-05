@@ -15,11 +15,15 @@ serie de reproducciones reales de cada género — si un género tiene menos de
 Guardado SOLO en la fila del período más reciente de cada género (ver
 `create_gold_tables.py`).
 
-S14-P2: la proyección SOLO se calcula para granularidad='semana' — no se
-generalizó la regresión a las demás granularidades en este bloque (ver
-BITACORA_S14.md, P2). Para 'dia'/'mes'/'trimestre'/'anio',
-pendiente_regresion/intercepto_regresion quedan en 0 y prediccion_4sem
-vacío en TODAS las filas, no solo en las que no alcanzan.
+La proyección SOLO se calcula para granularidad='semana' (S14-P2) — no se
+generalizó la regresión a las demás granularidades. Para 'dia'/'mes'/
+'trimestre'/'anio', pendiente_regresion/intercepto_regresion quedan en 0 y
+prediccion_4sem vacío en TODAS las filas, no solo en las que no alcanzan.
+
+S14-P3 eliminó el relleno demo (`rng_for`): un género/artista sin
+reproducciones reales en un período simplemente no tiene fila para ese
+período — `etl/gold/backfill_negocio.py` genera reproducciones reales para
+los 24 meses de historia.
 
 OT-19 (benchmark): `popularidad_catalogo_base` es el promedio real de
 `popularity` de TODO `FACT_TRACKS` (el catálogo completo, no solo lo
@@ -32,10 +36,7 @@ import time
 
 import numpy as np
 
-from gold_ch.base import (
-    VENTANA_ORIGEN_DIAS, fecha_inicio_sql, get_catalog_client, get_gold_client,
-    log_run, periodo_sql, periodos_ventana, permite_relleno_demo, rng_for, write_gold,
-)
+from gold_ch.base import VENTANA_ORIGEN_DIAS, get_catalog_client, get_gold_client, log_run, periodo_sql, periodos_ventana, write_gold
 
 TABLE = "GOLD_CONSUMO_GENERO_PERIODO"
 COLUMNS = [
@@ -101,33 +102,25 @@ def run_gold_consumo_genero(granularidad: str = "semana") -> None:
         """
     ).named_results()}
 
-    def serie_y_variacion(reales: dict, clave_fn, seed_extra):
-        """Arma la serie (real donde hay dato, demo donde falta Y el período
-        acepta relleno; se omite si falta y el período es demasiado viejo) y
-        calcula variación % vs. el período anterior de la MISMA serie."""
-        salida = []  # (periodo, repros, pop, ene, es_estimado, variacion)
+    def serie_y_variacion(reales: dict, clave_fn):
+        """Arma la serie sobre los períodos con dato real (se omite el
+        período si no hay reproducciones reales) y calcula variación % vs.
+        el período anterior de la MISMA serie."""
+        salida = []  # (periodo, repros, pop, ene, variacion)
         anterior = None
         for periodo in periodos:
-            clave = clave_fn(periodo)
-            r = reales.get(clave)
-            if r:
-                repros, pop, ene, est = r["repros"], round(r["pop"] or 0, 2), round(r["ene"] or 0, 2), 0
-            elif permite_relleno_demo(periodos, periodo):
-                rnd = rng_for(TABLE, seed_extra, periodo)
-                repros = rnd.randint(20, 500)
-                pop = round(rnd.uniform(30, 85), 2)
-                ene = round(rnd.uniform(0.3, 0.9), 2)
-                est = 1
-            else:
-                continue  # período viejo sin dato real: se omite, no se rellena con demo
+            r = reales.get(clave_fn(periodo))
+            if not r:
+                continue
+            repros, pop, ene = r["repros"], round(r["pop"] or 0, 2), round(r["ene"] or 0, 2)
             variacion = round(((repros - anterior) / anterior * 100), 2) if anterior else 0.0
-            salida.append((periodo, repros, pop, ene, est, variacion))
+            salida.append((periodo, repros, pop, ene, variacion))
             anterior = repros or anterior
         return salida
 
     rows: list[tuple] = []
     for g in generos:
-        serie = serie_y_variacion(reales_genero, lambda p, gid=g["genre_id"]: (p, gid), g["genre_id"])
+        serie = serie_y_variacion(reales_genero, lambda p, gid=g["genre_id"]: (p, gid))
         pendiente, intercepto, prediccion = 0.0, 0.0, []
         if granularidad == "semana" and serie:
             y = np.array([s[1] for s in serie], dtype=float)
@@ -142,25 +135,25 @@ def run_gold_consumo_genero(granularidad: str = "semana") -> None:
         pop_interna = round(sum(pop_interna_serie) / len(pop_interna_serie), 2) if pop_interna_serie else pop_base
         diff_pct = round((pop_interna - pop_base) / pop_base * 100, 2) if pop_base else 0.0
 
-        for i, (periodo, repros, pop, ene, est, variacion) in enumerate(serie):
+        for i, (periodo, repros, pop, ene, variacion) in enumerate(serie):
             es_ultimo = i == len(serie) - 1
             rows.append((
                 granularidad, fecha_inicio_de[periodo], periodo, g["genre_id"], g["name"], 0, "", repros, pop, ene, variacion,
                 round(float(pendiente), 4) if es_ultimo else 0.0,
                 round(float(intercepto), 2) if es_ultimo else 0.0,
                 prediccion if es_ultimo else [],
-                pop_interna, pop_base, diff_pct, est,
+                pop_interna, pop_base, diff_pct, 0,
             ))
 
     for a in artistas:
-        serie = serie_y_variacion(reales_artista, lambda p, aid=a["artist_id"]: (p, aid), a["artist_id"])
+        serie = serie_y_variacion(reales_artista, lambda p, aid=a["artist_id"]: (p, aid))
         pop_interna_serie = [s[2] for s in serie if s[2]]
         pop_interna = round(sum(pop_interna_serie) / len(pop_interna_serie), 2) if pop_interna_serie else pop_base
         diff_pct = round((pop_interna - pop_base) / pop_base * 100, 2) if pop_base else 0.0
-        for periodo, repros, pop, ene, est, variacion in serie:
+        for periodo, repros, pop, ene, variacion in serie:
             rows.append((
                 granularidad, fecha_inicio_de[periodo], periodo, 0, "", a["artist_id"], a["name"], repros, pop, ene, variacion,
-                0.0, 0.0, [], pop_interna, pop_base, diff_pct, est,
+                0.0, 0.0, [], pop_interna, pop_base, diff_pct, 0,
             ))
 
     write_gold(gold, TABLE, COLUMNS, rows, periodos, granularidad)

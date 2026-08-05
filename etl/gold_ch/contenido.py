@@ -14,16 +14,14 @@ Real:
   (tracks con al menos una restricción registrada en ese país) sobre el
   total de FACT_TRACKS disponibles — real.
 
-S14-P2: granularidad configurable. El relleno demo de `solicitudes` solo
-cubre los `PERIODOS_RELLENO_DEMO` períodos más recientes.
+S14-P3 eliminó el relleno demo (`rng_for`) de `solicitudes`:
+`etl/gold/backfill_negocio.py` genera sumisiones de tracks reales para los
+24 meses de historia — un período sin solicitudes reales no tiene fila.
 """
 
 import time
 
-from gold_ch.base import (
-    VENTANA_ORIGEN_DIAS, fecha_inicio_sql, get_catalog_client, get_gold_client,
-    log_run, periodo_sql, periodos_ventana, permite_relleno_demo, rng_for, write_gold,
-)
+from gold_ch.base import VENTANA_ORIGEN_DIAS, get_catalog_client, get_gold_client, log_run, periodo_sql, periodos_ventana, write_gold
 
 TABLE = "GOLD_CONTENIDO_PERIODO"
 COLUMNS = [
@@ -76,22 +74,11 @@ def run_gold_contenido(granularidad: str = "semana") -> None:
     rows: list[tuple] = []
     for periodo in periodos:
         fi = fecha_inicio_de[periodo]
-        permite_demo = permite_relleno_demo(periodos, periodo)
         s = solicitudes.get(periodo)
-        if s:
-            tasa = round((s["aprobadas"] / s["total"] * 100) if s["total"] else 0, 2)
-            fila_general = (s["total"], s["aprobadas"], s["rechazadas"], tasa, round(s["horas"] or 0, 2), 0)
-        elif permite_demo:
-            rnd = rng_for(TABLE, periodo, "solicitudes")
-            total = rnd.randint(1, 6)
-            aprob = rnd.randint(0, total)
-            fila_general = (total, aprob, total - aprob, round((aprob / total * 100) if total else 0, 2),
-                             round(rnd.uniform(4, 72), 2), 1)
-        else:
-            fila_general = None
-
-        if fila_general is None:
+        if not s:
             continue
+        tasa = round((s["aprobadas"] / s["total"] * 100) if s["total"] else 0, 2)
+        fila_general = (s["total"], s["aprobadas"], s["rechazadas"], tasa, round(s["horas"] or 0, 2), 0)
 
         for territorio in territorios:
             lic_n = next((lic["n"] for lic in licencias if lic["territorio"] == territorio), 0)
