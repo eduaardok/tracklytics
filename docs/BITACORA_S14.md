@@ -164,3 +164,104 @@ Los 12 módulos migrados a `run_gold_<dominio>(granularidad='semana')`. `dag_gol
 **ETL**: `etl/gold_ch/base.py` (reescrito), `etl/gold_ch/{adquisicion,api_consumo,comunidad,consumo_genero,contenido,engagement,financiero,infraestructura,pipeline,producto,regalias,seguridad}.py`, `etl/dags/dag_gold_aggregations.py`, `create_gold_tables.py`.
 **API**: `api/paquetes/reportes/queries.py`, `api/paquetes/reportes/router.py`.
 **OpenSpec**: `openspec/changes/2026-08-05-s14-p2-granularidad-gold/` (proposal, tasks, delta spec `reportes` — validado `openspec validate --all --strict`, 17/17, sin archivar en este bloque).
+
+---
+
+## S14-P3 — Datos de negocio reales end-to-end + cuentas por rol administrativo (5 ago 2026)
+
+Modo autónomo. Recarga de portadas ya estaba corriendo desde el incidente de reinicio de PC de la conversación anterior (relanzada esa vez) — se dejó correr sin tocar, verificado `Up` durante todo el bloque; conteos de referencia al cierre: `FACT_TRACKS` 1.313.556/2.108 con portada, `DIM_ARTISTS` 29.863/17.634.
+
+### Fase 1 — Inventario (premisas del enunciado vs. repo real)
+
+**Conteo real de `rng_for()`: 19 llamadas en 9 módulos, no 26 en 11** (verificado con `grep`, no supuesto). `financiero.py`, `pipeline.py` y `seguridad.py` ya eran 100% reales desde S13-P3a (cero fabricado — un cero es un valor real cuando no hubo evento, no una estimación). Tabla completa:
+
+| Módulo | Llamadas | Métrica fabricada | Tabla `FACT_*` destino | Filas reales antes de S14-P3 |
+|---|---|---|---|---|
+| `adquisicion.py` | 4 | registros/país, deserciones, CAC, **suscripciones activas y conversiones por plan (siempre demo, sin condición)** | `DIM_USUARIO` (106, 1 mes), `FACT_CANCELACION_SUSCRIPCION` (1), `FACT_GASTO_OPERATIVO` marketing (3) | — |
+| `api_consumo.py` | 1 | llamadas API por partner | `LOG_LLAMADAS_PARTNER` (42) | |
+| `comunidad.py` | 4 | moderación, denuncias, tickets, social | `FACT_COMENTARIO` (34), `FACT_DENUNCIA` (2), `FACT_TICKET_SOPORTE` (6), `FACT_COMPARTICION`+`BRIDGE_SEGUIMIENTO_ARTISTA` (16+5) | |
+| `consumo_genero.py` | 1 | reproducciones/pop/energía por género-artista | `FACT_ENGAGEMENT_USUARIO` (52.530, 7 semanas) | |
+| `contenido.py` | 1 | solicitudes de subida | `FACT_SUBIDA_TRACK` (8) | |
+| `engagement.py` | 2 | rollup y por-género de reproducciones/favoritos | `FACT_ENGAGEMENT_USUARIO` (mismo) | |
+| `infraestructura.py` | 1 | uptime/incidentes | `FACT_DISPONIBILIDAD` (309) | |
+| `producto.py` | 4 | recomendaciones, exposiciones AB, **`metrica_impacto` (siempre demo, incluso en filas `es_estimado=0` — bug de diseño)**, notificaciones | `FACT_IMPRESION_RECOMENDACION` (559), `FACT_AB_TEST_EXPOSICION` (136), `FACT_NOTIFICACION` (4) | |
+| `regalias.py` | 1 | streams/monto liquidado | `FACT_LIQUIDACION_REGALIA` (49) | |
+
+Dos casos eran "siempre demo" sin ninguna rama real (no condicionados a que faltara el dato): `adquisicion.py` (plan-level) y `producto.py` (`metrica_impacto`) — ambos resueltos con datos reales en la Fase 4 (ver abajo), no dejados sin resolver.
+
+**`modelo_negocio_sync_dag.py` — premisa falsa del enunciado**: no es una sincronización PocketBase → ClickHouse (el enunciado lo daba por hecho). Genera `FACT_ADQUISICION`/`FACT_DISPONIBILIDAD` sintéticos por "semana académica" (`week_number` 1-16), con `usuario_id` ficticios (`acq_user_wN_XXXX`) que **no existen en `DIM_USUARIO`** — no reusable para `registros_nuevos`. Hallazgo adicional: `FACT_ADQUISICION` (1.650 filas) no lo consulta ningún módulo Gold — tabla huérfana de una capability anterior. Decisión: materializar suscripciones directo en ClickHouse vía `FACT_TRANSACCION_PAGO` (concepto=`suscripcion`), generado por el nuevo `backfill_negocio.py` — ninguna sincronización PocketBase nueva, siguiendo el principio del enunciado ("generar los eventos como filas en las tablas FACT_* del catálogo").
+
+**Constantes de negocio — todas confirmadas reales en el código, ninguna inventada**:
+
+| Constante | Valor | Origen |
+|---|---|---|
+| IVA global | 0.15 | `api/paquetes/facturacion/queries.py::IVA_RATE` |
+| Retención fiscal global | 10.0% | `api/paquetes/regalias/router.py::_resolver_retencion_pct` (default) |
+| Tasa de éxito de cobro | 0.9 | `facturacion/queries.py::TASA_EXITO_DEFAULT` |
+| Máx. intentos de cobro (dunning) | 3 | `suscripciones/router.py::MAX_INTENTOS_COBRO` |
+| Ciclo de facturación | 30 días | `facturacion/router.py::DIAS_CICLO_FACTURACION` |
+| Strikes para suspensión | 3 | `seguridad/strikes.py::STRIKES_PARA_SUSPENSION` |
+| Pool rightsholders/plataforma | 70/30 | `regalias/router.py::TASA_RIGHTSHOLDERS` |
+| Split master/publishing | 80/20 | `regalias/router.py::PCT_MASTER`/`PCT_PUBLISHING` |
+| Precios de plan | free=0, estudiante=4.99, premium=9.99, básico=199, pro=499, enterprise=1499 | `suscripciones/planes.py::PLANES_B2C`/`PLANES_B2B`, confirmado en `DIM_PLAN` |
+
+**Descubrimiento clave para la Fase 3**: `api/paquetes/regalias/router.py::liquidar_periodo_interno()` ya existe, probado, y calcula el pool real (transacciones + publicidad del período × 70%, split 80/20, retención por país) — reusado por `simulacion` según su propio design.md. El contenedor `airflow` no tiene el paquete `api/` montado ni FastAPI instalado, así que no se puede importar directo: se llamó por HTTP real (`POST /admin/liquidar`, `httpx`, ya instalado en la imagen de `airflow`) en vez de reimplementar la fórmula — cero duplicación de lógica de negocio.
+
+### Fase 2 — Ventana histórica
+
+`inicio_plataforma()`: primer día del mes, 24 meses antes del mes actual — ancla a límites de mes (no un offset de días crudo) para que la idempotencia y los cortes mensuales de regalías sean estables sin importar la hora del disparo. Ejecutado el 2026-08-05: ventana `2024-08-01 — 2026-08-05` (734 días).
+
+### Fase 3 — Backfill de negocio (`etl/gold/backfill_negocio.py` + `etl/dags/dag_backfill_negocio.py`)
+
+13 dominios en orden de dependencia estricta (usuarios → gasto marketing → suscripciones → publicidad → engagement → regalías → el resto), un único `PythonOperator` (no una tarea por dominio — el propio orden de dependencia exige no paralelizar). Idempotencia: mismo mecanismo que `gold/modelo_negocio_sync.py` (`ETL_BATCH_CONTROL` + `checksum` propio), pero **un flag por dominio, no por período** — es un backfill histórico de una sola corrida, no un proceso recurrente por semana académica; decisión documentada porque el patrón exacto de `modelo_negocio_sync.py` no aplicaba tal cual.
+
+Probado primero en una ventana de 10 días (los 13 dominios + la llamada real a `/admin/liquidar`), limpiados los datos de prueba (`ALTER TABLE ... DELETE` por los marcadores `bf_%`/`sistema_backfill_negocio`), y solo entonces lanzada la corrida completa de 24 meses.
+
+**Resultado real de la corrida completa** (1455.2s ≈ 24.3 min):
+
+| Dominio | Filas/detalle |
+|---|---|
+| usuarios | 12.956 altas en `DIM_USUARIO` |
+| gasto_marketing | 25 filas mensuales |
+| suscripciones | 34.199 transacciones, 30.795 facturas, 502 reembolsos, 566 cancelaciones |
+| publicidad | 189.172 impresiones + 189.172 filas de ingreso |
+| engagement | 952.986 filas (reproducciones + favoritos) |
+| regalías | 0 liquidaciones **nuevas** sobre 25 llamadas mensuales — ver hallazgo abajo |
+| disponibilidad | 2.936 filas |
+| api_partners | 171.682 filas |
+| comunidad | 37.719 comentarios, 12.332 comparticiones, 5.731 seguimientos |
+| denuncias_tickets | 1.422 denuncias, 162 strikes, 2.442 tickets |
+| producto | 119.304 recomendaciones, 94.676 exposiciones AB, 56.673 notificaciones |
+| contenido | 180 sumisiones de tracks |
+| auditoría | 13.522 filas |
+
+**Hallazgo real durante la verificación — regalías resultó más escaso de lo esperado, documentado, no ocultado**: `DIM_CONTRATO_REGALIA` solo tiene 3 contratos, y solo 2 están `activo=1`, vigentes recién desde julio de 2026. `liquidar_periodo_interno()` solo liquida tracks con contrato vigente EN el período liquidado — la ventana real donde había, a la vez, contrato vigente y reproducciones del track contratado resultó angosta (unos pocos días de julio). El backfill sí generó liquidaciones reales (6, vía una llamada de prueba manual anterior a la corrida completa) con la fórmula real, pero la corrida completa no encontró más períodos nuevos que liquidar (idempotente: el mes de julio ya estaba cubierto). Además, `FACT_LIQUIDACION_REGALIA.fecha_calculo` (que es lo que usa `regalias.py` para el bucketing por período Gold) se fija en el momento del CÁLCULO, no en el período liquidado — diseño preexistente de S13-P3a, no tocado acá — así que las liquidaciones reales quedan agrupadas en el período Gold correspondiente a cuándo se corrió el backfill, no distribuidas en 24 meses. Verificado en Fase 6: `GOLD_REGALIAS_PERIODO` sí tiene filas reales en varias granularidades (26 en año, 56 en día, etc. — ver tabla de Fase 6), `es_estimado=0` en todas.
+
+### Fase 4 — Limpieza de la capa Gold
+
+Los 9 módulos con `rng_for()` reescritos:
+- **`adquisicion.py`**: suscripciones activas/conversiones por plan ahora se derivan de `FACT_TRANSACCION_PAGO` real — el monto de la transacción se mapea a `plan_id` vía `DIM_PLAN.precio_usd` (no existe columna `plan_id` en la tabla de transacciones, el monto es la única señal real disponible). "Activos" = transacciones cuyo ciclo de facturación se solapa con el período Gold; "conversiones" = usuarios cuya primera transacción paga cae en el período. Corrección adicional: la lista de planes tenía `"familiar"` — un plan que **no existe** en `DIM_PLAN`/`PLANES_B2C`/`PLANES_B2B` (premisa falsa del código heredado, no del enunciado); reemplazada por la lista real derivada de `DIM_PLAN`.
+- **`producto.py`**: `metrica_impacto` (impacto de un experimento A/B) no tenía ninguna columna de resultado en `FACT_AB_TEST_EXPOSICION` para derivarla — antes se fabricaba con `rng_for()` incluso en filas `es_estimado=0` (la columna mentía sobre su propio flag). Se deriva ahora de una señal real correlacionada: reproducciones promedio por usuario expuesto en el mismo período, por variante (`FACT_ENGAGEMENT_USUARIO`) — `metrica_impacto` es la diferencia % entre la variante con más y la de menos reproducciones promedio; sin al menos 2 variantes con datos, queda en 0.0 (no se inventa, mismo criterio que la excepción de proyecciones de S14-P2).
+- Los 7 módulos restantes (`api_consumo`, `comunidad`, `consumo_genero`, `contenido`, `engagement`, `infraestructura`, `regalias`): la rama de relleno demo se eliminó — un período/dimensión sin dato real simplemente no tiene fila.
+- `base.py`: `rng_for()`, `permite_relleno_demo()` y `PERIODOS_RELLENO_DEMO` retirados por completo (sin llamadores tras la limpieza de los 9 módulos) — no se dejaron a medias.
+
+### Fase 5 — Cuentas por rol administrativo
+
+7 cuentas creadas por los endpoints reales (`POST /auth/registro` con `rol=user`/`analyst` seguido de `POST /admin/usuarios/{id}/rol-admin` para los 6 roles administrativos), usando de autoridad de bootstrap una cuenta de verificación ya existente de una sesión anterior (`s14p2_admin_verif@test.com`, creada en su momento con `pb_client.crear_usuario`) — las 7 cuentas NUEVAS de esta fase sí pasaron 100% por los endpoints reales, ninguna por PocketBase directo. `docs/CUENTAS_DEMO.md` documenta correo/rol/contraseña/alcance de cada una, con la advertencia de credenciales de demo académica en el encabezado.
+
+**Matriz de gating (Fase 5/6) — sin fallos de seguridad**: 7 cuentas × 9 departamentos (un endpoint representativo de cada uno) + sin autenticación. Cada cuenta obtuvo `200` únicamente en el/los departamento(s) de su rol y `403` en el resto; `superadmin` obtuvo `200` en los 9; sin token, `401` en los 9. Ningún `403` esperado devolvió `200`.
+
+### Fase 6 — Verificación real
+
+1. `dag_gold_aggregations` (60 tareas) corrido con los módulos limpios — verde, sin reintentos.
+2. **`sum(es_estimado)` = 0 en las 12 tablas Gold, en las 5 granularidades** (60 combinaciones tabla×granularidad, todas en cero) — verificado con `SELECT granularidad, sum(es_estimado), count() ... GROUP BY granularidad`, no una muestra.
+3. `curl` real a los 30 informes compuestos en `granularidad=mes`: **29/30 con datos, 1 vacío**. El vacío es `C17` (`analitica/proyeccion`) — **por diseño, no un bug de este bloque**: la proyección por regresión lineal (OT-18) solo se calcula para `granularidad='semana'`, decisión explícita de S14-P2 (`docs/BITACORA_S14.md`, P2) — confirmado que `C17` sí devuelve 15 filas en `granularidad=semana`.
+4. Matriz de gating: ver Fase 5.
+5. `npm run build`: verde (frontend no tocado en este bloque).
+
+### Archivos nuevos o modificados (S14-P3)
+
+**ETL nuevo**: `etl/gold/backfill_negocio.py`, `etl/dags/dag_backfill_negocio.py`.
+**ETL modificado**: `etl/gold_ch/base.py` (retiro de `rng_for`/`permite_relleno_demo`), `etl/gold_ch/{adquisicion,api_consumo,comunidad,consumo_genero,contenido,engagement,infraestructura,producto,regalias}.py`.
+**Docs nuevos**: `docs/CUENTAS_DEMO.md`, `docs/NOTA_METODOLOGICA.md`.
+**OpenSpec**: `openspec/changes/2026-08-05-s14-p3-datos-reales-cuentas-rol/` (`reportes`, `simulacion`, `seguridad`, `ingesta` — `ingesta` y `seguridad` no estaban en el enunciado explícito pero su contrato cambió de verdad: `ETL_BATCH_CONTROL` se reusa para el backfill, y la asignación de roles ganó el escenario de cuenta de referencia verificable; validado `openspec validate --all --strict`, 18/18, sin archivar).
