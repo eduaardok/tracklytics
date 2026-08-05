@@ -1,54 +1,170 @@
-"""
-etl/gold_ch/base.py — utilidades compartidas por los 12 módulos de agregación
-de la capa Gold (S13-P3a): conexión a ambas instancias de ClickHouse, cálculo
-de períodos ISO, relleno de demostración con seed fijo, y escritura
-idempotente (DELETE + INSERT por período).
+"""etl/gold_ch/base.py — utilidades compartidas por los 12 módulos de agregación
+de la capa Gold: conexión a ambas instancias de ClickHouse, cálculo de
+períodos por granularidad configurable (S14-P2), relleno de demostración con
+seed fijo, y escritura idempotente (DELETE + INSERT por granularidad+período).
 
 Ver docs/BITACORA_S13.md, entrada P3a, para la política de "real primero,
 demo si falta": cada módulo de dominio agrega lo que el catálogo (8123)
 realmente tiene, y solo rellena con `gold_ch.base.rng_for(...)` los períodos
 donde el catálogo no tiene filas — nunca al revés.
+
+Ver docs/BITACORA_S14.md, entrada P2, para la extensión a 5 granularidades
+(día/semana/mes/trimestre/año) y el acotamiento del relleno demo a los
+últimos `PERIODOS_RELLENO_DEMO` períodos de cada granularidad — ampliar el
+horizonte no debe multiplicar el volumen de datos inventados.
 """
 
 import random
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 
 import clickhouse_connect
 
 from utils.clickhouse_client import get_client as get_catalog_client  # noqa: F401  (re-exportado)
 from utils.config import get_config
 
-PERIODOS_VENTANA = 12  # semanas ISO hacia atrás desde la semana actual
+GRANULARIDADES = ("dia", "semana", "mes", "trimestre", "anio")
+
+# Horizonte (cantidad de períodos hacia atrás, incluido el actual) por
+# granularidad — más fino, ventana más corta; más grueso, ventana más larga.
+HORIZONTE_POR_GRANULARIDAD = {
+    "dia": 90,
+    "semana": 52,
+    "mes": 24,
+    "trimestre": 8,
+    "anio": 3,
+}
+
+# Compat retro: algunos llamadores viejos importaban esta constante asumiendo
+# grano semanal fijo (12 semanas). Ya no gobierna el horizonte real (ver
+# HORIZONTE_POR_GRANULARIDAD) — se conserva solo para no romper imports.
+PERIODOS_VENTANA = HORIZONTE_POR_GRANULARIDAD["semana"]
+
+# El relleno demo (rng_for) solo se aplica a los N períodos más recientes de
+# cada granularidad. Los períodos más antiguos de la ventana se escriben
+# ÚNICAMENTE si el catálogo tiene datos reales — si no los tiene, no se
+# escribe la fila (en vez de inventar historia hacia atrás).
+PERIODOS_RELLENO_DEMO = 12
+
+# Ventana única de lectura del catálogo origen (8123) — reemplaza los
+# `INTERVAL 90 DAY` / `today() - 90` (y el `INTERVAL 180 DAY` de
+# `pipeline.py`) que estaban dispersos y hardcodeados en cada módulo. Debe
+# cubrir el horizonte más largo (`anio`, 3 años = 1095 días) para que la
+# granularidad `anio` tenga datos reales que agregar.
+VENTANA_ORIGEN_DIAS = 1095
+
+_EXPR_PERIODO = {
+    "dia":       lambda col: f"formatDateTime({col}, '%Y-%m-%d')",
+    "semana":    lambda col: f"formatDateTime({col}, '%G-W%V')",
+    "mes":       lambda col: f"formatDateTime({col}, '%Y-%m')",
+    "trimestre": lambda col: f"concat(toString(toYear({col})), '-Q', toString(toQuarter({col})))",
+    "anio":      lambda col: f"toString(toYear({col}))",
+}
+
+# Nota: `toStartOfDay` (sugerido para 'dia') devuelve DateTime en ClickHouse,
+# no Date — se envuelve todo en `toDate(...)` para que el resultado siempre
+# calce con el tipo de columna `fecha_inicio Date` del DDL, sin importar si
+# `col` en origen es Date o DateTime.
+_EXPR_FECHA_INICIO = {
+    "dia":       lambda col: f"toDate({col})",
+    "semana":    lambda col: f"toDate(toStartOfWeek({col}, 1))",
+    "mes":       lambda col: f"toDate(toStartOfMonth({col}))",
+    "trimestre": lambda col: f"toDate(toStartOfQuarter({col}))",
+    "anio":      lambda col: f"toDate(toStartOfYear({col}))",
+}
 
 
-def periodo_sql(col: str) -> str:
-    """Expresión SQL que calcula el período ISO 'YYYY-WNN' de una columna de
-    fecha/datetime — la MISMA expresión en todos los módulos, para que un
-    período calculado en una tabla sea comparable byte a byte con el
-    calculado en otra."""
-    return f"formatDateTime({col}, '%G-W%V')"
+def periodo_sql(col: str, granularidad: str = "semana") -> str:
+    """Expresión SQL que calcula la etiqueta de período de una columna de
+    fecha/datetime para la granularidad dada — la MISMA expresión en todos
+    los módulos, para que un período calculado en una tabla sea comparable
+    byte a byte con el calculado en otra. Default 'semana' por compatibilidad
+    con llamadas existentes que no pasan granularidad."""
+    return _EXPR_PERIODO[granularidad](col)
 
 
-def _periodo_de(dt: datetime) -> str:
-    iso_year, iso_week, _ = dt.isocalendar()
-    return f"{iso_year}-W{iso_week:02d}"
+def fecha_inicio_sql(col: str, granularidad: str = "semana") -> str:
+    """Expresión SQL que calcula la fecha de inicio (Date) del período al que
+    pertenece `col`, para la granularidad dada — es la columna que permite
+    filtrar por rango de fechas reales en vez de comparar strings de
+    `periodo`."""
+    return _EXPR_FECHA_INICIO[granularidad](col)
 
 
-def iso_weeks_back(n: int = PERIODOS_VENTANA) -> list[str]:
-    """Las últimas `n` semanas ISO terminando en la semana actual (incluida),
-    más antigua primero — la ventana objetivo que todas las tablas Gold
-    intentan cubrir."""
-    hoy = datetime.now(timezone.utc)
-    periodos: list[str] = []
-    vistos: set[str] = set()
-    cursor = hoy
-    while len(periodos) < n:
-        p = _periodo_de(cursor)
-        if p not in vistos:
-            periodos.append(p)
-            vistos.add(p)
-        cursor -= timedelta(days=7)
+def _add_months(d: date, n: int) -> date:
+    total = d.year * 12 + (d.month - 1) + n
+    year, month = divmod(total, 12)
+    return date(year, month + 1, 1)
+
+
+def _inicio_periodo(d: date, granularidad: str) -> date:
+    if granularidad == "dia":
+        return d
+    if granularidad == "semana":
+        return d - timedelta(days=d.weekday())  # lunes (ISO, igual que toStartOfWeek(col, 1))
+    if granularidad == "mes":
+        return d.replace(day=1)
+    if granularidad == "trimestre":
+        mes_trimestre = ((d.month - 1) // 3) * 3 + 1
+        return d.replace(month=mes_trimestre, day=1)
+    if granularidad == "anio":
+        return d.replace(month=1, day=1)
+    raise ValueError(f"granularidad desconocida: {granularidad}")
+
+
+def _etiqueta_periodo(d: date, granularidad: str) -> str:
+    if granularidad == "dia":
+        return d.strftime("%Y-%m-%d")
+    if granularidad == "semana":
+        iso_year, iso_week, _ = d.isocalendar()
+        return f"{iso_year}-W{iso_week:02d}"
+    if granularidad == "mes":
+        return d.strftime("%Y-%m")
+    if granularidad == "trimestre":
+        q = (d.month - 1) // 3 + 1
+        return f"{d.year}-Q{q}"
+    if granularidad == "anio":
+        return str(d.year)
+    raise ValueError(f"granularidad desconocida: {granularidad}")
+
+
+def _retroceder_periodo(d: date, granularidad: str) -> date:
+    """Dado el inicio de un período, devuelve el inicio del período anterior."""
+    if granularidad == "dia":
+        return d - timedelta(days=1)
+    if granularidad == "semana":
+        return d - timedelta(days=7)
+    if granularidad == "mes":
+        return _add_months(d, -1)
+    if granularidad == "trimestre":
+        return _add_months(d, -3)
+    if granularidad == "anio":
+        return date(d.year - 1, 1, 1)
+    raise ValueError(f"granularidad desconocida: {granularidad}")
+
+
+def periodos_ventana(granularidad: str = "semana") -> list[tuple[str, date]]:
+    """Los últimos `HORIZONTE_POR_GRANULARIDAD[granularidad]` períodos de esa
+    granularidad, terminando en el período actual (incluido), más antiguo
+    primero — reemplaza a `iso_weeks_back()`. Cada elemento es
+    `(etiqueta_periodo, fecha_inicio)`."""
+    n = HORIZONTE_POR_GRANULARIDAD[granularidad]
+    hoy = datetime.now(timezone.utc).date()
+    cursor = _inicio_periodo(hoy, granularidad)
+    periodos: list[tuple[str, date]] = []
+    for _ in range(n):
+        periodos.append((_etiqueta_periodo(cursor, granularidad), cursor))
+        cursor = _retroceder_periodo(cursor, granularidad)
     return list(reversed(periodos))
+
+
+def permite_relleno_demo(etiquetas: list[str], periodo: str) -> bool:
+    """True si `periodo` está entre los `PERIODOS_RELLENO_DEMO` períodos más
+    recientes de `etiquetas` (la lista completa de la ventana, más antiguo
+    primero) — solo esos períodos aceptan relleno con `rng_for()` cuando el
+    catálogo no tiene el dato real. Los períodos más antiguos que no tengan
+    dato real simplemente no se escriben."""
+    idx = etiquetas.index(periodo)
+    return idx >= len(etiquetas) - PERIODOS_RELLENO_DEMO
 
 
 def get_gold_client() -> clickhouse_connect.driver.Client:
@@ -69,23 +185,27 @@ def rng_for(*parts: str) -> random.Random:
 
 
 def write_gold(client: clickhouse_connect.driver.Client, table: str, columns: list[str],
-               rows: list[tuple], periodos: list[str]) -> int:
+               rows: list[tuple], periodos: list[str], granularidad: str = "semana") -> int:
     """Reemplaza (DELETE + INSERT) las filas de `table` para los `periodos`
-    dados — idempotente: correr el mismo período dos veces dejä el mismo
-    resultado, nunca filas duplicadas. `periodos` son los que EL LLAMADOR
-    va a reinsertar a continuación (no necesariamente todos los de la tabla)."""
+    dados DE ESA granularidad — idempotente: correr el mismo período dos
+    veces deja el mismo resultado, nunca filas duplicadas. El filtro incluye
+    `granularidad` explícitamente: sin eso, escribir el grano 'mes' borraría
+    también las filas del grano 'semana' que compartan etiqueta de período."""
     if periodos:
         lista = ", ".join(f"'{p}'" for p in periodos)
-        client.command(f"ALTER TABLE {table} DELETE WHERE periodo IN ({lista})")
+        client.command(
+            f"ALTER TABLE {table} DELETE WHERE granularidad = '{granularidad}' AND periodo IN ({lista})"
+        )
     if rows:
         client.insert(table, rows, column_names=columns)
     return len(rows)
 
 
 def log_run(client: clickhouse_connect.driver.Client, tabla: str, periodos: list[str],
-            registros: int, duracion_s: float, estado: str = "ok", detalle: str = "") -> None:
+            registros: int, duracion_s: float, estado: str = "ok", detalle: str = "",
+            granularidad: str = "semana") -> None:
     client.insert(
         "GOLD_ETL_LOG",
-        [(tabla, ",".join(periodos), registros, duracion_s, estado, detalle)],
-        column_names=["tabla", "periodos_procesados", "registros_escritos", "duracion_s", "estado", "detalle"],
+        [(tabla, granularidad, ",".join(periodos), registros, duracion_s, estado, detalle)],
+        column_names=["tabla", "granularidad", "periodos_procesados", "registros_escritos", "duracion_s", "estado", "detalle"],
     )

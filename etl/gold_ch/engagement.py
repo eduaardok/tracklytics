@@ -10,24 +10,35 @@ una métrica derivada, igual que cualquier "score" de negocio.
 
 Se limita a los 10 géneros con más reproducciones reales (más una fila de
 rollup `genero=''` con el total del período) — desglosar los 114 géneros
-reales del catálogo por semana infla la tabla sin aportar señal.
+reales del catálogo por período infla la tabla sin aportar señal.
+
+S14-P2: granularidad configurable. `retenidos` compara usuarios activos del
+período actual contra el período INMEDIATAMENTE anterior de la MISMA
+granularidad (no necesariamente la semana calendario anterior cuando la
+granularidad es 'mes'/'trimestre'/'anio') — el relleno demo solo cubre los
+`PERIODOS_RELLENO_DEMO` períodos más recientes.
 """
 
 import time
 
-from gold_ch.base import get_catalog_client, get_gold_client, iso_weeks_back, log_run, periodo_sql, rng_for, write_gold
+from gold_ch.base import (
+    VENTANA_ORIGEN_DIAS, fecha_inicio_sql, get_catalog_client, get_gold_client,
+    log_run, periodo_sql, periodos_ventana, permite_relleno_demo, rng_for, write_gold,
+)
 
 TABLE = "GOLD_ENGAGEMENT_PERIODO"
 COLUMNS = [
-    "periodo", "genero", "reproducciones_total", "favoritos_total", "playlist_adds_total",
-    "engagement_score_promedio", "popularidad_promedio", "usuarios_activos",
+    "granularidad", "fecha_inicio", "periodo", "genero", "reproducciones_total", "favoritos_total",
+    "playlist_adds_total", "engagement_score_promedio", "popularidad_promedio", "usuarios_activos",
     "nuevos_usuarios", "usuarios_retenidos", "es_estimado",
 ]
 
 
-def run_gold_engagement() -> None:
+def run_gold_engagement(granularidad: str = "semana") -> None:
     t0 = time.time()
-    periodos = iso_weeks_back()
+    ventana = periodos_ventana(granularidad)
+    periodos = [p for p, _ in ventana]
+    fecha_inicio_de = dict(ventana)
     catalog = get_catalog_client()
     gold = get_gold_client()
 
@@ -45,42 +56,42 @@ def run_gold_engagement() -> None:
 
     por_genero = {(r["periodo"], r["genero"]): r for r in catalog.query(
         f"""
-        SELECT {periodo_sql('e.event_timestamp')} AS periodo, g.name AS genero,
+        SELECT {periodo_sql('e.event_timestamp', granularidad)} AS periodo, g.name AS genero,
                countIf(e.event_type = 'reproduccion') AS repros,
                countIf(e.event_type = 'favorito_add') - countIf(e.event_type = 'favorito_remove') AS favs,
                avg(t.popularity) AS pop, uniqExact(e.user_id) AS activos
         FROM FACT_ENGAGEMENT_USUARIO e
         JOIN FACT_TRACKS t ON t.fact_id = e.fact_id
         JOIN DIM_GENRES g ON g.genre_id = t.genre_id
-        WHERE e.event_timestamp >= now() - INTERVAL 90 DAY AND g.name IN ({','.join(f"'{g}'" for g in top_generos)})
+        WHERE e.event_timestamp >= now() - INTERVAL {VENTANA_ORIGEN_DIAS} DAY AND g.name IN ({','.join(f"'{g}'" for g in top_generos)})
         GROUP BY periodo, genero
         """
     ).named_results()}
 
     rollup = {r["periodo"]: r for r in catalog.query(
         f"""
-        SELECT {periodo_sql('event_timestamp')} AS periodo,
+        SELECT {periodo_sql('event_timestamp', granularidad)} AS periodo,
                countIf(event_type = 'reproduccion') AS repros,
                countIf(event_type = 'favorito_add') - countIf(event_type = 'favorito_remove') AS favs,
                uniqExact(user_id) AS activos
-        FROM FACT_ENGAGEMENT_USUARIO WHERE event_timestamp >= now() - INTERVAL 90 DAY GROUP BY periodo
+        FROM FACT_ENGAGEMENT_USUARIO WHERE event_timestamp >= now() - INTERVAL {VENTANA_ORIGEN_DIAS} DAY GROUP BY periodo
         """
     ).named_results()}
 
     playlist_adds = {r["periodo"]: r["n"] for r in catalog.query(
-        f"SELECT {periodo_sql('fecha_agregado')} AS periodo, count() AS n FROM BRIDGE_TRACK_PLAYLIST_USUARIO "
-        f"WHERE fecha_agregado >= now() - INTERVAL 90 DAY GROUP BY periodo"
+        f"SELECT {periodo_sql('fecha_agregado', granularidad)} AS periodo, count() AS n FROM BRIDGE_TRACK_PLAYLIST_USUARIO "
+        f"WHERE fecha_agregado >= now() - INTERVAL {VENTANA_ORIGEN_DIAS} DAY GROUP BY periodo"
     ).named_results()}
 
     nuevos = {r["periodo"]: r["n"] for r in catalog.query(
-        f"SELECT {periodo_sql('fecha_registro')} AS periodo, count() AS n FROM DIM_USUARIO "
-        f"WHERE fecha_registro >= now() - INTERVAL 90 DAY GROUP BY periodo"
+        f"SELECT {periodo_sql('fecha_registro', granularidad)} AS periodo, count() AS n FROM DIM_USUARIO "
+        f"WHERE fecha_registro >= now() - INTERVAL {VENTANA_ORIGEN_DIAS} DAY GROUP BY periodo"
     ).named_results()}
 
     activos_por_periodo_set: dict[str, set] = {}
     for r in catalog.query(
-        f"SELECT {periodo_sql('event_timestamp')} AS periodo, user_id FROM FACT_ENGAGEMENT_USUARIO "
-        f"WHERE event_timestamp >= now() - INTERVAL 90 DAY GROUP BY periodo, user_id"
+        f"SELECT {periodo_sql('event_timestamp', granularidad)} AS periodo, user_id FROM FACT_ENGAGEMENT_USUARIO "
+        f"WHERE event_timestamp >= now() - INTERVAL {VENTANA_ORIGEN_DIAS} DAY GROUP BY periodo, user_id"
     ).named_results():
         activos_por_periodo_set.setdefault(r["periodo"], set()).add(r["user_id"])
 
@@ -90,9 +101,10 @@ def run_gold_engagement() -> None:
         return round((repros + favs * 2 + adds * 3) / activos, 2)
 
     rows: list[tuple] = []
-    cubiertos_rollup = set(rollup.keys())
     prev_users: set[str] = set()
     for periodo in periodos:
+        fi = fecha_inicio_de[periodo]
+        permite_demo = permite_relleno_demo(periodos, periodo)
         r = rollup.get(periodo)
         adds = playlist_adds.get(periodo, 0)
         nuevos_n = nuevos.get(periodo, 0)
@@ -100,22 +112,22 @@ def run_gold_engagement() -> None:
             cur_users = activos_por_periodo_set.get(periodo, set())
             retenidos = len(cur_users & prev_users)
             prev_users = cur_users or prev_users
-            # `favorito_add - favorito_remove` puede dar negativo si en esa
-            # semana se removieron más favoritos de tracks marcados en
-            # semanas anteriores que los que se agregaron — real, pero
+            # `favorito_add - favorito_remove` puede dar negativo si en ese
+            # período se removieron más favoritos de tracks marcados en
+            # períodos anteriores que los que se agregaron — real, pero
             # `favoritos_total` es UInt32 (no puede ser negativo).
             favs = max(r["favs"], 0)
             rows.append((
-                periodo, "", r["repros"], favs, adds,
+                granularidad, fi, periodo, "", r["repros"], favs, adds,
                 score(r["repros"], favs, adds, r["activos"]), 0.0, r["activos"], nuevos_n, retenidos, 0,
             ))
-        else:
+        elif permite_demo:
             rnd = rng_for(TABLE, periodo, "rollup")
             activos_n = rnd.randint(30, 150)
             repros_n = activos_n * rnd.randint(5, 20)
             favs_n = int(repros_n * rnd.uniform(0.05, 0.15))
             rows.append((
-                periodo, "", repros_n, favs_n, rnd.randint(5, 40),
+                granularidad, fi, periodo, "", repros_n, favs_n, rnd.randint(5, 40),
                 score(repros_n, favs_n, adds, activos_n), 0.0, activos_n, nuevos_n, int(activos_n * rnd.uniform(0.3, 0.6)), 1,
             ))
 
@@ -123,19 +135,19 @@ def run_gold_engagement() -> None:
             g = por_genero.get((periodo, genero))
             if g:
                 rows.append((
-                    periodo, genero, g["repros"], max(g["favs"], 0), 0,
+                    granularidad, fi, periodo, genero, g["repros"], max(g["favs"], 0), 0,
                     score(g["repros"], max(g["favs"], 0), 0, g["activos"]),
                     round(g["pop"] or 0, 2), g["activos"], 0, 0, 0,
                 ))
-            else:
+            elif permite_demo:
                 rnd = rng_for(TABLE, periodo, genero)
                 repros_n = rnd.randint(50, 800)
                 rows.append((
-                    periodo, genero, repros_n, int(repros_n * 0.08), 0,
+                    granularidad, fi, periodo, genero, repros_n, int(repros_n * 0.08), 0,
                     round(repros_n / max(1, rnd.randint(10, 40)), 2),
                     round(rnd.uniform(40, 85), 2), rnd.randint(10, 60), 0, 0, 1,
                 ))
 
-    write_gold(gold, TABLE, COLUMNS, rows, periodos)
-    log_run(gold, TABLE, periodos, len(rows), time.time() - t0)
-    print(f"[{TABLE}] {len(rows)} filas escritas ({len(periodos)} períodos).")
+    write_gold(gold, TABLE, COLUMNS, rows, periodos, granularidad)
+    log_run(gold, TABLE, periodos, len(rows), time.time() - t0, granularidad=granularidad)
+    print(f"[{TABLE}] {len(rows)} filas escritas ({len(periodos)} períodos, granularidad={granularidad}).")
