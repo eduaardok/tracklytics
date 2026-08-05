@@ -11,20 +11,27 @@ Cada handler es deliberadamente delgado: arma el `resumen` con sumas/
 promedios simples en Python sobre filas ya agregadas por el DAG — no hay
 lógica de negocio nueva acá, toda la agregación real ya ocurrió en
 `etl/gold_ch/*.py`.
+
+S14-P2: los 30 handlers aceptan un query param `granularidad` opcional
+(default 'semana', igual que antes de S14-P2 — compatibilidad hacia atrás,
+el frontend actual no lo manda todavía). Endpoint nuevo `_meta/periodos`
+para que el selector de granularidad del frontend (bloque siguiente) se
+alimente de etiquetas de período reales.
 """
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 
 from paquetes.reportes.deps import (
     require_analitica, require_comercial, require_comunidad, require_contenido,
     require_datos, require_financiero, require_producto, require_seguridad, require_tecnologia,
 )
-from paquetes.reportes.queries import fetch_gold
+from paquetes.reportes.queries import TABLAS_GOLD, fetch_gold, fetch_periodos_disponibles
 from paquetes.reportes.schemas import armar_respuesta
 
 router = APIRouter(prefix="/app/v1/reportes/compuestos", tags=["Reportes compuestos"])
 
 PeriodoQ = Query(None, description="Período ISO 'YYYY-WNN', ej. 2026-W20")
+GranularidadQ = Query("semana", description="Granularidad: dia|semana|mes|trimestre|anio (default: semana)")
 
 
 def _sum(rows: list[dict], key: str) -> float:
@@ -41,13 +48,28 @@ def _ultimo(rows: list[dict], key: str):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# META — selector de granularidad del frontend (S14-P2). Gateado con
+# `require_seguridad` (= `require_admin`, la dependencia más permisiva de las
+# nueve del módulo: cualquier rol administrativo pasa) porque este endpoint
+# no pertenece a un departamento concreto, sirve a los 12 informes por igual.
+# ─────────────────────────────────────────────────────────────────────────────
+
+@router.get("/_meta/periodos")
+def meta_periodos(tabla: str, granularidad: str = GranularidadQ, _admin=Depends(require_seguridad)):
+    if tabla not in TABLAS_GOLD:
+        raise HTTPException(status_code=400, detail=f"tabla desconocida: {tabla}")
+    filas = fetch_periodos_disponibles(tabla, granularidad)
+    return {"tabla": tabla, "granularidad": granularidad, "periodos": filas}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # COMERCIAL (OT-01/02/03) — require_comercial
 # ─────────────────────────────────────────────────────────────────────────────
 
 @router.get("/comercial/adquisicion")
 def c01_adquisicion(periodo_inicio: str | None = PeriodoQ, periodo_fin: str | None = PeriodoQ,
-                     _admin=Depends(require_comercial)):
-    filas = fetch_gold("GOLD_ADQUISICION_PERIODO", periodo_inicio, periodo_fin)
+                     granularidad: str = GranularidadQ, _admin=Depends(require_comercial)):
+    filas = fetch_gold("GOLD_ADQUISICION_PERIODO", periodo_inicio, periodo_fin, granularidad=granularidad)
     datos = [f for f in filas if f["pais"] != ""]
     cac_filas = [f for f in filas if f["pais"] == "" and f["plan"] == ""]
     return armar_respuesta(
@@ -61,8 +83,8 @@ def c01_adquisicion(periodo_inicio: str | None = PeriodoQ, periodo_fin: str | No
 
 @router.get("/comercial/conversion")
 def c02_conversion(periodo_inicio: str | None = PeriodoQ, periodo_fin: str | None = PeriodoQ,
-                    _admin=Depends(require_comercial)):
-    filas = fetch_gold("GOLD_ADQUISICION_PERIODO", periodo_inicio, periodo_fin)
+                    granularidad: str = GranularidadQ, _admin=Depends(require_comercial)):
+    filas = fetch_gold("GOLD_ADQUISICION_PERIODO", periodo_inicio, periodo_fin, granularidad=granularidad)
     datos = [f for f in filas if f["plan"] != ""]
     deserciones = [f for f in filas if f["pais"] == "" and f["plan"] == ""]
     return armar_respuesta(
@@ -75,8 +97,8 @@ def c02_conversion(periodo_inicio: str | None = PeriodoQ, periodo_fin: str | Non
 
 @router.get("/comercial/suscripciones")
 def c03_suscripciones(periodo_inicio: str | None = PeriodoQ, periodo_fin: str | None = PeriodoQ,
-                       _admin=Depends(require_comercial)):
-    filas = fetch_gold("GOLD_ADQUISICION_PERIODO", periodo_inicio, periodo_fin)
+                       granularidad: str = GranularidadQ, _admin=Depends(require_comercial)):
+    filas = fetch_gold("GOLD_ADQUISICION_PERIODO", periodo_inicio, periodo_fin, granularidad=granularidad)
     datos = [f for f in filas if f["plan"] != ""]
     ultimo_periodo = max((f["periodo"] for f in datos), default=None)
     por_plan_ultimo = {f["plan"]: f["suscripciones_activas"] for f in datos if f["periodo"] == ultimo_periodo}
@@ -93,8 +115,8 @@ def c03_suscripciones(periodo_inicio: str | None = PeriodoQ, periodo_fin: str | 
 
 @router.get("/tecnologia/api-consumo")
 def c04_api_consumo(periodo_inicio: str | None = PeriodoQ, periodo_fin: str | None = PeriodoQ,
-                     _admin=Depends(require_tecnologia)):
-    datos = fetch_gold("GOLD_API_CONSUMO_PERIODO", periodo_inicio, periodo_fin)
+                     granularidad: str = GranularidadQ, _admin=Depends(require_tecnologia)):
+    datos = fetch_gold("GOLD_API_CONSUMO_PERIODO", periodo_inicio, periodo_fin, granularidad=granularidad)
     return armar_respuesta(
         "C04", "OT-04", "Volumen de llamadas API por partner y tier, tasa de éxito y latencia", "Tecnología",
         periodo_inicio, periodo_fin, datos,
@@ -105,8 +127,8 @@ def c04_api_consumo(periodo_inicio: str | None = PeriodoQ, periodo_fin: str | No
 
 @router.get("/tecnologia/disponibilidad")
 def c05_disponibilidad(periodo_inicio: str | None = PeriodoQ, periodo_fin: str | None = PeriodoQ,
-                        _admin=Depends(require_tecnologia)):
-    datos = fetch_gold("GOLD_INFRAESTRUCTURA_PERIODO", periodo_inicio, periodo_fin)
+                        granularidad: str = GranularidadQ, _admin=Depends(require_tecnologia)):
+    datos = fetch_gold("GOLD_INFRAESTRUCTURA_PERIODO", periodo_inicio, periodo_fin, granularidad=granularidad)
     return armar_respuesta(
         "C05", "OT-05", "Tasa de disponibilidad histórica e incidentes por componente y período", "Tecnología",
         periodo_inicio, periodo_fin, datos,
@@ -116,8 +138,8 @@ def c05_disponibilidad(periodo_inicio: str | None = PeriodoQ, periodo_fin: str |
 
 @router.get("/tecnologia/errores")
 def c06_errores(periodo_inicio: str | None = PeriodoQ, periodo_fin: str | None = PeriodoQ,
-                 _admin=Depends(require_tecnologia)):
-    datos = fetch_gold("GOLD_INFRAESTRUCTURA_PERIODO", periodo_inicio, periodo_fin)
+                 granularidad: str = GranularidadQ, _admin=Depends(require_tecnologia)):
+    datos = fetch_gold("GOLD_INFRAESTRUCTURA_PERIODO", periodo_inicio, periodo_fin, granularidad=granularidad)
     return armar_respuesta(
         "C06", "OT-06", "Tendencia de errores por servicio y período", "Tecnología",
         periodo_inicio, periodo_fin, datos,
@@ -131,8 +153,8 @@ def c06_errores(periodo_inicio: str | None = PeriodoQ, periodo_fin: str | None =
 
 @router.get("/financiero/mrr-arr")
 def c07_mrr_arr(periodo_inicio: str | None = PeriodoQ, periodo_fin: str | None = PeriodoQ,
-                 _admin=Depends(require_financiero)):
-    datos = fetch_gold("GOLD_FINANCIERO_PERIODO", periodo_inicio, periodo_fin)
+                 granularidad: str = GranularidadQ, _admin=Depends(require_financiero)):
+    datos = fetch_gold("GOLD_FINANCIERO_PERIODO", periodo_inicio, periodo_fin, granularidad=granularidad)
     return armar_respuesta(
         "C07", "OT-07", "MRR, ARR, margen neto y estado de resultados por período", "Financiero",
         periodo_inicio, periodo_fin, datos,
@@ -143,8 +165,8 @@ def c07_mrr_arr(periodo_inicio: str | None = PeriodoQ, periodo_fin: str | None =
 
 @router.get("/financiero/gastos-vs-ingresos")
 def c08_gastos_vs_ingresos(periodo_inicio: str | None = PeriodoQ, periodo_fin: str | None = PeriodoQ,
-                            _admin=Depends(require_financiero)):
-    datos = fetch_gold("GOLD_FINANCIERO_PERIODO", periodo_inicio, periodo_fin)
+                            granularidad: str = GranularidadQ, _admin=Depends(require_financiero)):
+    datos = fetch_gold("GOLD_FINANCIERO_PERIODO", periodo_inicio, periodo_fin, granularidad=granularidad)
     ingresos = _sum(datos, "ingresos_suscripciones") + _sum(datos, "ingresos_publicidad")
     return armar_respuesta(
         "C08", "OT-08", "Comparativa de gastos vs ingresos por período", "Financiero",
@@ -156,8 +178,8 @@ def c08_gastos_vs_ingresos(periodo_inicio: str | None = PeriodoQ, periodo_fin: s
 
 @router.get("/financiero/regalias")
 def c09_regalias(periodo_inicio: str | None = PeriodoQ, periodo_fin: str | None = PeriodoQ,
-                  _admin=Depends(require_financiero)):
-    datos = fetch_gold("GOLD_REGALIAS_PERIODO", periodo_inicio, periodo_fin)
+                  granularidad: str = GranularidadQ, _admin=Depends(require_financiero)):
+    datos = fetch_gold("GOLD_REGALIAS_PERIODO", periodo_inicio, periodo_fin, granularidad=granularidad)
     return armar_respuesta(
         "C09", "OT-09", "Liquidaciones de regalías agregadas por contrato, sello y período", "Financiero",
         periodo_inicio, periodo_fin, datos,
@@ -168,8 +190,8 @@ def c09_regalias(periodo_inicio: str | None = PeriodoQ, periodo_fin: str | None 
 
 @router.get("/financiero/publicidad")
 def c10_publicidad(periodo_inicio: str | None = PeriodoQ, periodo_fin: str | None = PeriodoQ,
-                    _admin=Depends(require_financiero)):
-    datos = fetch_gold("GOLD_FINANCIERO_PERIODO", periodo_inicio, periodo_fin)
+                    granularidad: str = GranularidadQ, _admin=Depends(require_financiero)):
+    datos = fetch_gold("GOLD_FINANCIERO_PERIODO", periodo_inicio, periodo_fin, granularidad=granularidad)
     return armar_respuesta(
         "C10", "OT-10", "Ingresos publicitarios por formato y anunciante por período", "Financiero",
         periodo_inicio, periodo_fin,
@@ -180,8 +202,8 @@ def c10_publicidad(periodo_inicio: str | None = PeriodoQ, periodo_fin: str | Non
 
 @router.get("/financiero/facturacion")
 def c11_facturacion(periodo_inicio: str | None = PeriodoQ, periodo_fin: str | None = PeriodoQ,
-                     _admin=Depends(require_financiero)):
-    datos = fetch_gold("GOLD_FINANCIERO_PERIODO", periodo_inicio, periodo_fin)
+                     granularidad: str = GranularidadQ, _admin=Depends(require_financiero)):
+    datos = fetch_gold("GOLD_FINANCIERO_PERIODO", periodo_inicio, periodo_fin, granularidad=granularidad)
     return armar_respuesta(
         "C11", "OT-11", "Volumen de facturación y tasa de cobro exitoso por período", "Financiero",
         periodo_inicio, periodo_fin, datos,
@@ -197,8 +219,8 @@ def c11_facturacion(periodo_inicio: str | None = PeriodoQ, periodo_fin: str | No
 
 @router.get("/datos/pipeline")
 def c12_pipeline(periodo_inicio: str | None = PeriodoQ, periodo_fin: str | None = PeriodoQ,
-                  _admin=Depends(require_datos)):
-    datos = fetch_gold("GOLD_PIPELINE_PERIODO", periodo_inicio, periodo_fin)
+                  granularidad: str = GranularidadQ, _admin=Depends(require_datos)):
+    datos = fetch_gold("GOLD_PIPELINE_PERIODO", periodo_inicio, periodo_fin, granularidad=granularidad)
     return armar_respuesta(
         "C12", "OT-12", "Tendencia de duración y volumen de ingesta por semana", "Ingeniería de Datos",
         periodo_inicio, periodo_fin, datos,
@@ -209,8 +231,8 @@ def c12_pipeline(periodo_inicio: str | None = PeriodoQ, periodo_fin: str | None 
 
 @router.get("/datos/calidad")
 def c13_calidad(periodo_inicio: str | None = PeriodoQ, periodo_fin: str | None = PeriodoQ,
-                 _admin=Depends(require_datos)):
-    datos = fetch_gold("GOLD_PIPELINE_PERIODO", periodo_inicio, periodo_fin)
+                 granularidad: str = GranularidadQ, _admin=Depends(require_datos)):
+    datos = fetch_gold("GOLD_PIPELINE_PERIODO", periodo_inicio, periodo_fin, granularidad=granularidad)
     real = _sum(datos, "registros_real")
     synth = _sum(datos, "registros_synthetic")
     upl = _sum(datos, "registros_uploaded")
@@ -230,8 +252,8 @@ def c13_calidad(periodo_inicio: str | None = PeriodoQ, periodo_fin: str | None =
 
 @router.get("/analitica/panel-ejecutivo")
 def c14_panel_ejecutivo(periodo_inicio: str | None = PeriodoQ, periodo_fin: str | None = PeriodoQ,
-                         _admin=Depends(require_analitica)):
-    filas = fetch_gold("GOLD_ENGAGEMENT_PERIODO", periodo_inicio, periodo_fin)
+                         granularidad: str = GranularidadQ, _admin=Depends(require_analitica)):
+    filas = fetch_gold("GOLD_ENGAGEMENT_PERIODO", periodo_inicio, periodo_fin, granularidad=granularidad)
     datos = [f for f in filas if f["genero"] == ""]
     return armar_respuesta(
         "C14", "OT-15", "Panel ejecutivo: métricas consolidadas de engagement, adquisición y retención", "Analítica y BI",
@@ -245,8 +267,8 @@ def c14_panel_ejecutivo(periodo_inicio: str | None = PeriodoQ, periodo_fin: str 
 
 @router.get("/analitica/ranking-generos")
 def c15_ranking_generos(periodo_inicio: str | None = PeriodoQ, periodo_fin: str | None = PeriodoQ,
-                         _admin=Depends(require_analitica)):
-    filas = fetch_gold("GOLD_CONSUMO_GENERO_PERIODO", periodo_inicio, periodo_fin)
+                         granularidad: str = GranularidadQ, _admin=Depends(require_analitica)):
+    filas = fetch_gold("GOLD_CONSUMO_GENERO_PERIODO", periodo_inicio, periodo_fin, granularidad=granularidad)
     datos = [f for f in filas if f["genre_id"] != 0]
     ranking: dict[str, int] = {}
     for f in datos:
@@ -261,8 +283,8 @@ def c15_ranking_generos(periodo_inicio: str | None = PeriodoQ, periodo_fin: str 
 
 @router.get("/analitica/series-temporales")
 def c16_series_temporales(periodo_inicio: str | None = PeriodoQ, periodo_fin: str | None = PeriodoQ,
-                           _admin=Depends(require_analitica)):
-    filas = fetch_gold("GOLD_ENGAGEMENT_PERIODO", periodo_inicio, periodo_fin)
+                           granularidad: str = GranularidadQ, _admin=Depends(require_analitica)):
+    filas = fetch_gold("GOLD_ENGAGEMENT_PERIODO", periodo_inicio, periodo_fin, granularidad=granularidad)
     datos = sorted((f for f in filas if f["genero"] == ""), key=lambda f: f["periodo"])
     ventana = 3
     for i, f in enumerate(datos):
@@ -276,8 +298,8 @@ def c16_series_temporales(periodo_inicio: str | None = PeriodoQ, periodo_fin: st
 
 @router.get("/analitica/proyeccion")
 def c17_proyeccion(periodo_inicio: str | None = PeriodoQ, periodo_fin: str | None = PeriodoQ,
-                    _admin=Depends(require_analitica)):
-    filas = fetch_gold("GOLD_CONSUMO_GENERO_PERIODO", periodo_inicio, periodo_fin)
+                    granularidad: str = GranularidadQ, _admin=Depends(require_analitica)):
+    filas = fetch_gold("GOLD_CONSUMO_GENERO_PERIODO", periodo_inicio, periodo_fin, granularidad=granularidad)
     datos = [f for f in filas if f["genre_id"] != 0 and f["prediccion_4sem"]]
     return armar_respuesta(
         "C17", "OT-18", "Proyecciones de regresión lineal a 4 semanas por género y artista", "Analítica y BI",
@@ -288,8 +310,8 @@ def c17_proyeccion(periodo_inicio: str | None = PeriodoQ, periodo_fin: str | Non
 
 @router.get("/analitica/benchmark")
 def c18_benchmark(periodo_inicio: str | None = PeriodoQ, periodo_fin: str | None = PeriodoQ,
-                   _admin=Depends(require_analitica)):
-    filas = fetch_gold("GOLD_CONSUMO_GENERO_PERIODO", periodo_inicio, periodo_fin)
+                   granularidad: str = GranularidadQ, _admin=Depends(require_analitica)):
+    filas = fetch_gold("GOLD_CONSUMO_GENERO_PERIODO", periodo_inicio, periodo_fin, granularidad=granularidad)
     por_genero: dict[str, dict] = {}
     for f in filas:
         if f["genre_id"] == 0:
@@ -314,8 +336,8 @@ def c18_benchmark(periodo_inicio: str | None = PeriodoQ, periodo_fin: str | None
 
 @router.get("/contenido/revision")
 def c19_revision(periodo_inicio: str | None = PeriodoQ, periodo_fin: str | None = PeriodoQ,
-                  _admin=Depends(require_contenido)):
-    filas = fetch_gold("GOLD_CONTENIDO_PERIODO", periodo_inicio, periodo_fin)
+                  granularidad: str = GranularidadQ, _admin=Depends(require_contenido)):
+    filas = fetch_gold("GOLD_CONTENIDO_PERIODO", periodo_inicio, periodo_fin, granularidad=granularidad)
     vistos: dict[str, dict] = {}
     for f in filas:
         vistos.setdefault(f["periodo"], {
@@ -333,8 +355,8 @@ def c19_revision(periodo_inicio: str | None = PeriodoQ, periodo_fin: str | None 
 
 @router.get("/contenido/licencias")
 def c20_licencias(periodo_inicio: str | None = PeriodoQ, periodo_fin: str | None = PeriodoQ,
-                   _admin=Depends(require_contenido)):
-    filas = fetch_gold("GOLD_CONTENIDO_PERIODO", periodo_inicio, periodo_fin)
+                   granularidad: str = GranularidadQ, _admin=Depends(require_contenido)):
+    filas = fetch_gold("GOLD_CONTENIDO_PERIODO", periodo_inicio, periodo_fin, granularidad=granularidad)
     ultimo_periodo = max((f["periodo"] for f in filas), default=None)
     datos = [f for f in filas if f["periodo"] == ultimo_periodo]
     return armar_respuesta(
@@ -347,8 +369,8 @@ def c20_licencias(periodo_inicio: str | None = PeriodoQ, periodo_fin: str | None
 
 @router.get("/contenido/cobertura")
 def c21_cobertura(periodo_inicio: str | None = PeriodoQ, periodo_fin: str | None = PeriodoQ,
-                   _admin=Depends(require_contenido)):
-    filas = fetch_gold("GOLD_CONTENIDO_PERIODO", periodo_inicio, periodo_fin)
+                   granularidad: str = GranularidadQ, _admin=Depends(require_contenido)):
+    filas = fetch_gold("GOLD_CONTENIDO_PERIODO", periodo_inicio, periodo_fin, granularidad=granularidad)
     ultimo_periodo = max((f["periodo"] for f in filas), default=None)
     datos = [f for f in filas if f["periodo"] == ultimo_periodo]
     return armar_respuesta(
@@ -365,8 +387,8 @@ def c21_cobertura(periodo_inicio: str | None = PeriodoQ, periodo_fin: str | None
 
 @router.get("/comunidad/moderacion")
 def c22_moderacion(periodo_inicio: str | None = PeriodoQ, periodo_fin: str | None = PeriodoQ,
-                    _admin=Depends(require_comunidad)):
-    filas = fetch_gold("GOLD_COMUNIDAD_PERIODO", periodo_inicio, periodo_fin)
+                    granularidad: str = GranularidadQ, _admin=Depends(require_comunidad)):
+    filas = fetch_gold("GOLD_COMUNIDAD_PERIODO", periodo_inicio, periodo_fin, granularidad=granularidad)
     datos = [f for f in filas if f["categoria"] == "moderacion"]
     return armar_respuesta(
         "C22", "OT-24", "Volumen de moderación por tipo de acción y período", "Comunidad y Soporte",
@@ -377,8 +399,8 @@ def c22_moderacion(periodo_inicio: str | None = PeriodoQ, periodo_fin: str | Non
 
 @router.get("/comunidad/denuncias")
 def c23_denuncias(periodo_inicio: str | None = PeriodoQ, periodo_fin: str | None = PeriodoQ,
-                   _admin=Depends(require_comunidad)):
-    filas = fetch_gold("GOLD_COMUNIDAD_PERIODO", periodo_inicio, periodo_fin)
+                   granularidad: str = GranularidadQ, _admin=Depends(require_comunidad)):
+    filas = fetch_gold("GOLD_COMUNIDAD_PERIODO", periodo_inicio, periodo_fin, granularidad=granularidad)
     datos = [f for f in filas if f["categoria"] == "denuncias"]
     return armar_respuesta(
         "C23", "OT-25", "Tendencia de denuncias por tipo y relación con sanciones aplicadas", "Comunidad y Soporte",
@@ -391,8 +413,8 @@ def c23_denuncias(periodo_inicio: str | None = PeriodoQ, periodo_fin: str | None
 
 @router.get("/comunidad/soporte")
 def c24_soporte(periodo_inicio: str | None = PeriodoQ, periodo_fin: str | None = PeriodoQ,
-                 _admin=Depends(require_comunidad)):
-    filas = fetch_gold("GOLD_COMUNIDAD_PERIODO", periodo_inicio, periodo_fin)
+                 granularidad: str = GranularidadQ, _admin=Depends(require_comunidad)):
+    filas = fetch_gold("GOLD_COMUNIDAD_PERIODO", periodo_inicio, periodo_fin, granularidad=granularidad)
     datos = [f for f in filas if f["categoria"] == "tickets"]
     return armar_respuesta(
         "C24", "OT-26", "Tiempo promedio de resolución y distribución por categoría y período", "Comunidad y Soporte",
@@ -405,8 +427,8 @@ def c24_soporte(periodo_inicio: str | None = PeriodoQ, periodo_fin: str | None =
 
 @router.get("/comunidad/interacciones")
 def c25_interacciones(periodo_inicio: str | None = PeriodoQ, periodo_fin: str | None = PeriodoQ,
-                       _admin=Depends(require_comunidad)):
-    filas = fetch_gold("GOLD_COMUNIDAD_PERIODO", periodo_inicio, periodo_fin)
+                       granularidad: str = GranularidadQ, _admin=Depends(require_comunidad)):
+    filas = fetch_gold("GOLD_COMUNIDAD_PERIODO", periodo_inicio, periodo_fin, granularidad=granularidad)
     datos = [f for f in filas if f["categoria"] == "social"]
     return armar_respuesta(
         "C25", "OT-27", "Interacciones sociales totales por tipo y período con indicadores de crecimiento", "Comunidad y Soporte",
@@ -422,8 +444,8 @@ def c25_interacciones(periodo_inicio: str | None = PeriodoQ, periodo_fin: str | 
 
 @router.get("/seguridad/auditoria")
 def c26_auditoria(periodo_inicio: str | None = PeriodoQ, periodo_fin: str | None = PeriodoQ,
-                   _admin=Depends(require_seguridad)):
-    filas = fetch_gold("GOLD_SEGURIDAD_PERIODO", periodo_inicio, periodo_fin)
+                   granularidad: str = GranularidadQ, _admin=Depends(require_seguridad)):
+    filas = fetch_gold("GOLD_SEGURIDAD_PERIODO", periodo_inicio, periodo_fin, granularidad=granularidad)
     datos = [f for f in filas if f["tipo_evento"] != "__resumen__"]
     return armar_respuesta(
         "C26", "OT-29", "Tendencia de eventos de auditoría por tipo de acción y período", "Seguridad",
@@ -434,8 +456,8 @@ def c26_auditoria(periodo_inicio: str | None = PeriodoQ, periodo_fin: str | None
 
 @router.get("/seguridad/sanciones")
 def c27_sanciones(periodo_inicio: str | None = PeriodoQ, periodo_fin: str | None = PeriodoQ,
-                   _admin=Depends(require_seguridad)):
-    filas = fetch_gold("GOLD_SEGURIDAD_PERIODO", periodo_inicio, periodo_fin)
+                   granularidad: str = GranularidadQ, _admin=Depends(require_seguridad)):
+    filas = fetch_gold("GOLD_SEGURIDAD_PERIODO", periodo_inicio, periodo_fin, granularidad=granularidad)
     datos = [f for f in filas if f["tipo_evento"] == "__resumen__"]
     return armar_respuesta(
         "C27", "OT-31", "Tendencia de sanciones emitidas y tasa de suspensión automática por período", "Seguridad",
@@ -452,8 +474,8 @@ def c27_sanciones(periodo_inicio: str | None = PeriodoQ, periodo_fin: str | None
 
 @router.get("/producto/recomendaciones")
 def c28_recomendaciones(periodo_inicio: str | None = PeriodoQ, periodo_fin: str | None = PeriodoQ,
-                         _admin=Depends(require_producto)):
-    filas = fetch_gold("GOLD_PRODUCTO_PERIODO", periodo_inicio, periodo_fin)
+                         granularidad: str = GranularidadQ, _admin=Depends(require_producto)):
+    filas = fetch_gold("GOLD_PRODUCTO_PERIODO", periodo_inicio, periodo_fin, granularidad=granularidad)
     datos = [f for f in filas if f["categoria"] == "recomendaciones"]
     return armar_respuesta(
         "C28", "OT-32", "Tasa de conversión de recomendación a reproducción por período", "Producto",
@@ -466,8 +488,8 @@ def c28_recomendaciones(periodo_inicio: str | None = PeriodoQ, periodo_fin: str 
 
 @router.get("/producto/ab-tests")
 def c29_ab_tests(periodo_inicio: str | None = PeriodoQ, periodo_fin: str | None = PeriodoQ,
-                  _admin=Depends(require_producto)):
-    filas = fetch_gold("GOLD_PRODUCTO_PERIODO", periodo_inicio, periodo_fin)
+                  granularidad: str = GranularidadQ, _admin=Depends(require_producto)):
+    filas = fetch_gold("GOLD_PRODUCTO_PERIODO", periodo_inicio, periodo_fin, granularidad=granularidad)
     datos = [f for f in filas if f["categoria"] == "ab_test"]
     experimentos = sorted({f["dimension"] for f in datos})
     return armar_respuesta(
@@ -479,8 +501,8 @@ def c29_ab_tests(periodo_inicio: str | None = PeriodoQ, periodo_fin: str | None 
 
 @router.get("/producto/notificaciones")
 def c30_notificaciones(periodo_inicio: str | None = PeriodoQ, periodo_fin: str | None = PeriodoQ,
-                        _admin=Depends(require_producto)):
-    filas = fetch_gold("GOLD_PRODUCTO_PERIODO", periodo_inicio, periodo_fin)
+                        granularidad: str = GranularidadQ, _admin=Depends(require_producto)):
+    filas = fetch_gold("GOLD_PRODUCTO_PERIODO", periodo_inicio, periodo_fin, granularidad=granularidad)
     datos = [f for f in filas if f["categoria"] == "notificacion"]
     return armar_respuesta(
         "C30", "OT-34", "Volumen de notificaciones y tasa de interacción por tipo y período", "Producto",
