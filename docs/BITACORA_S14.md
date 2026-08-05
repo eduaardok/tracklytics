@@ -101,3 +101,66 @@ Medida antes de lanzar el proceso de 9h vs. al momento de escribir esta entrada 
 **Backend modificado**: `api/paquetes/catalogo/queries.py` (+`imagen_url` en `GENRES_LIST`), `api/paquetes/catalogo/router.py` (featuring en 5 endpoints de tracks), `api/paquetes/biblioteca/queries.py` (+`imagen_url` en 3 queries, fix del INNER JOIN de género que descartaba tracks sintéticos en `FAVORITOS_ACTUALES`/`TRACKS_BY_FACT_IDS`), `api/paquetes/biblioteca/router.py` (`portada_urls` en listado de playlists, featuring en detalle), `api/paquetes/social/router.py` (featuring en perfil público).
 **Frontend nuevo**: `shared/components/PlaylistCollage.tsx`+`.module.css`.
 **Frontend modificado**: `packages/catalogo/types.ts` (campos nuevos en `Track`/`LibraryTrack`/`Playlist`/`Genre`), `packages/catalogo/components/{PlaylistsTab,ExploreCard,TrackCard,TrackGridCard,LibraryTrackRow}.tsx`+`.module.css`, `packages/catalogo/pages/{ArtistDetailPage,CatalogPage,DetailPages.module.css,BibliotecaPage.module.css}.tsx`.
+
+---
+
+## S14-P2 — Grano temporal configurable en la capa Gold (5 ago 2026)
+
+Modo autónomo. Recarga de portadas de 9h relanzada primero (patrón fijo de cada sesión), como pedía el Paso 0.
+
+### Paso 0 — Recarga de portadas 9h
+
+`docker compose build etl && docker compose run -d --name tracklytics_reload_portadas_9h etl python -u -m gold.reload_portadas_9h`, 2026-08-05 ~08:33 UTC. Verificado con conteos reales en ClickHouse catálogo (8123), no solo `docker ps`:
+
+| Entidad | Al lanzar | ~50 min después |
+|---|---|---|
+| Canciones con portada (`FACT_TRACKS.imagen_url`) | 0 / 1.313.556 | 1.477 / 1.313.556 |
+| Artistas con portada (`DIM_ARTISTS.imagen_url`) | 17.628 / 29.863 | 17.634 / 29.863 |
+| Álbumes con portada (`DIM_ALBUMS.imagen_url`) | 4.375 / 46.596 | 4.375 / 46.596 (sin cambio neto — ciclo de reemplazo, no solo relleno de `NULL`, mismo comportamiento documentado en S14-P1) |
+
+**Hallazgo no esperado**: la cobertura de `FACT_TRACKS.imagen_url` partió de **0** en esta sesión, muy por debajo de los 89.741 reales con los que había cerrado S14-P1 (30 jul 2026) — el catálogo (`FACT_TRACKS`, 1.313.556 filas ahora vs. ~313k entonces) fue recargado entre sesiones, perdiendo el progreso de portadas de canción acumulado. `DIM_ARTISTS`/`DIM_ALBUMS` sí conservaron su cobertura previa casi intacta. No es parte del alcance de este bloque investigar la causa — se deja documentado como línea base real para la próxima sesión. Proceso confirmado corriendo (`docker ps`, `Up`) al cerrar esta entrada, sin haber sido detenido ni tocado en ningún momento del bloque.
+
+### Fase 0 — Inspección previa (hallazgos reales vs. premisas del enunciado)
+
+Casi todo lo descrito en el enunciado coincidió con el repo real. Dos diferencias encontradas y adaptadas:
+
+1. **`etl/gold_ch/pipeline.py` usaba `INTERVAL 180 DAY`, no 90** (el doble que los otros 11 módulos, que sí usaban 90/`today()-90`). El enunciado asumía 90 DAY en todos. Se unificó: los 12 módulos ahora usan `VENTANA_ORIGEN_DIAS = 1095` (incluido `pipeline.py`), documentado en su docstring.
+2. **`financiero.py` calcula `mrr = ingresos_suscripciones × 4.348`** (semanas/mes), una aproximación que solo tiene sentido para grano semanal — el enunciado no mencionaba adaptarla, y con grano `mes` habría dejado el MRR mensual 4.3× inflado (`ingresos_suscripciones` de un mes completo, multiplicado otra vez por semanas/mes). Se generalizó a un multiplicador por granularidad (`MULTIPLICADOR_MRR`: dia=365.25/12, semana=4.348, mes=1.0, trimestre=1/3, anio=1/12) — verificado en Fase 5 (`mrr == ingresos_suscripciones` exacto en grano `mes`, `mrr == ingresos_suscripciones × 4.348` en grano `semana`).
+
+El resto coincidió exactamente con el enunciado: `periodo_sql()` fijo en semana ISO, `PERIODOS_VENTANA = 12`, 13 DDL en `create_gold_tables.py` (12 `GOLD_*_PERIODO` + `GOLD_ETL_LOG`), los 12 módulos (9 con relleno demo vía `rng_for`: `adquisicion`, `api_consumo`, `comunidad`, `consumo_genero`, `contenido`, `engagement`, `infraestructura`, `producto`, `regalias`; 3 sin relleno demo, 100% real con cero como valor real: `financiero`, `pipeline`, `seguridad`), `queries.py`/`router.py` exactamente como se describía, DAG con 12 `PythonOperator` sin dependencias.
+
+### Fase 1-2 — Granularidades y DDL
+
+| id | Etiqueta `periodo` | Horizonte (períodos) |
+|---|---|---|
+| `dia` | `2026-08-05` | 90 |
+| `semana` | `2026-W32` | 52 |
+| `mes` | `2026-08` | 24 |
+| `trimestre` | `2026-Q3` | 8 |
+| `anio` | `2026` | 3 |
+
+`etl/gold_ch/base.py` reescrito: `periodos_ventana(granularidad)` reemplaza `iso_weeks_back()`, devuelve `(etiqueta, fecha_inicio)`; `permite_relleno_demo(etiquetas, periodo)` acota el relleno demo a los `PERIODOS_RELLENO_DEMO = 12` períodos más recientes de cada granularidad. Las 12 tablas `GOLD_*_PERIODO` suman `granularidad LowCardinality(String)` + `fecha_inicio Date` como primeras columnas, `ORDER BY (granularidad, fecha_inicio, ...)`. `GOLD_ETL_LOG` suma `granularidad`. `create_gold_tables.py` acepta `GOLD_RECREATE=1` → `DROP TABLE IF EXISTS` de las 13 tablas antes de recrearlas (capa 100% derivada, repoblada corriendo el DAG — sin backfill).
+
+**Decisión sobre el acotamiento del relleno demo**: ampliar el horizonte de 12 semanas a hasta 90 períodos (`dia`) no debía multiplicar por 7.5 el volumen de datos inventados. Se limitó `rng_for()` a los 12 períodos más recientes de cada granularidad — períodos más antiguos sin dato real en el catálogo simplemente no generan fila (verificado en Fase 5: para `trimestre` y `anio`, cuyo horizonte completo es ≤ 12, TODOS los períodos tienen fila incluso en dimensiones "siempre demo"; para `dia`/`semana`/`mes`, exactamente 12).
+
+**Excepción de proyecciones**: la regresión lineal de `GOLD_CONSUMO_GENERO_PERIODO` (OT-18) solo corre para `granularidad == 'semana'` — para las otras 4, `pendiente_regresion`/`intercepto_regresion` quedan en 0 y `prediccion_4sem` vacío en todas las filas (verificado: `countIf(length(prediccion_4sem)>0)` es 15 en `semana` y 0 en las otras 4).
+
+### Fase 3-4 — Módulos, DAG y API
+
+Los 12 módulos migrados a `run_gold_<dominio>(granularidad='semana')`. `dag_gold_aggregations.py` expandido a 60 tareas (`PythonOperator` por dominio×granularidad, `op_kwargs={'granularidad': g}` — no closures de Python, que habrían capturado el último valor de `g` en las 60 tareas). `queries.py`: `_rango_where` filtra por `granularidad` + `fecha_inicio`, resolviendo etiquetas de período con una subconsulta a la misma tabla (`fetch_gold` sigue aceptando etiquetas en `periodo_inicio`/`periodo_fin`, no fechas). `router.py`: los 30 handlers suman `granularidad: str = "semana"`; endpoint nuevo `GET /_meta/periodos?tabla=&granularidad=`, gateado con `require_seguridad` (= `require_admin`, la dependencia más permisiva de las 9 del módulo — no hay una dependencia común a los 9 departamentos, y este endpoint no pertenece a ninguno en particular).
+
+### Fase 5 — Verificación real
+
+1. **`docker compose up -d`** (stack completo estaba abajo al iniciar la sesión) + **`GOLD_RECREATE=1`** vía `docker compose run --rm -e GOLD_RECREATE=1 init-db-gold` (rebuild previo de esa imagen) → `13/13 tablas GOLD_* listas`.
+2. **Quirk de infra reencontrado** (ya documentado en sesiones anteriores, "el scheduler de Airflow puede morir en silencio"): tras `docker compose restart airflow`, el proceso `airflow scheduler` murió en el arranque por `sqlite3.OperationalError: database is locked` (carrera entre `airflow db migrate` y el propio scheduler dentro de `airflow standalone`, mismo contenedor). Confirmado con `ps`-equivalente vía `/proc` (no había `ps` en la imagen): solo quedaban vivos `webserver`/`triggerer`/`standalone`, sin `scheduler`. Un segundo `docker compose restart airflow` lo recuperó. La tarea disparada durante la ventana muerta quedó en cola (`dag_run` en estado `queued`) y arrancó sola en cuanto el scheduler volvió — no se perdió.
+3. **DAG disparado, 60/60 tareas verdes**, sin reintentos. Corrida real: 09:13:08–09:21:46 UTC (~8m38s de ejecución efectiva sobre `SequentialExecutor`, ~8.6s/tarea en promedio).
+4. **ClickHouse Gold (8124)** — filas por granularidad en las 12 tablas, todas con las 5 presentes. Ejemplo (`GOLD_FINANCIERO_PERIODO`, 100% real sin demo-fill): `dia=90, semana=52, mes=24, trimestre=8, anio=3` — coincide EXACTO con `HORIZONTE_POR_GRANULARIDAD`, como se espera de un módulo que escribe una fila por período sin importar si hay dato real. `fecha_inicio` coherente con `periodo` verificado por muestreo en las 5 granularidades (ej. `mes='2026-08'` → `fecha_inicio='2026-08-01'`; `anio='2026'` → `'2026-01-01'`; `semana='2026-W21'` → `'2026-05-18'`, lunes ISO correcto).
+5. **`curl` real, 3 departamentos / 3 granularidades** (cuenta admin de prueba creada con `pb_client.crear_usuario(rol="admin")`, sin tocar `.env`): `financiero/mrr-arr` (semana/mes/anio), `analitica/ranking-generos` (mes), `comunidad/moderacion` (anio) — las 5 respuestas con `datos` no vacíos y `periodo_inicio`/`periodo_fin` en orden cronológico correcto.
+6. **Compatibilidad hacia atrás confirmada por diff, no solo inspección visual**: `curl` sin `granularidad` vs. `curl` con `granularidad=semana` explícito en los mismos 3 endpoints → los 3 pares de respuestas son **byte-idénticos** (`diff` vacío). Las respuestas SÍ incluyen 2 campos nuevos por fila (`granularidad`, `fecha_inicio`) que no existían antes de S14-P2 — aditivo, no rompe consumidores existentes que leen campos específicos por nombre (el frontend actual no lee esos 2 campos nuevos, no se ve afectado).
+7. **`npm run build`**: verde, 24,88s. Único warning preexistente (chunks > 500kB, no relacionado a este bloque). Frontend no tocado en S14-P2 — el build solo confirma que no se rompió nada al cambiar la API.
+
+### Archivos nuevos o modificados (S14-P2)
+
+**ETL**: `etl/gold_ch/base.py` (reescrito), `etl/gold_ch/{adquisicion,api_consumo,comunidad,consumo_genero,contenido,engagement,financiero,infraestructura,pipeline,producto,regalias,seguridad}.py`, `etl/dags/dag_gold_aggregations.py`, `create_gold_tables.py`.
+**API**: `api/paquetes/reportes/queries.py`, `api/paquetes/reportes/router.py`.
+**OpenSpec**: `openspec/changes/2026-08-05-s14-p2-granularidad-gold/` (proposal, tasks, delta spec `reportes` — validado `openspec validate --all --strict`, 17/17, sin archivar en este bloque).
