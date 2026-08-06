@@ -11,6 +11,19 @@ services:
       - "8090:8090"
     volumes:
       - pb_data:/pb_data
+    environment:
+      # Bug real encontrado en la prueba de arranque limpio (S14-P4, Fase 6.1):
+      # en un volumen `pb_data` genuinamente vacío, PocketBase no crea ningún
+      # superusuario solo — exige visitar el wizard de instalación o correr
+      # `pocketbase superuser upsert` a mano (nunca automatizado en este repo).
+      # `pb-init` fallaba con 400 al autenticarse contra `_superusers/auth-
+      # with-password` porque ese superusuario simplemente no existía todavía.
+      # Nunca se había visto: el volumen del stack principal lleva semanas
+      # vivo, con un superusuario creado a mano en algún momento pasado. La
+      # propia imagen (`entrypoint.sh`) ya soporta crearlo sola vía estas dos
+      # variables — mismas credenciales que `pb-init` ya usa para autenticarse.
+      PB_ADMIN_EMAIL:    ${POCKETBASE_EMAIL}
+      PB_ADMIN_PASSWORD: ${POCKETBASE_PASSWORD}
     healthcheck:
       test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8090/api/health"]
       interval: 10s
@@ -255,6 +268,21 @@ services:
     depends_on:
       api:
         condition: service_healthy
+      # Bug real encontrado en la prueba de arranque limpio (S14-P4, Fase 6.1):
+      # `pb-init` es quien agrega los campos custom `role`/`pais` a la colección
+      # `users` de PocketBase (`ensure_users_text_field`). Sin esta dependencia,
+      # `pb-init` y `api` arrancan en paralelo (ninguno depende del otro) y en un
+      # entorno recién levantado `seed-cuentas-demo` podía crear la cuenta
+      # superadmin ANTES de que esos campos existieran en el esquema —
+      # PocketBase descarta en silencio los campos desconocidos al insertar, así
+      # que la cuenta quedaba sin `role` en absoluto (ni "admin" ni ningún otro
+      # valor), y el auto-backfill a superadmin (`deps.py::_asegurar_superadmin`)
+      # nunca se disparaba: las 6 asignaciones de rol siguientes fallaban con
+      # 403 "Esta operación requiere un rol administrativo distinto". Nunca se
+      # había visto porque el stack principal reutilizaba una cuenta superadmin
+      # ya vieja (con el esquema ya migrado) en vez de una recién creada.
+      pb-init:
+        condition: service_completed_successfully
     environment:
       REPORTES_API_ROOT:        http://api:8000
       POCKETBASE_URL:           http://pocketbase:8090

@@ -265,3 +265,236 @@ Los 9 módulos con `rng_for()` reescritos:
 **ETL modificado**: `etl/gold_ch/base.py` (retiro de `rng_for`/`permite_relleno_demo`), `etl/gold_ch/{adquisicion,api_consumo,comunidad,consumo_genero,contenido,engagement,infraestructura,producto,regalias}.py`.
 **Docs nuevos**: `docs/CUENTAS_DEMO.md`, `docs/NOTA_METODOLOGICA.md`.
 **OpenSpec**: `openspec/changes/2026-08-05-s14-p3-datos-reales-cuentas-rol/` (`reportes`, `simulacion`, `seguridad`, `ingesta` — `ingesta` y `seguridad` no estaban en el enunciado explícito pero su contrato cambió de verdad: `ETL_BATCH_CONTROL` se reusa para el backfill, y la asignación de roles ganó el escenario de cuenta de referencia verificable; validado `openspec validate --all --strict`, 18/18, sin archivar).
+
+---
+
+## S14-P4 — Correcciones de S14-P3 + generación de datos bajo demanda (5-6 ago 2026)
+
+Modo autónomo. Recarga de portadas ya venía corriendo de la conversación anterior — se dejó
+terminar su ciclo natural (~512 min de 540) y se relanzó automáticamente al cerrar (watcher en
+background, sin intervención manual, sin `docker compose down` en ningún momento). Conteos de
+referencia: `FACT_TRACKS` 19.332/1.313.556 con portada al iniciar este bloque (los artistas
+siguen estancados en 17.634/29.863 — iTunes degradado tras ciclos sostenidos, ya documentado en
+S14-P1/P3, no un hallazgo nuevo).
+
+### Fase 1 — Credenciales fuera del código
+
+`SUPERADMIN_EMAIL`/`SUPERADMIN_PASSWORD` en `etl/gold/backfill_negocio.py:104-105` estaban en
+texto plano, confirmado con `grep` antes de tocar nada. Pasaron a `os.getenv("SUPERADMIN_DEMO_EMAIL", ...)`/
+`os.getenv("SUPERADMIN_DEMO_PASSWORD", "Demo12345!")`, declaradas en `docker-compose.yml`
+(servicio `airflow`) con el mismo default demo — mismo patrón ya usado por `AIRFLOW_PASSWORD`/
+`AIRFLOW_SECRET_KEY` en el mismo archivo (`${VAR:-default}`), no una convención nueva.
+
+**Auditoría del resto del repo** (`git grep` por patrones de password/secret/api_key en duro,
+más una búsqueda de formatos reales de API key — `AIza`, `sk-`, `ghp_`): sin otros hallazgos.
+El único otro texto con "Demo12345" en el repo es el propio default declarado en
+`docker-compose.yml` — exactamente donde el enunciado pedía que viviera.
+
+### Fase 2 — Cuentas demo creadas automáticamente
+
+`seed_cuentas_demo.py` + servicio `seed-cuentas-demo` (mismo patrón `pb-init`/`init-db`:
+`restart: no`, imagen mínima propia). Healthcheck nuevo en `api` (Python vía `urllib`, sin
+`curl`/`wget` en `python:3.11-slim`) — `seed-cuentas-demo` depende de `api: condition:
+service_healthy`, cero `sleep`.
+
+**Hallazgo real durante el diseño**: `POST /auth/registro` bloquea a propósito autoregistrarse
+con `rol=admin` (`ROLES_AUTO_REGISTRABLES = ("user", "analyst")`, CU-O01), y asignar un rol
+administrativo requiere YA ser `superadmin` — un sistema recién levantado no tiene ninguno, así
+que el círculo "cuentas solo por los 2 endpoints reales" no se puede cerrar completo para la
+PRIMERA cuenta. Se documentó como excepción explícita (no oculta): `superadmin` se crea llamando
+a la misma API pública de PocketBase que `pb_client.crear_usuario()` ya usa internamente
+(`POST /api/collections/users/records`, `role=admin`) — no un `INSERT` a ClickHouse, el mismo
+mecanismo de creación de cuenta del resto del sistema. Las otras 6 cuentas pasan 100% por los
+dos endpoints reales, con el token de `superadmin` recién creada.
+
+Probado idempotente contra el stack ya poblado de S14-P3 (las 7 cuentas ya existían): las 7
+correctamente detectadas como "ya existía", cero duplicados, cero fallos.
+
+### Fase 3 — Mapeo monto → plan robusto
+
+`etl/gold_ch/adquisicion.py`: `DIM_PLAN` ya no se filtra por `activo=1`. Contador
+`transacciones_no_mapeadas` calculado UNA vez sobre el universo completo de transacciones (no
+dentro del loop por período, que lo habría contado varias veces según la granularidad),
+registrado siempre en `GOLD_ETL_LOG.detalle` (`estado='advertencia'` si > 0) y en el `print` del
+módulo — nunca en silencio.
+
+**Resultado real, confirmado tras correr el DAG completo (60 tareas)**: **42 transacciones de
+suscripción sin plan mapeado**, consistente en las 5 granularidades (`GOLD_ETL_LOG` muestra la
+misma cifra en cada corrida). No se investigó la causa raíz en este bloque (fuera de alcance de
+la Fase 3, que pedía visibilidad, no una cacería); candidato más probable: `DIM_PLAN` tiene dos
+filas para `plan_id='premium'` (9.99 y 12.99, un cambio de precio histórico) — no todas las
+transacciones antiguas necesariamente coinciden con el precio vigente.
+
+### Fase 4 — Volumen de regalías
+
+`etl/gold/expandir_contratos_regalias.py` (corrida única, no forma parte del pipeline
+recurrente): retrofecha los 3 contratos existentes (`vigente_desde` repartido en el primer
+tercio de la ventana, no el mismo día) e inserta 19 contratos nuevos sobre contrapartes 100%
+reales — **8 sellos** (todas las filas de `DIM_SELLO_DISCOGRAFICO`) + **11 cuentas de artista**
+(todas las filas de `DIM_CUENTA_ARTISTA`) — **22 contratos totales**, `fact_id_track` asignado
+de los 40 tracks reales con más reproducciones (no al azar sobre las ~113k canciones, la
+mayoría sin ninguna reproducción en la ventana).
+
+**Hallazgo real durante la verificación, no anticipado por el enunciado**: `FACT_LIQUIDACION_
+REGALIA.fecha_calculo` es "cuándo se corrió el cálculo" (`DEFAULT now()`), no el período que la
+liquidación cubre — bucketear `GOLD_REGALIAS_PERIODO` por ahí (como hacía el módulo desde
+S13-P3a) dejaba TODAS las liquidaciones de una corrida en batch agrupadas en el período Gold de
+"hoy", sin importar que `periodo_inicio`/`periodo_fin` cubrieran 24 meses distintos. Con más
+contratos esto se iba a notar todavía más (398 liquidaciones nuevas, casi todas cayendo en un
+solo período). Se cambió `etl/gold_ch/regalias.py` para bucketear por `periodo_inicio` — sin
+este cambio, ampliar los contratos no habría resuelto el problema real de la Fase 4.
+
+**Resultado real**: `FACT_LIQUIDACION_REGALIA` pasó de 55 a 453 filas. `GOLD_REGALIAS_PERIODO`
+en granularidad `mes` tiene datos en los 24 meses reales de la ventana (`2024-09` a `2026-08`,
+verificado con `count(DISTINCT periodo)` sobre el rango vigente); en `trimestre`, los 8
+trimestres vigentes también. Sin períodos vacíos dentro de la ventana oficial de cada
+granularidad.
+
+### Fase 5 — Generación bajo demanda con relleno de huecos
+
+**Decisión de alcance, documentada**: de los 13 dominios de `backfill_negocio.py`, solo 10
+soportan relleno de huecos por mes (`usuarios`, `gasto_marketing`, `publicidad`, `engagement`,
+`regalias`, `disponibilidad`, `api_partners`, `comunidad`, `denuncias_tickets`, `producto`).
+Quedan fuera, con motivo real: `suscripciones` simula el ciclo de vida COMPLETO de una
+suscripción por usuario en una sola pasada (volver a invocarla por mes duplicaría
+transacciones); `contenido` genera un N fijo disperso al azar en todo el rango, no una cantidad
+por mes; `auditoria` deriva de otros dominios ya generados, no tiene generación propia.
+
+Mecanismo: las 13 funciones de `backfill_negocio.py` ganaron un parámetro `clave_control`
+(idempotencia parametrizable — `ETL_BATCH_CONTROL` con checksum `backfill_negocio:<dominio>:<mes>`,
+conviviendo con el flag de todo-el-dominio que ya usa el backfill histórico de S14-P3, sin
+pisarse). `generar_actividad_rango()` recorre el rango pedido mes a mes, salta los ya cubiertos.
+
+**Bug real encontrado y corregido durante la verificación**: la primera versión de
+`dag_generar_bajo_demanda` encadenaba el refresco de Gold con `TriggerDagRunOperator(...,
+wait_for_completion=True)`. La tarea que espera compite por el mismo SQLite de metadata de
+Airflow que el propio `SequentialExecutor` está usando para correr las 60 tareas del refresco —
+mismo quirk de infraestructura ya documentado en sesiones anteriores ("el scheduler puede morir
+en silencio" por `database is locked`). Un lock transitorio hizo fallar la tarea durante el
+polling; el reintento automático (`retries=1` heredado de `default_args`) volvió a intentar
+`trigger_dag()` con el mismo `run_id` determinístico que el intento anterior YA había creado
+con éxito → `DagRunAlreadyExists`. La corrida de `dag_gold_aggregations` en sí terminó bien sola
+(confirmado en `airflow dags list-runs`), pero la tarea que "encadenaba" quedó marcada `failed`.
+Corregido: `wait_for_completion=False` (dispara y sigue, sin bloquear un slot del executor),
+`retries=0` en esa tarea puntual (un reintento de un disparo *fire-and-forget* no aporta nada y
+puede duplicar el `dag_run`), sin `trigger_run_id` fijo (Airflow genera uno único por disparo).
+El estado del refresco se consulta aparte, vía `GET /simulacion/estado` (con refetch espaciado
+cada 15s en el frontend, no polling apretado).
+
+`POST /simulacion/generar-historico` + `GET /simulacion/estado`: router propio
+(`router_bajo_demanda`) en `api/paquetes/simulacion/router.py`, gateado por
+`require_rol_admin("admin_datos")` (más permisivo que el `require_admin` del router original —
+`superadmin` también pasa siempre). `SimulacionPage.tsx` gana una sección de generación
+histórica (selector de rango + dominios) y una tabla de estado (última corrida por dominio de
+negocio y por tabla Gold) — panel interno, sin ningún concepto de generación/seeds/DAGs
+expuesto fuera de esa página.
+
+**Circuito probado de punta a punta, dos veces** (la primera reveló el bug de arriba, la
+segunda —ya con el fix— corrió limpia): se borró `FACT_DISPONIBILIDAD` + `GOLD_
+INFRAESTRUCTURA_PERIODO` de un mes real (marzo y abril de 2026, uno por corrida), se disparó
+`POST /simulacion/generar-historico` como `admin_datos`, y se confirmó por consulta directa a
+ClickHouse que ambas capas volvieron a su conteo real exacto (120 filas en `FACT_
+DISPONIBILIDAD`, 4 en `GOLD_INFRAESTRUCTURA_PERIODO`, en los dos casos).
+
+### Fase 6 — Verificación real
+
+1. **Prueba de arranque limpio** — ver Fase 6.1 abajo (la más importante del bloque).
+2. **`sum(es_estimado) = 0`** en las 12 tablas Gold, confirmado de nuevo tras los cambios de
+   Fase 3/4 (0/0/0/.../0 — las 12 en cero).
+3. **Contador de transacciones no mapeadas**: **42**, consistente en las 5 granularidades (ver
+   Fase 3).
+4. **Regalías sin períodos vacíos**: confirmado en `mes` (24/24 meses reales con datos) y
+   `trimestre` (8/8 trimestres reales con datos) — ver Fase 4.
+5. **Circuito de relleno de huecos**: ver Fase 5 — probado de punta a punta, dos veces.
+6. **`npm run build`**: verde. `npm run type-check`: los mismos 3 errores preexistentes de
+   `EngagementPage.tsx` (no tocado en este bloque, ya documentados en S14-P1) — cero errores en
+   `packages/simulacion/*`.
+
+### Fase 6.1 — Prueba de arranque limpio (la más importante del bloque)
+
+Clon nuevo en `/tmp/tracklytics_s14p4_clean` (5 commits de este bloque ya aplicados, sin push
+todavía), stack levantado con `docker compose -p tracklytics_s14p4test up --build -d` en paralelo
+al stack principal (nombres de contenedor y puertos remapeados +10000 solo en el clon, para no
+chocar — footnote de metodología de prueba, no cambio de producto).
+
+**Dos bugs reales de producto encontrados, ambos invisibles hasta esta prueba** porque el volumen
+`pb_data` del stack principal lleva semanas vivo con un superusuario de PocketBase creado a mano
+en algún momento — ningún camino de código lo había ejercitado desde cero:
+
+1. **PocketBase no crea ningún superusuario en un volumen `pb_data` genuinamente vacío.** Sin él,
+   `pb-init` no puede autenticarse (`400` contra `_superusers/auth-with-password`) y no agrega los
+   campos custom `role`/`pais` a la colección `users`. La imagen (`ghcr.io/muchobien/pocketbase`)
+   ya soporta bootstrap automático vía `PB_ADMIN_EMAIL`/`PB_ADMIN_PASSWORD` (confirmado leyendo su
+   `entrypoint.sh`) — el servicio `pocketbase` de `docker-compose.yml` simplemente no los pasaba.
+   Fix: agregar esas dos variables, reutilizando `POCKETBASE_EMAIL`/`POCKETBASE_PASSWORD` (las
+   mismas que `pb-init` ya usa para autenticarse).
+2. **Carrera entre `pb-init` y `seed-cuentas-demo`.** `pb-init` es quien agrega `role`/`pais` a la
+   colección `users`; `seed-cuentas-demo` solo dependía de `api: service_healthy`, que no espera a
+   `pb-init`. En un arranque genuinamente limpio ambos podían arrancar casi al mismo tiempo:
+   `seed-cuentas-demo` creaba la cuenta `superadmin` (bootstrap directo a PocketBase, ver Fase 2)
+   ANTES de que esos campos existieran en el esquema — PocketBase descarta en silencio los campos
+   desconocidos al insertar, así que la cuenta quedaba sin `role` en absoluto. El auto-backfill a
+   superadmin (`deps.py::_asegurar_superadmin`, que depende de `record.role == "admin"`) nunca se
+   disparaba, y las 6 asignaciones de rol siguientes fallaban con `403 "Esta operación requiere un
+   rol administrativo distinto"`. Fix: `seed-cuentas-demo` ahora también depende de
+   `pb-init: condition: service_completed_successfully`.
+
+Con los dos fixes, se repitió la prueba desde cero (`down -v` + `up --build -d`): las 7 cuentas se
+crearon y **las 7 recibieron su rol administrativo correctamente**, confirmado con login real de
+cada una contra la API del clon. Dos reintentos idempotentes de `seed-cuentas-demo` fueron
+necesarios por `httpx.ReadTimeout` — artefacto de correr dos stacks completos en paralelo en la
+misma máquina (contención de recursos, no un bug de lógica): cada reintento retomó exactamente
+donde el anterior se había quedado (cuentas/roles ya creados detectados y saltados), sin duplicar
+nada — el propio comportamiento idempotente pedido en la Fase 2 absorbió la inestabilidad del
+entorno de prueba.
+
+`dag_backfill_negocio` disparado en el clon: **el paso de regalías corrió limpio, sin fallar**
+(`ETL_BATCH_CONTROL` registra `backfill_negocio:regalias` completado, seguido de
+`disponibilidad`/`api_partners` — la cadena siguió avanzando después de regalías, la prueba
+explícita que pedía el enunciado). `DIM_CONTRATO_REGALIA` tiene 0 filas en este clon (los 22
+contratos de la Fase 4 se insertaron a mano solo contra el ClickHouse del stack principal, nunca
+como parte del DDL versionado) — la liquidación de ese paso corrió sin error y sin liquidaciones,
+comportamiento correcto ante cero contratos, no una falla.
+
+**Hallazgo nuevo, real, y explícitamente fuera de alcance de este bloque**: el DAG sí falló más
+adelante, en `backfill_comunidad` (`ValueError: a cannot be empty unless no samples are taken`
+sobre `rng.choice(fact_ids)`). Causa raíz: `fact_ids` sale de `FACT_TRACKS WHERE source_type =
+'real'`, vacía en el clon porque el catálogo principal (113.550 tracks reales) se carga vía el DAG
+de Airflow `tracklytics_etl` (bronze→silver→gold→synthetic→log) — no vía el servicio `etl` de
+Docker Compose, que está huérfano desde hace tiempo (`python: can't open file '/app/main.py'`,
+confirmado que también sale así, sin romper nada, en el stack principal — quirk ya documentado).
+El README promete que `docker compose up -d` "es suficiente para levantar todo", pero
+`tracklytics_etl` no se dispara solo en un volumen ClickHouse vacío — en el stack principal ya
+había corrido hace semanas. Esto es un gap real de arranque limpio, pero de una capability
+distinta (`catalogo`/ETL principal, no `simulacion`/`seguridad`/`regalias`) y no lo que este
+bloque pedía verificar (que `dag_backfill_negocio` no fallara en regalías por falta de cuentas,
+que sí se resolvió). Queda documentado para un bloque futuro, no forzado a entrar aquí bajo
+presión de tiempo/recursos — dos stacks completos corriendo en paralelo en la misma máquina
+durante esta prueba ya venían generando timeouts por contención; forzar además la carga completa
+del catálogo (113k tracks, más lenta que `pb-init`) no era razonable en esa misma ventana.
+
+Verificado y luego **detenido sin borrar** (`docker compose stop`, no `down`) — datos y volúmenes
+del clon de prueba intactos por si hace falta reinspeccionar.
+
+### Archivos nuevos o modificados (S14-P4)
+
+- `etl/gold/backfill_negocio.py` — credenciales por env var (Fase 1); `clave_control` en las 13
+  funciones + `generar_actividad_rango()` (Fase 5).
+- `etl/gold/expandir_contratos_regalias.py` — nuevo, corrida única (Fase 4).
+- `etl/gold_ch/adquisicion.py` — sin filtro `activo=1`, contador `transacciones_no_mapeadas`
+  (Fase 3).
+- `etl/gold_ch/regalias.py` — bucketing por `periodo_inicio` en vez de `fecha_calculo` (Fase 4).
+- `etl/dags/dag_generar_bajo_demanda.py` — nuevo, `wait_for_completion=False` (Fase 5).
+- `api/paquetes/simulacion/router.py` — `router_bajo_demanda`, `/generar-historico`, `/estado`
+  (Fase 5).
+- `api/main.py` — registra `router_bajo_demanda`.
+- `seed_cuentas_demo.py` + `seed_cuentas_demo_Dockerfile` — nuevo, siembra idempotente (Fase 2).
+- `docker-compose.yml` — healthcheck de `api`; servicio `seed-cuentas-demo`; `SUPERADMIN_DEMO_*`
+  en `airflow` (Fase 1-2); `PB_ADMIN_EMAIL`/`PB_ADMIN_PASSWORD` en `pocketbase` y dependencia
+  `seed-cuentas-demo → pb-init: service_completed_successfully` (Fase 6.1, los dos bugs reales de
+  arranque limpio).
+- `frontend/src/packages/simulacion/{types.ts,api/simulacion.api.ts,pages/SimulacionPage.tsx,
+  pages/SimulacionPage.module.css}` — sección de generación histórica + tabla de estado (Fase 5).
+- `docs/CUENTAS_DEMO.md` — nota de auto-siembra.
+- `openspec/changes/2026-08-05-s14-p4-correcciones-generacion-bajo-demanda/` — deltas de
+  `simulacion`, `seguridad`, `regalias`.
