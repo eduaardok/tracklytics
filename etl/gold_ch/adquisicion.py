@@ -20,6 +20,13 @@ docs/BITACORA_S14.md, P3):
   Gold; "conversiones_free_to_paid" cuenta usuarios cuya PRIMERA transacción
   paga cae dentro del período.
 
+S14-P4 (Fase 3): el mapeo monto->plan ya NO filtra `DIM_PLAN WHERE activo=1`
+— un plan retirado sigue teniendo historia de transacciones real y válida;
+excluirlo las hacía desaparecer sin traza. Las transacciones cuyo monto no
+coincide con NINGÚN plan (activo o no) se cuentan explícitamente
+(`transacciones_no_mapeadas`) y ese contador se imprime y se registra en
+`GOLD_ETL_LOG.detalle` siempre — nunca se descartan en silencio.
+
 Sin período con datos reales, la fila/dimensión simplemente no se escribe —
 `es_estimado` se conserva en el esquema (garantía a futuro) pero vale 0 en
 todas las filas que este módulo escribe.
@@ -96,10 +103,11 @@ def run_gold_adquisicion(granularidad: str = "semana") -> None:
     paises_reales = sorted({p for (_, p) in registros.keys()}) or ["Ecuador", "México", "Colombia"]
 
     # Mapeo monto -> plan_id: FACT_TRANSACCION_PAGO no guarda plan_id, el
-    # monto de la transacción es la única señal real que lo identifica.
+    # monto de la transacción es la única señal real que lo identifica. Sin
+    # filtro `activo=1` — un plan retirado sigue teniendo historia real.
     precio_a_plan = {
         round(float(r["precio_usd"]), 2): r["plan_id"]
-        for r in catalog.query("SELECT plan_id, precio_usd FROM DIM_PLAN WHERE activo = 1").named_results()
+        for r in catalog.query("SELECT plan_id, precio_usd FROM DIM_PLAN").named_results()
     }
     transacciones_susc = list(catalog.query(
         f"SELECT usuario_id, monto, periodo_inicio, periodo_fin, fecha FROM FACT_TRANSACCION_PAGO "
@@ -109,6 +117,16 @@ def run_gold_adquisicion(granularidad: str = "semana") -> None:
     primera_transaccion_por_usuario: dict[str, dict] = {}
     for t in sorted(transacciones_susc, key=lambda r: r["fecha"]):
         primera_transaccion_por_usuario.setdefault(t["usuario_id"], t)
+
+    # Contador de transacciones cuyo monto no coincide con ningún plan
+    # (activo o retirado) — calculado una sola vez sobre el universo
+    # completo de transacciones, no dentro del loop por período (ahí un
+    # ciclo de facturación largo se contaría varias veces según la
+    # granularidad). Nunca se descarta en silencio: se imprime y se
+    # registra siempre, sea 0 o no.
+    transacciones_no_mapeadas = sum(
+        1 for t in transacciones_susc if round(float(t["monto"]), 2) not in precio_a_plan
+    )
 
     rows: list[tuple] = []
     for periodo in periodos:
@@ -151,5 +169,8 @@ def run_gold_adquisicion(granularidad: str = "semana") -> None:
             rows.append((granularidad, fi, periodo, "", plan_id, 0, conversiones, 0, activos, 0.0, 0))
 
     write_gold(gold, TABLE, COLUMNS, rows, periodos, granularidad)
-    log_run(gold, TABLE, periodos, len(rows), time.time() - t0, granularidad=granularidad)
-    print(f"[{TABLE}] {len(rows)} filas escritas ({len(periodos)} períodos, granularidad={granularidad}).")
+    detalle = f"transacciones_no_mapeadas={transacciones_no_mapeadas}"
+    estado = "advertencia" if transacciones_no_mapeadas > 0 else "ok"
+    log_run(gold, TABLE, periodos, len(rows), time.time() - t0, estado=estado, detalle=detalle, granularidad=granularidad)
+    print(f"[{TABLE}] {len(rows)} filas escritas ({len(periodos)} períodos, granularidad={granularidad}). "
+          f"Transacciones de suscripción sin plan mapeado: {transacciones_no_mapeadas}.")
