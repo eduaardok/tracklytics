@@ -1,10 +1,11 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { useMutation } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { apiErrorMessage } from '@shared/lib/api-client'
 import { useToast } from '@shared/context/ToastContext'
 import { simulacionApi } from '../api/simulacion.api'
+import { DOMINIOS_BAJO_DEMANDA, type DominioBajoDemanda } from '../types'
 import styles from './SimulacionPage.module.css'
 
 function fmt(n: number) {
@@ -15,9 +16,21 @@ function fmt(n: number) {
 // impresiones publicitarias juntos y liquida el período — los streams solos
 // no mueven dinero (ver design.md, decisión 1), por eso las tres cantidades
 // se generan y liquidan como una sola acción.
+function mesesAtras(n: number): string {
+  const d = new Date()
+  d.setUTCDate(1)
+  d.setUTCMonth(d.getUTCMonth() - n)
+  return d.toISOString().slice(0, 10)
+}
+
+function hoyISO(): string {
+  return new Date().toISOString().slice(0, 10)
+}
+
 export function SimulacionPage() {
   useDocumentTitle('Simulación de negocio')
   const toast = useToast()
+  const queryClient = useQueryClient()
 
   const [nStreams, setNStreams] = useState('5000')
   const [nSuscripciones, setNSuscripciones] = useState('50')
@@ -34,6 +47,37 @@ export function SimulacionPage() {
   })
 
   const resultado = generar.data
+
+  // ── Fase 5 (S14-P4): generación histórica con relleno de huecos ──────────
+  const [periodoInicio, setPeriodoInicio] = useState(mesesAtras(3))
+  const [periodoFin, setPeriodoFin] = useState(hoyISO())
+  const [dominiosSeleccionados, setDominiosSeleccionados] = useState<DominioBajoDemanda[]>(
+    [...DOMINIOS_BAJO_DEMANDA],
+  )
+
+  const estado = useQuery({
+    queryKey: ['simulacion', 'estado'],
+    queryFn: () => simulacionApi.estado(),
+    refetchInterval: 15_000, // el refresco de Gold puede tardar varios minutos — se refleja solo
+  })
+
+  const generarHistorico = useMutation({
+    mutationFn: () => simulacionApi.generarHistorico({
+      periodo_inicio: periodoInicio,
+      periodo_fin: periodoFin,
+      dominios: dominiosSeleccionados,
+    }),
+    onSuccess: () => {
+      toast.success('Generación disparada — rellena huecos y refresca la capa Gold a continuación.')
+      queryClient.invalidateQueries({ queryKey: ['simulacion', 'estado'] })
+    },
+    onError: (err) => toast.error(apiErrorMessage(err, 'No se pudo disparar la generación histórica.')),
+  })
+
+  function toggleDominio(d: DominioBajoDemanda) {
+    setDominiosSeleccionados((prev) =>
+      prev.includes(d) ? prev.filter((x) => x !== d) : [...prev, d])
+  }
 
   return (
     <section className={styles.page}>
@@ -108,6 +152,101 @@ export function SimulacionPage() {
           <Link to="/analitica/pnl" className={styles.btnOutline}>Ver impacto en P&amp;L →</Link>
         </div>
       )}
+
+      <h2 className={styles.heading}>Generación histórica (relleno de huecos)</h2>
+      <p className={styles.note}>
+        Genera actividad de negocio para un rango de períodos y refresca la capa Gold completa a
+        continuación. Si un dominio ya tiene datos para un mes dentro del rango, ese mes se salta —
+        solo se completan los huecos, no se duplica nada. Puede tardar varios minutos (el refresco
+        de Gold corre 60 tareas); el estado de abajo se actualiza solo.
+      </p>
+
+      <form
+        className={styles.form}
+        onSubmit={(e) => { e.preventDefault(); generarHistorico.mutate() }}
+      >
+        <div className={styles.field}>
+          <label className={styles.fieldLabel} htmlFor="hist-inicio">Período — inicio</label>
+          <input
+            id="hist-inicio" className={styles.input} type="date"
+            value={periodoInicio} onChange={(e) => setPeriodoInicio(e.target.value)}
+          />
+        </div>
+        <div className={styles.field}>
+          <label className={styles.fieldLabel} htmlFor="hist-fin">Período — fin</label>
+          <input
+            id="hist-fin" className={styles.input} type="date"
+            value={periodoFin} onChange={(e) => setPeriodoFin(e.target.value)}
+          />
+        </div>
+        <button
+          type="submit" className={styles.btnPrimary}
+          disabled={generarHistorico.isPending || dominiosSeleccionados.length === 0}
+        >
+          {generarHistorico.isPending ? 'Disparando…' : 'Generar y refrescar Gold'}
+        </button>
+      </form>
+
+      <div className={styles.chipRow}>
+        {DOMINIOS_BAJO_DEMANDA.map((d) => (
+          <label key={d} className={styles.chip}>
+            <input
+              type="checkbox"
+              checked={dominiosSeleccionados.includes(d)}
+              onChange={() => toggleDominio(d)}
+            />
+            {d}
+          </label>
+        ))}
+      </div>
+
+      <div className={styles.panel}>
+        <p className={styles.panelTitle}>
+          Estado de generación
+          {estado.data?.ejecucion_en_curso && <span className={styles.badgeEnCurso}>en curso</span>}
+        </p>
+
+        {estado.isLoading && <p className={styles.note}>Cargando estado…</p>}
+        {estado.isError && <p className={styles.note}>No se pudo cargar el estado.</p>}
+
+        {estado.data && (
+          <>
+            <p className={styles.subtableTitle}>Última corrida por dominio de negocio</p>
+            <table className={styles.table}>
+              <thead>
+                <tr><th>Dominio</th><th>Última corrida</th><th>Filas totales</th><th>Corridas</th></tr>
+              </thead>
+              <tbody>
+                {estado.data.dominios_negocio.map((d) => (
+                  <tr key={d.checksum}>
+                    <td>{d.checksum.replace('backfill_negocio:', '')}</td>
+                    <td>{new Date(d.ultima_corrida).toLocaleString('es-ES')}</td>
+                    <td>{d.total_filas.toLocaleString('es-ES')}</td>
+                    <td>{d.corridas}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+
+            <p className={styles.subtableTitle}>Última corrida por tabla Gold</p>
+            <table className={styles.table}>
+              <thead>
+                <tr><th>Tabla</th><th>Granularidad</th><th>Última corrida</th><th>Estado</th></tr>
+              </thead>
+              <tbody>
+                {estado.data.tablas_gold.map((t) => (
+                  <tr key={`${t.tabla}:${t.granularidad}`}>
+                    <td>{t.tabla}</td>
+                    <td>{t.granularidad}</td>
+                    <td>{new Date(t.ultima_corrida).toLocaleString('es-ES')}</td>
+                    <td>{t.ultimo_estado}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </>
+        )}
+      </div>
     </section>
   )
 }

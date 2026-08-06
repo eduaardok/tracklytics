@@ -24,6 +24,7 @@ from paquetes.regalias.router import router as regalias_router
 from paquetes.reportes.router import router as reportes_router
 from paquetes.seguridad.router import router as seguridad_router
 from paquetes.simulacion.router import router as simulacion_router
+from paquetes.simulacion.router import router_bajo_demanda as simulacion_bajo_demanda_router
 from paquetes.social.router import router as social_router
 from paquetes.suscripciones.router import router as suscripciones_router
 
@@ -92,5 +93,6 @@ app.include_router(experiencia_router)
 app.include_router(regalias_router)
 app.include_router(publicidad_router)
 app.include_router(simulacion_router)
+app.include_router(simulacion_bajo_demanda_router)
 app.include_router(finanzas_router)
 app.include_router(reportes_router)
