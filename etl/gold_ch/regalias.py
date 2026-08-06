@@ -1,8 +1,7 @@
 """GOLD_REGALIAS_PERIODO — C09 (OT-09, Financiero).
 
 Real: FACT_LIQUIDACION_REGALIA (streams_periodo, monto ya neto de retención)
-unido a DIM_CONTRATO_REGALIA/DIM_SELLO_DISCOGRAFICO. Se usa `fecha_calculo`
-(cuándo se registró la liquidación) para bucketing por período.
+unido a DIM_CONTRATO_REGALIA/DIM_SELLO_DISCOGRAFICO.
 
 S14-P3 eliminó el relleno demo (`rng_for`): `etl/gold/backfill_negocio.py`
 llama a `POST /admin/liquidar` (misma fórmula real de
@@ -12,6 +11,16 @@ sobre transacciones/ingresos publicitarios/reproducciones ya backfilleados
 — así que `FACT_LIQUIDACION_REGALIA` tiene liquidaciones reales para todo
 el rango. Un contrato/período sin liquidación real (streams_periodo=0 ese
 mes) simplemente no tiene fila.
+
+S14-P4 (Fase 4): el bucketing por período pasó de `fecha_calculo` a
+`periodo_inicio`. `fecha_calculo` es CUÁNDO se corrió el cálculo (siempre
+"ahora" al momento del backfill/regeneración, `DEFAULT now()`), no el
+período que la liquidación cubre — bucketear por ahí hacía que TODAS las
+liquidaciones de una corrida (aunque cubrieran 24 meses distintos de
+`periodo_inicio`/`periodo_fin`) cayeran en el mismo período Gold reciente,
+dejando el resto de la ventana vacía pese a haber datos reales. `periodo_
+inicio` es el inicio real del período liquidado — bucketear por ahí es lo
+que hace que un informe "por período" tenga sentido como serie histórica.
 """
 
 import time
@@ -43,12 +52,12 @@ def run_gold_regalias(granularidad: str = "semana") -> None:
 
     reales = list(catalog.query(
         f"""
-        SELECT {periodo_sql('fecha_calculo', granularidad)} AS periodo,
-               {fecha_inicio_sql('fecha_calculo', granularidad)} AS fecha_inicio,
+        SELECT {periodo_sql('periodo_inicio', granularidad)} AS periodo,
+               {fecha_inicio_sql('periodo_inicio', granularidad)} AS fecha_inicio,
                contrato_id, tipo_rightsholder,
                sum(monto) AS monto, sum(streams_periodo) AS streams
         FROM FACT_LIQUIDACION_REGALIA
-        WHERE fecha_calculo >= now() - INTERVAL {VENTANA_ORIGEN_DIAS} DAY
+        WHERE periodo_inicio >= today() - {VENTANA_ORIGEN_DIAS}
         GROUP BY periodo, fecha_inicio, contrato_id, tipo_rightsholder
         """
     ).named_results())
