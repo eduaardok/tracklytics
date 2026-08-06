@@ -230,6 +230,37 @@ services:
       - ./api:/app
     networks:
       - tracklytics-net
+    healthcheck:
+      # Sin curl/wget en python:3.11-slim (api_Dockerfile) — Python ya está,
+      # se reusa en vez de agregar un paquete al sistema solo para esto.
+      # `/docs` (Swagger UI de FastAPI) no requiere auth y siempre está
+      # disponible si el proceso levantó — S14-P4, necesario para que
+      # `seed-cuentas-demo` pueda depender de `service_healthy` en vez de un
+      # `sleep`.
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/docs')"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 20s
+
+  # ─────────────────────────────────────────
+  # 4b. Siembra de cuentas demo — S14-P4, ver seed_cuentas_demo.py
+  # ─────────────────────────────────────────
+  seed-cuentas-demo:
+    build:
+      context: .
+      dockerfile: seed_cuentas_demo_Dockerfile
+    container_name: tracklytics_seed_cuentas_demo
+    restart: no
+    depends_on:
+      api:
+        condition: service_healthy
+    environment:
+      REPORTES_API_ROOT:        http://api:8000
+      POCKETBASE_URL:           http://pocketbase:8090
+      SUPERADMIN_DEMO_PASSWORD: ${SUPERADMIN_DEMO_PASSWORD:-Demo12345!}
+    networks:
+      - tracklytics-net
 
   # ─────────────────────────────────────────
   # 5. Airflow  — orquestador del pipeline ETL
@@ -294,6 +325,15 @@ services:
       PARQUET_DIR:           /app/parquet_stage
       WEEK_NUMBER:           ${WEEK_NUMBER:-1}
       PYTHONPATH:            /opt/airflow/etl_src
+      # Cuenta demo `superadmin` (S14-P3/P4) — usada por
+      # `gold/backfill_negocio.py` para liquidar regalías vía HTTP real.
+      # Mismo default que `seed-cuentas-demo` (docker-compose.yml) y
+      # `docs/CUENTAS_DEMO.md` — sin configuración manual, `docker compose
+      # up` sigue funcionando; se puede sobreescribir por variable de
+      # entorno sin tocar código (hallazgo S14-P4, Fase 1: antes hardcodeado
+      # en texto plano en el módulo).
+      SUPERADMIN_DEMO_EMAIL:    ${SUPERADMIN_DEMO_EMAIL:-superadmin@demo.tracklytics.com}
+      SUPERADMIN_DEMO_PASSWORD: ${SUPERADMIN_DEMO_PASSWORD:-Demo12345!}
     volumes:
       - ./etl/dags:/opt/airflow/dags
       - ./etl:/opt/airflow/etl_src

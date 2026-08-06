@@ -31,6 +31,7 @@ los dominios anteriores).
 """
 
 import hashlib
+import os
 import random
 import time
 import uuid
@@ -93,16 +94,22 @@ PLANES_B2B = {"basico": 199.0, "pro": 499.0, "enterprise": 1499.0}
 PAISES = ["Ecuador", "México", "Colombia", "Argentina", "España", "Perú",
           "Chile", "Estados Unidos", "Brasil", "Reino Unido"]
 
-# Credenciales de la cuenta demo `superadmin` (S14-P3, Fase 5) — necesaria
-# para llamar POST /admin/liquidar (regalías) vía HTTP real, porque el
-# contenedor `airflow` no tiene el paquete `api/` montado ni sus
-# dependencias (FastAPI) instaladas: no se puede importar
-# `liquidar_periodo_interno` directo, así que se llama por HTTP igual que
-# cualquier otro cliente de la API — el mismo mecanismo ya probado, no una
-# reimplementación de la fórmula.
-API_BASE_URL = "http://api:8000/app/v1"
-SUPERADMIN_EMAIL = "superadmin@demo.tracklytics.com"
-SUPERADMIN_PASSWORD = "Demo12345!"
+# Credenciales de la cuenta demo `superadmin` (S14-P3, Fase 5; sembrada por
+# `seed_cuentas_demo` desde S14-P4) — necesaria para llamar
+# POST /admin/liquidar (regalías) vía HTTP real, porque el contenedor
+# `airflow` no tiene el paquete `api/` montado ni sus dependencias (FastAPI)
+# instaladas: no se puede importar `liquidar_periodo_interno` directo, así
+# que se llama por HTTP igual que cualquier otro cliente de la API — el
+# mismo mecanismo ya probado, no una reimplementación de la fórmula.
+#
+# S14-P4: las credenciales salían hardcodeadas en texto plano (hallazgo de
+# la Fase 1 de S14-P4) — ahora se leen de variables de entorno, con el
+# mismo valor demo como default explícito para que `docker compose up` siga
+# funcionando sin configuración manual (mismo criterio que
+# `seed_cuentas_demo`/`docker-compose.yml`, que declaran el mismo default).
+API_BASE_URL = os.getenv("REPORTES_API_BASE_URL", "http://api:8000/app/v1")
+SUPERADMIN_EMAIL = os.getenv("SUPERADMIN_DEMO_EMAIL", "superadmin@demo.tracklytics.com")
+SUPERADMIN_PASSWORD = os.getenv("SUPERADMIN_DEMO_PASSWORD", "Demo12345!")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -187,8 +194,8 @@ USUARIOS_DIA_INICIO = 5
 USUARIOS_DIA_FIN = 25
 
 
-def backfill_usuarios(client, dia_inicio: date, dia_fin: date) -> list[dict]:
-    dominio = "usuarios"
+def backfill_usuarios(client, dia_inicio: date, dia_fin: date, clave_control: str | None = None) -> list[dict]:
+    dominio = clave_control or "usuarios"
     if _ya_generado(client, dominio):
         existentes = client.query(
             "SELECT usuario_id, fecha_registro, pais FROM DIM_USUARIO "
@@ -234,8 +241,8 @@ GASTO_MARKETING_INICIO = 500.0
 GASTO_MARKETING_FIN = 8000.0
 
 
-def backfill_gasto_marketing(client, dia_inicio: date, dia_fin: date) -> int:
-    dominio = "gasto_marketing"
+def backfill_gasto_marketing(client, dia_inicio: date, dia_fin: date, clave_control: str | None = None) -> int:
+    dominio = clave_control or "gasto_marketing"
     if _ya_generado(client, dominio):
         print(f"[backfill_negocio] {dominio}: ya generado, se salta.")
         return 0
@@ -283,8 +290,8 @@ CHURN_MENSUAL_VOLUNTARIO = 0.02  # 2% de probabilidad de cancelar cada mes, por 
 N_USUARIOS_B2B = 30
 
 
-def backfill_suscripciones(client, dia_inicio: date, dia_fin: date, usuarios: list[dict]) -> None:
-    dominio = "suscripciones"
+def backfill_suscripciones(client, dia_inicio: date, dia_fin: date, usuarios: list[dict], clave_control: str | None = None) -> None:
+    dominio = clave_control or "suscripciones"
     if _ya_generado(client, dominio):
         print(f"[backfill_negocio] {dominio}: ya generado, se salta.")
         return
@@ -396,8 +403,8 @@ IMPRESIONES_DIA_INICIO = 20
 IMPRESIONES_DIA_FIN = 400
 
 
-def backfill_publicidad(client, dia_inicio: date, dia_fin: date, usuarios: list[dict]) -> None:
-    dominio = "publicidad"
+def backfill_publicidad(client, dia_inicio: date, dia_fin: date, usuarios: list[dict], clave_control: str | None = None) -> None:
+    dominio = clave_control or "publicidad"
     if _ya_generado(client, dominio):
         print(f"[backfill_negocio] {dominio}: ya generado, se salta.")
         return
@@ -455,8 +462,8 @@ PCT_FAVORITO_ADD = 0.06
 PCT_FAVORITO_REMOVE = 0.015
 
 
-def backfill_engagement(client, dia_inicio: date, dia_fin: date, usuarios: list[dict]) -> None:
-    dominio = "engagement"
+def backfill_engagement(client, dia_inicio: date, dia_fin: date, usuarios: list[dict], clave_control: str | None = None) -> None:
+    dominio = clave_control or "engagement"
     if _ya_generado(client, dominio):
         print(f"[backfill_negocio] {dominio}: ya generado, se salta.")
         return
@@ -549,8 +556,8 @@ def _login_superadmin() -> str:
         return r.json()["token"]
 
 
-def backfill_regalias(dia_inicio: date, dia_fin: date) -> None:
-    dominio = "regalias"
+def backfill_regalias(dia_inicio: date, dia_fin: date, clave_control: str | None = None) -> None:
+    dominio = clave_control or "regalias"
     client = get_client(get_config())
     if _ya_generado(client, dominio):
         print(f"[backfill_negocio] {dominio}: ya generado, se salta.")
@@ -579,8 +586,8 @@ def backfill_regalias(dia_inicio: date, dia_fin: date) -> None:
 # Dominio 7 — Disponibilidad de infraestructura (FACT_DISPONIBILIDAD)
 # ─────────────────────────────────────────────────────────────────────────────
 
-def backfill_disponibilidad(client, dia_inicio: date, dia_fin: date) -> None:
-    dominio = "disponibilidad"
+def backfill_disponibilidad(client, dia_inicio: date, dia_fin: date, clave_control: str | None = None) -> None:
+    dominio = clave_control or "disponibilidad"
     if _ya_generado(client, dominio):
         print(f"[backfill_negocio] {dominio}: ya generado, se salta.")
         return
@@ -607,8 +614,8 @@ LLAMADAS_DIA_FIN = 60
 ENDPOINTS_PARTNER = ["/partners/v1/catalogo", "/partners/v1/metadatos", "/partners/v1/streams", "/partners/v1/artistas"]
 
 
-def backfill_api_partners(client, dia_inicio: date, dia_fin: date) -> None:
-    dominio = "api_partners"
+def backfill_api_partners(client, dia_inicio: date, dia_fin: date, clave_control: str | None = None) -> None:
+    dominio = clave_control or "api_partners"
     if _ya_generado(client, dominio):
         print(f"[backfill_negocio] {dominio}: ya generado, se salta.")
         return
@@ -655,8 +662,8 @@ SEGUIMIENTOS_DIA_INICIO = 1
 SEGUIMIENTOS_DIA_FIN = 12
 
 
-def backfill_comunidad(client, dia_inicio: date, dia_fin: date, usuarios: list[dict]) -> None:
-    dominio = "comunidad"
+def backfill_comunidad(client, dia_inicio: date, dia_fin: date, usuarios: list[dict], clave_control: str | None = None) -> None:
+    dominio = clave_control or "comunidad"
     if _ya_generado(client, dominio):
         print(f"[backfill_negocio] {dominio}: ya generado, se salta.")
         return
@@ -738,8 +745,8 @@ TICKETS_DIA_FIN = 5.0
 PCT_DENUNCIA_GENERA_STRIKE = 0.30
 
 
-def backfill_denuncias_tickets(client, dia_inicio: date, dia_fin: date, usuarios: list[dict]) -> None:
-    dominio = "denuncias_tickets"
+def backfill_denuncias_tickets(client, dia_inicio: date, dia_fin: date, usuarios: list[dict], clave_control: str | None = None) -> None:
+    dominio = clave_control or "denuncias_tickets"
     if _ya_generado(client, dominio):
         print(f"[backfill_negocio] {dominio}: ya generado, se salta.")
         return
@@ -815,8 +822,8 @@ EXPERIMENTOS_AB = ["reco_algo_v2", "onboarding_v3", "paywall_copy", "recomendaci
 TIPOS_NOTIF = ["nuevo_track_artista_seguido", "comentario_en_tu_contenido", "nuevo_colaborador_playlist"]
 
 
-def backfill_producto(client, dia_inicio: date, dia_fin: date, usuarios: list[dict]) -> None:
-    dominio = "producto"
+def backfill_producto(client, dia_inicio: date, dia_fin: date, usuarios: list[dict], clave_control: str | None = None) -> None:
+    dominio = clave_control or "producto"
     if _ya_generado(client, dominio):
         print(f"[backfill_negocio] {dominio}: ya generado, se salta.")
         return
@@ -898,8 +905,8 @@ def backfill_producto(client, dia_inicio: date, dia_fin: date, usuarios: list[di
 N_SUBIDAS = 180
 
 
-def backfill_contenido(client, dia_inicio: date, dia_fin: date) -> None:
-    dominio = "contenido"
+def backfill_contenido(client, dia_inicio: date, dia_fin: date, clave_control: str | None = None) -> None:
+    dominio = clave_control or "contenido"
     if _ya_generado(client, dominio):
         print(f"[backfill_negocio] {dominio}: ya generado, se salta.")
         return
@@ -957,8 +964,8 @@ def backfill_contenido(client, dia_inicio: date, dia_fin: date) -> None:
 # conversiones/cancelaciones de suscripción) — no un volumen desconectado.
 # ─────────────────────────────────────────────────────────────────────────────
 
-def backfill_auditoria(client, dia_inicio: date, dia_fin: date, usuarios: list[dict]) -> None:
-    dominio = "auditoria"
+def backfill_auditoria(client, dia_inicio: date, dia_fin: date, usuarios: list[dict], clave_control: str | None = None) -> None:
+    dominio = clave_control or "auditoria"
     if _ya_generado(client, dominio):
         print(f"[backfill_negocio] {dominio}: ya generado, se salta.")
         return
@@ -1018,3 +1025,131 @@ def run_backfill_negocio(**_context) -> None:
     backfill_auditoria(client, dia_inicio, dia_fin, usuarios)
 
     print(f"[backfill_negocio] Terminado en {time.time() - t0:.1f}s.")
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# S14-P4, Fase 5 — generación bajo demanda, con relleno de huecos.
+#
+# `run_backfill_negocio()` (arriba) es la corrida histórica de una sola vez,
+# con un flag POR DOMINIO ("¿ya generé sus 24 meses?"). Eso no alcanza para
+# el caso de uso real de esta fase: si pasan semanas y aparece un hueco nuevo
+# (o alguien borra un período a mano para forzar una regeneración), un flag
+# de "todo o nada" no lo detecta — el dominio ya está marcado "hecho" y
+# `run_backfill_negocio()` no vuelve a tocarlo nunca más.
+#
+# `generar_actividad_rango()` en cambio trabaja a granularidad de MES: por
+# cada dominio y cada mes calendario del rango pedido, revisa si ESE mes
+# específico ya está cubierto (`ETL_BATCH_CONTROL`, checksum
+# `backfill_negocio:<dominio>:<AAAA-MM>` — un namespace distinto del flag de
+# todo-el-dominio de arriba, conviven sin pisarse) y solo genera los que
+# faltan. Reusa las mismas 13 funciones `backfill_*` de arriba sin
+# duplicarlas: `clave_control` les inyecta la clave de idempotencia con la
+# que revisan/registran, en vez de la fija de todo-el-dominio.
+#
+# Alcance deliberadamente acotado a los dominios cuya generación es
+# independiente mes a mes (aditiva): `usuarios`, `gasto_marketing`,
+# `publicidad`, `engagement`, `regalias`, `disponibilidad`, `api_partners`,
+# `comunidad`, `denuncias_tickets`, `producto`. Quedan fuera, documentado,
+# no ocultado:
+# - `suscripciones`: simula el CICLO DE VIDA completo de una suscripción
+#   (alta -> cobros mensuales -> cancelación) por usuario en una sola
+#   pasada; volver a invocarla para un mes suelto re-tiraría el dado de
+#   conversión de los mismos usuarios y generaría transacciones duplicadas.
+# - `contenido`: genera un N fijo de sumisiones distribuidas al azar en TODO
+#   el rango pedido, no una cantidad por mes — no tiene una unidad "por mes"
+#   que rellenar.
+# - `auditoria`: deriva filas de otros dominios ya generados (altas,
+#   cancelaciones) — depende de qué generó cada corrida, no tiene generación
+#   propia independiente por mes.
+# ─────────────────────────────────────────────────────────────────────────────
+
+DOMINIOS_BAJO_DEMANDA = (
+    "usuarios", "gasto_marketing", "publicidad", "engagement", "regalias",
+    "disponibilidad", "api_partners", "comunidad", "denuncias_tickets", "producto",
+)
+
+
+def _mes_label(d: date) -> str:
+    return d.strftime("%Y-%m")
+
+
+def _usuarios_hasta(client, mes_fin: date) -> list[dict]:
+    """Usuarios generados por el backfill (prefijo `bf_`) ya registrados
+    antes del fin del mes pedido — pool real para dominios que necesitan
+    'quién estaba activo' en ese momento (no incluye las cuentas demo/admin,
+    que no deben acumular actividad sintética)."""
+    return [
+        {"usuario_id": r[0], "fecha_registro": r[1], "pais": r[2]}
+        for r in client.query(
+            "SELECT usuario_id, fecha_registro, pais FROM DIM_USUARIO "
+            "WHERE startsWith(usuario_id, 'bf_') AND fecha_registro < {mf:Date}",
+            parameters={"mf": mes_fin},
+        ).result_rows
+    ]
+
+
+def generar_actividad_rango(dominios: list[str], periodo_inicio: date, periodo_fin: date) -> dict:
+    """Punto de entrada de la Fase 5 — llamado por `dag_generar_bajo_demanda`
+    (que a su vez dispara la API, ver `api/paquetes/simulacion/router.py`).
+    Devuelve un resumen por dominio: meses generados vs. meses que ya
+    estaban cubiertos, para que la respuesta sea auditable sin adivinar."""
+    cfg = get_config()
+    client = get_client(cfg)
+
+    invalidos = [d for d in dominios if d not in DOMINIOS_BAJO_DEMANDA]
+    if invalidos:
+        raise ValueError(f"Dominios no soportados para generación bajo demanda: {invalidos}. "
+                          f"Soportados: {list(DOMINIOS_BAJO_DEMANDA)}")
+
+    meses = _meses_calendario(periodo_inicio, periodo_fin)
+    resumen: dict[str, dict] = {d: {"meses_generados": [], "meses_ya_cubiertos": []} for d in dominios}
+
+    for mes_inicio, mes_fin in meses:
+        mes_lbl = _mes_label(mes_inicio)
+        usuarios_pool: list[dict] | None = None
+
+        for dominio in dominios:
+            clave = f"{dominio}:{mes_lbl}"
+            if _ya_generado(client, clave):
+                resumen[dominio]["meses_ya_cubiertos"].append(mes_lbl)
+                continue
+
+            if dominio == "usuarios":
+                nuevos = backfill_usuarios(client, mes_inicio, mes_fin, clave_control=clave)
+                if usuarios_pool is not None:
+                    usuarios_pool.extend(nuevos)
+            elif dominio == "gasto_marketing":
+                backfill_gasto_marketing(client, mes_inicio, mes_fin, clave_control=clave)
+            elif dominio == "regalias":
+                backfill_regalias(mes_inicio, mes_fin, clave_control=clave)
+            elif dominio == "disponibilidad":
+                backfill_disponibilidad(client, mes_inicio, mes_fin, clave_control=clave)
+            elif dominio == "api_partners":
+                backfill_api_partners(client, mes_inicio, mes_fin, clave_control=clave)
+            else:
+                if usuarios_pool is None:
+                    usuarios_pool = _usuarios_hasta(client, mes_fin)
+                if dominio == "publicidad":
+                    backfill_publicidad(client, mes_inicio, mes_fin, usuarios_pool, clave_control=clave)
+                elif dominio == "engagement":
+                    backfill_engagement(client, mes_inicio, mes_fin, usuarios_pool, clave_control=clave)
+                elif dominio == "comunidad":
+                    backfill_comunidad(client, mes_inicio, mes_fin, usuarios_pool, clave_control=clave)
+                elif dominio == "denuncias_tickets":
+                    backfill_denuncias_tickets(client, mes_inicio, mes_fin, usuarios_pool, clave_control=clave)
+                elif dominio == "producto":
+                    backfill_producto(client, mes_inicio, mes_fin, usuarios_pool, clave_control=clave)
+
+            resumen[dominio]["meses_generados"].append(mes_lbl)
+
+    total_generados = sum(len(v["meses_generados"]) for v in resumen.values())
+    print(f"[generar_actividad_rango] {total_generados} meses-dominio generados sobre "
+          f"{len(meses)} meses x {len(dominios)} dominios ({periodo_inicio} — {periodo_fin}).")
+    return {"periodo_inicio": str(periodo_inicio), "periodo_fin": str(periodo_fin), "resumen": resumen}
+
+
+# Nota: el estado visible de la Fase 5 (última corrida por dominio/tabla
+# Gold) se expone desde `api/paquetes/simulacion/router.py::estado_generacion`
+# — consulta `ETL_BATCH_CONTROL`/`GOLD_ETL_LOG` directo desde el contenedor
+# `api` (que ya tiene ambos clientes ClickHouse), no desde acá: el panel
+# operativo (`SimulacionPage`) llama a la API, no a Airflow/ETL directo.
