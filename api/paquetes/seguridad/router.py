@@ -390,6 +390,15 @@ def mi_perfil(user: dict = Depends(get_current_user)):
         **fila,
         "perfil_publico":   bool(fila["perfil_publico"]),
         "email_verificado": bool(fila["email_verificado"]),
+        # S14: `roles_admin` propios — a diferencia de GET
+        # /admin/usuarios/{id} (superadmin-only), esto es autoservicio, así
+        # que es seguro devolverlo siempre. El frontend lo usa para decidir
+        # gating de UI (ej. `RequireAuth roles={['admin']}`, que antes de
+        # este fix comparaba contra el `role` crudo de PocketBase — vacío
+        # para las 6 cuentas admin_* asignadas solo por
+        # BRIDGE_USUARIO_ROL_ADMIN, dejándolas sin poder entrar a
+        # /seguridad ni /reportes desde el navegador).
+        "roles_admin": sorted(roles_admin_vigentes(user["record"]["id"])),
     }
 
 

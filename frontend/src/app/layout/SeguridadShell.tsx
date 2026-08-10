@@ -1,5 +1,6 @@
-import { Suspense, useState } from 'react'
+import { Suspense, useMemo, useState } from 'react'
 import { Outlet, NavLink, useLocation } from 'react-router-dom'
+import { getUser } from '@shared/lib/session'
 import {
   Users, KeyRound, FileSearch, AlertTriangle, Radio, Flag,
   TrendingUp, Receipt, Building2, CreditCard, Coins, Megaphone, Wallet, FlaskConical,
@@ -261,9 +262,46 @@ function DepartamentoSubSection({ slug, label, informes }: { slug: string; label
   )
 }
 
+// El panel de "Simulación" (generación de datos + refresco de Gold, S14-P4
+// Fase 5) es operación interna de datos, no una vista de negocio — solo
+// debe verse si el admin logueado es `admin_datos` o `superadmin`. El resto
+// del panel no filtra secciones por rol (la autorización real vive en el
+// backend, `require_rol_admin` por endpoint) — este único link es la
+// excepción explícita pedida para no exponerlo como si fuera una vista de
+// negocio más.
+//
+// `user.rolesAdmin` viene de la sesión (poblado por `authApi.login` vía
+// GET /seguridad/perfil, ver session.ts) — NO usar GET
+// /admin/usuarios/{id} acá: esa ruta es superadmin-only
+// (`require_admin = require_rol_admin("superadmin")`), así que un
+// `admin_datos` consultando SU PROPIO id ahí recibiría 403 y nunca vería su
+// propio panel (bug real encontrado y corregido en la misma pasada de
+// verificación S14 que encontró el problema de `RequireAuth`).
+function usePuedeVerSimulacion(): boolean {
+  const user = getUser()
+  if (user?.role === 'admin') return true
+  const roles = user?.rolesAdmin ?? []
+  // 'superadmin' puede vivir SOLO en BRIDGE_USUARIO_ROL_ADMIN (sin
+  // `record.role === 'admin'` en PocketBase) — confirmado en verificación
+  // S14 contra el stack real: la cuenta `superadmin@demo.tracklytics.com`
+  // de S14-P4 tiene esa fila pero `role` quedó en "user" por un drift de
+  // datos anterior a este sprint.
+  return roles.includes('admin_datos') || roles.includes('superadmin')
+}
+
 export function SeguridadShell() {
   const location = useLocation()
   const [collapsed, setCollapsed] = useState(getSidebarCollapsed)
+  const puedeVerSimulacion = usePuedeVerSimulacion()
+
+  const seccionesVisibles = useMemo(() => {
+    if (puedeVerSimulacion) return SECCIONES
+    return SECCIONES.map((s) => (
+      s.links.some((l) => l.to === '/seguridad/simulacion')
+        ? { ...s, links: s.links.filter((l) => l.to !== '/seguridad/simulacion'), paths: s.paths.filter((p) => p !== '/seguridad/simulacion') }
+        : s
+    ))
+  }, [puedeVerSimulacion])
 
   function toggleCollapsed() {
     setCollapsed((prev) => {
@@ -288,7 +326,7 @@ export function SeguridadShell() {
       <div className={styles.body}>
         <nav className={[styles.sidebar, collapsed ? styles.sidebarCollapsed : ''].join(' ').trim()} aria-label="Navegación de seguridad">
           <div className={styles.navGroups}>
-            {SECCIONES.map((seccion) => (
+            {seccionesVisibles.map((seccion) => (
               <SidebarSection
                 key={seccion.label}
                 seccion={seccion}

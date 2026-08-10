@@ -1,5 +1,5 @@
 import { apiClient, type ApiResponse } from '@shared/lib/api-client'
-import { clearSession, getDeviceId, setSession, updateSessionUser, type SessionUser } from '@shared/lib/session'
+import { clearSession, getDeviceId, getUser, setSession, updateSessionUser, type SessionUser } from '@shared/lib/session'
 import type { MisDatos } from '../types'
 
 type PbAuthResponse = {
@@ -23,6 +23,7 @@ export type MiPerfil = {
   rol:              string
   perfil_publico:   boolean
   email_verificado: boolean
+  roles_admin:      string[]
 }
 
 export const ROLES_AUTO_REGISTRABLES = ['user', 'analyst'] as const
@@ -34,7 +35,23 @@ export const authApi = {
       email, password, dispositivo_id: getDeviceId(), tipo: 'web', app_version: 'web-1.0',
     })
     setSession(resp.token, resp.record)
-    return resp.record
+    // roles_admin (BRIDGE_USUARIO_ROL_ADMIN) no viaja en la respuesta de
+    // login de PocketBase — solo el `role` crudo. Se resuelve con una
+    // llamada de más al perfil propio (autoservicio, siempre autorizada)
+    // para que `RequireAuth`/`SeguridadShell` sepan de entrada si esta
+    // cuenta es admin por BRIDGE aunque `record.role` sea "user" (las 6
+    // cuentas admin_* de área, no solo el superadmin bootstrap).
+    try {
+      const perfil = await authApi.miPerfil()
+      updateSessionUser({
+        rolesAdmin: perfil.roles_admin,
+        esAdmin:    resp.record.role === 'admin' || perfil.roles_admin.length > 0,
+      })
+    } catch {
+      // Best-effort: si falla, esAdmin queda undefined y los guards caen al
+      // chequeo literal de `role` (comportamiento previo a este fix).
+    }
+    return getUser() ?? resp.record
   },
 
   registro: async (

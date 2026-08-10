@@ -17,6 +17,16 @@ export type SessionUser = {
   // `setSession` guarda el objeto completo — solo faltaba declararlo en el
   // tipo para poder usarlo (ver ProfilePage, packages/seguridad).
   created?: string
+  // S14: roles administrativos por área vigentes (BRIDGE_USUARIO_ROL_ADMIN),
+  // más el booleano derivado `esAdmin` (= `role === 'admin'` O al menos un
+  // rol en `rolesAdmin`) — poblados por `authApi.login` justo después de
+  // autenticar, vía GET /seguridad/perfil. `role` crudo de PocketBase SOLO
+  // vale "admin" para la cuenta superadmin bootstrap; las 6 cuentas admin_*
+  // (asignadas por BRIDGE, no por PocketBase) necesitan esto para que
+  // `RequireAuth roles={['admin']}` y el sidebar (`SeguridadShell`) las
+  // reconozcan como administrativas.
+  rolesAdmin?: string[]
+  esAdmin?:    boolean
 }
 
 export function getToken(): string | null {
