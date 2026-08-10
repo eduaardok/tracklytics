@@ -1,3 +1,4 @@
+import { memo } from 'react'
 import {
   PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
 } from 'recharts'
@@ -23,7 +24,7 @@ const GRID_STROKE = 'oklch(0.22 0.012 285)'
 // `CATEGORICAL_ORDER` (dataviz skill: "nunca cíclico ni recalculado al
 // cambiar el filtro") — la Nº3 de la lista siempre es el mismo color, sin
 // importar cuántas categorías haya.
-export function DistributionChart({ datos, tipo, altura = 280 }: Props) {
+export const DistributionChart = memo(function DistributionChart({ datos, tipo, altura = 280 }: Props) {
   const filtrados = datos.filter((d) => d.valor > 0)
   if (filtrados.length === 0) {
     return <EmptyState icon="( ∅ )" title="Sin datos para esta distribución" body="Prueba ampliando el rango de período." />
@@ -78,4 +79,4 @@ export function DistributionChart({ datos, tipo, altura = 280 }: Props) {
       </ResponsiveContainer>
     </div>
   )
-}
+})

@@ -1,3 +1,4 @@
+import { memo } from 'react'
 import {
   ComposedChart, Line, ReferenceArea, CartesianGrid, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer,
 } from 'recharts'
@@ -21,7 +22,7 @@ const GRID_STROKE = 'oklch(0.22 0.012 285)'
 // proyección después (línea punteada + zona sombreada), en la MISMA serie
 // combinada para que la línea sea continua en el punto de empalme (el
 // último real y el primer proyectado comparten valor).
-export function PredictionChart({ datosReales, datosProyectados, metricaLabel, altura = 350 }: Props) {
+export const PredictionChart = memo(function PredictionChart({ datosReales, datosProyectados, metricaLabel, altura = 350 }: Props) {
   const combinado = [
     ...datosReales.map((p) => ({ periodo: p.periodo, real: p.valor, proyectado: null as number | null })),
     ...datosProyectados.map((p, i) => ({
@@ -74,4 +75,4 @@ export function PredictionChart({ datosReales, datosProyectados, metricaLabel, a
       </ResponsiveContainer>
     </div>
   )
-}
+})

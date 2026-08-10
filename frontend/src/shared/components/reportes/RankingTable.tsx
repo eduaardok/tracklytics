@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { memo, useState } from 'react'
 import { TrendingDown, TrendingUp } from 'lucide-react'
 import { EmptyState } from '@shared/components/EmptyState'
 import styles from './RankingTable.module.css'
@@ -31,7 +31,7 @@ function posClass(pos: number): string {
 // Tabla de ranking (S13-P3b) — géneros/artistas/partners/contratos/sellos
 // ordenados por una métrica principal, con badge de posición (top 3
 // destacado) y variación % opcional.
-export function RankingTable({ datos, columnas, variacion = false, porPagina = 20 }: Props) {
+export const RankingTable = memo(function RankingTable({ datos, columnas, variacion = false, porPagina = 20 }: Props) {
   const [pagina, setPagina] = useState(1)
 
   if (datos.length === 0) {
@@ -93,4 +93,4 @@ export function RankingTable({ datos, columnas, variacion = false, porPagina = 2
       )}
     </div>
   )
-}
+})

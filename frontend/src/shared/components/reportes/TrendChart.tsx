@@ -1,3 +1,4 @@
+import { memo, useId } from 'react'
 import {
   ComposedChart, Line, Area, Bar, CartesianGrid, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer,
 } from 'recharts'
@@ -31,14 +32,26 @@ function conPromedioMovil(datos: FilaInforme[], key: string, ventana = 3): FilaI
 // informes combinan line/area/bar sobre el MISMO eje (nunca un segundo eje Y
 // — dataviz skill, "One axis": dos métricas de escala distinta van en dos
 // gráficos separados, no en un dual-axis).
-export function TrendChart({ datos, series, promedioMovil = false, altura = 350 }: Props) {
+export const TrendChart = memo(function TrendChart({ datos, series, promedioMovil = false, altura = 350 }: Props) {
   const primeraSerieLinea = series.find((s) => (s.type ?? 'line') === 'line')
   const data = promedioMovil && primeraSerieLinea ? conPromedioMovil(datos, primeraSerieLinea.key) : datos
+  // Prefijo único por instancia — evita colisión de IDs de <linearGradient>
+  // cuando dos TrendChart (ej. dos informes en la misma página de PDF) usan
+  // la misma serie/color.
+  const gradId = useId()
 
   return (
     <div style={{ width: '100%', height: altura }}>
       <ResponsiveContainer width="100%" height="100%">
         <ComposedChart data={data} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
+          <defs>
+            {series.filter((s) => (s.type ?? 'line') === 'area').map((s) => (
+              <linearGradient key={s.key} id={`${gradId}-${s.key}`} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor={s.color} stopOpacity={0.3} />
+                <stop offset="95%" stopColor={s.color} stopOpacity={0} />
+              </linearGradient>
+            ))}
+          </defs>
           <CartesianGrid stroke={GRID_STROKE} strokeDasharray="3 3" vertical={false} />
           <XAxis dataKey="periodo" tick={AXIS_TICK} axisLine={{ stroke: GRID_STROKE }} tickLine={false} />
           <YAxis tick={AXIS_TICK} axisLine={false} tickLine={false} width={48} allowDecimals={false} />
@@ -71,7 +84,7 @@ export function TrendChart({ datos, series, promedioMovil = false, altura = 350 
               return (
                 <Area
                   key={s.key} type="monotone" dataKey={s.key} name={s.label}
-                  stroke={s.color} fill={s.color} fillOpacity={0.15} strokeWidth={2}
+                  stroke={s.color} fill={`url(#${gradId}-${s.key})`} strokeWidth={2}
                   isAnimationActive={false}
                 />
               )
@@ -95,4 +108,4 @@ export function TrendChart({ datos, series, promedioMovil = false, altura = 350 
       </ResponsiveContainer>
     </div>
   )
-}
+})

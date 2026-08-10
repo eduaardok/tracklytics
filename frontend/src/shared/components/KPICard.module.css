@@ -1,0 +1,56 @@
+.card {
+  composes: card-glass from global;
+  padding: var(--space-md);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.icon { color: var(--color-primary-light); }
+
+.title {
+  font-family: var(--font-sans);
+  font-size: 0.75rem;
+  color: var(--color-muted);
+}
+
+.value {
+  font-family: var(--font-mono);
+  font-size: 2rem;
+  font-weight: 600;
+  color: var(--color-ink);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+
+.footRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+}
+
+.delta {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.deltaUp   { color: var(--color-success); }
+.deltaDown { color: var(--color-error); }
+
+.deltaLabel {
+  font-family: var(--font-sans);
+  font-weight: 400;
+  color: var(--color-muted);
+  margin-left: 4px;
+}

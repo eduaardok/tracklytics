@@ -1,3 +1,4 @@
+import { memo } from 'react'
 import type { LucideIcon } from 'lucide-react'
 import { TrendingDown, TrendingUp } from 'lucide-react'
 import styles from './KpiCards.module.css'
@@ -11,7 +12,10 @@ export type Kpi = {
 
 // Grid de tarjetas de resumen (S13-P3b) — usado por los 30 informes
 // compuestos para sus 2-4 KPIs de cabecera.
-export function KpiCards({ kpis }: { kpis: Kpi[] }) {
+// `memo` (S14-FINAL, Fase 2.4): evita re-render cuando un hermano de la
+// misma página de informe cambia (ej. el filtro Desde/Hasta de ReportLayout
+// solo toca `datos`, no `kpis` en algunos informes).
+export const KpiCards = memo(function KpiCards({ kpis }: { kpis: Kpi[] }) {
   return (
     <div className={styles.grid}>
       {kpis.map((kpi) => {
@@ -37,4 +41,4 @@ export function KpiCards({ kpis }: { kpis: Kpi[] }) {
       })}
     </div>
   )
-}
+})
