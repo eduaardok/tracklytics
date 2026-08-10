@@ -90,6 +90,13 @@ export function ConfiguracionGlobalTab() {
       <div className={styles.tablePanel}>
         {precios.isError ? (
           <ErrorState message="No se pudieron cargar los precios de plan." />
+        ) : precios.isLoading ? (
+          <div style={{ padding: 'var(--space-md)' }}><span className={styles.skel} style={{ width: '40%', height: 14 }} /></div>
+        ) : preciosData.length === 0 ? (
+          <div className={styles.emptyState}>
+            <span className={styles.emptyTitle}>Sin planes</span>
+            <span className={styles.emptyBody}>No hay planes configurados todavía.</span>
+          </div>
         ) : (
           <table className={styles.table}>
             <thead><tr><th>Plan</th><th>Tipo</th><th>Precio (USD)</th><th></th></tr></thead>
@@ -175,6 +182,13 @@ export function ConfiguracionGlobalTab() {
       <div className={styles.tablePanel}>
         {paises.isError ? (
           <ErrorState message="No se pudieron cargar los países." />
+        ) : paises.isLoading ? (
+          <div style={{ padding: 'var(--space-md)' }}><span className={styles.skel} style={{ width: '40%', height: 14 }} /></div>
+        ) : paisesData.length === 0 ? (
+          <div className={styles.emptyState}>
+            <span className={styles.emptyTitle}>Sin países</span>
+            <span className={styles.emptyBody}>Todavía no hay países configurados.</span>
+          </div>
         ) : (
           <table className={styles.table}>
             <thead>
