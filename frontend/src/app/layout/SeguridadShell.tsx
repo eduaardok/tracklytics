@@ -13,6 +13,7 @@ import {
 // dashboards con Recharts de ese paquete al bundle principal — ver router.tsx).
 import { UserMenu } from '@packages/seguridad/components/UserMenu'
 import { RouteLoadingFallback } from '@shared/components/RouteLoadingFallback'
+import { PageTransition } from '@shared/components/PageTransition'
 import { ZoneSwitcher } from '@shared/components/ZoneSwitcher'
 import { getAdminSectionsOpen, setAdminSectionOpen, getSidebarCollapsed, setSidebarCollapsed } from '@shared/lib/ui-prefs'
 // SOLO metadata de navegación (sin `render`/plantillas/Recharts) — importar
@@ -20,18 +21,44 @@ import { getAdminSectionsOpen, setAdminSectionOpen, getSidebarCollapsed, setSide
 // Recharts al bundle principal, porque `SeguridadShell` se importa eager en
 // `router.tsx` (no es lazy). Ver docs/BITACORA_S13.md, "bug de bundle 1MB".
 import { DEPARTAMENTOS_NAV } from '@packages/reportes/config/informesNav'
+import { rolesDeUsuario, puedeVer } from '@shared/lib/roles'
+import { RoleBadge } from '@shared/components/RoleBadge'
 import styles from './SeguridadShell.module.css'
 
 const ACTIVE_CLS   = `${styles.navItem} ${styles.navActive}`
 const INACTIVE_CLS = styles.navItem
 
-type Link = { to: string; label: string; icon: LucideIcon; end?: boolean }
+// `roles` ausente = visible para cualquier admin (comportamiento histórico).
+// Con `roles`, superadmin siempre pasa; el resto exige tener alguno de esos
+// roles de área — mismo mapeo departamento→rol verificado por curl real en
+// docs/CUENTAS_DEMO.md y `api/paquetes/reportes/deps.py` (única fuente de
+// verdad de gating; ver `puedeVer` en shared/lib/roles.ts).
+type Link = { to: string; label: string; icon: LucideIcon; end?: boolean; roles?: string[] }
 
 type Seccion = {
   label: string
   icon: LucideIcon
   paths: string[]
   links: Link[]
+  roles?: string[]
+}
+
+// Departamento (slug de DEPARTAMENTOS_NAV) → rol administrativo, calcado 1:1
+// de `api/paquetes/reportes/deps.py` (`require_<depto>`) — filtrar el
+// sidebar por esto evita mostrar un link a un informe que el backend
+// rechazaría con 403 igual (mismo espíritu que el resto de este archivo:
+// la autorización real vive en el backend, esto es solo no mostrar lo que
+// de todos modos no se puede abrir).
+const DEPTO_ROLES: Record<string, string[]> = {
+  comercial:  ['admin_comercial'],
+  tecnologia: ['admin_datos'],
+  financiero: ['admin_finanzas'],
+  datos:      ['admin_datos'],
+  analitica:  ['admin_datos'],
+  contenido:  ['admin_contenido'],
+  comunidad:  ['admin_comunidad'],
+  seguridad:  ['superadmin'],
+  producto:   ['admin_comunidad'],
 }
 
 // Secciones colapsables (S13-P8: rediseño con iconos + collapse completo,
@@ -47,27 +74,35 @@ const SECCIONES: Seccion[] = [
     label: 'Seguridad',
     icon: Users,
     paths: ['/seguridad/usuarios', '/seguridad/permisos', '/seguridad/auditoria', '/seguridad/errores', '/seguridad/sesiones-activas', '/seguridad/reporte-strikes'],
+    // Todo el bloque es `require_admin` (superadmin) en el backend salvo
+    // Strikes (`GET /admin/strikes` usa `require_comunidad_admin`,
+    // api/paquetes/seguridad/router.py:1015) — moderación de comunidad, no
+    // "seguridad" en sentido estricto, aunque viva en este endpoint.
     links: [
-      { to: '/seguridad/usuarios', label: 'Usuarios', icon: Users },
-      { to: '/seguridad/permisos', label: 'Permisos', icon: KeyRound },
-      { to: '/seguridad/auditoria', label: 'Auditoría', icon: FileSearch },
-      { to: '/seguridad/errores', label: 'Errores', icon: AlertTriangle },
-      { to: '/seguridad/sesiones-activas', label: 'Sesiones activas', icon: Radio },
-      { to: '/seguridad/reporte-strikes', label: 'Strikes', icon: Flag },
+      { to: '/seguridad/usuarios', label: 'Usuarios', icon: Users, roles: ['superadmin'] },
+      { to: '/seguridad/permisos', label: 'Permisos', icon: KeyRound, roles: ['superadmin'] },
+      { to: '/seguridad/auditoria', label: 'Auditoría', icon: FileSearch, roles: ['superadmin'] },
+      { to: '/seguridad/errores', label: 'Errores', icon: AlertTriangle, roles: ['superadmin'] },
+      { to: '/seguridad/sesiones-activas', label: 'Sesiones activas', icon: Radio, roles: ['superadmin'] },
+      { to: '/seguridad/reporte-strikes', label: 'Strikes', icon: Flag, roles: ['admin_comunidad'] },
     ],
   },
   {
     label: 'Comercial',
     icon: TrendingUp,
     paths: ['/seguridad/facturacion', '/seguridad/suscripciones', '/seguridad/regalias', '/seguridad/publicidad', '/seguridad/finanzas', '/seguridad/simulacion'],
+    // Roles verificados contra `require_admin`/`require_rol_admin` de cada
+    // capability (facturacion/finanzas/regalias/publicidad → admin_finanzas;
+    // suscripciones → admin_comercial, no admin_finanzas — corrección real
+    // encontrada al leer suscripciones/router.py, no una suposición).
     links: [
-      { to: '/seguridad/facturacion', label: 'Facturación', icon: Receipt, end: true },
-      { to: '/seguridad/facturacion/empresa', label: 'Info. empresa', icon: Building2 },
-      { to: '/seguridad/suscripciones', label: 'Suscripciones', icon: CreditCard },
-      { to: '/seguridad/regalias', label: 'Regalías', icon: Coins },
-      { to: '/seguridad/publicidad', label: 'Publicidad', icon: Megaphone },
-      { to: '/seguridad/finanzas', label: 'Finanzas', icon: Wallet },
-      { to: '/seguridad/simulacion', label: 'Simulación', icon: FlaskConical },
+      { to: '/seguridad/facturacion', label: 'Facturación', icon: Receipt, end: true, roles: ['admin_finanzas'] },
+      { to: '/seguridad/facturacion/empresa', label: 'Info. empresa', icon: Building2, roles: ['admin_finanzas'] },
+      { to: '/seguridad/suscripciones', label: 'Suscripciones', icon: CreditCard, roles: ['admin_comercial'] },
+      { to: '/seguridad/regalias', label: 'Regalías', icon: Coins, roles: ['admin_finanzas'] },
+      { to: '/seguridad/publicidad', label: 'Publicidad', icon: Megaphone, roles: ['admin_finanzas'] },
+      { to: '/seguridad/finanzas', label: 'Finanzas', icon: Wallet, roles: ['admin_finanzas'] },
+      { to: '/seguridad/simulacion', label: 'Simulación', icon: FlaskConical, roles: ['admin_datos'] },
     ],
   },
   {
@@ -75,24 +110,28 @@ const SECCIONES: Seccion[] = [
     icon: Music,
     paths: ['/seguridad/creadores', '/seguridad/distribucion', '/seguridad/catalogo', '/seguridad/social'],
     links: [
-      { to: '/seguridad/creadores', label: 'Creadores', icon: Mic2 },
-      { to: '/seguridad/distribucion', label: 'Distribución', icon: Globe },
-      { to: '/seguridad/catalogo', label: 'Catálogo · Takedown', icon: Disc3 },
-      { to: '/seguridad/social', label: 'Moderación social', icon: MessagesSquare },
+      { to: '/seguridad/creadores', label: 'Creadores', icon: Mic2, roles: ['admin_contenido'] },
+      { to: '/seguridad/distribucion', label: 'Distribución', icon: Globe, roles: ['admin_contenido'] },
+      { to: '/seguridad/catalogo', label: 'Catálogo · Takedown', icon: Disc3, roles: ['admin_contenido'] },
+      { to: '/seguridad/social', label: 'Moderación social', icon: MessagesSquare, roles: ['admin_comunidad'] },
     ],
   },
   {
     label: 'Producto',
     icon: Sparkles,
     paths: ['/seguridad/soporte', '/seguridad/familia', '/seguridad/reporte-ab-tests', '/seguridad/reporte-notificaciones', '/seguridad/disponibilidad'],
+    // `experiencia/deps.py`: require_admin = admin_comunidad, para todo el
+    // bloque (soporte/familia/ab-tests/notificaciones).
     links: [
-      { to: '/seguridad/soporte', label: 'Tickets soporte', icon: LifeBuoy },
-      { to: '/seguridad/familia', label: 'Plan familiar', icon: Users2 },
-      { to: '/seguridad/reporte-ab-tests', label: 'Pruebas A/B', icon: GitBranch },
-      { to: '/seguridad/reporte-notificaciones', label: 'Notificaciones', icon: Bell },
+      { to: '/seguridad/soporte', label: 'Tickets soporte', icon: LifeBuoy, roles: ['admin_comunidad'] },
+      { to: '/seguridad/familia', label: 'Plan familiar', icon: Users2, roles: ['admin_comunidad'] },
+      { to: '/seguridad/reporte-ab-tests', label: 'Pruebas A/B', icon: GitBranch, roles: ['admin_comunidad'] },
+      { to: '/seguridad/reporte-notificaciones', label: 'Notificaciones', icon: Bell, roles: ['admin_comunidad'] },
       // Reusa `DisponibilidadInfraPage` (CU-O55, `/analitica/disponibilidad`)
       // — mismo componente y endpoint, sin tier gate propio, solo un
-      // segundo punto de entrada para el panel de reportes admin.
+      // segundo punto de entrada para el panel de reportes admin. Sin
+      // `roles`: no tiene un rol de área propio en el backend (endpoint de
+      // `analitica`, no de `experiencia`), se deja visible a cualquier admin.
       { to: '/seguridad/disponibilidad', label: 'Disponibilidad', icon: Activity },
     ],
   },
@@ -100,22 +139,27 @@ const SECCIONES: Seccion[] = [
     label: 'Datos y Partners',
     icon: Database,
     paths: ['/seguridad/partners', '/seguridad/ingesta'],
+    // partners/deps.py: require_partner_admin = admin_comercial.
+    // gestion_datos/deps.py: require_lead_data_engineer = admin_datos.
     links: [
-      { to: '/seguridad/partners', label: 'Partners', icon: Handshake, end: true },
-      { to: '/seguridad/partners/gestion', label: 'Gestión de partners', icon: UserCog },
-      { to: '/seguridad/partners/metricas', label: 'Métricas de partners', icon: BarChart3 },
-      { to: '/seguridad/ingesta', label: 'Ingesta ETL', icon: Database, end: true },
-      { to: '/seguridad/ingesta/dimensiones', label: 'Dimensiones', icon: Table2 },
-      { to: '/seguridad/ingesta/calidad', label: 'Calidad de datos', icon: CheckCircle2 },
+      { to: '/seguridad/partners', label: 'Partners', icon: Handshake, end: true, roles: ['admin_comercial'] },
+      { to: '/seguridad/partners/gestion', label: 'Gestión de partners', icon: UserCog, roles: ['admin_comercial'] },
+      { to: '/seguridad/partners/metricas', label: 'Métricas de partners', icon: BarChart3, roles: ['admin_comercial'] },
+      { to: '/seguridad/ingesta', label: 'Ingesta ETL', icon: Database, end: true, roles: ['admin_datos'] },
+      { to: '/seguridad/ingesta/dimensiones', label: 'Dimensiones', icon: Table2, roles: ['admin_datos'] },
+      { to: '/seguridad/ingesta/calidad', label: 'Calidad de datos', icon: CheckCircle2, roles: ['admin_datos'] },
     ],
   },
   {
     label: 'Reportes',
     icon: FileBarChart,
     paths: ['/seguridad/reporte-usuarios', '/seguridad/reporte-familias'],
+    // seguridad/router.py `/admin/usuarios-reporte` → require_admin
+    // (superadmin). experiencia/router.py `/admin/familias` → require_admin
+    // de esa capability (admin_comunidad).
     links: [
-      { to: '/seguridad/reporte-usuarios', label: 'Usuarios', icon: Users },
-      { to: '/seguridad/reporte-familias', label: 'Familias', icon: Users2 },
+      { to: '/seguridad/reporte-usuarios', label: 'Usuarios', icon: Users, roles: ['superadmin'] },
+      { to: '/seguridad/reporte-familias', label: 'Familias', icon: Users2, roles: ['admin_comunidad'] },
     ],
   },
 ]
@@ -198,11 +242,11 @@ function SidebarSection({ seccion, defaultOpen, extra, collapsed }: { seccion: S
 // No se renderiza en modo `collapsed` (S13-P8): 30 rutas hoja no caben como
 // riel de iconos, y no hay un índice único al que un solo ícono pudiera
 // llevar — se navega a esta sección expandiendo el sidebar completo.
-function InformesCompuestosMenu() {
+function InformesCompuestosMenu({ departamentos }: { departamentos: typeof DEPARTAMENTOS_NAV }) {
   const location = useLocation()
   const { open, toggle } = useToggle(
     'Informes Compuestos',
-    DEPARTAMENTOS_NAV.some((d) => location.pathname.startsWith(`/reportes/${d.slug}`)),
+    departamentos.some((d) => location.pathname.startsWith(`/reportes/${d.slug}`)),
   )
 
   return (
@@ -219,7 +263,7 @@ function InformesCompuestosMenu() {
         <span className={`${styles.chevron} ${open ? styles.chevronOpen : ''}`} aria-hidden="true">▸</span>
       </div>
       <div className={`${styles.subSectionLinks} ${open ? styles.informesComposuestosLinks : ''}`}>
-        {DEPARTAMENTOS_NAV.map((depto) => (
+        {departamentos.map((depto) => (
           <DepartamentoSubSection key={depto.slug} slug={depto.slug} label={depto.label} informes={depto.informes} />
         ))}
       </div>
@@ -262,46 +306,34 @@ function DepartamentoSubSection({ slug, label, informes }: { slug: string; label
   )
 }
 
-// El panel de "Simulación" (generación de datos + refresco de Gold, S14-P4
-// Fase 5) es operación interna de datos, no una vista de negocio — solo
-// debe verse si el admin logueado es `admin_datos` o `superadmin`. El resto
-// del panel no filtra secciones por rol (la autorización real vive en el
-// backend, `require_rol_admin` por endpoint) — este único link es la
-// excepción explícita pedida para no exponerlo como si fuera una vista de
-// negocio más.
-//
-// `user.rolesAdmin` viene de la sesión (poblado por `authApi.login` vía
-// GET /seguridad/perfil, ver session.ts) — NO usar GET
-// /admin/usuarios/{id} acá: esa ruta es superadmin-only
-// (`require_admin = require_rol_admin("superadmin")`), así que un
-// `admin_datos` consultando SU PROPIO id ahí recibiría 403 y nunca vería su
-// propio panel (bug real encontrado y corregido en la misma pasada de
-// verificación S14 que encontró el problema de `RequireAuth`).
-function usePuedeVerSimulacion(): boolean {
-  const user = getUser()
-  if (user?.role === 'admin') return true
-  const roles = user?.rolesAdmin ?? []
-  // 'superadmin' puede vivir SOLO en BRIDGE_USUARIO_ROL_ADMIN (sin
-  // `record.role === 'admin'` en PocketBase) — confirmado en verificación
-  // S14 contra el stack real: la cuenta `superadmin@demo.tracklytics.com`
-  // de S14-P4 tiene esa fila pero `role` quedó en "user" por un drift de
-  // datos anterior a este sprint.
-  return roles.includes('admin_datos') || roles.includes('superadmin')
-}
-
 export function SeguridadShell() {
   const location = useLocation()
   const [collapsed, setCollapsed] = useState(getSidebarCollapsed)
-  const puedeVerSimulacion = usePuedeVerSimulacion()
+  const user = getUser()
+  const userRoles = useMemo(() => rolesDeUsuario(user), [user])
 
+  // Filtra sidebar por rol (Fase 4.1, S14-FINAL) — generaliza el mecanismo
+  // que antes solo cubría "Simulación" (`usePuedeVerSimulacion`) a TODOS los
+  // links con `roles` declarado arriba. Una sección sin links visibles se
+  // omite entera (ej. "Datos y Partners" completa para `admin_finanzas`) en
+  // vez de quedar como grupo vacío.
   const seccionesVisibles = useMemo(() => {
-    if (puedeVerSimulacion) return SECCIONES
-    return SECCIONES.map((s) => (
-      s.links.some((l) => l.to === '/seguridad/simulacion')
-        ? { ...s, links: s.links.filter((l) => l.to !== '/seguridad/simulacion'), paths: s.paths.filter((p) => p !== '/seguridad/simulacion') }
-        : s
-    ))
-  }, [puedeVerSimulacion])
+    return SECCIONES
+      .map((s) => ({
+        ...s,
+        links: s.links.filter((l) => puedeVer(l.roles, userRoles)),
+      }))
+      .filter((s) => puedeVer(s.roles, userRoles) && s.links.length > 0)
+  }, [userRoles])
+
+  // Mismo criterio para los 9 departamentos de informes compuestos — el
+  // mapeo real de `DEPTO_ROLES` calca `api/paquetes/reportes/deps.py`
+  // (`require_<depto>`), así que nunca se muestra un link que el backend
+  // rechazaría con 403 igual.
+  const departamentosVisibles = useMemo(
+    () => DEPARTAMENTOS_NAV.filter((d) => puedeVer(DEPTO_ROLES[d.slug], userRoles)),
+    [userRoles],
+  )
 
   function toggleCollapsed() {
     setCollapsed((prev) => {
@@ -335,10 +367,20 @@ export function SeguridadShell() {
                   seccion.paths.some((p) => location.pathname.startsWith(p))
                   || (seccion.label === 'Reportes' && location.pathname.startsWith('/reportes'))
                 }
-                extra={seccion.label === 'Reportes' ? <InformesCompuestosMenu /> : undefined}
+                extra={seccion.label === 'Reportes' ? <InformesCompuestosMenu departamentos={departamentosVisibles} /> : undefined}
               />
             ))}
           </div>
+
+          {user && !collapsed && (
+            <div className={styles.accountFooter}>
+              <span className={styles.accountAvatar} aria-hidden="true">{user.email[0]?.toUpperCase()}</span>
+              <span className={styles.accountInfo}>
+                <span className={styles.accountEmail}>{user.email}</span>
+                <RoleBadge user={user} />
+              </span>
+            </div>
+          )}
 
           <button
             type="button"
@@ -359,7 +401,9 @@ export function SeguridadShell() {
                 — DataQualityPage arrastra Recharts, mismo motivo que
                 AnalyticaShell. Un solo Suspense cubre las 3. */}
             <Suspense fallback={<RouteLoadingFallback />}>
-              <Outlet />
+              <PageTransition>
+                <Outlet />
+              </PageTransition>
             </Suspense>
           </div>
         </main>

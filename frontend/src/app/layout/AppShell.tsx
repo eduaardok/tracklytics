@@ -22,6 +22,7 @@ import { PlayerBarActions } from '@packages/catalogo'
 import { AdBanner } from '@packages/publicidad/components/AdBanner'
 import { usePlanActivo } from '@packages/suscripciones'
 import { PlayerBar } from '@shared/components/PlayerBar'
+import { PageTransition } from '@shared/components/PageTransition'
 import { usePlayer } from '@shared/context/PlayerContext'
 import { getRole } from '@shared/lib/session'
 import { getSidebarCollapsed, setSidebarCollapsed } from '@shared/lib/ui-prefs'
@@ -204,7 +205,9 @@ export function AppShell() {
 
         <main className={`${styles.main} ${currentTrack ? styles.mainWithPlayer : ''}`}>
           <div className={styles.content}>
-            <Outlet />
+            <PageTransition>
+              <Outlet />
+            </PageTransition>
           </div>
         </main>
       </div>

@@ -59,6 +59,42 @@
 
   /* Reproductor persistente (AppShell) */
   --player-bar-height: 72px;
+
+  /* Glassmorphism de cards (S14-FINAL polish) — mismo violeta translúcido en
+     todo el sistema, nunca un color nuevo. */
+  --glass-bg:          rgba(139, 92, 246, 0.06);
+  --glass-border:      rgba(139, 92, 246, 0.12);
+  --glass-border-hover: rgba(139, 92, 246, 0.25);
+  --glass-shadow-hover: 0 4px 24px rgba(139, 92, 246, 0.08);
+
+  /* Tooltip de charts (Recharts) — mismo tratamiento en todos los charts. */
+  --chart-tooltip-bg:     rgba(15, 10, 30, 0.95);
+  --chart-tooltip-border: rgba(139, 92, 246, 0.2);
+}
+
+/* Utilidad global de glassmorphism — CSS modules la consumen vía
+   `composes: card-glass from global;` en vez de reescribir el mismo
+   bg/border/shadow en cada .module.css. */
+.card-glass {
+  background: var(--glass-bg);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-lg);
+  transition: border-color var(--duration-standard) var(--ease-standard),
+              box-shadow var(--duration-standard) var(--ease-standard);
+}
+.card-glass:hover {
+  border-color: var(--glass-border-hover);
+  box-shadow: var(--glass-shadow-hover);
+}
+
+/* Fila de tabla con hover consistente — usada vía `composes` en tablas admin. */
+.row-hover {
+  transition: background var(--duration-standard) var(--ease-standard);
+}
+.row-hover:hover {
+  background: rgba(139, 92, 246, 0.06);
 }
 
 /* Global reset */

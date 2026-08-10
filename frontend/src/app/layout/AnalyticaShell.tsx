@@ -3,7 +3,7 @@ import { Outlet, NavLink, useLocation } from 'react-router-dom'
 import {
   LayoutDashboard, Activity, Music, GitCompare, Target, TrendingUp, ListMusic,
   UserPlus, ServerCog, CalendarDays, UserMinus, Filter, Scale, CircleDollarSign,
-  LineChart, AreaChart, PanelLeftClose, PanelLeftOpen, type LucideIcon,
+  LineChart, AreaChart, PanelLeftClose, PanelLeftOpen, LayoutGrid, type LucideIcon,
 } from 'lucide-react'
 import { RequireSuscripcionActiva } from '@packages/analitica'
 // Import directo, no vía el barrel `@packages/seguridad` (arrastraría los
@@ -17,6 +17,7 @@ import { UserMenu } from '@packages/seguridad/components/UserMenu'
 import { usePlanActivo } from '@packages/suscripciones'
 import { getRole } from '@shared/lib/session'
 import { RouteLoadingFallback } from '@shared/components/RouteLoadingFallback'
+import { PageTransition } from '@shared/components/PageTransition'
 import { ZoneSwitcher } from '@shared/components/ZoneSwitcher'
 import { getSidebarCollapsed, setSidebarCollapsed } from '@shared/lib/ui-prefs'
 import styles from './AnalyticaShell.module.css'
@@ -69,6 +70,7 @@ const NAV_STAFF: NavItem[] = [
   { to: '/analitica/funnel-conversion',  label: 'Funnel de conversión',   icon: Filter },
   { to: '/analitica/pnl',                label: 'P&L consolidado',        icon: Scale },
   { to: '/analitica/mrr-arr',            label: 'MRR / ARR',              icon: CircleDollarSign },
+  { to: '/analitica/bsc',                label: 'Balanced Scorecard',      icon: LayoutGrid },
 ]
 
 // Sección "Predictivo" (b2b-tier-access-analitica): visible solo para tier
@@ -167,13 +169,15 @@ export function AnalyticaShell() {
                 — un solo boundary aquí cubre cualquier página hija, en vez de
                 envolver cada `element` del route config individualmente. */}
             <Suspense fallback={<RouteLoadingFallback />}>
-              {sinGating ? (
-                <Outlet />
-              ) : (
-                <RequireSuscripcionActiva>
+              <PageTransition>
+                {sinGating ? (
                   <Outlet />
-                </RequireSuscripcionActiva>
-              )}
+                ) : (
+                  <RequireSuscripcionActiva>
+                    <Outlet />
+                  </RequireSuscripcionActiva>
+                )}
+              </PageTransition>
             </Suspense>
           </div>
         </main>

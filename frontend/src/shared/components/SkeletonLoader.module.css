@@ -7,23 +7,34 @@
 
 .bar {
   display: block;
-  background: var(--color-surface-raised);
+  background: linear-gradient(
+    90deg,
+    rgba(139, 92, 246, 0.08) 25%,
+    rgba(139, 92, 246, 0.15) 50%,
+    rgba(139, 92, 246, 0.08) 75%
+  );
+  background-size: 200% 100%;
   border-radius: var(--radius-sm);
-  animation: skelPulse 1.6s ease-in-out infinite;
+  animation: skelShimmer 1.6s ease-in-out infinite;
 }
 
 .skeletonRow .bar {
   border-radius: 3px;
 }
 
-@keyframes skelPulse {
-  0%, 100% { opacity: 0.35; }
-  50%      { opacity: 0.65; }
+.block {
+  width: 100%;
+  border-radius: var(--radius-lg);
+}
+
+@keyframes skelShimmer {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .bar {
     animation: none;
-    opacity: 0.5;
+    background: rgba(139, 92, 246, 0.1);
   }
 }

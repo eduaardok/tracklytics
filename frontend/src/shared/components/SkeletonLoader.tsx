@@ -26,6 +26,20 @@ export function SkeletonLoader({ count = 3, height = 14, className = '' }: Props
   )
 }
 
+// Placeholder de una card/panel completa (KPI, BSC, admin) — un rectángulo
+// del tamaño real de la card en vez de barras de texto, para que el layout
+// no salte cuando llega la data (S14-FINAL).
+export function SkeletonCard({ height = 110, className = '' }: { height?: number; className?: string }) {
+  return <span className={`${styles.bar} ${styles.block} ${className}`} style={{ height }} aria-hidden="true" />
+}
+
+// Placeholder del área de un chart — mismo rectángulo que SkeletonCard, solo
+// con una altura por defecto mayor (coincide con `altura` típica de
+// TrendChart/MiniLineChart).
+export function SkeletonChart({ height = 280, className = '' }: { height?: number; className?: string }) {
+  return <span className={`${styles.bar} ${styles.block} ${className}`} style={{ height }} aria-hidden="true" />
+}
+
 type RowsProps = {
   columns: number
   rows?:   number
