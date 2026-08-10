@@ -17,7 +17,8 @@ export function InformeCompuestoPage() {
 
   const {
     datos, resumen, titulo, objetivo, departamentoLabel, loading, error,
-    periodosDisponibles, periodoInicio, periodoFin, onPeriodoChange, hayEstimados, ultimaActualizacion,
+    periodosDisponibles, periodoInicio, periodoFin, onPeriodoChange,
+    granularidad, onGranularidadChange, hayEstimados, ultimaActualizacion,
   } = useCompoundReport(departamento, informe)
 
   useDocumentTitle(config ? `Informe ${config.codigo} — ${config.labelCorto}` : 'Informe compuesto')
@@ -42,6 +43,8 @@ export function InformeCompuestoPage() {
       periodoInicio={periodoInicio}
       periodoFin={periodoFin}
       onPeriodoChange={onPeriodoChange}
+      granularidad={granularidad}
+      onGranularidadChange={onGranularidadChange}
       loading={loading}
       error={error}
       sinDatos={!loading && !error && datos.length === 0}

@@ -13,10 +13,11 @@ import type { FilaInforme } from '@packages/reportes/types'
 export function useCompoundReport(departamento: string, informe: string) {
   const [periodoInicio, setPeriodoInicio] = useState<string | null>(null)
   const [periodoFin, setPeriodoFin] = useState<string | null>(null)
+  const [granularidad, setGranularidad] = useState('mes')
 
   const query = useQuery({
-    queryKey: ['reportes', 'compuesto', departamento, informe],
-    queryFn:  () => reportesApi.compuesto(departamento, informe),
+    queryKey: ['reportes', 'compuesto', departamento, informe, granularidad],
+    queryFn:  () => reportesApi.compuesto(departamento, informe, { granularidad }),
   })
 
   const todos: FilaInforme[] = query.data?.datos ?? []
@@ -45,6 +46,16 @@ export function useCompoundReport(departamento: string, informe: string) {
     setPeriodoFin(fin)
   }
 
+  // Cambiar de granularidad cambia el formato del string de período
+  // ('2026-W20' en semana vs '2026-03' en mes, etc.) — un filtro de rango
+  // heredado de la granularidad anterior ya no compara nada sensato, así
+  // que se limpia junto con el cambio.
+  function onGranularidadChange(nueva: string) {
+    setGranularidad(nueva)
+    setPeriodoInicio(null)
+    setPeriodoFin(null)
+  }
+
   return {
     datos,
     resumen: query.data?.resumen ?? {},
@@ -58,6 +69,8 @@ export function useCompoundReport(departamento: string, informe: string) {
     periodoInicio,
     periodoFin,
     onPeriodoChange,
+    granularidad,
+    onGranularidadChange,
     hayEstimados,
     ultimaActualizacion,
   }

@@ -7,21 +7,31 @@ import { genreAccent } from '@shared/lib/genre-colors'
 import styles from './ReportLayout.module.css'
 
 type Props = {
-  titulo:              string
-  departamento:        string
-  codigoInforme:       string
-  codigoObjetivo:      string
-  children:            ReactNode
-  periodosDisponibles: string[]
-  periodoInicio:       string | null
-  periodoFin:          string | null
-  onPeriodoChange:     (inicio: string | null, fin: string | null) => void
-  loading:             boolean
-  error:               string | null
-  sinDatos:            boolean
-  hayEstimados:        boolean
-  ultimaActualizacion: string | null
+  titulo:               string
+  departamento:         string
+  codigoInforme:        string
+  codigoObjetivo:       string
+  children:             ReactNode
+  periodosDisponibles:  string[]
+  periodoInicio:        string | null
+  periodoFin:           string | null
+  onPeriodoChange:      (inicio: string | null, fin: string | null) => void
+  granularidad?:        string
+  onGranularidadChange?: (g: string) => void
+  loading:              boolean
+  error:                string | null
+  sinDatos:             boolean
+  hayEstimados:         boolean
+  ultimaActualizacion:  string | null
 }
+
+const GRANULARIDADES: Array<{ valor: string; label: string }> = [
+  { valor: 'dia',       label: 'Día' },
+  { valor: 'semana',    label: 'Semana' },
+  { valor: 'mes',       label: 'Mes' },
+  { valor: 'trimestre', label: 'Trimestre' },
+  { valor: 'anio',      label: 'Año' },
+]
 
 function fmtFecha(iso: string) {
   const d = new Date(iso)
@@ -36,6 +46,7 @@ function fmtFecha(iso: string) {
 export function ReportLayout({
   titulo, departamento, codigoInforme, codigoObjetivo, children,
   periodosDisponibles, periodoInicio, periodoFin, onPeriodoChange,
+  granularidad, onGranularidadChange,
   loading, error, sinDatos, hayEstimados, ultimaActualizacion,
 }: Props) {
   const colorDepto = genreAccent(departamento)
@@ -58,28 +69,43 @@ export function ReportLayout({
         </div>
         <h1 className={styles.heading}>{titulo}</h1>
 
-        {periodosDisponibles.length > 0 && (
-          <div className={styles.filtros}>
-            <label className={styles.filtroField}>
-              Desde
-              <select
-                value={periodoInicio ?? ''}
-                onChange={(e) => onPeriodoChange(e.target.value || null, periodoFin)}
-              >
-                <option value="">{periodosDisponibles[0]}</option>
-                {periodosDisponibles.map((p) => <option key={p} value={p}>{p}</option>)}
-              </select>
-            </label>
-            <label className={styles.filtroField}>
-              Hasta
-              <select
-                value={periodoFin ?? ''}
-                onChange={(e) => onPeriodoChange(periodoInicio, e.target.value || null)}
-              >
-                <option value="">{periodosDisponibles[periodosDisponibles.length - 1]}</option>
-                {periodosDisponibles.map((p) => <option key={p} value={p}>{p}</option>)}
-              </select>
-            </label>
+        {(periodosDisponibles.length > 0 || onGranularidadChange) && (
+          <div className={styles.filtros} data-pdf-export-ignore="true">
+            {onGranularidadChange && (
+              <label className={styles.filtroField}>
+                Granularidad
+                <select
+                  value={granularidad ?? 'mes'}
+                  onChange={(e) => onGranularidadChange(e.target.value)}
+                >
+                  {GRANULARIDADES.map((g) => <option key={g.valor} value={g.valor}>{g.label}</option>)}
+                </select>
+              </label>
+            )}
+            {periodosDisponibles.length > 0 && (
+              <>
+                <label className={styles.filtroField}>
+                  Desde
+                  <select
+                    value={periodoInicio ?? ''}
+                    onChange={(e) => onPeriodoChange(e.target.value || null, periodoFin)}
+                  >
+                    <option value="">{periodosDisponibles[0]}</option>
+                    {periodosDisponibles.map((p) => <option key={p} value={p}>{p}</option>)}
+                  </select>
+                </label>
+                <label className={styles.filtroField}>
+                  Hasta
+                  <select
+                    value={periodoFin ?? ''}
+                    onChange={(e) => onPeriodoChange(periodoInicio, e.target.value || null)}
+                  >
+                    <option value="">{periodosDisponibles[periodosDisponibles.length - 1]}</option>
+                    {periodosDisponibles.map((p) => <option key={p} value={p}>{p}</option>)}
+                  </select>
+                </label>
+              </>
+            )}
           </div>
         )}
       </header>

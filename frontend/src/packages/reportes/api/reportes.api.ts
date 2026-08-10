@@ -6,10 +6,15 @@ import type { CompoundReportResponse } from '../types'
 // (`/reportes/compuestos/<departamento>/<informe>`) — un solo método
 // parametrizado en vez de 30 funciones idénticas salvo por la URL.
 export const reportesApi = {
-  compuesto: (departamento: string, informe: string, params?: { periodoInicio?: string; periodoFin?: string }) => {
+  compuesto: (
+    departamento: string,
+    informe: string,
+    params?: { periodoInicio?: string; periodoFin?: string; granularidad?: string },
+  ) => {
     const qs = new URLSearchParams()
     if (params?.periodoInicio) qs.set('periodo_inicio', params.periodoInicio)
     if (params?.periodoFin) qs.set('periodo_fin', params.periodoFin)
+    if (params?.granularidad) qs.set('granularidad', params.granularidad)
     const query = qs.toString()
     return apiClient.get<CompoundReportResponse>(
       `/reportes/compuestos/${departamento}/${informe}${query ? `?${query}` : ''}`,
