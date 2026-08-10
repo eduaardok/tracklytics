@@ -22,10 +22,16 @@ docs/BITACORA_S14.md, P3):
 
 S14-P4 (Fase 3): el mapeo monto->plan ya NO filtra `DIM_PLAN WHERE activo=1`
 — un plan retirado sigue teniendo historia de transacciones real y válida;
-excluirlo las hacía desaparecer sin traza. Las transacciones cuyo monto no
-coincide con NINGÚN plan (activo o no) se cuentan explícitamente
-(`transacciones_no_mapeadas`) y ese contador se imprime y se registra en
-`GOLD_ETL_LOG.detalle` siempre — nunca se descartan en silencio.
+excluirlo las hacía desaparecer sin traza.
+
+S14 (P4-P5, Fase 4): un monto que no coincide EXACTO (redondeo, cambio de
+precio a mitad de ciclo, moneda con decimales distintos) ya no se excluye de
+`activos_por_plan`/`conversiones_por_plan` — `resolver_plan()` lo asigna al
+plan cuyo `precio_usd` esté más cerca en valor absoluto. La transacción
+SIEMPRE termina contribuyendo a algún plan si hay al menos uno en `DIM_PLAN`
+(nunca se descarta en silencio); se distingue en `GOLD_ETL_LOG.detalle` y en
+el log cuántas fueron match exacto vs. aproximado por cercanía, más un
+contador aparte para el caso degenerado de `DIM_PLAN` vacío.
 
 Sin período con datos reales, la fila/dimensión simplemente no se escribe —
 `es_estimado` se conserva en el esquema (garantía a futuro) pero vale 0 en
@@ -109,6 +115,27 @@ def run_gold_adquisicion(granularidad: str = "semana") -> None:
         round(float(r["precio_usd"]), 2): r["plan_id"]
         for r in catalog.query("SELECT plan_id, precio_usd FROM DIM_PLAN").named_results()
     }
+    precios_ordenados = sorted(precio_a_plan)
+
+    # Contadores de calidad de mapeo (match exacto vs. aproximado por
+    # cercanía) — se acumulan durante la resolución, no en una pasada aparte.
+    _stats = {"exacto": 0, "aproximado": 0}
+
+    def resolver_plan(monto: float) -> str | None:
+        """Plan de una transacción por su monto: match exacto si existe,
+        si no el de precio_usd más cercano (nunca se descarta la
+        transacción por no calzar centavo a centavo con ningún plan)."""
+        if not precios_ordenados:
+            return None
+        m = round(float(monto), 2)
+        exacto = precio_a_plan.get(m)
+        if exacto is not None:
+            _stats["exacto"] += 1
+            return exacto
+        _stats["aproximado"] += 1
+        mas_cercano = min(precios_ordenados, key=lambda p: abs(p - m))
+        return precio_a_plan[mas_cercano]
+
     transacciones_susc = list(catalog.query(
         f"SELECT usuario_id, monto, periodo_inicio, periodo_fin, fecha FROM FACT_TRANSACCION_PAGO "
         f"WHERE concepto = 'suscripcion' AND estado = 'exitosa' AND monto > 0 "
@@ -118,15 +145,16 @@ def run_gold_adquisicion(granularidad: str = "semana") -> None:
     for t in sorted(transacciones_susc, key=lambda r: r["fecha"]):
         primera_transaccion_por_usuario.setdefault(t["usuario_id"], t)
 
-    # Contador de transacciones cuyo monto no coincide con ningún plan
-    # (activo o retirado) — calculado una sola vez sobre el universo
-    # completo de transacciones, no dentro del loop por período (ahí un
-    # ciclo de facturación largo se contaría varias veces según la
-    # granularidad). Nunca se descarta en silencio: se imprime y se
-    # registra siempre, sea 0 o no.
-    transacciones_no_mapeadas = sum(
-        1 for t in transacciones_susc if round(float(t["monto"]), 2) not in precio_a_plan
-    )
+    # Plan resuelto una sola vez por transacción (por índice, no dentro del
+    # loop por período) — un ciclo de facturación largo se evalúa varias
+    # veces según granularidad si se solapa con varios períodos, y contar el
+    # match ahí duplicaría el conteo de exactos/aproximados según la
+    # granularidad pedida.
+    # Diccionario por identidad de objeto: `primera_transaccion_por_usuario`
+    # comparte las mismas instancias de dict que `transacciones_susc` (mismo
+    # `named_results()`, solo reordenado), así que `id(t)` es una clave
+    # estable para reusar el plan ya resuelto en ambos loops de abajo.
+    plan_por_id = {id(t): resolver_plan(t["monto"]) for t in transacciones_susc}
 
     rows: list[tuple] = []
     for periodo in periodos:
@@ -151,7 +179,7 @@ def run_gold_adquisicion(granularidad: str = "semana") -> None:
         activos_por_plan: dict[str, set] = {}
         for t in transacciones_susc:
             if t["periodo_inicio"] < ff and t["periodo_fin"] >= fi:
-                plan_id = precio_a_plan.get(round(float(t["monto"]), 2))
+                plan_id = plan_por_id.get(id(t))
                 if plan_id:
                     activos_por_plan.setdefault(plan_id, set()).add(t["usuario_id"])
 
@@ -159,7 +187,7 @@ def run_gold_adquisicion(granularidad: str = "semana") -> None:
         conversiones_por_plan: dict[str, int] = {}
         for usuario_id, t in primera_transaccion_por_usuario.items():
             if fi <= t["fecha"].date() < ff:
-                plan_id = precio_a_plan.get(round(float(t["monto"]), 2))
+                plan_id = plan_por_id.get(id(t))
                 if plan_id:
                     conversiones_por_plan[plan_id] = conversiones_por_plan.get(plan_id, 0) + 1
 
@@ -168,9 +196,15 @@ def run_gold_adquisicion(granularidad: str = "semana") -> None:
             conversiones = conversiones_por_plan.get(plan_id, 0)
             rows.append((granularidad, fi, periodo, "", plan_id, 0, conversiones, 0, activos, 0.0, 0))
 
+    sin_plan_alguno = sum(1 for p in plan_por_id.values() if p is None)  # solo si DIM_PLAN está vacío
     write_gold(gold, TABLE, COLUMNS, rows, periodos, granularidad)
-    detalle = f"transacciones_no_mapeadas={transacciones_no_mapeadas}"
-    estado = "advertencia" if transacciones_no_mapeadas > 0 else "ok"
+    detalle = (
+        f"transacciones_plan_exacto={_stats['exacto']} "
+        f"transacciones_plan_aproximado={_stats['aproximado']} "
+        f"transacciones_sin_plan={sin_plan_alguno}"
+    )
+    estado = "advertencia" if (_stats["aproximado"] > 0 or sin_plan_alguno > 0) else "ok"
     log_run(gold, TABLE, periodos, len(rows), time.time() - t0, estado=estado, detalle=detalle, granularidad=granularidad)
     print(f"[{TABLE}] {len(rows)} filas escritas ({len(periodos)} períodos, granularidad={granularidad}). "
-          f"Transacciones de suscripción sin plan mapeado: {transacciones_no_mapeadas}.")
+          f"Transacciones de suscripción: {_stats['exacto']} con match exacto de plan, "
+          f"{_stats['aproximado']} asignadas por precio más cercano, {sin_plan_alguno} sin ningún plan en DIM_PLAN.")
