@@ -128,7 +128,7 @@ export function SesionesActivasPage() {
         </div>
       </div>
 
-      <div className={shell.form}>
+      <div className={shell.form} data-pdf-export-ignore="true">
         <div className={shell.field}>
           <label htmlFor="f-busqueda">Usuario</label>
           <input

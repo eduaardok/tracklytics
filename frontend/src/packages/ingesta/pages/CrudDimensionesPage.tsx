@@ -215,7 +215,7 @@ export function CrudDimensionesPage() {
         <ExportPDFButton targetRef={reportRef} fileName="dimensiones-catalogo" title="Dimensiones del catálogo" />
       </div>
 
-      <div className={styles.controls}>
+      <div className={styles.controls} data-pdf-export-ignore="true">
         <div className={styles.field}>
           <label className={styles.label}>Tabla</label>
           <select className={styles.input} value={table} onChange={(e) => changeTable(e.target.value)}>
@@ -255,7 +255,7 @@ export function CrudDimensionesPage() {
       {deleteError && <p className={styles.errorText}>{deleteError}</p>}
 
       {formMode === 'create' && (
-        <div className={styles.panel} style={{ marginBottom: 'var(--space-md)' }}>
+        <div className={styles.panel} style={{ marginBottom: 'var(--space-md)' }} data-pdf-export-ignore="true">
           <DimForm
             fields={fields}
             initial={rows[0] ?? {}}
@@ -270,7 +270,7 @@ export function CrudDimensionesPage() {
       )}
 
       {formMode === 'edit' && editingRow && (
-        <div className={styles.panel} style={{ marginBottom: 'var(--space-md)' }}>
+        <div className={styles.panel} style={{ marginBottom: 'var(--space-md)' }} data-pdf-export-ignore="true">
           <DimForm
             fields={fields}
             initial={editingRow}
@@ -323,7 +323,7 @@ export function CrudDimensionesPage() {
           </div>
           <div className={styles.pagination}>
             <span className={styles.paginationInfo}>{total} registros · página {page}</span>
-            <div className={styles.paginationBtns}>
+            <div className={styles.paginationBtns} data-pdf-export-ignore="true">
               <button type="button" className={styles.btnGhostSm} disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>← Anterior</button>
               <button type="button" className={styles.btnGhostSm} disabled={page * PAGE_LIMIT >= total} onClick={() => setPage((p) => p + 1)}>Siguiente →</button>
             </div>

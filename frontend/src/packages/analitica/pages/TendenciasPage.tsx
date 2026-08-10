@@ -120,7 +120,7 @@ export function TendenciasPage() {
         {data.length > 0 ? `// ${data.length} semanas` : '// serie temporal por load_week'}
       </span>
 
-      <form className={styles.filterRow} onSubmit={applyRange} noValidate>
+      <form className={styles.filterRow} onSubmit={applyRange} noValidate data-pdf-export-ignore="true">
         <div className={styles.filterField}>
           <label className={styles.filterLabel} htmlFor="semana-desde">Semana desde</label>
           <input

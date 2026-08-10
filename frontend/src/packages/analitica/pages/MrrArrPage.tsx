@@ -41,7 +41,7 @@ export function MrrArrPage() {
       </div>
       <span className={styles.subtitle}>// ingreso recurrente mensual y proyección anual</span>
 
-      <div className={styles.filters}>
+      <div className={styles.filters} data-pdf-export-ignore="true">
         <label className={styles.field}>
           <span className={styles.fieldLabel}>Desde</span>
           <input type="date" className={styles.input} value={desde} onChange={(e) => setDesde(e.target.value)} />

@@ -46,13 +46,14 @@ export function ReembolsosTab() {
       <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 'var(--space-sm)' }}>
         <ExportPDFButton targetRef={reportRef} fileName="finanzas-reembolsos" title="Finanzas — Reembolsos" />
       </div>
-      <p className={styles.sectionLabel}>Procesar reembolso</p>
+      <p className={styles.sectionLabel} data-pdf-export-ignore="true">Procesar reembolso</p>
       <form
         className={styles.form}
         onSubmit={(e) => {
           e.preventDefault()
           if (form.transaccion_id.trim() && form.monto > 0) procesar.mutate()
         }}
+        data-pdf-export-ignore="true"
       >
         <div className={styles.field} style={{ minWidth: 240 }}>
           <label className={styles.fieldLabel} htmlFor="reemb-tx">ID de transacción</label>
@@ -81,7 +82,7 @@ export function ReembolsosTab() {
         <p className={styles.bannerError}>{apiErrorMessage(procesar.error, 'No se pudo procesar el reembolso — revisa el saldo disponible de la transacción.')}</p>
       )}
 
-      <form className={styles.form} onSubmit={(e) => e.preventDefault()}>
+      <form className={styles.form} onSubmit={(e) => e.preventDefault()} data-pdf-export-ignore="true">
         <div className={styles.field}>
           <label className={styles.fieldLabel} htmlFor="reemb-desde">Historial desde</label>
           <input id="reemb-desde" type="date" className={styles.input} value={desde} onChange={(e) => setDesde(e.target.value)} />

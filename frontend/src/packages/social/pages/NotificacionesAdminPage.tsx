@@ -81,7 +81,7 @@ export function NotificacionesAdminPage() {
         </div>
       </div>
 
-      <div className={styles.form}>
+      <div className={styles.form} data-pdf-export-ignore="true">
         <div className={styles.field}>
           <label className={styles.fieldLabel} htmlFor="f-tipo">Tipo</label>
           <select id="f-tipo" className={styles.select} value={tipo} onChange={(e) => setTipo(e.target.value)}>

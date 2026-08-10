@@ -81,10 +81,11 @@ export function LicenciasTab() {
       <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 'var(--space-sm)' }}>
         <ExportPDFButton targetRef={reportRef} fileName="distribucion-licencias" title="Distribución — Licencias" />
       </div>
-      <p className={styles.sectionLabel}>Nueva licencia</p>
+      <p className={styles.sectionLabel} data-pdf-export-ignore="true">Nueva licencia</p>
       <form
         className={styles.form}
         onSubmit={(e) => { e.preventDefault(); if (selloId && paisId && fechaInicio) crear.mutate() }}
+        data-pdf-export-ignore="true"
       >
         <div className={styles.field}>
           <label className={styles.fieldLabel} htmlFor="lic-sello">Sello</label>
@@ -114,7 +115,7 @@ export function LicenciasTab() {
       </form>
 
       <p className={styles.sectionLabel}>Licencias</p>
-      <div className={styles.form} style={{ marginBottom: 'var(--space-md)' }}>
+      <div className={styles.form} style={{ marginBottom: 'var(--space-md)' }} data-pdf-export-ignore="true">
         <div className={styles.field}>
           <label className={styles.fieldLabel} htmlFor="filtro-sello">Filtrar por sello</label>
           <select id="filtro-sello" className={styles.select} value={filtroSello} onChange={(e) => setFiltroSello(e.target.value)}>

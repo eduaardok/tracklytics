@@ -68,12 +68,14 @@ export function RestriccionesTab() {
       <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 'var(--space-sm)' }}>
         <ExportPDFButton targetRef={reportRef} fileName="distribucion-restricciones" title="Distribución — Restricciones geográficas" />
       </div>
-      <TrackPicker
-        label="Track"
-        selected={track}
-        onSelect={setTrack}
-        onClear={() => setTrack(null)}
-      />
+      <div data-pdf-export-ignore="true">
+        <TrackPicker
+          label="Track"
+          selected={track}
+          onSelect={setTrack}
+          onClear={() => setTrack(null)}
+        />
+      </div>
 
       {consultado !== null && (
         <>
@@ -81,6 +83,7 @@ export function RestriccionesTab() {
           <form
             className={styles.form}
             onSubmit={(e) => { e.preventDefault(); if (paisId && canalId && tipoRestriccionId) crear.mutate() }}
+            data-pdf-export-ignore="true"
           >
             <div className={styles.field}>
               <label className={styles.fieldLabel} htmlFor="res-pais">País</label>

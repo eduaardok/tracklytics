@@ -105,14 +105,14 @@ export function AdminPartnersPage() {
             <p className={styles.keyHint}>Cópiala ahora — no se puede recuperar después.</p>
             <code className={styles.keyValue}>{revealKey.key}</code>
           </div>
-          <div className={styles.keyActions}>
+          <div className={styles.keyActions} data-pdf-export-ignore="true">
             <button className={styles.btnGhost} onClick={() => { navigator.clipboard?.writeText(revealKey.key); toast.success('Key copiada') }}>Copiar</button>
             <button className={styles.btnGhost} onClick={() => setRevealKey(null)}>Ocultar</button>
           </div>
         </div>
       )}
 
-      <div className={styles.form} style={{ marginBottom: 'var(--space-md)' }}>
+      <div className={styles.form} style={{ marginBottom: 'var(--space-md)' }} data-pdf-export-ignore="true">
         <div className={styles.field}>
           <label className={styles.fieldLabel} htmlFor="f-tier">Tier</label>
           <select id="f-tier" className={styles.select} value={filtroTier} onChange={(e) => setFiltroTier(e.target.value)}>

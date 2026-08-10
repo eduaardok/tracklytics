@@ -248,8 +248,8 @@ export function EtlPage() {
         </div>
       )}
 
-      <p className={styles.sectionLabel}>Disparar ingesta</p>
-      <div className={styles.panel}>
+      <p className={styles.sectionLabel} data-pdf-export-ignore="true">Disparar ingesta</p>
+      <div className={styles.panel} data-pdf-export-ignore="true">
         <div className={styles.formRow}>
           <div className={styles.field}>
             <label className={styles.label} htmlFor="week-number">Semana</label>
@@ -308,7 +308,7 @@ export function EtlPage() {
           Corrige en bloque álbumes/artistas con año o país sin informar y tracks (no reales) cuyo
           perfil de audio no es coherente con su género — nunca toca el catálogo de origen.
         </p>
-        <div className={styles.formRow}>
+        <div className={styles.formRow} data-pdf-export-ignore="true">
           <button type="button" className={styles.btnPrimary} disabled={recalTriggering} onClick={handleRecalificar}>
             {recalTriggering ? 'Disparando…' : 'Recalificar catálogo'}
           </button>
@@ -385,6 +385,7 @@ export function EtlPage() {
             aria-label="Semana"
             value={displayedWeek ?? ''}
             onChange={(e) => setSelectedWeek(Number(e.target.value))}
+            data-pdf-export-ignore="true"
           >
             {weekOptions.map((w) => <option key={w} value={w}>Semana {w}</option>)}
           </select>

@@ -208,7 +208,7 @@ export function PublicidadAdminPage() {
         <ExportPDFButton targetRef={reportRef} fileName="publicidad" title="Publicidad" />
       </div>
 
-      <div className={styles.tabBar} role="tablist" aria-label="Secciones de publicidad">
+      <div className={styles.tabBar} role="tablist" aria-label="Secciones de publicidad" data-pdf-export-ignore="true">
         {TABS.map((t) => (
           <button
             key={t.id}
@@ -257,7 +257,7 @@ export function PublicidadAdminPage() {
             <MiniDonutChart data={donutCampanas} />
           </div>
 
-          <div className={styles.form}>
+          <div className={styles.form} data-pdf-export-ignore="true">
             <div className={styles.field}>
               <label className={styles.fieldLabel} htmlFor="f-estado">Estado</label>
               <select id="f-estado" className={styles.select} value={filtroEstadoCampana} onChange={(e) => setFiltroEstadoCampana(e.target.value)}>
@@ -368,7 +368,7 @@ export function PublicidadAdminPage() {
             </div>
           </div>
 
-          <div className={styles.actionsRow}>
+          <div className={styles.actionsRow} data-pdf-export-ignore="true">
             <button type="button" className={styles.btnPrimary} onClick={() => setAnuncianteModal({ mode: 'create' })}>
               + Nuevo anunciante
             </button>

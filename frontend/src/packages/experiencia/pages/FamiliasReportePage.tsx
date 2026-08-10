@@ -72,7 +72,7 @@ export function FamiliasReportePage() {
         </div>
       </div>
 
-      <div className={styles.form}>
+      <div className={styles.form} data-pdf-export-ignore="true">
         <div className={styles.field}>
           <label className={styles.fieldLabel} htmlFor="f-plan">Plan</label>
           <select id="f-plan" className={styles.select} value={plan} onChange={(e) => setPlan(e.target.value)}>

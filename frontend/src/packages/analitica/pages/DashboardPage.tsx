@@ -1,8 +1,10 @@
+import { useRef } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { MiniLineChart } from '@shared/components/charts/MiniLineChart'
 import { MiniBarChart, type BarDatum } from '@shared/components/charts/MiniBarChart'
 import { CHART_COLORS } from '@shared/components/charts/colors'
+import { ExportPDFButton } from '@shared/components/ExportPDFButton'
 import { analiticaApi } from '../api/analitica.api'
 import styles from './DashboardPage.module.css'
 
@@ -55,6 +57,7 @@ function DashboardSkeleton() {
 
 export function DashboardPage() {
   useDocumentTitle('Dashboard')
+  const pageRef = useRef<HTMLElement>(null)
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['analytics', 'dashboard'],
     queryFn: analiticaApi.dashboard,
@@ -66,7 +69,7 @@ export function DashboardPage() {
     return (
       <section>
         <h1 className={styles.heading}>Dashboard</h1>
-        <button onClick={() => refetch()} style={{ marginTop: 16 }}>
+        <button className={styles.retryBtn} onClick={() => refetch()} style={{ marginTop: 16 }}>
           Reintentar
         </button>
       </section>
@@ -100,8 +103,13 @@ export function DashboardPage() {
   const restriccionesData: BarDatum[] = reproducciones_bloqueadas_por_pais.map((r) => ({ name: r.pais, value: r.total }))
 
   return (
-    <section>
-      <h1 className={styles.heading}>Dashboard</h1>
+    <section ref={pageRef}>
+      <div className={styles.headTop}>
+        <h1 className={styles.heading}>Dashboard</h1>
+        <span className={styles.exportSlot}>
+          <ExportPDFButton targetRef={pageRef} fileName="dashboard-ejecutivo" title="Dashboard ejecutivo" />
+        </span>
+      </div>
       <span className={styles.subtitle}>{subtitle}</span>
 
       {/* ── Top row: catalog scale + audio averages ── */}

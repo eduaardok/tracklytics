@@ -92,10 +92,11 @@ export function FamiliaAdminPage() {
         <ExportPDFButton targetRef={reportRef} fileName="plan-familiar" title="Plan familiar" />
       </div>
 
-      <p className={styles.sectionLabel}>Designar titular</p>
+      <p className={styles.sectionLabel} data-pdf-export-ignore="true">Designar titular</p>
       <form
         className={styles.form}
         onSubmit={(e) => { e.preventDefault(); setMsg(null); if (titularUser) crearTitular.mutate() }}
+        data-pdf-export-ignore="true"
       >
         <UserPicker
           label="Usuario"
@@ -109,8 +110,8 @@ export function FamiliaAdminPage() {
       </form>
       {msg && <div className={msg.tipo === 'error' ? styles.bannerError : styles.bannerOk} role="status">{msg.texto}</div>}
 
-      <p className={styles.sectionLabel}>Ver / gestionar plan por titular</p>
-      <form className={styles.form} onSubmit={(e) => e.preventDefault()}>
+      <p className={styles.sectionLabel} data-pdf-export-ignore="true">Ver / gestionar plan por titular</p>
+      <form className={styles.form} onSubmit={(e) => e.preventDefault()} data-pdf-export-ignore="true">
         <UserPicker
           label="Usuario titular"
           selected={buscarTitular}
@@ -167,6 +168,7 @@ export function FamiliaAdminPage() {
             <form
               className={styles.form}
               onSubmit={(e) => { e.preventDefault(); if (miembroUser) agregarMiembro.mutate() }}
+              data-pdf-export-ignore="true"
             >
               <UserPicker
                 label="Agregar miembro — usuario"

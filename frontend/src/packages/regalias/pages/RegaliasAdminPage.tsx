@@ -171,8 +171,8 @@ export function RegaliasAdminPage() {
         <ExportPDFButton targetRef={reportRef} fileName="regalias-admin" title="Regalías" />
       </div>
 
-      <p className={styles.sectionLabel}>Nuevo productor</p>
-      <form className={styles.form} onSubmit={(e) => { e.preventDefault(); if (nombreProductor.trim()) crearProductor.mutate() }}>
+      <p className={styles.sectionLabel} data-pdf-export-ignore="true">Nuevo productor</p>
+      <form className={styles.form} onSubmit={(e) => { e.preventDefault(); if (nombreProductor.trim()) crearProductor.mutate() }} data-pdf-export-ignore="true">
         <div className={styles.field}>
           <label className={styles.fieldLabel} htmlFor="prod-nombre">Nombre</label>
           <input id="prod-nombre" className={styles.input} value={nombreProductor} onChange={(e) => setNombreProductor(e.target.value)} placeholder="Nombre del productor" />
@@ -182,8 +182,8 @@ export function RegaliasAdminPage() {
         </button>
       </form>
 
-      <p className={styles.sectionLabel}>Asignar productor a un track</p>
-      <form className={styles.form} onSubmit={(e) => { e.preventDefault(); if (productorAsignarId && trackAsignar) asignarProductor.mutate() }}>
+      <p className={styles.sectionLabel} data-pdf-export-ignore="true">Asignar productor a un track</p>
+      <form className={styles.form} onSubmit={(e) => { e.preventDefault(); if (productorAsignarId && trackAsignar) asignarProductor.mutate() }} data-pdf-export-ignore="true">
         <div className={styles.field}>
           <label className={styles.fieldLabel} htmlFor="prod-asignar">Productor</label>
           <select id="prod-asignar" className={styles.select} value={productorAsignarId} onChange={(e) => setProductorAsignarId(e.target.value)}>
@@ -197,8 +197,8 @@ export function RegaliasAdminPage() {
         </button>
       </form>
 
-      <p className={styles.sectionLabel}>Nueva cuenta de sello</p>
-      <form className={styles.form} onSubmit={(e) => { e.preventDefault(); if (usuarioSello && selloParaCuenta) crearCuentaSello.mutate() }}>
+      <p className={styles.sectionLabel} data-pdf-export-ignore="true">Nueva cuenta de sello</p>
+      <form className={styles.form} onSubmit={(e) => { e.preventDefault(); if (usuarioSello && selloParaCuenta) crearCuentaSello.mutate() }} data-pdf-export-ignore="true">
         <UserPicker label="Usuario" selected={usuarioSello} onSelect={setUsuarioSello} onClear={() => setUsuarioSello(null)} />
         <div className={styles.field}>
           <label className={styles.fieldLabel} htmlFor="sello-cuenta">Sello</label>
@@ -213,8 +213,8 @@ export function RegaliasAdminPage() {
       </form>
       {crearCuentaSello.isError && <p className={styles.bannerError}>No se pudo crear la cuenta de sello.</p>}
 
-      <p className={styles.sectionLabel}>Nuevo contrato de reparto</p>
-      <form className={styles.form} onSubmit={(e) => { e.preventDefault(); if (trackContrato) crearContrato.mutate() }}>
+      <p className={styles.sectionLabel} data-pdf-export-ignore="true">Nuevo contrato de reparto</p>
+      <form className={styles.form} onSubmit={(e) => { e.preventDefault(); if (trackContrato) crearContrato.mutate() }} data-pdf-export-ignore="true">
         <TrackPicker label="Track" selected={trackContrato} onSelect={setTrackContrato} onClear={() => setTrackContrato(null)} />
         <div className={styles.field}>
           <label className={styles.fieldLabel} htmlFor="ctr-sello">Sello</label>
@@ -303,8 +303,8 @@ export function RegaliasAdminPage() {
 
       {contratoSeleccionado && <HistorialContratoDetalle contratoId={contratoSeleccionado} />}
 
-      <p className={styles.sectionLabel} style={{ marginTop: 'var(--space-xl)' }}>Liquidar un período</p>
-      <form className={styles.form} onSubmit={(e) => { e.preventDefault(); liquidar.mutate() }}>
+      <p className={styles.sectionLabel} style={{ marginTop: 'var(--space-xl)' }} data-pdf-export-ignore="true">Liquidar un período</p>
+      <form className={styles.form} onSubmit={(e) => { e.preventDefault(); liquidar.mutate() }} data-pdf-export-ignore="true">
         <div className={styles.field}>
           <label className={styles.fieldLabel} htmlFor="liq-inicio">Desde</label>
           <input id="liq-inicio" className={styles.input} type="date" value={periodoInicio} onChange={(e) => setPeriodoInicio(e.target.value)} />

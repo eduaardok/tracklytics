@@ -57,7 +57,7 @@ export function AdminSuscripcionesPage() {
       </div>
       <p className={styles.intro}>Todas las suscripciones de usuarios. Filtra, revisa el historial de cobros, cancela por incidencia o extiende como cortesía.</p>
 
-      <div className={styles.filters}>
+      <div className={styles.filters} data-pdf-export-ignore="true">
         <div className={styles.field}>
           <label className={styles.fieldLabel} htmlFor="f-estado">Estado</label>
           <select id="f-estado" className={styles.select} value={estado} onChange={(e) => { setEstado(e.target.value); setPage(1) }}>
@@ -119,7 +119,7 @@ export function AdminSuscripcionesPage() {
         </table>
       </div>
 
-      <div className={styles.pager}>
+      <div className={styles.pager} data-pdf-export-ignore="true">
         <button className={styles.btnGhost} disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>Anterior</button>
         <span className={styles.pagerLabel}>Página {page} de {totalPages}</span>
         <button className={styles.btnGhost} disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>Siguiente</button>

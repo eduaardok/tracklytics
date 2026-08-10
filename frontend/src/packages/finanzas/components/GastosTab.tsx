@@ -104,7 +104,7 @@ export function GastosTab() {
         </div>
       </div>
 
-      <p className={styles.sectionLabel}>{editandoId ? 'Editar gasto' : 'Registrar gasto operativo'}</p>
+      <p className={styles.sectionLabel} data-pdf-export-ignore="true">{editandoId ? 'Editar gasto' : 'Registrar gasto operativo'}</p>
       <form
         className={styles.form}
         onSubmit={(e) => {
@@ -112,6 +112,7 @@ export function GastosTab() {
           if (!form.concepto.trim() || form.monto <= 0) return
           editandoId ? editar.mutate() : crear.mutate()
         }}
+        data-pdf-export-ignore="true"
       >
         <div className={styles.field}>
           <label className={styles.fieldLabel} htmlFor="gasto-concepto">Concepto</label>
@@ -142,7 +143,7 @@ export function GastosTab() {
       </form>
       {(crear.isError || editar.isError) && <p className={styles.bannerError}>No se pudo guardar el gasto — revisa el monto y el concepto.</p>}
 
-      <div className={styles.form} style={{ marginBottom: 'var(--space-md)' }}>
+      <div className={styles.form} style={{ marginBottom: 'var(--space-md)' }} data-pdf-export-ignore="true">
         <div className={styles.field}>
           <label className={styles.fieldLabel} htmlFor="gasto-filtro-cat">Filtrar por categoría</label>
           <select id="gasto-filtro-cat" className={styles.select} value={filtroCategoria} onChange={(e) => setFiltroCategoria(e.target.value)}>

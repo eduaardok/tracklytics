@@ -86,7 +86,7 @@ export function StrikesGlobalPage() {
         </div>
       </div>
 
-      <div className={shell.form}>
+      <div className={shell.form} data-pdf-export-ignore="true">
         <div className={shell.field}>
           <label htmlFor="f-origen">Origen</label>
           <select id="f-origen" value={origen} onChange={(e) => setOrigen(e.target.value)}>

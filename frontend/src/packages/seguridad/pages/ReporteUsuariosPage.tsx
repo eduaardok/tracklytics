@@ -119,7 +119,7 @@ export function ReporteUsuariosPage() {
         </div>
       </div>
 
-      <div className={shell.form}>
+      <div className={shell.form} data-pdf-export-ignore="true">
         <div className={shell.field}>
           <label htmlFor="f-pais">País</label>
           <select id="f-pais" value={pais} onChange={(e) => setPais(e.target.value)}>

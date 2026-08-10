@@ -107,7 +107,7 @@ export function UsuariosAdminPage() {
       <div className={styles.layout}>
         {/* ── Columna izquierda: filtros + listado ── */}
         <div>
-          <div className={shell.form}>
+          <div className={shell.form} data-pdf-export-ignore="true">
             <div className={shell.field}>
               <label htmlFor="f-rol">Rol</label>
               <select id="f-rol" value={rol} onChange={(e) => { setRol(e.target.value); setPage(1) }}>
@@ -164,7 +164,7 @@ export function UsuariosAdminPage() {
           </div>
 
           {totalPages > 1 && (
-            <div className={shell.form} style={{ marginTop: 'var(--space-md)', alignItems: 'center' }}>
+            <div className={shell.form} style={{ marginTop: 'var(--space-md)', alignItems: 'center' }} data-pdf-export-ignore="true">
               <button className={styles.ghostBtn} type="button" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
                 ← Anterior
               </button>
@@ -194,7 +194,7 @@ export function UsuariosAdminPage() {
             </div>
 
             {/* Estado de cuenta */}
-            <div className={styles.actionRow}>
+            <div className={styles.actionRow} data-pdf-export-ignore="true">
               {d.perfil.estado_cuenta === 'activa' ? (
                 <button className={styles.dangerBtn} type="button" disabled={suspender.isPending}
                         onClick={() => suspender.mutate()}>
@@ -224,7 +224,7 @@ export function UsuariosAdminPage() {
                   </span>
                 ))}
               </div>
-              <div className={styles.actionRow} style={{ marginTop: 'var(--space-xs)' }}>
+              <div className={styles.actionRow} style={{ marginTop: 'var(--space-xs)' }} data-pdf-export-ignore="true">
                 <div className={shell.field}>
                   <label htmlFor="nuevo-rol">Asignar rol</label>
                   <select id="nuevo-rol" value={nuevoRol} onChange={(e) => setNuevoRol(e.target.value)}

@@ -1,6 +1,16 @@
 .page { /* fills the AppShell content container */ }
 
 /* ── Page header ── */
+.headTop {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.exportSlot {
+  margin-left: auto;
+}
+
 .heading {
   font-family: var(--font-sans);
   font-size: 1.5rem;
@@ -199,6 +209,27 @@
 
 @media (prefers-reduced-motion: reduce) {
   .skel { animation: none; opacity: 0.5; }
+}
+
+/* ── Retry button (error state) — mismo patrón que EngagementPage.retryBtn */
+.retryBtn {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  font-weight: 400;
+  color: var(--color-ink);
+  background: transparent;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 4px var(--space-sm);
+  cursor: pointer;
+  transition:
+    border-color var(--duration-fast) var(--ease-standard),
+    background-color var(--duration-fast) var(--ease-standard);
+}
+
+.retryBtn:hover {
+  border-color: var(--color-muted);
+  background-color: var(--color-surface-raised);
 }
 
 /* ── Responsive ── */

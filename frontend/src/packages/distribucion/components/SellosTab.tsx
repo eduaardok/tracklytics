@@ -75,10 +75,11 @@ export function SellosTab() {
       <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 'var(--space-sm)' }}>
         <ExportPDFButton targetRef={reportRef} fileName="distribucion-sellos" title="Distribución — Sellos" />
       </div>
-      <p className={styles.sectionLabel}>Nuevo sello</p>
+      <p className={styles.sectionLabel} data-pdf-export-ignore="true">Nuevo sello</p>
       <form
         className={styles.form}
         onSubmit={(e) => { e.preventDefault(); if (nombre.trim()) crear.mutate() }}
+        data-pdf-export-ignore="true"
       >
         <div className={styles.field}>
           <label className={styles.fieldLabel} htmlFor="sello-nombre">Nombre</label>
@@ -179,11 +180,12 @@ export function SellosTab() {
         )}
       </div>
 
-      <p className={styles.sectionLabel}>Asignar sello a artista o álbum</p>
+      <p className={styles.sectionLabel} data-pdf-export-ignore="true">Asignar sello a artista o álbum</p>
       <form
         className={styles.form}
         onSubmit={(e) => { e.preventDefault(); setAsignarMsg(null); asignar.mutate() }}
         noValidate
+        data-pdf-export-ignore="true"
       >
         <div className={styles.field}>
           <label className={styles.fieldLabel} htmlFor="asignar-sello">Sello</label>

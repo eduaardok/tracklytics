@@ -101,7 +101,7 @@ export function TicketsAdminPage() {
         <h1 className={styles.heading}>Soporte — administración</h1>
         <div style={{ display: 'flex', gap: 'var(--space-sm)' }}>
           <ExportPDFButton targetRef={reportRef} fileName="soporte-tickets" title="Soporte — administración" />
-          <button type="button" className={styles.btnPrimary} onClick={() => setModal({ mode: 'create' })}>
+          <button type="button" className={styles.btnPrimary} onClick={() => setModal({ mode: 'create' })} data-pdf-export-ignore="true">
             + Nuevo ticket
           </button>
         </div>
@@ -128,7 +128,7 @@ export function TicketsAdminPage() {
       <div className={styles.queuePanel}>
         <div className={styles.queueHeader}>
           <span className={styles.queueTitle}>Tickets ({data.length})</span>
-          <div className={styles.queueFilters}>
+          <div className={styles.queueFilters} data-pdf-export-ignore="true">
             {FILTROS.map((f) => (
               <button
                 key={f.value}

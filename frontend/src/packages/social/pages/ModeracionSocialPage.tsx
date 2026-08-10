@@ -102,7 +102,7 @@ export function ModeracionSocialPage() {
       <div className={styles.queuePanel}>
         <div className={styles.queueHeader}>
           <span className={styles.queueTitle}>Comentarios ({data.length})</span>
-          <div className={styles.queueFilters}>
+          <div className={styles.queueFilters} data-pdf-export-ignore="true">
             {FILTROS.map((f) => (
               <button
                 key={f.value}
@@ -222,7 +222,7 @@ function DenunciasPanel() {
     <div className={styles.queuePanel} style={{ marginTop: 'var(--space-xl)' }}>
       <div className={styles.queueHeader}>
         <span className={styles.queueTitle}>Denuncias ({denuncias.data?.total ?? 0})</span>
-        <div className={styles.queueFilters}>
+        <div className={styles.queueFilters} data-pdf-export-ignore="true">
           {DEN_FILTROS.map((f) => (
             <button key={f.value} className={`${styles.filterChip} ${estado === f.value ? styles['filterChip--active'] : ''}`} onClick={() => setEstado(f.value)}>
               {f.label}

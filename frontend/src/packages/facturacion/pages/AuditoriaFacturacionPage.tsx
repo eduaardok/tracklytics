@@ -118,7 +118,7 @@ export function AuditoriaFacturacionPage() {
         </div>
       </div>
 
-      <div className={styles.searchForm}>
+      <div className={styles.searchForm} data-pdf-export-ignore="true">
         <UserPicker
           label="Usuario"
           selected={selectedUser}

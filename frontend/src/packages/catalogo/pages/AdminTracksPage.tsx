@@ -67,7 +67,7 @@ export function AdminTracksPage() {
       <p className={styles.intro}>Oculta un track del catálogo público (DMCA, error editorial) o restaura uno retirado. El track nunca se borra: solo cambia su disponibilidad.</p>
 
       <p className={styles.sectionLabel}>Buscar un track para ocultar</p>
-      <form className={styles.searchBar} onSubmit={(e) => { e.preventDefault(); setBuscado(q) }}>
+      <form className={styles.searchBar} onSubmit={(e) => { e.preventDefault(); setBuscado(q) }} data-pdf-export-ignore="true">
         <input className={styles.input} value={q} onChange={(e) => setQ(e.target.value)} placeholder="Nombre del track o artista…" aria-label="Buscar track" />
         <button type="submit" className={styles.btnPrimary} disabled={!q.trim()}>Buscar</button>
       </form>

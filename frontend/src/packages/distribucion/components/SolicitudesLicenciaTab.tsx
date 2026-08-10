@@ -119,6 +119,7 @@ export function SolicitudesLicenciaTab() {
       <form
         className={styles.form}
         onSubmit={(e) => { e.preventDefault(); if (puedeCrear) crear.mutate() }}
+        data-pdf-export-ignore="true"
       >
         <div className={styles.field}>
           <label className={styles.fieldLabel} htmlFor="sol-sello">Sello</label>
@@ -242,8 +243,8 @@ export function SolicitudesLicenciaTab() {
         )}
       </div>
 
-      <p className={styles.sectionLabel}>Ver solicitudes de un sello</p>
-      <div className={styles.form} style={{ marginBottom: 'var(--space-md)' }}>
+      <p className={styles.sectionLabel} data-pdf-export-ignore="true">Ver solicitudes de un sello</p>
+      <div className={styles.form} style={{ marginBottom: 'var(--space-md)' }} data-pdf-export-ignore="true">
         <div className={styles.field}>
           <label className={styles.fieldLabel} htmlFor="sol-sello-consulta">Sello</label>
           <select id="sol-sello-consulta" className={styles.select} value={selloConsultado} onChange={(e) => setSelloConsultado(e.target.value)}>
