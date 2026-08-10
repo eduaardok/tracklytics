@@ -70,6 +70,10 @@ const PnlPage                 = lazyNamed(() => import('@packages/analitica/page
 const MrrArrPage              = lazyNamed(() => import('@packages/analitica/pages/MrrArrPage'), 'MrrArrPage')
 const ProyeccionGeneroPage    = lazyNamed(() => import('@packages/analitica/pages/ProyeccionGeneroPage'), 'ProyeccionGeneroPage')
 const ProyeccionArtistaPage   = lazyNamed(() => import('@packages/analitica/pages/ProyeccionArtistaPage'), 'ProyeccionArtistaPage')
+// Balanced Scorecard estratégico (S14-FINAL) — mismo árbol y mismo criterio
+// de gating que reporte-diario/churn/funnel-conversion/pnl/mrr-arr (solo
+// staff, `require_staff` en backend).
+const BalancedScorecardPage   = lazyNamed(() => import('@packages/analitica/pages/BalancedScorecardPage'), 'BalancedScorecardPage')
 const TopTracksPlaylistsPage  = lazyNamed(() => import('@packages/experiencia/pages/TopTracksPlaylistsPage'), 'TopTracksPlaylistsPage')
 
 // `ingesta/DataQualityPage` también usa Recharts (donut de distribución por
@@ -207,6 +211,7 @@ export const router = createBrowserRouter([
       { path: 'funnel-conversion',      element: <RequireAuth roles={['admin']}><FunnelConversionPage /></RequireAuth> },
       { path: 'pnl',                    element: <RequireAuth roles={['admin']}><PnlPage /></RequireAuth> },
       { path: 'mrr-arr',                element: <RequireAuth roles={['admin']}><MrrArrPage /></RequireAuth> },
+      { path: 'bsc',                    element: <RequireAuth roles={['admin']}><BalancedScorecardPage /></RequireAuth> },
       { path: 'partners',               element: <ComingSoonPage section="Partners" description="Rendimiento por partner, SLA de entrega y cobertura de catálogo." /> },
       // CU-O55 (completar-modelo-base): reemplaza el placeholder — FACT_DISPONIBILIDAD ya existe.
       // No confundir con `/distribucion/disponibilidad` (restricción geográfica de reproducción).

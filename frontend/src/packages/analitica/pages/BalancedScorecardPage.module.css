@@ -1,0 +1,127 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+}
+
+.headTop {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-md);
+  flex-wrap: wrap;
+}
+
+.heading {
+  font-family: var(--font-sans);
+  font-size: 1.75rem;
+  font-weight: 600;
+  color: var(--color-ink);
+}
+
+.subtitle {
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  color: var(--color-muted);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--space-lg);
+}
+
+@media (max-width: 900px) {
+  .grid { grid-template-columns: 1fr; }
+}
+
+.card {
+  composes: card-glass from global;
+  padding: var(--space-lg);
+}
+
+.cardTitle {
+  font-family: var(--font-sans);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: var(--color-primary-light);
+  margin-bottom: var(--space-md);
+}
+
+.kpiList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+.kpiRow {
+  display: flex;
+  gap: var(--space-sm);
+}
+
+.semaforo {
+  flex-shrink: 0;
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-pill);
+  margin-top: 6px;
+}
+
+.kpiBody {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.kpiHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-sm);
+}
+
+.kpiLabel {
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+  color: var(--color-ink);
+}
+
+.kpiValue {
+  font-family: var(--font-mono);
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--color-ink);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.progressTrack {
+  height: 4px;
+  border-radius: var(--radius-pill);
+  background: rgba(139, 92, 246, 0.1);
+  overflow: hidden;
+}
+
+.progressFill {
+  width: 100%;
+  height: 100%;
+  border-radius: var(--radius-pill);
+  transform-origin: left;
+  transition: transform var(--duration-deliberate) var(--ease-standard);
+}
+
+.kpiFoot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+}
+
+.metaLabel {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  color: var(--color-muted);
+}

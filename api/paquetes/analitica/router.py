@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Path, Query
 
 from core.cache import cached
 from core.database import query_one, query_rows
+from paquetes.analitica.bsc import bsc_resumen
 from paquetes.analitica.deps import require_b2b_panel_access, require_staff, require_tier
 from paquetes.analitica.proyeccion import clasificar_trayectoria, proyectar_serie
 from paquetes.analitica.queries import (
@@ -589,3 +590,15 @@ async def v1_mrr_arr(desde: date = Query(...), hasta: date = Query(...)):
             "mes, no una reconstrucción de MRR punto-en-el-tiempo."
         ),
     }
+
+
+@v1_router.get("/bsc/resumen", dependencies=[Depends(require_staff)], tags=["BSC"])
+@cached(ttl=300)
+def v1_bsc_resumen():
+    """Balanced Scorecard estratégico (S14-FINAL, Fase 6, CU-E01..CU-E07):
+    4 perspectivas × 2 KPIs cada una, calculados desde Gold real (ver
+    `paquetes.analitica.bsc`). `require_staff`, mismo gate que
+    reporte-diario/churn/funnel-conversion/pnl/mrr-arr — todos herramientas
+    estratégicas de staff interno, no paneles de cliente B2B (analyst no
+    entra, mismo criterio ya establecido para esos 5 endpoints)."""
+    return bsc_resumen()

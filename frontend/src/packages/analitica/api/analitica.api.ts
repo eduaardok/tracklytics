@@ -9,7 +9,7 @@ import type {
   TendenciaSemana, ReporteDiario,
   AdquisicionCanal, DisponibilidadComponente,
   ChurnMensual, FunnelConversion, PnlConsolidado, MrrArr,
-  ProyeccionGenero, ProyeccionArtista,
+  ProyeccionGenero, ProyeccionArtista, BscResumen,
 } from '../types'
 
 // /dashboard/executive lives on the legacy router with no /app/v1 prefix.
@@ -122,4 +122,8 @@ export const analiticaApi = {
   // ── MRR/ARR (modelo-financiero-simulacion, solo staff/admin) ────────────────
   mrrArr: (desde: string, hasta: string) =>
     apiClient.get<MrrArr>(`/analitica/mrr-arr?desde=${desde}&hasta=${hasta}`),
+
+  // ── Balanced Scorecard estratégico (S14-FINAL, solo staff/admin) ───────────
+  bsc: () =>
+    apiClient.get<BscResumen>('/analitica/bsc/resumen'),
 }

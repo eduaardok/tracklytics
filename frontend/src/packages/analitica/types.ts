@@ -159,6 +159,20 @@ export type MrrArr = {
   nota: string
 }
 
+// ── Balanced Scorecard estratégico (S14-FINAL, Fase 6) ──────────────────────
+export type BscKpi = {
+  indicador:      string
+  valor_actual:   number
+  unidad:         string
+  meta:           string
+  porcentaje_meta: number
+  semaforo:       'verde' | 'amarillo' | 'rojo'
+  tendencia:      number[]
+  es_estimado:    boolean
+}
+export type BscPerspectiva = { nombre: string; kpis: BscKpi[] }
+export type BscResumen = { perspectivas: BscPerspectiva[] }
+
 // ── Paneles predictivos Enterprise (b2b-tier-access-analitica, CU-O92/CU-O93) ──
 // `tipo: "proyeccion_estadistica"` es deliberado: nunca se presenta como
 // predicción de IA (ver design.md, decisión 3).
