@@ -1,6 +1,7 @@
 from fastapi import Depends, HTTPException
 
 from core.deps import get_current_user
+from paquetes.seguridad.deps import roles_admin_vigentes
 from paquetes.suscripciones import pb_client
 
 # Escalera de acceso B2B (b2b-tier-access-analitica): cada tier paga más y
@@ -10,23 +11,44 @@ from paquetes.suscripciones import pb_client
 _TIER_RANK: dict[str, int] = {"basico": 0, "pro": 1, "enterprise": 2}
 
 
+def _es_staff_interno(user: dict) -> bool:
+    """Staff interno = `record.role == "admin"` en PocketBase, IGUAL que el
+    auto-backfill de `require_rol_admin` (paquetes/seguridad/deps.py), MÁS el
+    mismo fallback a `superadmin` vigente en `BRIDGE_USUARIO_ROL_ADMIN` que
+    usa esa dependencia. Antes de este fix, este módulo solo miraba
+    `record.role`, sin ese fallback — una cuenta que ya es `superadmin` por
+    BRIDGE (ej. asignada por otro superadmin, o cuyo campo `role` de
+    PocketBase quedó desincronizado por cualquier motivo posterior a la
+    creación) pasaba `require_rol_admin` en cualquier otra capability pero
+    caía en 403 acá ("Los paneles analíticos son exclusivos de Cliente B2B"),
+    una inconsistencia real detectada en verificación S14 contra el stack
+    vivo (la cuenta `superadmin@demo.tracklytics.com` de S14-P4 tiene fila
+    `superadmin` en BRIDGE_USUARIO_ROL_ADMIN pero `record.role == "user"`)."""
+    role = user.get("record", {}).get("role", "")
+    if role == "admin":
+        return True
+    usuario_id = user.get("record", {}).get("id", "")
+    return bool(usuario_id) and "superadmin" in roles_admin_vigentes(usuario_id)
+
+
 async def require_b2b_panel_access(user: dict = Depends(get_current_user)) -> dict:
     """Gating para los paneles analíticos B2B (RN-ANA-003 / CA-ANA-003).
 
-    Staff interno (role=admin, Data Analyst/BI Lead) accede sin suscripción,
-    con tier "enterprise" implícito (ya bypassaba todo, esto evita una rama
-    especial en `require_tier`). Cliente B2B (role=analyst) requiere una
-    suscripción activa, verificada contra PocketBase vía la capability
-    `suscripciones` (no se redefine su lógica, solo se reutiliza
+    Staff interno (role=admin, Data Analyst/BI Lead, o superadmin vigente por
+    BRIDGE_USUARIO_ROL_ADMIN — ver `_es_staff_interno`) accede sin
+    suscripción, con tier "enterprise" implícito (ya bypassaba todo, esto
+    evita una rama especial en `require_tier`). Cliente B2B (role=analyst)
+    requiere una suscripción activa, verificada contra PocketBase vía la
+    capability `suscripciones` (no se redefine su lógica, solo se reutiliza
     pb_client.list_activas); el `tipo_plan` de esa suscripción viaja junto al
     `user` como `tier`, para que `require_tier` lo compare sin un round-trip
     adicional a PocketBase (FastAPI cachea esta dependencia dentro del mismo
     request).
     """
-    role = user.get("record", {}).get("role", "")
-    if role == "admin":
+    if _es_staff_interno(user):
         return {**user, "tier": "enterprise"}
 
+    role = user.get("record", {}).get("role", "")
     if role != "analyst":
         raise HTTPException(
             status_code=403,
@@ -69,9 +91,9 @@ def require_tier(minimo: str):
 
 def require_staff(user: dict = Depends(get_current_user)) -> dict:
     """Gating para el reporte diario operativo (CU-O16): exclusivo de
-    Data Analyst/BI Lead (role=admin), no de Cliente B2B."""
-    role = user.get("record", {}).get("role", "")
-    if role != "admin":
+    Data Analyst/BI Lead / superadmin (ver `_es_staff_interno`), no de
+    Cliente B2B."""
+    if not _es_staff_interno(user):
         raise HTTPException(
             status_code=403,
             detail="El reporte diario operativo es exclusivo de Data Analyst/BI Lead",
