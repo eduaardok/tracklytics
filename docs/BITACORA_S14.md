@@ -498,3 +498,157 @@ del clon de prueba intactos por si hace falta reinspeccionar.
 - `docs/CUENTAS_DEMO.md` — nota de auto-siembra.
 - `openspec/changes/2026-08-05-s14-p4-correcciones-generacion-bajo-demanda/` — deltas de
   `simulacion`, `seguridad`, `regalias`.
+
+## S14-P5 — Correcciones para la feria (2026-08-09)
+
+Sesión "modo autónomo total" sobre el prompt de feria (S14-P4/P5 consolidado). Docker Desktop
+arrancó bugueado otra vez (mismo quirk documentado en `project_infra_quirks_s11`): procesos
+`Docker Desktop`/`com.docker.backend` duplicados, `docker info` fallando. Fix de siempre: matar
+procesos zombie + `wsl --shutdown` + relanzar, sin reiniciar Windows.
+
+### Pre-inspección: premisas del prompt contra el repo real
+
+El prompt pedía re-hacer trabajo que YA estaba hecho — sesiones previas (commits `7623a86` a
+`d9e73cf`, ya en `main`) habían completado, con otra numeración de fases, lo que este prompt
+llamaba Fase 2 a Fase 6:
+
+| Pedido del prompt (Fase) | Estado real encontrado |
+|---|---|
+| Fase 2 — password fuera del código | Ya hecho (S14-P4 Fase 1): `SUPERADMIN_DEMO_PASSWORD` por env var, sin default hardcodeado en el código (el fallback vive en `docker-compose.yml`) |
+| Fase 3 — auto-siembra de cuentas demo | Ya hecho (S14-P4 Fase 2): `seed_cuentas_demo.py` + servicio `seed-cuentas-demo`, idempotente, corre en cada `docker compose up`, verificado con logs reales (`ya existía, se omite`) |
+| Fase 4 — mapeo monto→plan robusto | Parcialmente hecho (S14-P4 Fase 3): ya no filtraba `activo=1` y ya contaba transacciones sin mapear en vez de descartarlas en silencio, pero **no** asignaba fallback — completado esta sesión (ver abajo) |
+| Fase 5 — densificar contratos de regalía | Ya hecho y superado (S14-P4 Fase 4): 22 contratos, no 8-12 |
+| Fase 6 — panel in-app para generar datos | Ya hecho (S14-P4 Fase 5): `POST /simulacion/generar-historico` + `GET /simulacion/estado`, panel en `SimulacionPage`, gateado `admin_datos`/`superadmin` — nombres de endpoint distintos a los que pedía el prompt (`/gestion-datos/*`), misma funcionalidad |
+
+Otras premisas falsas del prompt contra el repo real: la tabla de planes se llama `DIM_PLAN`,
+no `DIM_PLAN_SUSCRIPCION`; hay 30 informes compuestos, no 17; y son una sola ruta paramétrica
+(`InformeCompuestoPage.tsx` + registro en `config/`), no 30 componentes — agregar el selector
+de granularidad tocó 4 archivos, no 30.
+
+Lo genuinamente nuevo de este sprint fue la Fase 7 (selector de granularidad en el frontend —
+el backend ya lo soportaba desde S14-P2), la Fase 8 (pulido visual), la Fase 9 (export PDF), y
+completar la Fase 4. En el camino, la verificación real (no solo `curl`) encontró dos bugs de
+producto reales que ninguna sesión anterior había detectado.
+
+### Fase 4 (completada) — fallback de plan más cercano
+
+`etl/gold_ch/adquisicion.py::resolver_plan()`: una transacción cuyo monto no calza exacto con
+ningún `DIM_PLAN.precio_usd` ya no queda fuera de `activos_por_plan`/`conversiones_por_plan` —
+se asigna al plan de precio más cercano en valor absoluto. Verificado corriendo el módulo
+contra ClickHouse real (`granularidad=mes`): de 42 transacciones antes sin mapear, las 42
+ahora se asignan por cercanía y 0 quedan sin ningún plan. `GOLD_ETL_LOG.detalle` distingue
+`transacciones_plan_exacto` de `transacciones_plan_aproximado`.
+
+### Fase 7 — selector de granularidad (frontend)
+
+El backend ya aceptaba `granularidad` en los 30 endpoints desde S14-P2; el frontend nunca lo
+mandaba. `ReportLayout.tsx` gana un `<select>` (Día/Semana/Mes/Trimestre/Año, default Mes),
+propagado por `useCompoundReport.ts` → `reportesApi.compuesto(..., { granularidad })`. Cambiar
+de granularidad limpia el filtro Desde/Hasta (el formato de período no es comparable entre
+granularidades — `2026-W20` vs `2026-Q3`). Verificado en navegador real con Playwright: al
+cambiar Mes → Trimestre en `/reportes/financiero/mrr-arr`, las opciones de "Desde" cambiaron de
+`2024-09` a `2024-Q4` (confirma que el fetch se repitió con la granularidad nueva, no solo que
+el `<select>` cambió de valor).
+
+### Fase 9 — exportación PDF
+
+`data-pdf-export-ignore="true"` (mecanismo ya existente en `ExportPDFButton`, antes solo
+aplicado al propio botón) se extendió al bloque de filtros de `ReportLayout` y, vía un agente
+en background, a 25 de las ~35 páginas con `ExportPDFButton` directo (10 no lo necesitaban —
+sin controles interactivos dentro del `targetRef`, ya verificado leyendo cada una). El
+dashboard ejecutivo (`/analitica`) no tenía botón de exportación — se agregó.
+
+### Fase 8 — pulido visual
+
+Auditoría real (no exhaustiva porque S13-P5 a P8 ya habían pulido la mayoría): 2 gaps
+encontrados y corregidos — `ConfiguracionGlobalTab.tsx` sin estado vacío/carga en sus 2 tablas
+(a diferencia de sus hermanas en el mismo módulo), y un `<button>` nativo sin estilizar en el
+error state del dashboard ejecutivo. Navegación (36 rutas admin) y responsive a 1920px: sin
+hallazgos.
+
+### Bug crítico encontrado y corregido: `RequireAuth` bloqueaba el panel admin a 6 de 7 cuentas demo
+
+La memoria de sesión ya advertía "Frontend: build + Playwright, nunca solo compilar" — esta
+vez la razón quedó demostrada. Todas las verificaciones anteriores de este proyecto (incluida
+la Fase 6.1 de S14-P4) probaron el frontend con `curl` + Bearer token o con `npm run build`,
+nunca con un login real en el navegador. `RequireAuth roles={['admin']}` (`frontend/src/
+packages/seguridad/components/RequireAuth.tsx`), que protege TODO `/seguridad/*` y
+`/reportes/*` (los 30 informes compuestos), comparaba contra `getRole() === 'admin'` —
+el `role` crudo de PocketBase, que solo vale `admin` para la cuenta superadmin bootstrap.
+Las 6 cuentas `admin_finanzas`/`admin_contenido`/`admin_comunidad`/`admin_datos`/
+`admin_comercial` (roles asignados solo por `BRIDGE_USUARIO_ROL_ADMIN`, nunca por PocketBase)
+quedaban redirigidas a `/` (catálogo B2C) al intentar entrar al panel administrativo desde el
+navegador — aunque el backend las autorizaba sin problema. Un `curl` con Bearer token nunca
+pasa por un guard de React Router, así que ninguna verificación anterior lo había detectado.
+
+Fix: `GET /seguridad/perfil` (autoservicio) ahora incluye `roles_admin` propios;
+`authApi.login` calcula `esAdmin` (`role === 'admin'` O al menos un rol vigente en
+`BRIDGE_USUARIO_ROL_ADMIN`) y lo guarda en la sesión; `RequireAuth` usa `esAdmin` en vez del
+`role` crudo cuando la ruta pide `roles={['admin']}`.
+
+**Hallazgo relacionado, mismo patrón**: la propia cuenta `superadmin@demo.tracklytics.com`
+tiene `role: "user"` en PocketBase (drift de datos de una sesión anterior a este sprint —
+posiblemente la corrida de prueba de arranque limpio de S14-P4 Fase 6.1, que levantó un stack
+en paralelo) pese a tener fila `superadmin` vigente en `BRIDGE_USUARIO_ROL_ADMIN` (por eso
+`require_rol_admin`, que sí tiene fallback a BRIDGE, seguía autorizándola en todo lo demás).
+`require_b2b_panel_access`/`require_staff` (`api/paquetes/analitica/deps.py`) NO tenían ese
+fallback — solo miraban `record.role` — así que esta cuenta recibía 403 ("Los paneles
+analíticos son exclusivos de Cliente B2B") al entrar al dashboard ejecutivo. Se intentó
+corregir el dato directamente en PocketBase vía un script de un solo uso; el clasificador de
+modo automático lo bloqueó por tratarse de una mutación cruda fuera de los endpoints de la
+aplicación — decisión correcta: la solución real es de código, no de dato. Fix:
+`_es_staff_interno()` en `analitica/deps.py` gana el mismo fallback a `BRIDGE_USUARIO_ROL_ADMIN`
+que ya tenía `require_rol_admin` en `seguridad/deps.py`. Verificado con curl (`/analitica/
+dashboard` y `/analitica/reporte-diario`: 403 → 200) y con Playwright (botón "Exportar PDF"
+del dashboard visible, sin redirect a `/suscripciones`).
+
+Nota para una sesión futura, no corregida acá por estar fuera de alcance de esta pasada: el
+mismo hallazgo del bootstrap de superadmin de S14-P4 Fase 6.1 (`tracklytics_etl`, el servicio
+Compose del ETL principal bronze→silver→gold del catálogo, no se dispara solo en un volumen
+ClickHouse vacío — el catálogo real se cargó por Airflow hace semanas, no por `docker compose
+up`) sigue sin resolverse. No bloquea la feria si se usa el stack principal (datos ya
+cargados), pero sí un clon genuinamente limpio.
+
+### Verificación real (Fase 10)
+
+- `npm run build`: verde, sin warnings de TypeScript nuevos (los 3 preexistentes de
+  `EngagementPage.tsx`, S14-P1, sin tocar).
+- `openspec validate --all --strict`: 20/20 (17 specs + 4 changes, incluido el de esta sesión).
+- Granularidad end-to-end (curl, `financiero/mrr-arr`): mes=24 filas, trimestre=8, año=3 —
+  coincide con el conteo real de `GOLD_FINANCIERO_PERIODO` en ClickHouse.
+- 4 informes compuestos de 4 departamentos distintos devuelven datos no vacíos
+  (`comercial/adquisicion`=240, `datos/pipeline`=24, `analitica/panel-ejecutivo`=24,
+  `financiero/regalias`=456).
+- Regalías: 22 contratos reales, 31 meses con datos en `GOLD_REGALIAS_PERIODO` (confirma que
+  la densificación de S14-P4 Fase 4 sigue vigente).
+- Playwright contra el stack real (login real, no Bearer token manual): selector de
+  granularidad cambia el formato de período (mes→trimestre), panel "Simulación" oculto para
+  `admin_comercial` y visible para `superadmin`, botón de export del dashboard visible sin
+  errores de consola — las 3 pruebas, en verde tras los dos fixes de gating de arriba (antes,
+  fallaban con timeouts porque el login nunca llegaba a la página real).
+- Imágenes reconstruidas y verificadas con los cambios de esta sesión: `etl`, `api`,
+  `frontend-react`.
+
+### Archivos nuevos o modificados (S14-P5)
+
+- `etl/gold_ch/adquisicion.py` — `resolver_plan()` con fallback de cercanía (Fase 4).
+- `frontend/src/shared/components/reportes/ReportLayout.tsx`,
+  `frontend/src/shared/hooks/useCompoundReport.ts`,
+  `frontend/src/packages/reportes/api/reportes.api.ts`,
+  `frontend/src/packages/reportes/pages/InformeCompuestoPage.tsx` — selector de granularidad
+  (Fase 7).
+- `frontend/src/packages/analitica/pages/DashboardPage.tsx` + `.module.css` — botón de export
+  + fix de botón nativo (Fase 8-9).
+- `frontend/src/packages/distribucion/components/ConfiguracionGlobalTab.tsx` — estados
+  vacío/carga (Fase 8).
+- ~25 páginas con `ExportPDFButton` directo — atributo `data-pdf-export-ignore` en sus
+  filtros/toolbars (Fase 9).
+- `api/paquetes/seguridad/router.py` — `GET /perfil` incluye `roles_admin` propios.
+- `frontend/src/shared/lib/session.ts`, `frontend/src/packages/seguridad/api/auth.api.ts`,
+  `frontend/src/packages/seguridad/components/RequireAuth.tsx` — `esAdmin`/`rolesAdmin` en la
+  sesión, gating real de rutas administrativas.
+- `frontend/src/app/layout/SeguridadShell.tsx` — gating del link "Simulación" vía sesión.
+- `api/paquetes/analitica/deps.py` — `_es_staff_interno()` con fallback a
+  `BRIDGE_USUARIO_ROL_ADMIN`.
+- `openspec/changes/2026-08-09-s14-p5-gating-admin-y-granularidad-ui/` — deltas de `seguridad`,
+  `analitica`, `reportes`.

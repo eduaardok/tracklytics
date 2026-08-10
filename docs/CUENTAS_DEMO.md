@@ -62,3 +62,18 @@ analyst           403        403        403        403        403        403    
 
 Ningún `403` esperado devolvió `200` — el gating funciona exactamente como está diseñado en
 `api/paquetes/reportes/deps.py`.
+
+## Acceso real desde el navegador (S14-P5)
+
+La matriz de arriba se verificó por `curl` con Bearer token — eso confirma que el **backend**
+autoriza correctamente, pero un Bearer token nunca pasa por los guards de React Router del
+frontend. Esa diferencia escondió un bug real: `RequireAuth roles={['admin']}` (protege todo
+`/seguridad/*` y `/reportes/*`) comparaba contra el `role` crudo de PocketBase, que solo vale
+`admin` para `superadmin` — las 6 cuentas `admin_*` (rol asignado por
+`BRIDGE_USUARIO_ROL_ADMIN`, no por PocketBase) quedaban redirigidas a `/` (catálogo B2C) al
+intentar entrar al panel administrativo desde el navegador, aunque el backend las autorizara
+sin problema. Corregido en S14-P5 (`RequireAuth.tsx` + `GET /seguridad/perfil` +`roles_admin`
++ `esAdmin` en la sesión, ver `docs/BITACORA_S14.md`, bloque P5) y verificado con Playwright
+(login real, no Bearer token manual) para `admin_finanzas`, `admin_comercial` y `superadmin`.
+Cualquier verificación futura de estas cuentas SHOULD incluir al menos un login real en
+navegador, no solo `curl` — es la única forma de ejercitar `RequireAuth`.
