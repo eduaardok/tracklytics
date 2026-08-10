@@ -28,9 +28,15 @@ export function RequireAuth({ children, roles }: Props) {
 
   if (roles) {
     const user = getUser()
-    const tieneAcceso = roles.includes('admin')
-      ? user?.role === 'admin' || Boolean(user?.esAdmin)
-      : roles.includes(user?.role ?? '')
+    // No es un ternario admin-vs-resto: antes, `roles={['admin','analyst']}`
+    // caía siempre en la rama admin y nunca miraba 'analyst' (bug real,
+    // encontrado al abrir /reportes a analyst en S14-FINAL) porque
+    // `roles.includes('admin')` ya era true. Ahora cada condición se evalúa
+    // en paralelo con OR: acceso admin (superadmin/BRIDGE) Y/O el `role`
+    // literal de PocketBase están en la lista.
+    const tieneAcceso =
+      (roles.includes('admin') && (user?.role === 'admin' || Boolean(user?.esAdmin))) ||
+      roles.includes(user?.role ?? '')
     if (!tieneAcceso) return <Navigate to="/" replace />
   }
 

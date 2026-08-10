@@ -251,6 +251,48 @@
   max-height: 2000px;
 }
 
+/* Info de cuenta al pie del sidebar (Fase 3.10/4.3, S14-FINAL) — avatar con
+   inicial + email + badge de rol, para que un evaluador vea de un vistazo
+   qué cuenta demo tiene activa sin abrir el menú de usuario del header. */
+.accountFooter {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
+  margin: var(--space-sm) 0;
+  border-top: 1px solid rgba(139, 92, 246, 0.08);
+}
+
+.accountAvatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-pill);
+  background: var(--gradient-primary);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.accountInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.accountEmail {
+  font-size: 0.75rem;
+  color: var(--color-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 /* Botón de colapso del sidebar completo (S13-P8) — mismo tratamiento visual
    que `.collapseBtn` en AppShell.module.css. */
 .collapseBtn {

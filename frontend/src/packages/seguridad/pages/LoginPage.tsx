@@ -3,6 +3,7 @@ import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { isAuthenticated } from '@shared/lib/session'
 import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { apiErrorMessage } from '@shared/lib/api-client'
+import { landingPostLogin } from '@shared/lib/roles'
 import { resolverDestinoPostAuth } from '@packages/suscripciones'
 import { authApi } from '../api/auth.api'
 import { AuthHero } from './AuthHero'
@@ -38,11 +39,19 @@ export function LoginPage() {
       const destino = await resolverDestinoPostAuth(usuario.role)
       if (destino.onboarding) {
         // B2B sin plan activo: onboarding manda siempre, sin importar a dónde
-        // intentaba llegar el usuario (mismo criterio que el legacy).
+        // intentaba llegar el usuario (mismo criterio que el legacy) — ni
+        // siquiera una cuenta admin/analyst con landing propia se salta esto,
+        // no aplica de todos modos (solo 'user'/'analyst' entran acá con
+        // onboarding=true, ver resolverDestinoPostAuth).
         navigate(`${destino.path}?onboarding=1`, { replace: true })
       } else {
+        // Landing por rol (Fase 4.2, S14-FINAL): admin/analyst YA resueltos
+        // (sin onboarding pendiente) aterrizan en su panel principal en vez
+        // del catálogo B2C genérico que devuelve `resolverDestinoPostAuth`
+        // por defecto para cualquier rol staff.
+        const landingRol = landingPostLogin(usuario)
         const from = (location.state as { from?: { pathname: string; search: string } } | null)?.from
-        navigate(from ? `${from.pathname}${from.search}` : destino.path, { replace: true })
+        navigate(from ? `${from.pathname}${from.search}` : (landingRol ?? destino.path), { replace: true })
       }
     } catch (err) {
       // Muestra el detalle del backend cuando lo hay: lockout (429) y cuenta

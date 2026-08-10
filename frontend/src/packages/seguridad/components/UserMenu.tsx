@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { getUser, isAuthenticated } from '@shared/lib/session'
 import { usePlayer } from '@shared/context/PlayerContext'
+import { RoleBadge } from '@shared/components/RoleBadge'
 import { authApi } from '../api/auth.api'
 import styles from './UserMenu.module.css'
 
@@ -37,7 +38,7 @@ export function UserMenu() {
     <div className={styles.wrap}>
       <Link to="/perfil" className={styles.identity}>
         <span className={styles.email}>{user.email}</span>
-        <span className={styles.roleTag}>{user.role}</span>
+        <RoleBadge user={user} />
       </Link>
       <button type="button" className={styles.logoutBtn} onClick={handleLogout} disabled={loggingOut}>
         {loggingOut ? 'Saliendo…' : 'Salir'}
