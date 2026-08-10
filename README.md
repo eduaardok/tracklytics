@@ -211,6 +211,19 @@ Credenciales Airflow: `admin` / valor de `AIRFLOW_PASSWORD` en `.env` (por defec
 El rol `admin` solo se asigna desde PocketBase Admin (`http://localhost:8090/_/`).
 Los roles `user` y `analyst` se seleccionan durante el registro.
 
+**Roles administrativos por área** (S12, `BRIDGE_USUARIO_ROL_ADMIN`): además del `admin`
+bootstrap ("superadmin", acceso total), 6 cuentas pueden tener un rol acotado a un área de
+negocio (`admin_finanzas`/`admin_contenido`/`admin_comunidad`/`admin_datos`/`admin_comercial`)
+— asignado por endpoint (`POST /admin/usuarios/{id}/rol-admin`), no por el campo `role` nativo
+de PocketBase. El sidebar administrativo (S14-FINAL) refleja esto en tiempo real: cada rol ve
+solo las secciones/links que su rol realmente puede abrir (verificado 1:1 contra el
+`require_rol_admin` de cada endpoint backend, no una lista aparte), aterriza tras el login en su
+panel principal (no en el catálogo B2C), y lo muestra en un badge de color junto a su email. Ver
+`docs/CUENTAS_DEMO.md` para las 7 cuentas de demostración (una por rol, contraseña compartida vía
+`SUPERADMIN_DEMO_PASSWORD`) y qué informes/paneles ve cada una. El **Balanced Scorecard**
+(`/analitica/bsc`, 4 perspectivas estratégicas) es exclusivo de staff interno (`superadmin`, no
+de un rol de área ni de `analyst`) — mismo criterio que reporte diario/churn/P&L/MRR-ARR.
+
 `/acerca-de` (pública) actúa de hub de marca y explica las tres rutas de alta reales, sin
 crear roles nuevos: **oyente** (`/register`, rol `user`), **artista** (`/register?tipo=artista`
 crea la misma cuenta `user` y entra directo a `/creadores` a solicitar la cuenta de artista,
@@ -675,6 +688,7 @@ validate --specs` en verde para las 15 capabilities).
 | S13-P4 a P8 | Auditoría de re-clon, perf de catálogo, sidebar/PDF/perf, mejoras B2C de catálogo | Ver `docs/BITACORA_S13.md` y `AUDITORIA_S13.md` para el detalle fase por fase (no resumido acá) |
 | S14-P1 a P4 | Grano temporal configurable en Gold + API; datos reales de 24 meses (elimina `rng_for()`) + 7 cuentas demo por rol; correcciones de arranque limpio (credenciales por env var, auto-siembra de cuentas, mapeo monto→plan, densidad de regalías, generación bajo demanda con relleno de huecos) | Ver `docs/BITACORA_S14.md` (bloques P2/P3/P4) |
 | S14-P5 | Selector de granularidad en el frontend de los 30 informes compuestos (backend ya listo desde P2); corrección de exportación PDF (filtros excluidos de la captura, botón nuevo en el dashboard ejecutivo); fallback de plan más cercano en el mapeo monto→plan; pulido visual puntual; **dos bugs de gating admin encontrados y corregidos por verificación real en navegador (Playwright), invisibles a cualquier verificación por `curl`**: `RequireAuth` bloqueaba `/seguridad`/`/reportes` a las 6 cuentas admin_* de demo (comparaba contra el `role` crudo de PocketBase, no contra `BRIDGE_USUARIO_ROL_ADMIN`); `require_b2b_panel_access`/`require_staff` de `analitica` no tenían el mismo fallback que `require_rol_admin`, bloqueando el dashboard ejecutivo a la propia cuenta superadmin | Ver `docs/BITACORA_S14.md` (bloque P5) |
+| S14-FINAL | **Balanced Scorecard estratégico** (`GET /analitica/bsc/resumen`, 4 perspectivas × 2 KPIs sobre 6 tablas Gold reales, `/analitica/bsc` en el frontend); sidebar administrativo dinámico por rol real (leído directamente del `require_rol_admin` de cada capability backend, no asumido); landing post-login propia por rol (`superadmin`/`analyst` → dashboard ejecutivo, cada rol de área → su panel); badge de rol visible en header y sidebar; fix de un bug latente en `RequireAuth` con roles combinados; glassmorphism/sparklines/charts premium/skeleton shimmer en el design system; fix real de exportación PDF (page breaks que respetan filas de tabla — `page-break-inside` de CSS no aplica al pipeline html2canvas+jsPDF, se implementó detección real de límites de fila); **se evitó activamente una regresión de bundle de +43kB gzip** (`framer-motion` para transiciones de página, reemplazado por CSS puro). Auditoría real encontró 2 gaps de datos sin arreglar (cobertura de licencias por territorio ~0%, resolución de portadas de artista en 0% — ver bitácora) | Ver `docs/BITACORA_S14.md` (bloque S14-FINAL) |
 
 Resumen de la segunda entrega de S9 (el refactor):
 - **6 capabilities OpenSpec nuevas** cerradas: `seguridad`, `facturacion`, `creadores`,

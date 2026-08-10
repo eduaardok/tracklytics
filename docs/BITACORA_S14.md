@@ -652,3 +652,163 @@ cargados), pero sí un clon genuinamente limpio.
   `BRIDGE_USUARIO_ROL_ADMIN`.
 - `openspec/changes/2026-08-09-s14-p5-gating-admin-y-granularidad-ui/` — deltas de `seguridad`,
   `analitica`, `reportes`.
+
+## S14-FINAL — Polish, performance, completitud (2026-08-10)
+
+Sesión "modo autónomo". Docker Desktop otra vez con el quirk de "Starting Engine" documentado
+en `project_infra_quirks_s11` — mismo fix (matar procesos zombie de `Docker Desktop.exe`/
+`com.docker.backend.exe` + `wsl --shutdown` + relanzar, sin reiniciar Windows). Se encontró un
+`portadas_reload` huérfano de una corrida anterior (muerto por `docker compose down`/crash de
+Docker Desktop, exit 137, ~114min de progreso) — se removió y se relanzó
+`gold.reload_portadas_9h` limpio en background, dejado corriendo para el resto de la sesión.
+
+### Pre-inspección: premisas del prompt contra el repo real
+
+Como en S14-P5, el prompt asumía trabajo pendiente que sesiones previas ya habían hecho:
+
+| Pedido del prompt | Estado real encontrado |
+|---|---|
+| Fase 2.1 — lazy loading de rutas | Ya hecho, y a fondo: `router.tsx` usa `lazyNamed()` para 41 componentes, con comentarios documentando una regresión de bundle real (445kB→805kB) ya revertida. Nada que hacer. |
+| Fase 2.2 — `isAnimationActive={false}` en charts | Ya hecho al 100%: auditados los 11 archivos con elementos `<Area>/<Bar>/<Line>/<Pie>/<Radar>/<Scatter>/<RadialBar>` de todo `frontend/src` — cada uno de los 22 elementos ya lo tenía. Cero gaps. |
+| Fase 2.3 — debounce del selector de granularidad | No aplica: es un `<select>` discreto (una elección = un refetch), no un input de texto/slider con eventos en ráfaga — debounce ahí resolvería un problema que no existe. |
+| Fase 3.1 — Skeleton con shimmer violeta | Parcial: `SkeletonLoader`/`SkeletonTableRows` ya existían (S13) pero con pulso de opacidad lisa, no el gradiente shimmer violeta pedido — actualizado, más `SkeletonCard`/`SkeletonChart` nuevos. |
+| Fase 3.7 — Empty states diseñados | Ya existía `EmptyState.tsx` (S13 polish visual), reusado tal cual. |
+| Fase 3.8 — Toasts con el design system | Ya existía `ToastContext.tsx` (S10 ronda 2) — hecho a mano, ya con los tokens del design system, animación de entrada y accesibilidad (`role="status"`). Se decidió **no** instalar `sonner`: sería una dependencia nueva duplicando algo que ya funciona y ya está bien integrado. |
+| Fase 5.1/5.3 — márgenes/header/footer del PDF | Ya hecho (S14-P5): `MARGIN_MM`/`HEADER_BAND_MM`/`FOOTER_BAND_MM`, wordmark + fecha + línea violeta, pie con "Página N de M". |
+| Fase 5.2 — ocultar controles durante la captura | Ya hecho, pero con un mecanismo distinto al pedido: atributo `data-pdf-export-ignore="true"` + `ignoreElements` de html2canvas, no una clase `.pdf-export-mode`. Mismo resultado, ~25 páginas ya lo usaban. |
+| Fase 7 (roles admin de área en `require_admin`) | Falso: `require_admin` (usado por `/reportes/*`) es `require_rol_admin("superadmin")` — **exclusivo de superadmin**, ninguno de los 6 roles de área pasa. La matriz real (verificada por `curl`, ver `docs/CUENTAS_DEMO.md`) ya documentaba esto; se usó esa matriz, no la tabla del prompt, para el sidebar dinámico (ver abajo). |
+
+### Fase 3/4 — Design system y roles (lo genuinamente nuevo)
+
+`frontend/src/shared/design-system/tokens.ts`/`index.ts` seguían siendo *stubs* vacíos pese a
+que `.impeccable/design.json` (raíz del repo, de una sesión anterior con la skill Impeccable)
+ya tenía un token set completo (OKLCH, tipografía, motion, 6 componentes de ejemplo) — pero
+`frontend/src/index.css` **ya tenía ese mismo token set portado a custom properties CSS reales**
+y en uso en todo el árbol. El stub de `tokens.ts` no era un bug funcional, solo un archivo TS sin
+terminar — no se completó esta sesión (nadie lo importa; sería trabajo especulativo sin un
+consumidor real).
+
+Trabajo real de esta fase:
+- **Glassmorphism**: utilidad global `.card-glass` en `index.css` (`rgba(139,92,246,.06)` +
+  `backdrop-filter: blur(12px)`), consumida vía `composes: card-glass from global` en
+  `KpiCards.module.css` y los nuevos `KPICard.module.css`/`BalancedScorecardPage.module.css`.
+- **`PageTransition`**: se probó primero con `framer-motion` — costaba **+43kB gzip en el bundle
+  principal** (`AppShell` es eager, no se puede lazy-cargar la transición del shell que la usa) por
+  un fade de 200ms. Mismo patrón de regresión que este proyecto ya revirtió dos veces antes
+  (barrels de `router.tsx`, `html2canvas` de `ExportPDFButton.tsx`) — se descartó la librería y se
+  reimplementó con `@keyframes` CSS puro + remount por `key={pathname}`, **0kB** de costo. Montado
+  en los 3 shells (`AppShell`/`SeguridadShell`/`AnalyticaShell`).
+- **Charts premium**: `TrendChart.tsx` — gradiente `<linearGradient>` real (5%→95% opacidad) en
+  vez de `fillOpacity` plano para las series `area`; tooltip de charts (`charts.module.css`)
+  usa ahora los tokens `--chart-tooltip-bg`/`--chart-tooltip-border` (rgba violeta + blur) en vez
+  de los genéricos `--color-surface`/`--color-border`.
+- **`Sparkline.tsx`** (SVG puro, sin Recharts — evita N `ResizeObserver` por card) y **`KPICard.tsx`**
+  (título + valor grande + delta con flecha + sparkline) nuevos, componentes reutilizables.
+- **`React.memo`**: aplicado a las 5 plantillas compartidas de los 30 informes compuestos
+  (`KpiCards`/`TrendChart`/`DistributionChart`/`PredictionChart`/`RankingTable`) más `KPICard`/
+  `Sparkline` — evita re-render de un chart hermano cuando cambia solo el filtro de período.
+- **Roles diferenciados (Fase 4)**: se corrigió un bug latente real en `RequireAuth.tsx` — con
+  `roles={['admin','analyst']}` el chequeo caía SIEMPRE en la rama admin y nunca miraba
+  `'analyst'` (el ternario original solo soportaba una u otra rama, no ambas a la vez). Se
+  generalizó `SeguridadShell.tsx` (antes solo el link "Simulación" se ocultaba por rol,
+  `usePuedeVerSimulacion`) a **todos** los links/secciones/departamentos de informes vía un
+  campo `roles?: string[]` nuevo en la config — el mapeo se sacó de **leer el código backend
+  real** (`grep require_rol_admin` en 9 `deps.py`/`router.py` distintos), no de la tabla del
+  prompt, y corrigió 3 casos donde el prompt se equivocaba: Publicidad es `admin_finanzas` (no
+  `admin_comercial`), Suscripciones admin es `admin_comercial` (no `admin_finanzas`), y Strikes
+  es `admin_comunidad` (no superadmin como el resto de "Seguridad"). Nuevo módulo
+  `shared/lib/roles.ts` centraliza esto (`rolesDeUsuario`, `puedeVer`, `landingPostLogin`,
+  `ROL_LABELS`/`ROL_COLORS`). `RoleBadge.tsx` nuevo, en `UserMenu` (header) y pie del sidebar de
+  `SeguridadShell`. Landing por rol wireada en `LoginPage.tsx`, con cuidado de no romper el flujo
+  de onboarding B2B existente (el override de landing solo aplica cuando
+  `resolverDestinoPostAuth` ya resolvió que NO hace falta onboarding).
+
+### Fase 5 — PDF: el fix real de "filas cortadas a la mitad"
+
+El prompt pedía `page-break-inside: avoid` en CSS de tabla. **No haría nada**: `ExportPDFButton`
+rasteriza `el` completo con `html2canvas` a una sola imagen continua y `jsPDF` la corta a
+intervalos fijos de altura — nunca pasa por un motor de paginación de impresión, así que
+`page-break-inside` (una propiedad de `@media print`) es un no-op ahí. El fix real: medir la
+posición vertical de cada `<tr>` del contenedor capturado (proporcional a `imgHeightMm`) y, si
+el corte "natural" de una página cae dentro de una fila, retroceder ese corte al borde superior
+de la fila — `totalPaginas` pasa de una división fija a una lista de puntos de corte dinámica.
+
+### Fase 6 — Balanced Scorecard (feature nueva)
+
+No existía nada de esto (0 matches de "BSC"/"balanced"/"scorecard" en todo el repo, backend y
+frontend). Nuevo `GET /app/v1/analitica/bsc/resumen` (`api/paquetes/analitica/bsc.py`) — 4
+perspectivas × 2 KPIs cada una, calculados con agregaciones reales sobre 6 tablas Gold
+(`GOLD_FINANCIERO_PERIODO`, `GOLD_ADQUISICION_PERIODO`, `GOLD_INFRAESTRUCTURA_PERIODO`,
+`GOLD_PIPELINE_PERIODO`, `GOLD_PRODUCTO_PERIODO`, `GOLD_CONTENIDO_PERIODO`), reusando
+`paquetes.reportes.queries.fetch_gold` (misma conexión Gold que los 30 informes, no una nueva).
+`meta` es un valor de referencia ilustrativo por KPI (no hay tabla de metas editable por
+directores — fuera de alcance), pero `porcentaje_meta`/`semaforo`/`tendencia` sí son cálculo
+real sobre datos reales (`es_estimado` viaja en la respuesta). Gateado `require_staff` — mismo
+criterio que `reporte-diario`/`churn`/`funnel-conversion`/`pnl`/`mrr-arr` (herramientas de staff
+interno, no panel de cliente B2B); **decisión explícita, distinta del prompt**: el prompt pedía
+que `analyst` también viera el BSC, pero eso rompería el mismo patrón que ya excluye a `analyst`
+de esos 5 endpoints hermanos — se mantuvo la consistencia con el precedente del propio código en
+vez de abrir una excepción puntual. Verificado con `curl` real: `superadmin` → 200 con datos
+reales fluctuantes, `analyst`/`admin_finanzas` → 403. Frontend: `BalancedScorecardPage.tsx`
+(cuadrante 2×2, semáforo + barra de progreso + sparkline por KPI), montada en `/analitica/bsc`
+(mismo árbol que `mrr-arr`/`pnl`, no un shell nuevo), link nuevo en `AnalyticaShell` bajo
+"Staff".
+
+### Fase 7 — Auditoría: hallazgos reales, no fabricados
+
+- Los 9 departamentos tácticos devuelven datos reales y no vacíos (verificado con `curl`, un
+  endpoint por departamento: de 41 a 1070 filas según el informe).
+- **Hallazgo real, sin arreglar esta sesión** (fuera de alcance de un fix seguro en el tiempo
+  disponible): `GOLD_CONTENIDO_PERIODO.cobertura_pct` (C21, "cobertura de licencias por
+  territorio") está en ~0% en todos los territorios (`tracks_cubiertos` de 0 a 2 por país,
+  contra un catálogo de miles de tracks) — parece un problema real del DAG/cálculo de cobertura,
+  no ruido. Se ve reflejado también en el BSC ("Cobertura de licencias": rojo, 0%).
+  Recomendación para la próxima sesión: revisar `etl/gold_ch/` la función que puebla esta
+  columna.
+- **Hallazgo real, sin arreglar esta sesión**: `gold.reload_portadas_9h` resuelve tracks (~95%)
+  y álbumes (~99%) con buena tasa de éxito, pero **artistas se queda en 0 resueltos** durante
+  toda la corrida (confirmado en dos corridas distintas — la huérfana de la sesión anterior,
+  ~114min sin un solo éxito, y la de esta sesión). El código intenta iTunes (`entity=album`
+  buscando por nombre de artista) y cae a Deezer (`entity=artist`, foto real) — ninguna de las
+  dos falla con excepción (no hay una sola línea de log `fallo (...) (artist)` en toda la
+  corrida), lo que apunta a que ambas APIs devuelven resultados vacíos para estos nombres, no a
+  un error de red o de código. No se tocó (instrucción explícita del prompt: nunca tocar
+  parámetros de rate limit/backoff, y cambiar la lógica de búsqueda sin poder validar contra las
+  APIs reales de forma controlada es más riesgo que beneficio en el tiempo disponible).
+
+### Verificación real
+
+- `npm run build`: limpio, sin errores de TypeScript, en cada punto de control de esta sesión.
+- Bundle principal: 563.79kB → 566.57kB gzip-relevante (~166.8kB gzip, +0.9kB) — sin
+  regresiones; se evitó activamente una de +43kB (framer-motion, ver arriba).
+- Backend: `curl` real con 3 cuentas demo (`superadmin`/`analyst`/`admin_finanzas`) contra
+  `/analitica/bsc/resumen` — gating exactamente como se diseñó.
+- Pendiente para el cierre de sesión: rebuild de `frontend-react` (imagen Docker) + verificación
+  Playwright de login/landing/sidebar por rol + exportación PDF real, y clon limpio — ver
+  siguiente bloque de commits.
+
+### Archivos nuevos o modificados (S14-FINAL)
+
+- `frontend/src/index.css` — utilidades `.card-glass`/`.row-hover`, tokens de tooltip de charts.
+- `frontend/src/shared/components/charts/Sparkline.tsx`, `KPICard.tsx` + `.module.css`,
+  `RoleBadge.tsx` + `.module.css`, `PageTransition.tsx` + `.module.css` — componentes nuevos.
+- `frontend/src/shared/components/SkeletonLoader.tsx`/`.module.css` — shimmer violeta,
+  `SkeletonCard`/`SkeletonChart`.
+- `frontend/src/shared/components/reportes/{KpiCards,TrendChart,DistributionChart,
+  PredictionChart,RankingTable}.tsx` — `React.memo`; `TrendChart.tsx` con gradiente real.
+  `KpiCards.module.css` — `composes: card-glass`.
+- `frontend/src/shared/components/charts/charts.module.css` — tooltip con tokens violeta.
+- `frontend/src/shared/components/ExportPDFButton.tsx` — page breaks conscientes de filas.
+- `frontend/src/shared/lib/roles.ts` — nuevo, roles/landing/labels centralizados.
+- `frontend/src/packages/seguridad/components/RequireAuth.tsx` — fix del bug de OR con roles
+  combinados.
+- `frontend/src/packages/seguridad/components/UserMenu.tsx`,
+  `frontend/src/packages/seguridad/pages/LoginPage.tsx` — `RoleBadge`, landing por rol.
+- `frontend/src/app/layout/{AppShell,SeguridadShell,AnalyticaShell}.tsx` — `PageTransition`
+  montado; `SeguridadShell.tsx` — sidebar dinámico por rol real (backend-verificado), pie de
+  cuenta con avatar/badge.
+- `frontend/src/packages/analitica/pages/BalancedScorecardPage.tsx` + `.module.css` — nuevo.
+- `frontend/src/packages/analitica/{types.ts,api/analitica.api.ts}` — tipos/llamada del BSC.
+- `frontend/src/app/router.tsx` — ruta `/analitica/bsc`.
+- `api/paquetes/analitica/bsc.py` — nuevo, cálculo del BSC.
+- `api/paquetes/analitica/router.py` — endpoint `GET /bsc/resumen`.
