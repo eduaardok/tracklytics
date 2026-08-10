@@ -164,7 +164,36 @@ async function exportarComoPdf(el: HTMLElement, fileName: string, title: string 
   const imgHeightMm = imgWidthMm / aspect
   const imgData     = canvas.toDataURL('image/png')
 
-  const totalPaginas = Math.max(1, Math.ceil(imgHeightMm / contentHeightMm))
+  // Page breaks conscientes de filas de tabla (Fase 5.4, S14-FINAL): html2canvas
+  // rasteriza `el` como una sola imagen continua y jsPDF la corta a intervalos
+  // fijos de `contentHeightMm` — `page-break-inside` de CSS no pasa por ningún
+  // motor de paginación acá (esto no es @media print), así que declararlo en
+  // los módulos CSS de las tablas no tendría ningún efecto real. En su lugar,
+  // se miden los límites verticales reales de cada `<tr>` de `el` (en mm,
+  // proporcional a `imgHeightMm`) y el corte de cada página se retrocede al
+  // borde superior de la fila si el corte "natural" caería a la mitad.
+  const mmPorPx = el.scrollHeight > 0 ? imgHeightMm / el.scrollHeight : 0
+  const elTop = el.getBoundingClientRect().top
+  const filasMm: Array<[number, number]> = mmPorPx > 0
+    ? Array.from(el.querySelectorAll('tr')).map((tr) => {
+        const top = tr.getBoundingClientRect().top - elTop
+        return [top * mmPorPx, (top + tr.clientHeight) * mmPorPx] as [number, number]
+      })
+    : []
+
+  const breaks: number[] = [0]
+  let cursor = 0
+  while (cursor < imgHeightMm - 0.01) {
+    let siguiente = Math.min(cursor + contentHeightMm, imgHeightMm)
+    const filaCortada = filasMm.find(([top, bottom]) => siguiente > top && siguiente < bottom && top > cursor + 0.01)
+    if (filaCortada) siguiente = filaCortada[0]
+    // Salvaguarda: una fila más alta que una página completa no puede
+    // evitarse sin partirla — se avanza igual para no loopear infinito.
+    if (siguiente <= cursor) siguiente = Math.min(cursor + contentHeightMm, imgHeightMm)
+    breaks.push(siguiente)
+    cursor = siguiente
+  }
+  const totalPaginas = Math.max(1, breaks.length - 1)
   const generadoEn = fmtGeneradoEn(new Date())
 
   for (let pagina = 1; pagina <= totalPaginas; pagina++) {
@@ -174,7 +203,7 @@ async function exportarComoPdf(el: HTMLElement, fileName: string, title: string 
     // contenido que cae fuera del rectángulo [contentTop, pageHeight-margin]
     // de ESA página queda fuera del MediaBox y simplemente no se dibuja
     // (patrón estándar de paginación html2canvas + jsPDF).
-    const yOffsetMm = contentTopMm - (pagina - 1) * contentHeightMm
+    const yOffsetMm = contentTopMm - breaks[pagina - 1]
     pdf.addImage(imgData, 'PNG', MARGIN_MM, yOffsetMm, imgWidthMm, imgHeightMm)
     dibujarPie(pdf, pageWidth, pageHeight, pagina, totalPaginas)
   }
