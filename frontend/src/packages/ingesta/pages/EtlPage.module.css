@@ -139,6 +139,21 @@
 .btnPrimary:active:not(:disabled) { transform: scale(0.98); }
 .btnPrimary:disabled { opacity: 0.5; cursor: not-allowed; }
 
+.btnGhost {
+  height: 36px;
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--color-muted);
+  background: transparent;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 0 var(--space-md);
+  cursor: pointer;
+}
+
+.btnGhost:hover { color: var(--color-ink); }
+
 .errorText {
   font-family: var(--font-sans);
   font-size: 0.8125rem;

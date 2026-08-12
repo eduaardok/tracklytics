@@ -387,6 +387,11 @@ services:
   frontend-react:
     build:
       context: ./frontend
+      args:
+        # URL pública de Airflow (la que abre el navegador del usuario), no
+        # la interna `AIRFLOW_URL` de red Docker que usa el backend arriba —
+        # override si se accede desde otra IP/host que no sea localhost.
+        VITE_AIRFLOW_PUBLIC_URL: ${AIRFLOW_PUBLIC_URL:-http://localhost:8080}
     container_name: tracklytics_frontend_react
     restart: unless-stopped
     depends_on:

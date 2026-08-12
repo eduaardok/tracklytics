@@ -4,6 +4,7 @@ import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { MiniBarChart } from '@shared/components/charts/MiniBarChart'
 import { EmptyState } from '@shared/components/EmptyState'
 import { ExportPDFButton } from '@shared/components/ExportPDFButton'
+import { AirflowLinkButton } from '@shared/components/AirflowLinkButton'
 import { ingestaApi, IngestaApiError } from '../api/ingesta.api'
 import type { SyntheticMode, EjecucionEstado, RecalificacionEstado } from '../types'
 import styles from './EtlPage.module.css'
@@ -283,6 +284,7 @@ export function EtlPage() {
           <button type="button" className={styles.btnPrimary} disabled={triggering} onClick={handleTrigger}>
             {triggering ? 'Disparando…' : 'Disparar ingesta'}
           </button>
+          <AirflowLinkButton dagId="tracklytics_etl" className={styles.btnGhost} />
         </div>
         {triggerError && <p className={styles.errorText}>{triggerError}</p>}
       </div>
@@ -312,6 +314,7 @@ export function EtlPage() {
           <button type="button" className={styles.btnPrimary} disabled={recalTriggering} onClick={handleRecalificar}>
             {recalTriggering ? 'Disparando…' : 'Recalificar catálogo'}
           </button>
+          <AirflowLinkButton dagId="tracklytics_recalificacion" className={styles.btnGhost} />
         </div>
         {recalError && <p className={styles.errorText}>{recalError}</p>}
 

@@ -101,6 +101,10 @@ AIRFLOW_USER=admin
 AIRFLOW_PASSWORD=tracklytics2026
 AIRFLOW_SECRET_KEY=tracklytics_secret_key_2026
 AIRFLOW_DAG_ID=tracklytics_etl
+# URL pública de Airflow (la que abre el navegador, no la interna de red
+# Docker) — solo hace falta cambiarla si se accede al stack desde otra
+# IP/host que no sea localhost.
+AIRFLOW_PUBLIC_URL=http://localhost:8080
 
 # ETL
 WEEK_NUMBER=1
