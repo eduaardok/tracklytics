@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Path, Query
 
 from core.cache import cached
 from core.database import query_one, query_rows
+from paquetes.analitica.benchmark_sql import ejecutar_benchmark, listar_informes
 from paquetes.analitica.bsc import bsc_resumen
 from paquetes.analitica.deps import require_b2b_panel_access, require_staff, require_tier
 from paquetes.analitica.proyeccion import clasificar_trayectoria, proyectar_serie
@@ -590,6 +591,25 @@ async def v1_mrr_arr(desde: date = Query(...), hasta: date = Query(...)):
             "mes, no una reconstrucción de MRR punto-en-el-tiempo."
         ),
     }
+
+
+@v1_router.get("/benchmark-sql/informes", dependencies=[Depends(require_staff)], tags=["Benchmark SQL vs Gold"])
+def v1_benchmark_sql_informes():
+    """Lista los informes disponibles para medir — barata, sin escanear
+    FACT_TRACKS/FACT_ENGAGEMENT_USUARIO, segura de cargar automáticamente."""
+    return {"data": listar_informes()}
+
+
+@v1_router.post("/benchmark-sql/{informe_id}/ejecutar", dependencies=[Depends(require_staff)], tags=["Benchmark SQL vs Gold"])
+def v1_benchmark_sql_ejecutar(informe_id: str):
+    """Dispara la medición real (SQL directo x3 + lectura Gold x3) — nunca
+    automática, solo bajo demanda desde el botón "Medir ahora" del
+    frontend: la versión directa escanea millones de filas de
+    FACT_ENGAGEMENT_USUARIO/FACT_TRACKS y puede tardar varios segundos."""
+    try:
+        return ejecutar_benchmark(informe_id)
+    except KeyError:
+        raise HTTPException(status_code=404, detail=f"informe desconocido: {informe_id}")
 
 
 @v1_router.get("/bsc/resumen", dependencies=[Depends(require_staff)], tags=["BSC"])

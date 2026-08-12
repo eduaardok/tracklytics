@@ -3,7 +3,7 @@ import { Outlet, NavLink, useLocation } from 'react-router-dom'
 import {
   LayoutDashboard, Activity, Music, GitCompare, Target, TrendingUp, ListMusic,
   UserPlus, ServerCog, CalendarDays, UserMinus, Filter, Scale, CircleDollarSign,
-  LineChart, AreaChart, PanelLeftClose, PanelLeftOpen, LayoutGrid, type LucideIcon,
+  LineChart, AreaChart, PanelLeftClose, PanelLeftOpen, LayoutGrid, Gauge, type LucideIcon,
 } from 'lucide-react'
 import { RequireSuscripcionActiva } from '@packages/analitica'
 // Import directo, no vía el barrel `@packages/seguridad` (arrastraría los
@@ -71,6 +71,7 @@ const NAV_STAFF: NavItem[] = [
   { to: '/analitica/pnl',                label: 'P&L consolidado',        icon: Scale },
   { to: '/analitica/mrr-arr',            label: 'MRR / ARR',              icon: CircleDollarSign },
   { to: '/analitica/bsc',                label: 'Balanced Scorecard',      icon: LayoutGrid },
+  { to: '/analitica/benchmark-sql',      label: 'Benchmark SQL vs Gold',   icon: Gauge },
 ]
 
 // Sección "Predictivo" (b2b-tier-access-analitica): visible solo para tier

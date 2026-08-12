@@ -74,6 +74,10 @@ const ProyeccionArtistaPage   = lazyNamed(() => import('@packages/analitica/page
 // de gating que reporte-diario/churn/funnel-conversion/pnl/mrr-arr (solo
 // staff, `require_staff` en backend).
 const BalancedScorecardPage   = lazyNamed(() => import('@packages/analitica/pages/BalancedScorecardPage'), 'BalancedScorecardPage')
+// S16-P2: mismo criterio de gating que BSC/reporte-diario (solo staff,
+// `require_staff` en backend). Ruta `benchmark-sql`, no `benchmark` — esa ya
+// existe y es otra cosa (ArtistaBenchmarkPage, comparación de artistas).
+const BenchmarkSqlPage        = lazyNamed(() => import('@packages/analitica/pages/BenchmarkSqlPage'), 'BenchmarkSqlPage')
 const TopTracksPlaylistsPage  = lazyNamed(() => import('@packages/experiencia/pages/TopTracksPlaylistsPage'), 'TopTracksPlaylistsPage')
 
 // `ingesta/DataQualityPage` también usa Recharts (donut de distribución por
@@ -212,6 +216,7 @@ export const router = createBrowserRouter([
       { path: 'pnl',                    element: <RequireAuth roles={['admin']}><PnlPage /></RequireAuth> },
       { path: 'mrr-arr',                element: <RequireAuth roles={['admin']}><MrrArrPage /></RequireAuth> },
       { path: 'bsc',                    element: <RequireAuth roles={['admin']}><BalancedScorecardPage /></RequireAuth> },
+      { path: 'benchmark-sql',          element: <RequireAuth roles={['admin']}><BenchmarkSqlPage /></RequireAuth> },
       { path: 'partners',               element: <ComingSoonPage section="Partners" description="Rendimiento por partner, SLA de entrega y cobertura de catálogo." /> },
       // CU-O55 (completar-modelo-base): reemplaza el placeholder — FACT_DISPONIBILIDAD ya existe.
       // No confundir con `/distribucion/disponibilidad` (restricción geográfica de reproducción).

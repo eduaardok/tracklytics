@@ -10,6 +10,7 @@ import type {
   AdquisicionCanal, DisponibilidadComponente,
   ChurnMensual, FunnelConversion, PnlConsolidado, MrrArr,
   ProyeccionGenero, ProyeccionArtista, BscResumen,
+  BenchmarkInforme, BenchmarkResultado,
 } from '../types'
 
 // /dashboard/executive lives on the legacy router with no /app/v1 prefix.
@@ -126,4 +127,15 @@ export const analiticaApi = {
   // ── Balanced Scorecard estratégico (S14-FINAL, solo staff/admin) ───────────
   bsc: () =>
     apiClient.get<BscResumen>('/analitica/bsc/resumen'),
+
+  // ── Benchmark SQL directo vs. Gold (S16-P2, solo staff/admin) ──────────────
+  // `benchmarkEjecutar` es deliberadamente bajo demanda (POST, nunca en un
+  // useQuery automático): la versión SQL directa escanea millones de filas
+  // de FACT_ENGAGEMENT_USUARIO/FACT_TRACKS y se repite 3 veces en el
+  // backend — no algo para disparar en cada carga de página.
+  benchmarkInformes: () =>
+    apiClient.get<{ data: BenchmarkInforme[] }>('/analitica/benchmark-sql/informes'),
+
+  benchmarkEjecutar: (informeId: string) =>
+    apiClient.post<BenchmarkResultado>(`/analitica/benchmark-sql/${informeId}/ejecutar`, {}),
 }

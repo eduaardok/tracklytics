@@ -173,6 +173,37 @@ export type BscKpi = {
 export type BscPerspectiva = { nombre: string; kpis: BscKpi[] }
 export type BscResumen = { perspectivas: BscPerspectiva[] }
 
+// ── Benchmark SQL directo vs. Gold (S16-P2, solo staff/admin) ──────────────
+// No confundir con `/analitica/benchmark` (ArtistaBenchmarkPage, comparación
+// de artistas) — esto es rendimiento de infraestructura, no un informe de
+// negocio.
+export type BenchmarkInforme = {
+  informe_id:   string
+  nombre:       string
+  informe_gold: string
+  tabla_gold:   string
+}
+
+export type BenchmarkMedicion = {
+  query:             string
+  tiempos_s:         number[]
+  tiempo_promedio_s: number
+  filas_leidas:      number
+  resultado:         unknown[]
+}
+
+export type BenchmarkResultado = {
+  informe_id:    string
+  nombre:        string
+  informe_gold:  string
+  tabla_gold:    string
+  repeticiones:  number
+  sql_directo:   BenchmarkMedicion
+  sql_gold:      BenchmarkMedicion
+  factor_mejora: number | null
+  coinciden:     boolean
+}
+
 // ── Paneles predictivos Enterprise (b2b-tier-access-analitica, CU-O92/CU-O93) ──
 // `tipo: "proyeccion_estadistica"` es deliberado: nunca se presenta como
 // predicción de IA (ver design.md, decisión 3).

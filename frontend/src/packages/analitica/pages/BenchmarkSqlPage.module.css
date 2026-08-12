@@ -1,0 +1,169 @@
+.page { /* fills content area */ }
+
+.heading {
+  font-family: var(--font-sans);
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--color-ink);
+  letter-spacing: -0.02em;
+  margin-bottom: var(--space-xs);
+}
+
+.subtitle {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  color: var(--color-muted);
+  margin-bottom: var(--space-xl);
+}
+
+.panel {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-md);
+}
+
+.errorText {
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+  color: var(--color-error);
+  margin-bottom: var(--space-md);
+}
+
+.informesGrid {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+}
+
+.informeHead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-md);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-md);
+}
+
+.informeNombre {
+  font-family: var(--font-sans);
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--color-ink);
+}
+
+.informeMeta {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--color-muted);
+  margin-top: 2px;
+}
+
+.btnPrimary {
+  height: 36px;
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--color-ink);
+  background: var(--gradient-primary);
+  border: none;
+  border-radius: var(--radius-md);
+  padding: 0 var(--space-md);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background-color var(--duration-standard) var(--ease-standard);
+}
+
+.btnPrimary:hover:not(:disabled) { filter: brightness(1.1); }
+.btnPrimary:active:not(:disabled) { transform: scale(0.98); }
+.btnPrimary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.kpiRow {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--space-sm);
+  margin-bottom: var(--space-md);
+}
+
+.tableScroll { overflow-x: auto; }
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+  white-space: nowrap;
+}
+
+.thLeft  { text-align: left;  font-weight: 600; color: var(--color-ink); padding: var(--space-sm); border-bottom: 1px solid var(--color-border); }
+.thRight { text-align: right; font-weight: 600; color: var(--color-ink); padding: var(--space-sm); border-bottom: 1px solid var(--color-border); }
+
+.rowLabel {
+  padding: 7px var(--space-sm);
+  color: var(--color-ink);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.rowValue {
+  padding: 7px var(--space-sm);
+  text-align: right;
+  font-family: var(--font-mono);
+  color: var(--color-ink);
+  font-variant-numeric: tabular-nums;
+  border-bottom: 1px solid var(--color-border);
+}
+
+tbody tr:last-child .rowLabel,
+tbody tr:last-child .rowValue {
+  border-bottom: none;
+}
+
+.coincideOk {
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  color: var(--color-success);
+  margin-top: var(--space-md);
+}
+
+.coincideBad {
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  color: var(--color-error);
+  font-weight: 600;
+  margin-top: var(--space-md);
+}
+
+.sqlDetails {
+  margin-top: var(--space-md);
+}
+
+.sqlSummary {
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+  color: var(--color-muted);
+  cursor: pointer;
+}
+
+.sqlSummary:hover { color: var(--color-ink); }
+
+.sqlLabel {
+  font-family: var(--font-sans);
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-muted);
+  margin-top: var(--space-sm);
+}
+
+.sqlBlock {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--color-ink);
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: var(--space-sm);
+  overflow-x: auto;
+  white-space: pre;
+  margin-top: 4px;
+}
