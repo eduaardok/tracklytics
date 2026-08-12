@@ -1,7 +1,7 @@
 import asyncio
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Path, Query
 
 from core.database import execute, query_one, query_rows
 from core.deps import get_current_user_optional
@@ -249,12 +249,12 @@ def listar_tracks_ocultos(limit: int = Query(100, ge=1, le=500), admin: dict = D
 
 
 @router.post("/admin/tracks/{fact_id}/ocultar")
-def ocultar_track(fact_id: int, admin: dict = Depends(require_contenido_admin)):
+def ocultar_track(fact_id: int = Path(..., ge=1), admin: dict = Depends(require_contenido_admin)):
     return _takedown(fact_id, 0, admin, "ocultar_track")
 
 
 @router.post("/admin/tracks/{fact_id}/restaurar")
-def restaurar_track(fact_id: int, admin: dict = Depends(require_contenido_admin)):
+def restaurar_track(fact_id: int = Path(..., ge=1), admin: dict = Depends(require_contenido_admin)):
     return _takedown(fact_id, 1, admin, "restaurar_track")
 
 
