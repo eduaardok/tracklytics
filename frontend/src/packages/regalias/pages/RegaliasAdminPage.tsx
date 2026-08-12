@@ -175,7 +175,7 @@ export function RegaliasAdminPage() {
       <form className={styles.form} onSubmit={(e) => { e.preventDefault(); if (nombreProductor.trim()) crearProductor.mutate() }} data-pdf-export-ignore="true">
         <div className={styles.field}>
           <label className={styles.fieldLabel} htmlFor="prod-nombre">Nombre</label>
-          <input id="prod-nombre" className={styles.input} value={nombreProductor} onChange={(e) => setNombreProductor(e.target.value)} placeholder="Nombre del productor" />
+          <input id="prod-nombre" className={styles.input} value={nombreProductor} onChange={(e) => setNombreProductor(e.target.value)} placeholder="Nombre del productor" maxLength={200} />
         </div>
         <button type="submit" className={styles.btnPrimary} disabled={crearProductor.isPending || !nombreProductor.trim()}>
           {crearProductor.isPending ? 'Creando…' : 'Crear productor'}
@@ -239,23 +239,23 @@ export function RegaliasAdminPage() {
         </div>
         <div className={styles.field}>
           <label className={styles.fieldLabel} htmlFor="ctr-mseello">% master sello</label>
-          <input id="ctr-mseello" className={styles.input} type="number" value={pctMasterSello} onChange={(e) => setPctMasterSello(e.target.value)} />
+          <input id="ctr-mseello" className={styles.input} type="number" min="0" max="100" value={pctMasterSello} onChange={(e) => setPctMasterSello(e.target.value)} />
         </div>
         <div className={styles.field}>
           <label className={styles.fieldLabel} htmlFor="ctr-martista">% master artista</label>
-          <input id="ctr-martista" className={styles.input} type="number" value={pctMasterArtista} onChange={(e) => setPctMasterArtista(e.target.value)} />
+          <input id="ctr-martista" className={styles.input} type="number" min="0" max="100" value={pctMasterArtista} onChange={(e) => setPctMasterArtista(e.target.value)} />
         </div>
         <div className={styles.field}>
           <label className={styles.fieldLabel} htmlFor="ctr-mproductor">% master productor</label>
-          <input id="ctr-mproductor" className={styles.input} type="number" value={pctMasterProductor} onChange={(e) => setPctMasterProductor(e.target.value)} />
+          <input id="ctr-mproductor" className={styles.input} type="number" min="0" max="100" value={pctMasterProductor} onChange={(e) => setPctMasterProductor(e.target.value)} />
         </div>
         <div className={styles.field}>
           <label className={styles.fieldLabel} htmlFor="ctr-psello">% publishing sello</label>
-          <input id="ctr-psello" className={styles.input} type="number" value={pctPubSello} onChange={(e) => setPctPubSello(e.target.value)} />
+          <input id="ctr-psello" className={styles.input} type="number" min="0" max="100" value={pctPubSello} onChange={(e) => setPctPubSello(e.target.value)} />
         </div>
         <div className={styles.field}>
           <label className={styles.fieldLabel} htmlFor="ctr-partista">% publishing artista</label>
-          <input id="ctr-partista" className={styles.input} type="number" value={pctPubArtista} onChange={(e) => setPctPubArtista(e.target.value)} />
+          <input id="ctr-partista" className={styles.input} type="number" min="0" max="100" value={pctPubArtista} onChange={(e) => setPctPubArtista(e.target.value)} />
         </div>
         <div className={styles.field}>
           <label className={styles.fieldLabel} htmlFor="ctr-vigente">Vigente desde</label>
@@ -311,12 +311,15 @@ export function RegaliasAdminPage() {
         </div>
         <div className={styles.field}>
           <label className={styles.fieldLabel} htmlFor="liq-fin">Hasta</label>
-          <input id="liq-fin" className={styles.input} type="date" value={periodoFin} onChange={(e) => setPeriodoFin(e.target.value)} />
+          <input id="liq-fin" className={styles.input} type="date" min={periodoInicio} value={periodoFin} onChange={(e) => setPeriodoFin(e.target.value)} />
         </div>
-        <button type="submit" className={styles.btnPrimary} disabled={liquidar.isPending}>
+        <button type="submit" className={styles.btnPrimary} disabled={liquidar.isPending || periodoFin <= periodoInicio}>
           {liquidar.isPending ? 'Liquidando…' : 'Liquidar período'}
         </button>
       </form>
+      {periodoFin <= periodoInicio && (
+        <p className={styles.bannerError} data-pdf-export-ignore="true">La fecha "Hasta" debe ser posterior a "Desde".</p>
+      )}
       {liquidar.isSuccess && (
         <p className={styles.bannerOk}>
           {liquidar.data.status === 'ya_liquidado'
@@ -358,7 +361,8 @@ function ContratoEditDialog({ contrato, pending, onClose, onSave }: {
 
   const sumaMaster = Number(ms) + Number(ma) + Number(mp)
   const sumaPub = Number(ps) + Number(pa)
-  const valido = Math.abs(sumaMaster - 100) < 0.01 && Math.abs(sumaPub - 100) < 0.01
+  const vigenciaValida = !hasta || hasta > contrato.vigente_desde
+  const valido = Math.abs(sumaMaster - 100) < 0.01 && Math.abs(sumaPub - 100) < 0.01 && vigenciaValida
 
   return (
     <div className={styles.modalBackdrop} onMouseDown={onClose}>
@@ -384,8 +388,9 @@ function ContratoEditDialog({ contrato, pending, onClose, onSave }: {
             <label className={styles.field}><span className={styles.fieldLabel}>Sello</span><input className={styles.input} type="number" min="0" max="100" value={ps} onChange={(e) => setPs(e.target.value)} /></label>
             <label className={styles.field}><span className={styles.fieldLabel}>Artista</span><input className={styles.input} type="number" min="0" max="100" value={pa} onChange={(e) => setPa(e.target.value)} /></label>
           </div>
-          <label className={styles.field}><span className={styles.fieldLabel}>Vigente hasta (opcional)</span><input className={styles.input} type="date" value={hasta} onChange={(e) => setHasta(e.target.value)} /></label>
-          {!valido && <p className={styles.modalWarn}>Master y publishing deben sumar 100 cada uno.</p>}
+          <label className={styles.field}><span className={styles.fieldLabel}>Vigente hasta (opcional)</span><input className={styles.input} type="date" min={contrato.vigente_desde} value={hasta} onChange={(e) => setHasta(e.target.value)} /></label>
+          {(Math.abs(sumaMaster - 100) >= 0.01 || Math.abs(sumaPub - 100) >= 0.01) && <p className={styles.modalWarn}>Master y publishing deben sumar 100 cada uno.</p>}
+          {!vigenciaValida && <p className={styles.modalWarn}>"Vigente hasta" debe ser posterior a "vigente desde" ({contrato.vigente_desde}).</p>}
           <div className={styles.modalActions}>
             <button type="button" className={styles.btnGhost} onClick={onClose}>Cancelar</button>
             <button type="submit" className={styles.btnPrimary} disabled={pending || !valido}>{pending ? 'Guardando…' : 'Guardar cambios'}</button>

@@ -1,8 +1,9 @@
 import uuid
 from datetime import date, datetime
+from typing import Literal
 
-from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from fastapi import APIRouter, Depends, HTTPException, Path, Query
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from core.database import execute, get_client, query_one, query_rows
 from paquetes.creadores.queries import CUENTA_ACTUAL_POR_ID
@@ -73,19 +74,25 @@ def _resolver_retencion_pct(tipo: str, rightsholder_id: str) -> float:
 # ─────────────────────────────────────────────────────────────────────────────
 
 class ProductorBody(BaseModel):
-    nombre: str
+    nombre: str = Field(min_length=1, max_length=200)
+
+    @field_validator("nombre")
+    @classmethod
+    def _nombre_no_vacio(cls, v: str) -> str:
+        v = v.strip()
+        if not v:
+            raise ValueError("El nombre del productor no puede estar vacío")
+        return v
 
 
 @router.post("/admin/productores", status_code=201)
 def crear_productor(body: ProductorBody, admin: dict = Depends(require_admin)):
-    if not body.nombre.strip():
-        raise HTTPException(status_code=422, detail="El nombre del productor no puede estar vacío")
     nuevo_id = ((query_one(PRODUCTOR_ID_MAX) or {}).get("n") or 0) + 1
     get_client().insert(
-        "DIM_PRODUCTOR", [(nuevo_id, body.nombre.strip())],
+        "DIM_PRODUCTOR", [(nuevo_id, body.nombre)],
         column_names=["productor_id", "nombre"],
     )
-    return {"status": "ok", "productor_id": nuevo_id, "nombre": body.nombre.strip()}
+    return {"status": "ok", "productor_id": nuevo_id, "nombre": body.nombre}
 
 
 @router.get("/productores")
@@ -94,7 +101,11 @@ def listar_productores(user: dict = Depends(get_current_user)):
 
 
 @router.post("/admin/productores/{productor_id}/tracks/{fact_id}", status_code=201)
-def asignar_productor(productor_id: int, fact_id: int, admin: dict = Depends(require_admin)):
+def asignar_productor(
+    productor_id: int = Path(..., ge=1),
+    fact_id: int = Path(..., ge=1),
+    admin: dict = Depends(require_admin),
+):
     if not (query_one(PRODUCTOR_EXISTE, {"productor_id": productor_id}) or {}).get("n"):
         raise HTTPException(status_code=404, detail="Productor no encontrado")
     if not (query_one(TRACK_EXISTE, {"fact_id": fact_id}) or {}).get("n"):
@@ -111,17 +122,39 @@ def asignar_productor(productor_id: int, fact_id: int, admin: dict = Depends(req
 # ─────────────────────────────────────────────────────────────────────────────
 
 class ContratoBody(BaseModel):
-    fact_id_track: int
-    sello_id: int | None = None
-    cuenta_artista_id: str | None = None
-    productor_id: int | None = None
-    pct_master_sello: float = 0
-    pct_master_artista: float = 0
-    pct_master_productor: float = 0
-    pct_publishing_sello: float = 0
-    pct_publishing_artista: float = 0
+    fact_id_track: int = Field(ge=1)
+    sello_id: int | None = Field(default=None, ge=1)
+    # UUID de cuenta de artista (paquete `creadores`) — no un PK propio de este
+    # paquete, pero igual se exige no vacío/sin espacios para evitar referencias
+    # rotas silenciosas (" " o "" pasarían la comprobación `if body.cuenta_artista_id`).
+    cuenta_artista_id: str | None = Field(default=None, min_length=1)
+    productor_id: int | None = Field(default=None, ge=1)
+    # Splits de reparto (CU-O61): unidad real es "puntos porcentuales enteros
+    # de 0 a 100" — el cálculo de liquidación los usa como `pct / 100`
+    # (router.py::liquidar_periodo_interno), nunca como fracción 0..1. `ge=0`
+    # es la corrección de fondo aquí: la invariante de negocio "master debe
+    # sumar 100" (ver abajo) NO es suficiente por sí sola — sin cota inferior,
+    # una combinación como pct_master_sello=150 / pct_master_artista=-50 suma
+    # 100 y pasaba la validación anterior, dejando un split negativo real en
+    # DIM_CONTRATO_REGALIA.
+    pct_master_sello: float = Field(default=0, ge=0, le=100)
+    pct_master_artista: float = Field(default=0, ge=0, le=100)
+    pct_master_productor: float = Field(default=0, ge=0, le=100)
+    pct_publishing_sello: float = Field(default=0, ge=0, le=100)
+    pct_publishing_artista: float = Field(default=0, ge=0, le=100)
     vigente_desde: date
     vigente_hasta: date | None = None
+
+    @field_validator("cuenta_artista_id")
+    @classmethod
+    def _strip_cuenta_artista_id(cls, v: str | None) -> str | None:
+        return v.strip() if v is not None else v
+
+    @model_validator(mode="after")
+    def _check_vigencia(self) -> "ContratoBody":
+        if self.vigente_hasta is not None and self.vigente_hasta <= self.vigente_desde:
+            raise ValueError("vigente_hasta debe ser posterior a vigente_desde")
+        return self
 
 
 @router.post("/admin/contratos", status_code=201)
@@ -210,12 +243,17 @@ def resumen_contrato(contrato_id: str, admin: dict = Depends(require_admin)):
 # suma 100) fusionando los campos enviados con los actuales. La terminación
 # usa `activo=0` + `vigente_hasta` (no una columna `estado` nueva): un contrato
 # con activo=0 y vigencia cerrada es un contrato terminado.
+# PK inmutable: `contrato_id` viaja solo por el path (`{contrato_id}`), nunca
+# como campo de este modelo — si el payload lo trajera no habría dónde
+# asignarlo, así que la inmutabilidad queda garantizada por construcción y no
+# requiere un chequeo explícito adicional (a diferencia de `dim_update` en
+# `gestion_datos`, donde la PK sí es una key más de un `dict[str, Any]`).
 class ContratoEditBody(BaseModel):
-    pct_master_sello: float | None = None
-    pct_master_artista: float | None = None
-    pct_master_productor: float | None = None
-    pct_publishing_sello: float | None = None
-    pct_publishing_artista: float | None = None
+    pct_master_sello: float | None = Field(default=None, ge=0, le=100)
+    pct_master_artista: float | None = Field(default=None, ge=0, le=100)
+    pct_master_productor: float | None = Field(default=None, ge=0, le=100)
+    pct_publishing_sello: float | None = Field(default=None, ge=0, le=100)
+    pct_publishing_artista: float | None = Field(default=None, ge=0, le=100)
     vigente_hasta: date | None = None
 
 
@@ -224,6 +262,9 @@ def editar_contrato(contrato_id: str, body: ContratoEditBody, admin: dict = Depe
     actual = query_one(CONTRATO_POR_ID, {"contrato_id": contrato_id})
     if not actual:
         raise HTTPException(status_code=404, detail="Contrato no encontrado")
+
+    if body.vigente_hasta is not None and body.vigente_hasta <= actual["vigente_desde"]:
+        raise HTTPException(status_code=422, detail="vigente_hasta debe ser posterior a vigente_desde")
 
     def _merge(campo: str) -> float:
         val = getattr(body, campo)
@@ -306,8 +347,16 @@ def exportar_contrato(contrato_id: str, admin: dict = Depends(require_admin)):
 # ─────────────────────────────────────────────────────────────────────────────
 
 class CuentaSelloBody(BaseModel):
-    usuario_id: str
-    sello_id: int
+    usuario_id: str = Field(min_length=1)
+    sello_id: int = Field(ge=1)
+
+    @field_validator("usuario_id")
+    @classmethod
+    def _strip_usuario_id(cls, v: str) -> str:
+        v = v.strip()
+        if not v:
+            raise ValueError("usuario_id no puede estar vacío")
+        return v
 
 
 @router.post("/admin/cuentas-sello", status_code=201)
@@ -342,6 +391,18 @@ def mi_cuenta_sello(cuenta: dict = Depends(require_cuenta_sello)):
 class LiquidarBody(BaseModel):
     periodo_inicio: date
     periodo_fin: date
+
+    # Rechazo temprano a nivel de request. `liquidar_periodo_interno` repite
+    # este mismo chequeo (ver abajo) porque también se invoca directo desde
+    # `paquetes/simulacion/router.py` con fechas construidas en Python, sin
+    # pasar por este modelo — ese caller siempre construye un rango válido
+    # (hoy, hoy+1 día), pero el chequeo de la función se deja como defensa en
+    # profundidad para cualquier otro caller interno futuro.
+    @model_validator(mode="after")
+    def _check_periodo(self) -> "LiquidarBody":
+        if self.periodo_fin <= self.periodo_inicio:
+            raise ValueError("periodo_fin debe ser posterior a periodo_inicio")
+        return self
 
 
 def liquidar_periodo_interno(periodo_inicio: date, periodo_fin: date) -> dict:
@@ -465,8 +526,14 @@ def mis_ganancias_sello(cuenta: dict = Depends(require_cuenta_sello)):
 # 6. Retiro de ganancias (CU-O75/CU-O76, modelo-financiero-simulacion)
 # ─────────────────────────────────────────────────────────────────────────────
 
+# `monto` de un retiro es siempre una solicitud de sustracción de saldo
+# positivo — a diferencia de una liquidación (que solo suma), este paquete no
+# tiene concepto de "ajuste"/delta que permita un retiro negativo: no existe
+# ningún flujo de negocio (revisado en router.py/queries.py) que reverse un
+# retiro con un monto negativo; una corrección de un retiro mal procesado se
+# modela como "rechazar" el retiro (estado), no como un monto negativo nuevo.
 class RetiroBody(BaseModel):
-    monto: float
+    monto: float = Field(gt=0)
 
 
 def _saldo_disponible(tipo: str, rightsholder_id: str) -> float:
@@ -525,7 +592,10 @@ def solicitar_retiro_sello(body: RetiroBody, cuenta: dict = Depends(require_cuen
 
 
 @router.get("/admin/retiros")
-def listar_retiros_admin(estado: str | None = None, admin: dict = Depends(require_admin)):
+def listar_retiros_admin(
+    estado: Literal["pendiente", "procesado", "rechazado"] | None = Query(None),
+    admin: dict = Depends(require_admin),
+):
     where = "WHERE estado = {estado:String}" if estado else ""
     params = {"estado": estado} if estado else {}
     return {"data": query_rows(retiros_admin_sql(where), params)}
