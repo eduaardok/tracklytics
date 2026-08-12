@@ -5,6 +5,7 @@ import {
 } from 'recharts'
 import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { ExportPDFButton } from '@shared/components/ExportPDFButton'
+import { EmptyState } from '@shared/components/EmptyState'
 import { analiticaApi } from '../api/analitica.api'
 import type { TendenciaSemana } from '../types'
 import styles from './TendenciasPage.module.css'
@@ -160,9 +161,7 @@ export function TendenciasPage() {
       )}
 
       {!tendencias.isLoading && !tendencias.isError && data.length === 0 && (
-        <div className={styles.prompt}>
-          <p className={styles.promptText}>Sin datos para el rango seleccionado.</p>
-        </div>
+        <EmptyState icon="◔" title="Sin datos para el rango seleccionado" />
       )}
 
       {data.length > 0 && (

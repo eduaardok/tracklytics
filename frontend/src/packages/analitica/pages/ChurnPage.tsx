@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
+import { EmptyState } from '@shared/components/EmptyState'
 import { analiticaApi } from '../api/analitica.api'
 import styles from './ChurnPage.module.css'
 
@@ -55,9 +56,7 @@ export function ChurnPage() {
       )}
 
       {!churn.isLoading && !churn.isError && meses.length === 0 && (
-        <div className={styles.prompt}>
-          <p className={styles.promptText}>Sin datos para el rango seleccionado.</p>
-        </div>
+        <EmptyState icon="◔" title="Sin datos para el rango seleccionado" />
       )}
 
       {meses.length > 0 && (

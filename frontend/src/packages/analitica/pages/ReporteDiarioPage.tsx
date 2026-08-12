@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
+import { EmptyState } from '@shared/components/EmptyState'
 import { analiticaApi } from '../api/analitica.api'
 import styles from './ReporteDiarioPage.module.css'
 
@@ -90,7 +91,7 @@ export function ReporteDiarioPage() {
 
           <p className={styles.sectionLabel} style={{ marginTop: 'var(--space-xl)' }}>Engagement por tipo</p>
           {data.engagement_por_tipo.length === 0 ? (
-            <p className={styles.emptyText}>Sin eventos de engagement registrados este día.</p>
+            <EmptyState icon="◔" title="Sin eventos de engagement registrados este día" />
           ) : (
             <div className={styles.panel}>
               <table className={styles.table}>

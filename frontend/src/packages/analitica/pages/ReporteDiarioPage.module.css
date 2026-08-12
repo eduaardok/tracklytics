@@ -182,11 +182,6 @@ tbody tr:last-child .rowValue {
   border-bottom: none;
 }
 
-.emptyText {
-  font-family: var(--font-sans);
-  font-size: 0.875rem;
-  color: var(--color-muted);
-}
 
 /* ── Nota ── */
 .notaBanner {

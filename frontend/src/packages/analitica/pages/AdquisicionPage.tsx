@@ -5,6 +5,7 @@ import { analiticaApi } from '../api/analitica.api'
 import { TierUpsell } from '../components/TierUpsell'
 import { tierInsuficienteInfo } from '../lib/tierError'
 import { ExportPDFButton } from '@shared/components/ExportPDFButton'
+import { EmptyState } from '@shared/components/EmptyState'
 import type { AdquisicionCanal } from '../types'
 import styles from './AdquisicionPage.module.css'
 
@@ -59,9 +60,7 @@ export function AdquisicionPage() {
       )}
 
       {!adquisicion.isLoading && !adquisicion.isError && semanas.length === 0 && (
-        <div className={styles.prompt}>
-          <p className={styles.promptText}>Sin datos de adquisición todavía.</p>
-        </div>
+        <EmptyState icon="◔" title="Sin datos de adquisición todavía" />
       )}
 
       {semanas.length > 0 && (

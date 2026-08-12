@@ -33,17 +33,6 @@
   color: var(--color-error);
 }
 
-.prompt {
-  padding: var(--space-2xl) 0 var(--space-xl);
-  text-align: center;
-}
-
-.promptText {
-  font-family: var(--font-sans);
-  font-size: 0.875rem;
-  color: var(--color-muted);
-}
-
 /* ── Table ── */
 .tableScroll {
   overflow-x: auto;

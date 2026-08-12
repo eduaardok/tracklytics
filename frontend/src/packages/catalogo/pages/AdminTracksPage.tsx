@@ -5,6 +5,7 @@ import { apiErrorMessage } from '@shared/lib/api-client'
 import { useToast } from '@shared/context/ToastContext'
 import { useConfirm } from '@shared/context/ConfirmContext'
 import { ExportPDFButton } from '@shared/components/ExportPDFButton'
+import { EmptyState } from '@shared/components/EmptyState'
 import { catalogoApi } from '../api/catalogo.api'
 import type { Track } from '../types'
 import styles from './AdminTracksPage.module.css'
@@ -80,7 +81,7 @@ export function AdminTracksPage() {
               {resultados.isLoading ? (
                 <tr><td colSpan={3} className={styles.emptyState}>Buscando…</td></tr>
               ) : resultadosData.length === 0 ? (
-                <tr><td colSpan={3} className={styles.emptyState}>Sin resultados disponibles para «{buscado}».</td></tr>
+                <tr><td colSpan={3}><EmptyState icon="( ∅ )" title={`Sin resultados para «${buscado}»`} /></td></tr>
               ) : resultadosData.map((t) => (
                 <tr key={t.fact_id}>
                   <td>{t.track_name}</td><td>{t.artist_name}</td>
@@ -102,7 +103,7 @@ export function AdminTracksPage() {
             {ocultos.isLoading ? (
               <tr><td colSpan={3} className={styles.emptyState}>Cargando…</td></tr>
             ) : ocultosData.length === 0 ? (
-              <tr><td colSpan={3} className={styles.emptyState}>No hay tracks ocultos.</td></tr>
+              <tr><td colSpan={3}><EmptyState icon="( ∅ )" title="No hay tracks ocultos" /></td></tr>
             ) : ocultosData.map((t) => (
               <tr key={t.fact_id}>
                 <td>{t.track_name}</td><td>{t.artist_name}</td>

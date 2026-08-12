@@ -5,6 +5,7 @@ import {
 import { useQuery } from '@tanstack/react-query'
 import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { ExportPDFButton } from '@shared/components/ExportPDFButton'
+import { EmptyState } from '@shared/components/EmptyState'
 import { analiticaApi } from '../api/analitica.api'
 import type { DisponibilidadComponente } from '../types'
 import styles from './DisponibilidadInfraPage.module.css'
@@ -103,9 +104,7 @@ export function DisponibilidadInfraPage() {
       )}
 
       {!disponibilidad.isLoading && !disponibilidad.isError && componentes.length === 0 && (
-        <div className={styles.prompt}>
-          <p className={styles.promptText}>Sin datos de disponibilidad todavía.</p>
-        </div>
+        <EmptyState icon="◔" title="Sin datos de disponibilidad todavía" />
       )}
 
       {componentes.length > 0 && (
