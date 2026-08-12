@@ -3,6 +3,7 @@ import { Gauge } from 'lucide-react'
 import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { EmptyState } from '@shared/components/EmptyState'
 import { KPICard } from '@shared/components/KPICard'
+import { SkeletonCard } from '@shared/components/SkeletonLoader'
 import { apiErrorMessage } from '@shared/lib/api-client'
 import { analiticaApi } from '../api/analitica.api'
 import type { BenchmarkInforme } from '../types'
@@ -135,7 +136,11 @@ export function BenchmarkSqlPage() {
         capa Gold pre-agregada — no confundir con "Benchmark" en el menú (comparación de artistas)
       </span>
 
-      {informes.isLoading && <div className={styles.panel} style={{ minHeight: 120 }} />}
+      {informes.isLoading && (
+        <div className={styles.informesGrid}>
+          {Array.from({ length: 3 }).map((_, i) => <SkeletonCard key={i} height={140} />)}
+        </div>
+      )}
       {informes.isError && (
         <div className={styles.panel}><p className={styles.errorText}>No se pudieron cargar los informes disponibles.</p></div>
       )}
