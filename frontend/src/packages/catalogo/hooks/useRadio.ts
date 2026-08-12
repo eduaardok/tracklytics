@@ -4,6 +4,7 @@ import { experienciaApi } from '@packages/experiencia/api/experiencia.api'
 import { useToast } from '@shared/context/ToastContext'
 import { usePlayer, type PlayableTrack } from '@shared/context/PlayerContext'
 import { apiErrorMessage } from '@shared/lib/api-client'
+import { isAuthenticated } from '@shared/lib/session'
 
 /**
  * "Iniciar radio" desde cualquier track (change p2-descubrimiento-comunidad).
@@ -19,6 +20,13 @@ export function useRadio() {
   const toast = useToast()
 
   async function iniciarRadio(factId: number) {
+    // GET /experiencia/radio/track/{fact_id} ahora exige sesión (backend) —
+    // este chequeo evita el roundtrip y muestra el mismo aviso de
+    // `PlayerContext.play` en vez de un genérico "No se pudo iniciar la radio".
+    if (!isAuthenticated()) {
+      toast.error('Inicia sesión gratis para escuchar radio — regístrate o inicia sesión.')
+      return
+    }
     setIniciando(true)
     try {
       const r = await experienciaApi.radioDeTrack(factId)

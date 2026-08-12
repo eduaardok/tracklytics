@@ -295,8 +295,15 @@ def _params_perfil(perfil: dict) -> dict:
 
 
 @router.get("/radio/track/{fact_id}")
-def radio_por_track(fact_id: int, limit: int = Query(RADIO_LIMITE, ge=1, le=50)):
-    """Radio basada en una canción: cola de tracks similares a la semilla."""
+def radio_por_track(
+    fact_id: int, limit: int = Query(RADIO_LIMITE, ge=1, le=50), user: dict = Depends(get_current_user),
+):
+    """Radio basada en una canción: cola de tracks similares a la semilla.
+
+    Solo requiere sesión iniciada (no un rol B2C específico) — mismo umbral
+    que `resolver_youtube_video_id`. Antes no exigía ningún `Depends`: un
+    cliente sin sesión podía armar la cola completa de radio (hueco de
+    seguridad/negocio, change delete-metodo-pago-y-gate-reproduccion)."""
     semilla = query_one(TRACK_SEMILLA, {"fact_id": fact_id})
     # `query_one` sobre una agregación sin GROUP BY devuelve siempre una fila;
     # el track no existe (o no está disponible) cuando esa fila viene vacía.

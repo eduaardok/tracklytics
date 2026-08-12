@@ -141,6 +141,9 @@ export function LoginPage() {
                 ¿No tienes cuenta? <Link to="/register">Regístrate</Link>
               </p>
               <p className={styles.footer}>
+                <Link to="/">Explorar el catálogo sin iniciar sesión</Link>
+              </p>
+              <p className={styles.footer}>
                 <Link to="/acerca-de">Acerca de Tracklytics</Link>
               </p>
             </>

@@ -1,5 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
 import { experienciaApi } from '@packages/experiencia/api/experiencia.api'
+import { isAuthenticated } from '@shared/lib/session'
+import { useToast } from '@shared/context/ToastContext'
 
 export type PlayableTrack = {
   fact_id:     number
@@ -170,6 +172,7 @@ type SimulatedNodes = { osc: OscillatorNode; gain: GainNode }
 // localStorage) — se resetea en un full reload, a diferencia del legacy
 // (tl_player en localStorage).
 export function PlayerProvider({ children }: { children: ReactNode }) {
+  const toast = useToast()
   const [currentTrack, setCurrentTrack]             = useState<PlayableTrack | null>(null)
   const [isPlaying, setIsPlaying]                   = useState(false)
   const [progressMs, setProgressMs]                 = useState(0)
@@ -296,6 +299,15 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   }, [destroyYtPlayer, stopSimulated, startSimTicker])
 
   const play = useCallback((track: PlayableTrack) => {
+    // RN-EXP-gate-reproduccion: sin sesión, ni reproducción real ni
+    // simulada — antes cualquier error (incluido el 401 de
+    // `youtube-video-id`) caía al fallback de audio simulado, dejando ver
+    // un player con progreso avanzando para alguien sin cuenta. El corte
+    // ahora es explícito y antes de cualquier llamada de red.
+    if (!isAuthenticated()) {
+      toast.error('Inicia sesión gratis para escuchar — regístrate o inicia sesión para reproducir música.')
+      return
+    }
     const token = ++playTokenRef.current
     clearTimer()
     destroyYtPlayer()
@@ -400,7 +412,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       // `loadYouTubeApi()` (script bloqueado/timeout, ver arriba).
       startSimulatedPlayback(track, token)
     })
-  }, [clearTimer, destroyYtPlayer, stopSimulated, startSimulatedPlayback])
+  }, [clearTimer, destroyYtPlayer, stopSimulated, startSimulatedPlayback, toast])
 
   const stop = useCallback(() => {
     // Invalida cualquier `play()` en vuelo (ej. la promesa de
