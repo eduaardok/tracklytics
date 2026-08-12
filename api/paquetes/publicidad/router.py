@@ -3,8 +3,8 @@ import uuid
 from datetime import date, datetime
 from typing import Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel
+from fastapi import APIRouter, Depends, HTTPException, Path, Query
+from pydantic import BaseModel, Field, field_validator
 
 from core.database import execute, get_client, query_one, query_rows
 from core.deps import get_current_user
@@ -54,8 +54,8 @@ async def _usuario_exento_de_ads(user: dict) -> bool:
 # ─────────────────────────────────────────────────────────────────────────────
 
 class AnuncianteBody(BaseModel):
-    nombre: str
-    sector: str = ""
+    nombre: str = Field(min_length=1, max_length=200)
+    sector: str = Field("", max_length=100)
 
 
 @router.post("/admin/anunciantes", status_code=201)
@@ -76,12 +76,14 @@ def listar_anunciantes(admin: dict = Depends(require_admin)):
 
 
 class AnuncianteEditBody(BaseModel):
-    nombre: str
-    sector: str = ""
+    nombre: str = Field(min_length=1, max_length=200)
+    sector: str = Field("", max_length=100)
 
 
 @router.put("/admin/anunciantes/{anunciante_id}")
-def editar_anunciante(anunciante_id: int, body: AnuncianteEditBody, admin: dict = Depends(require_admin)):
+def editar_anunciante(
+    body: AnuncianteEditBody, anunciante_id: int = Path(..., ge=1), admin: dict = Depends(require_admin),
+):
     """Edita nombre/sector de un anunciante existente (change p1-ciclos-vida)."""
     if not (query_one(ANUNCIANTE_EXISTE, {"anunciante_id": anunciante_id}) or {}).get("n"):
         raise HTTPException(status_code=404, detail="Anunciante no encontrado")
@@ -101,7 +103,7 @@ def editar_anunciante(anunciante_id: int, body: AnuncianteEditBody, admin: dict 
 
 
 @router.post("/admin/anunciantes/{anunciante_id}/desactivar")
-def desactivar_anunciante(anunciante_id: int, admin: dict = Depends(require_admin)):
+def desactivar_anunciante(anunciante_id: int = Path(..., ge=1), admin: dict = Depends(require_admin)):
     """Marca el anunciante como inactivo (soft-delete, change p1-ciclos-vida)."""
     if not (query_one(ANUNCIANTE_EXISTE, {"anunciante_id": anunciante_id}) or {}).get("n"):
         raise HTTPException(status_code=404, detail="Anunciante no encontrado")
@@ -118,25 +120,31 @@ def desactivar_anunciante(anunciante_id: int, admin: dict = Depends(require_admi
 
 
 class CampanaBody(BaseModel):
-    anunciante_id: int
-    nombre: str
-    cpm: float
-    presupuesto_total: float
+    anunciante_id: int = Field(ge=1)
+    nombre: str = Field(min_length=1, max_length=200)
+    cpm: float = Field(gt=0)
+    presupuesto_total: float = Field(gt=0)
     fecha_inicio: date
     fecha_fin: date | None = None
     # tipo_anuncio (monetizacion-retencion-mejoras): una campaña es de un solo
     # formato, así se contrata en la industria real — 'display' exige
     # url_destino para el redirect al hacer click.
     tipo_anuncio: Literal["audio", "display"] = "audio"
-    url_destino: str = ""
+    url_destino: str = Field("", max_length=2048)
+
+    @field_validator("fecha_fin")
+    @classmethod
+    def _validar_fecha_fin(cls, v: date | None, info) -> date | None:
+        fecha_inicio = info.data.get("fecha_inicio")
+        if v is not None and fecha_inicio is not None and v <= fecha_inicio:
+            raise ValueError("La fecha de fin debe ser posterior a la fecha de inicio")
+        return v
 
 
 @router.post("/admin/campanas", status_code=201)
 def crear_campana(body: CampanaBody, admin: dict = Depends(require_admin)):
     if not (query_one(ANUNCIANTE_EXISTE, {"anunciante_id": body.anunciante_id}) or {}).get("n"):
         raise HTTPException(status_code=404, detail="Anunciante no encontrado")
-    if body.cpm <= 0:
-        raise HTTPException(status_code=422, detail="El CPM debe ser mayor que 0")
     if body.tipo_anuncio == "display" and not body.url_destino.strip():
         raise HTTPException(status_code=422, detail="Una campaña display requiere una URL de destino")
 
@@ -169,11 +177,23 @@ _FORMATO_A_TIPO = {"audio": "audio", "display": "display", "banner": "display"}
 
 
 class CampanaEditBody(BaseModel):
-    nombre: str | None = None
-    presupuesto_total: float | None = None
+    nombre: str | None = Field(None, min_length=1, max_length=200)
+    presupuesto_total: float | None = Field(None, gt=0)
     fecha_inicio: date | None = None
     fecha_fin: date | None = None
     formato: Literal["audio", "display", "banner"] | None = None
+
+    @field_validator("fecha_fin")
+    @classmethod
+    def _validar_fecha_fin(cls, v: date | None, info) -> date | None:
+        # Solo detecta el caso en que AMBAS fechas llegan en el mismo PATCH.
+        # Cuando solo una llega, `editar_campana` completa la comparación
+        # contra la fecha ya guardada (no disponible acá: este validador
+        # solo ve el payload, no el estado en ClickHouse).
+        fecha_inicio = info.data.get("fecha_inicio")
+        if v is not None and fecha_inicio is not None and v <= fecha_inicio:
+            raise ValueError("La fecha de fin debe ser posterior a la fecha de inicio")
+        return v
 
 
 def _campana_o_404(campana_id: int) -> dict:
@@ -184,16 +204,28 @@ def _campana_o_404(campana_id: int) -> dict:
 
 
 @router.put("/admin/campanas/{campana_id}")
-def editar_campana(campana_id: int, body: CampanaEditBody, admin: dict = Depends(require_admin)):
+def editar_campana(
+    body: CampanaEditBody, campana_id: int = Path(..., ge=1), admin: dict = Depends(require_admin),
+):
     _campana_o_404(campana_id)
+
+    # `CampanaEditBody` es un PATCH parcial: si el request solo trae una de
+    # las dos fechas, la comparación fecha_fin > fecha_inicio del
+    # `field_validator` (que solo ve el payload) no alcanza — hay que
+    # completar la fecha faltante con el valor ya guardado antes de comparar.
+    if body.fecha_inicio is not None or body.fecha_fin is not None:
+        actual = query_one(CAMPANA_POR_ID, {"campana_id": campana_id}) or {}
+        efectivo_inicio = body.fecha_inicio if body.fecha_inicio is not None else actual.get("fecha_inicio")
+        efectivo_fin = body.fecha_fin if body.fecha_fin is not None else actual.get("fecha_fin")
+        if efectivo_inicio is not None and efectivo_fin is not None and efectivo_fin <= efectivo_inicio:
+            raise HTTPException(status_code=422, detail="La fecha de fin debe ser posterior a la fecha de inicio")
+
     sets, params = [], {"id": campana_id}
     if body.nombre is not None:
         if not body.nombre.strip():
             raise HTTPException(status_code=422, detail="El nombre no puede estar vacío")
         sets.append("nombre = {nombre:String}"); params["nombre"] = body.nombre.strip()
     if body.presupuesto_total is not None:
-        if body.presupuesto_total <= 0:
-            raise HTTPException(status_code=422, detail="El presupuesto debe ser mayor que 0")
         sets.append("presupuesto_total = {presupuesto:Float32}"); params["presupuesto"] = body.presupuesto_total
     if body.fecha_inicio is not None:
         sets.append("fecha_inicio = {fecha_inicio:Date}"); params["fecha_inicio"] = body.fecha_inicio
@@ -227,7 +259,7 @@ def _set_estado_manual(campana_id: int, estado: str, admin: dict, accion: str) -
 
 
 @router.post("/admin/campanas/{campana_id}/pausar")
-def pausar_campana(campana_id: int, admin: dict = Depends(require_admin)):
+def pausar_campana(campana_id: int = Path(..., ge=1), admin: dict = Depends(require_admin)):
     fila = _campana_o_404(campana_id)
     if fila["estado_manual"] == "finalizada":
         raise HTTPException(status_code=409, detail="Una campaña finalizada no puede pausarse")
@@ -235,7 +267,7 @@ def pausar_campana(campana_id: int, admin: dict = Depends(require_admin)):
 
 
 @router.post("/admin/campanas/{campana_id}/reanudar")
-def reanudar_campana(campana_id: int, admin: dict = Depends(require_admin)):
+def reanudar_campana(campana_id: int = Path(..., ge=1), admin: dict = Depends(require_admin)):
     fila = _campana_o_404(campana_id)
     if fila["estado_manual"] == "finalizada":
         raise HTTPException(status_code=409, detail="Una campaña finalizada no puede reanudarse")
@@ -243,7 +275,7 @@ def reanudar_campana(campana_id: int, admin: dict = Depends(require_admin)):
 
 
 @router.post("/admin/campanas/{campana_id}/finalizar")
-def finalizar_campana(campana_id: int, admin: dict = Depends(require_admin)):
+def finalizar_campana(campana_id: int = Path(..., ge=1), admin: dict = Depends(require_admin)):
     _campana_o_404(campana_id)
     return _set_estado_manual(campana_id, "finalizada", admin, "finalizar_campana")
 
@@ -333,12 +365,16 @@ def _completar_impresion(impresion_id: str, user: dict) -> dict:
 
 
 @router.post("/impresion/{impresion_id}/completar", status_code=201)
-def completar_impresion(impresion_id: str, user: dict = Depends(get_current_user)):
+def completar_impresion(
+    impresion_id: str = Path(..., min_length=1, max_length=64), user: dict = Depends(get_current_user),
+):
     return _completar_impresion(impresion_id, user)
 
 
 @router.post("/impresion/{impresion_id}/click", status_code=201)
-def registrar_click(impresion_id: str, user: dict = Depends(get_current_user)):
+def registrar_click(
+    impresion_id: str = Path(..., min_length=1, max_length=64), user: dict = Depends(get_current_user),
+):
     """Click en un banner display (monetizacion-retencion-mejoras): marca
     `click=1` y reconoce el ingreso igual que "completar" en audio —
     completarse en display significa haber hecho click (ver spec.md,

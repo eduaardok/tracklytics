@@ -137,6 +137,12 @@
   min-width: 0;
 }
 
+.modalWarn {
+  font-family: var(--font-sans);
+  font-size: 0.75rem;
+  color: var(--color-error);
+}
+
 .fieldLabel {
   font-family: var(--font-sans);
   font-size: 0.75rem;

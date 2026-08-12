@@ -478,7 +478,7 @@ function CampanaCreateModal({ anunciantesData, pending, onClose, onSave }: {
       </div>
       <div className={styles.field}>
         <label className={styles.fieldLabel} htmlFor="camp-nombre">Nombre</label>
-        <input id="camp-nombre" className={styles.input} value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Verano 2026" />
+        <input id="camp-nombre" className={styles.input} maxLength={200} value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Verano 2026" />
       </div>
       <div className={styles.field}>
         <label className={styles.fieldLabel} htmlFor="camp-tipo">Tipo de anuncio</label>
@@ -493,7 +493,7 @@ function CampanaCreateModal({ anunciantesData, pending, onClose, onSave }: {
       </div>
       <div className={styles.field}>
         <label className={styles.fieldLabel} htmlFor="camp-presupuesto">Presupuesto total</label>
-        <input id="camp-presupuesto" className={styles.input} type="number" step="0.01" min="0" value={presupuesto} onChange={(e) => setPresupuesto(e.target.value)} placeholder="1000" />
+        <input id="camp-presupuesto" className={styles.input} type="number" step="0.01" min="0.01" value={presupuesto} onChange={(e) => setPresupuesto(e.target.value)} placeholder="1000" />
       </div>
       <div className={styles.field}>
         <label className={styles.fieldLabel} htmlFor="camp-fecha">Fecha de inicio</label>
@@ -502,7 +502,7 @@ function CampanaCreateModal({ anunciantesData, pending, onClose, onSave }: {
       {tipoAnuncio === 'display' && (
         <div className={styles.field}>
           <label className={styles.fieldLabel} htmlFor="camp-url">URL de destino</label>
-          <input id="camp-url" className={styles.input} type="url" value={urlDestino} onChange={(e) => setUrlDestino(e.target.value)} placeholder="https://anunciante.com/promo" />
+          <input id="camp-url" className={styles.input} type="url" maxLength={2048} value={urlDestino} onChange={(e) => setUrlDestino(e.target.value)} placeholder="https://anunciante.com/promo" />
         </div>
       )}
     </CrudModal>
@@ -530,11 +530,11 @@ function AnuncianteCreateModal({ pending, onClose, onSave }: {
     >
       <div className={styles.field}>
         <label className={styles.fieldLabel} htmlFor="an-nombre">Nombre</label>
-        <input id="an-nombre" className={styles.input} value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Acme Corp" />
+        <input id="an-nombre" className={styles.input} maxLength={200} value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Acme Corp" />
       </div>
       <div className={styles.field}>
         <label className={styles.fieldLabel} htmlFor="an-sector">Sector</label>
-        <input id="an-sector" className={styles.input} value={sector} onChange={(e) => setSector(e.target.value)} placeholder="retail" />
+        <input id="an-sector" className={styles.input} maxLength={100} value={sector} onChange={(e) => setSector(e.target.value)} placeholder="retail" />
       </div>
     </CrudModal>
   )
@@ -555,7 +555,8 @@ function CampanaEditModal({ campana, pending, onClose, onSave }: {
   const [fechaInicio, setFechaInicio] = useState(campana.fecha_inicio)
   const [fechaFin, setFechaFin] = useState(campana.fecha_fin ?? '')
   const [formato, setFormato] = useState<FormatoCampana>(campana.formato)
-  const valido = nombre.trim().length > 0 && Number(presupuesto) > 0
+  const fechaFinValida = !fechaFin || fechaFin > fechaInicio
+  const valido = nombre.trim().length > 0 && Number(presupuesto) > 0 && fechaFinValida
 
   return (
     <CrudModal
@@ -568,7 +569,7 @@ function CampanaEditModal({ campana, pending, onClose, onSave }: {
     >
       <div className={styles.field}>
         <label className={styles.fieldLabel} htmlFor="ed-nombre">Nombre</label>
-        <input id="ed-nombre" className={styles.input} value={nombre} onChange={(e) => setNombre(e.target.value)} />
+        <input id="ed-nombre" className={styles.input} maxLength={200} value={nombre} onChange={(e) => setNombre(e.target.value)} />
       </div>
       <div className={styles.field}>
         <label className={styles.fieldLabel} htmlFor="ed-formato">Formato</label>
@@ -588,7 +589,8 @@ function CampanaEditModal({ campana, pending, onClose, onSave }: {
       </div>
       <div className={styles.field}>
         <label className={styles.fieldLabel} htmlFor="ed-fin">Fecha de fin</label>
-        <input id="ed-fin" className={styles.input} type="date" value={fechaFin} onChange={(e) => setFechaFin(e.target.value)} />
+        <input id="ed-fin" className={styles.input} type="date" min={fechaInicio} value={fechaFin} onChange={(e) => setFechaFin(e.target.value)} />
+        {!fechaFinValida && <p className={styles.modalWarn}>La fecha de fin debe ser posterior a la fecha de inicio.</p>}
       </div>
     </CrudModal>
   )
