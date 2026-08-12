@@ -118,12 +118,12 @@ export function LoginPage() {
               <form className={styles.form} onSubmit={handleSubmit} noValidate>
                 <div className={styles.field}>
                   <label className={styles.fieldLabel} htmlFor="email">Correo electrónico</label>
-                  <input id="email" className={styles.input} type="email" placeholder="tu@email.com"
+                  <input id="email" className={styles.input} type="email" maxLength={254} placeholder="tu@email.com"
                          autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
                 </div>
                 <div className={styles.field}>
                   <label className={styles.fieldLabel} htmlFor="password">Contraseña</label>
-                  <input id="password" className={styles.input} type="password" placeholder="••••••••"
+                  <input id="password" className={styles.input} type="password" maxLength={128} placeholder="••••••••"
                          autoComplete="current-password" required value={password}
                          onChange={(e) => setPassword(e.target.value)} />
                 </div>
@@ -151,7 +151,7 @@ export function LoginPage() {
               <form className={styles.form} onSubmit={handleRecuperar} noValidate>
                 <div className={styles.field}>
                   <label className={styles.fieldLabel} htmlFor="rec-email">Correo electrónico</label>
-                  <input id="rec-email" className={styles.input} type="email" placeholder="tu@email.com"
+                  <input id="rec-email" className={styles.input} type="email" maxLength={254} placeholder="tu@email.com"
                          autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
                 </div>
                 <button type="submit" className={styles.submit} disabled={submitting}>
@@ -175,13 +175,13 @@ export function LoginPage() {
               <form className={styles.form} onSubmit={handleRestablecer} noValidate>
                 <div className={styles.field}>
                   <label className={styles.fieldLabel} htmlFor="rec-token">Token de recuperación</label>
-                  <input id="rec-token" className={styles.input} type="text" placeholder="token recibido"
+                  <input id="rec-token" className={styles.input} type="text" maxLength={100} placeholder="token recibido"
                          required value={token} onChange={(e) => setToken(e.target.value)} />
                 </div>
                 <div className={styles.field}>
                   <label className={styles.fieldLabel} htmlFor="rec-pass">Nueva contraseña</label>
                   <input id="rec-pass" className={styles.input} type="password" placeholder="mínimo 8 caracteres"
-                         autoComplete="new-password" required value={nuevaPassword}
+                         autoComplete="new-password" minLength={8} maxLength={128} required value={nuevaPassword}
                          onChange={(e) => setNuevaPassword(e.target.value)} />
                 </div>
                 <button type="submit" className={styles.submit} disabled={submitting}>

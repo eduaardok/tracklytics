@@ -91,6 +91,7 @@ export function RegisterPage() {
                 type="text"
                 placeholder="Tu nombre"
                 required
+                maxLength={150}
                 value={nombre}
                 onChange={(e) => setNombre(e.target.value)}
               />
@@ -119,6 +120,7 @@ export function RegisterPage() {
                 placeholder="Mínimo 8 caracteres"
                 autoComplete="new-password"
                 minLength={8}
+                maxLength={128}
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}

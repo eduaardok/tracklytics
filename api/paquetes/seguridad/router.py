@@ -1,9 +1,10 @@
 import uuid
 from datetime import datetime, timedelta, timezone
+from typing import Literal
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from pydantic import BaseModel
+from pydantic import BaseModel, EmailStr, Field
 
 from core.database import execute, get_client, query_one, query_rows
 from core.deps import get_current_user
@@ -55,6 +56,15 @@ MAX_INTENTOS_LOGIN = 5
 TOKEN_RECUPERACION_TTL_MIN = 30
 
 ROLES_AUTO_REGISTRABLES = ("user", "analyst")  # admin no es autoasignable (CU-O01)
+
+# Los 6 roles administrativos por área realmente sembrados en
+# DIM_ROL_ADMINISTRATIVO (init_clickhouse.py, catálogo cerrado) — fuente de
+# verdad para cualquier campo que reciba un rol administrativo. `superadmin`
+# cuenta como uno de los 6 (abarca todas las áreas), no es un rol aparte.
+RolAdminLiteral = Literal[
+    "superadmin", "admin_finanzas", "admin_contenido",
+    "admin_comunidad", "admin_datos", "admin_comercial",
+]
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -164,33 +174,36 @@ def _cerrar_sesion(sesion_id: str, usuario_id: str, dispositivo_id: str, fecha_i
 # ─────────────────────────────────────────────────────────────────────────────
 
 class RegistroBody(BaseModel):
-    email: str
-    password: str
-    nombre: str
-    pais: str = ""
-    rol: str = "user"
+    email:    EmailStr
+    # Regla de negocio ya existente en `cambiar_password`/`restablecer_password`
+    # (mínimo 8 caracteres) — se aplica también en el alta para no crear cuentas
+    # con una contraseña más débil que la que exige un cambio posterior.
+    password: str = Field(min_length=8, max_length=128)
+    nombre:   str = Field(min_length=1, max_length=150)
+    pais:     str = Field(default="", max_length=100)
+    # Literal en vez de validar en runtime contra ROLES_AUTO_REGISTRABLES:
+    # `admin` (ni ningún rol administrativo) nunca llega a superar ni siquiera
+    # la deserialización del body (CU-O01).
+    rol: Literal["user", "analyst"] = "user"
 
 
 class LoginBody(BaseModel):
-    email: str
-    password: str
-    dispositivo_id: str
-    tipo: str = "web"
-    app_version: str = "web-1.0"
+    email:          EmailStr
+    # No se exige min_length=8 acá (a diferencia de alta/cambio de password):
+    # cuentas creadas antes de esa regla podrían tener una contraseña más corta
+    # y seguir siendo válidas para iniciar sesión.
+    password:       str = Field(min_length=1, max_length=128)
+    dispositivo_id: str = Field(min_length=1, max_length=200)
+    tipo:           str = Field(default="web", max_length=50)
+    app_version:    str = Field(default="web-1.0", max_length=50)
 
 
 class LogoutBody(BaseModel):
-    dispositivo_id: str
+    dispositivo_id: str = Field(min_length=1, max_length=200)
 
 
 @router.post("/auth/registro", status_code=201)
 async def registro(body: RegistroBody):
-    if body.rol not in ROLES_AUTO_REGISTRABLES:
-        raise HTTPException(
-            status_code=422,
-            detail=f"Rol inválido para autoregistro: debe ser uno de {ROLES_AUTO_REGISTRABLES}",
-        )
-
     pb_record = await pb_client.crear_usuario(body.email, body.password, body.nombre, body.pais, body.rol)
     usuario_id = pb_record["id"]
 
@@ -373,8 +386,8 @@ def dashboard_seguridad(admin: dict = Depends(require_admin)):
 
 
 class ActualizarPerfilBody(BaseModel):
-    nombre: str | None = None
-    pais: str | None = None
+    nombre: str | None = Field(default=None, min_length=1, max_length=150)
+    pais:   str | None = Field(default=None, max_length=100)
     # Perfiles públicos/privados (S10 ronda 2): solo vive en DIM_USUARIO, no
     # tiene contraparte en PocketBase (a diferencia de nombre/pais) — no hay
     # ninguna regla de acceso de PocketBase que dependa de este flag.
@@ -437,9 +450,11 @@ async def actualizar_perfil(body: ActualizarPerfilBody, user: dict = Depends(get
 
 
 class CambiarPasswordBody(BaseModel):
-    password_actual:           str
-    password_nueva:            str
-    password_nueva_confirmar:  str
+    password_actual:           str = Field(min_length=1, max_length=128)
+    # Mínimo 8 caracteres — regla de negocio ya exigida antes de este cambio
+    # (ver el `if len(...) < 8` que reemplaza el `Field` de abajo).
+    password_nueva:            str = Field(min_length=8, max_length=128)
+    password_nueva_confirmar:  str = Field(min_length=8, max_length=128)
 
 
 @router.patch("/password")
@@ -453,8 +468,6 @@ async def cambiar_password(body: CambiarPasswordBody, user: dict = Depends(get_c
     de aceptar el cambio."""
     if body.password_nueva != body.password_nueva_confirmar:
         raise HTTPException(status_code=422, detail="Las contraseñas nuevas no coinciden")
-    if len(body.password_nueva) < 8:
-        raise HTTPException(status_code=422, detail="La nueva contraseña debe tener al menos 8 caracteres")
 
     usuario_id = user["record"]["id"]
     try:
@@ -480,10 +493,10 @@ async def cambiar_password(body: CambiarPasswordBody, user: dict = Depends(get_c
 # ─────────────────────────────────────────────────────────────────────────────
 
 class PermisoBody(BaseModel):
-    usuario_id: str
-    recurso: str
-    accion: str
-    permitido: bool
+    usuario_id: str = Field(min_length=1, max_length=50)
+    recurso:    str = Field(min_length=1, max_length=100)
+    accion:     str = Field(min_length=1, max_length=100)
+    permitido:  bool
 
 
 @router.get("/usuarios/buscar")
@@ -545,6 +558,19 @@ def consultar_permisos(usuario_id: str, admin: dict = Depends(require_admin)):
 
 @router.post("/permisos")
 def asignar_permiso(body: PermisoBody, admin: dict = Depends(require_admin)):
+    # Antes: `usuario_id`/`recurso`/`accion` eran texto libre sin verificar
+    # contra nada — el frontend (PermisosPage.tsx) ya restringe recurso/acción
+    # a `_RECURSOS_CONOCIDOS`/`_ACCIONES_CONOCIDAS` vía <select>, pero eso es
+    # solo UX: una llamada directa a la API podía crear un permiso para un
+    # usuario inexistente o sobre un recurso/acción inventados que ningún
+    # `require_permiso` real iba a consultar jamás.
+    if not query_one(USUARIO_POR_ID, {"usuario_id": body.usuario_id}):
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+    if body.recurso not in _RECURSOS_CONOCIDOS:
+        raise HTTPException(status_code=422, detail=f"Recurso desconocido: {body.recurso}")
+    if body.accion not in _ACCIONES_CONOCIDAS:
+        raise HTTPException(status_code=422, detail=f"Acción desconocida: {body.accion}")
+
     previo = query_one(PERMISO_VIGENTE_UNO, {
         "usuario_id": body.usuario_id, "recurso": body.recurso, "accion": body.accion,
     })
@@ -592,12 +618,12 @@ def consultar_errores(limit: int = Query(50, ge=1, le=500), admin: dict = Depend
 # ─────────────────────────────────────────────────────────────────────────────
 
 class RecuperarBody(BaseModel):
-    email: str
+    email: EmailStr
 
 
 class RestablecerBody(BaseModel):
-    token: str
-    nueva_password: str
+    token:          str = Field(min_length=1, max_length=100)
+    nueva_password: str = Field(min_length=8, max_length=128)
 
 
 _MENSAJE_RECUPERACION = "Si el email existe, recibirás instrucciones"
@@ -626,9 +652,6 @@ async def recuperar_password(body: RecuperarBody):
 
 @router.post("/auth/restablecer")
 async def restablecer_password(body: RestablecerBody):
-    if len(body.nueva_password) < 8:
-        raise HTTPException(status_code=422, detail="La nueva contraseña debe tener al menos 8 caracteres")
-
     fila = _token_vigente_o_400(body.token, "recuperacion")
     usuario_id = fila["usuario_id"]
     await pb_client.admin_cambiar_password(usuario_id, body.nueva_password)
@@ -655,11 +678,11 @@ TOKEN_VERIFICACION_TTL_HORAS = 48
 
 
 class VerificarEmailBody(BaseModel):
-    token: str
+    token: str = Field(min_length=1, max_length=100)
 
 
 class ReenviarVerificacionBody(BaseModel):
-    email: str
+    email: EmailStr
 
 
 def _emitir_token_verificacion(usuario_id: str) -> str:
@@ -801,7 +824,12 @@ async def baja_cuenta(user: dict = Depends(get_current_user)):
 # ─────────────────────────────────────────────────────────────────────────────
 
 class AsignarRolAdminBody(BaseModel):
-    rol_admin: str
+    # Literal con los 6 roles reales de DIM_ROL_ADMINISTRATIVO (ver
+    # RolAdminLiteral arriba) — antes era `str` libre, y la única barrera era
+    # el 422 en runtime de `ROL_ADMIN_EXISTE` (que se conserva: sigue siendo
+    # necesario para rechazar un rol_admin desactivado en BD, `activo=0`, algo
+    # que un Literal fijo en código no puede saber).
+    rol_admin: RolAdminLiteral
 
 
 @router.get("/admin/roles-admin")
@@ -938,7 +966,7 @@ require_comunidad_admin = require_rol_admin("admin_comunidad")
 
 
 class EmitirStrikeBody(BaseModel):
-    motivo: str
+    motivo: str = Field(min_length=1, max_length=500)
 
 
 @router.post("/admin/usuarios/{usuario_id}/strikes", status_code=201)

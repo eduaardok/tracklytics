@@ -291,6 +291,7 @@ export function ProfilePage() {
               className={styles.input}
               type="password"
               autoComplete="current-password"
+              maxLength={128}
               value={passwordActual}
               onChange={(e) => setPasswordActual(e.target.value)}
               required
@@ -305,6 +306,7 @@ export function ProfilePage() {
               type="password"
               autoComplete="new-password"
               minLength={8}
+              maxLength={128}
               value={passwordNueva}
               onChange={(e) => { setPasswordNueva(e.target.value); setPasswordMismatch(false) }}
               required
@@ -319,6 +321,7 @@ export function ProfilePage() {
               type="password"
               autoComplete="new-password"
               minLength={8}
+              maxLength={128}
               value={passwordConfirmar}
               onChange={(e) => { setPasswordConfirmar(e.target.value); setPasswordMismatch(false) }}
               required
@@ -345,6 +348,7 @@ export function ProfilePage() {
               id="edit-nombre"
               className={styles.input}
               type="text"
+              maxLength={150}
               value={nombre}
               onChange={(e) => setNombre(e.target.value)}
             />
@@ -483,6 +487,7 @@ export function ProfilePage() {
                     className={styles.input}
                     type="email"
                     placeholder="Correo del nuevo miembro"
+                    maxLength={254}
                     value={email}
                     onChange={(e) => setEmailNuevo(e.target.value)}
                   />
