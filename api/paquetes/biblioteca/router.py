@@ -1,8 +1,9 @@
 from collections import Counter
+from typing import Annotated
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel
+from fastapi import APIRouter, Depends, HTTPException, Path, Query
+from pydantic import BaseModel, EmailStr, Field
 
 from core.database import get_client, query_one, query_rows
 from core.deps import require_b2c_user
@@ -19,6 +20,17 @@ from paquetes.social import notificaciones
 from paquetes.suscripciones import pb_client
 
 router = APIRouter(prefix="/app/v1/biblioteca", tags=["Biblioteca"])
+
+# Formato real de un ID de registro de PocketBase (15 caracteres en base32
+# minúscula) — mismo criterio y mismo hallazgo que `partners/router.py`
+# (auditoría de validación): `pb_playlists.py` interpola `playlist_id` sin
+# validar tanto en la URL del REST API (`.../records/{playlist_id}`) como en
+# filtros armados por f-string (`f'playlist="{playlist_id}"'` en
+# `listar_tracks`/`quitar_track_por_fact_id`). Un `playlist_id` con `"` rompe
+# el filtro; acotar el formato en el borde de la API cierra la vía sin tocar
+# `pb_playlists.py`. Se aplica también a `usuario_id` en el endpoint de
+# colaboradores por el mismo motivo (es un ID de la colección `users`).
+_PB_ID_PATTERN = r"^[a-z0-9]{15}$"
 
 FREE_FAV_LIMIT     = 20
 FREE_HISTORIAL_CAP = 20
@@ -57,7 +69,7 @@ async def get_favoritos(user: dict = Depends(require_b2c_user)):
 
 
 @router.post("/favoritos/{fact_id}")
-async def add_favorito(fact_id: int, user: dict = Depends(require_b2c_user)):
+async def add_favorito(fact_id: int = Path(..., ge=1), user: dict = Depends(require_b2c_user)):
     user_id = user["record"]["id"]
     _assert_fact_exists(fact_id)
     plan = await _get_plan(user)
@@ -73,7 +85,7 @@ async def add_favorito(fact_id: int, user: dict = Depends(require_b2c_user)):
 
 
 @router.delete("/favoritos/{fact_id}")
-async def remove_favorito(fact_id: int, user: dict = Depends(require_b2c_user)):
+async def remove_favorito(fact_id: int = Path(..., ge=1), user: dict = Depends(require_b2c_user)):
     user_id = user["record"]["id"]
     _assert_fact_exists(fact_id)
     _insert_event(user_id, fact_id, "favorito_remove")
@@ -102,13 +114,16 @@ class HistorialBody(BaseModel):
     # sigue funcionando sin body — la telemetría enriquecida (RF-EXP-001/003)
     # es aditiva, nunca bloqueante (design.md de `experiencia`, "Reproducción
     # rica vs. historial existente").
-    dispositivo_id: str | None = None
-    porcentaje_completado: float = 0.0
-    impresion_id: int | None = None
+    dispositivo_id: str | None = Field(None, min_length=1, max_length=200)
+    # Porcentaje de una reproducción — nunca puede exceder el 100% ni ser negativo.
+    porcentaje_completado: float = Field(0.0, ge=0, le=100)
+    impresion_id: int | None = Field(None, ge=1)
 
 
 @router.post("/historial/{fact_id}")
-async def add_historial(fact_id: int, body: HistorialBody | None = None, user: dict = Depends(require_b2c_user)):
+async def add_historial(
+    fact_id: int = Path(..., ge=1), body: HistorialBody | None = None, user: dict = Depends(require_b2c_user),
+):
     user_id = user["record"]["id"]
     _assert_fact_exists(fact_id)
 
@@ -166,11 +181,15 @@ async def add_historial(fact_id: int, body: HistorialBody | None = None, user: d
 # ─────────────────────────────────────────────────────────────────────────────
 
 class PlaylistBody(BaseModel):
-    name: str
+    # El frontend ya limita el input a maxLength=60 (PlaylistsTab.tsx,
+    # AddToPlaylistMenu.tsx) — 100 en el backend da margen sobre esa UX sin
+    # dejar pasar un nombre arbitrariamente largo si alguien llama a la API
+    # directo (auditoría de validación).
+    name: str = Field(..., min_length=1, max_length=100)
 
 
 class PlaylistTrackBody(BaseModel):
-    fact_id: int
+    fact_id: int = Field(..., ge=1)
 
 
 @router.get("/playlists")
@@ -223,7 +242,7 @@ async def crear_playlist(body: PlaylistBody, user: dict = Depends(require_b2c_us
 
 
 @router.get("/playlists/{playlist_id}")
-async def detalle_playlist(playlist_id: str, user: dict = Depends(require_b2c_user)):
+async def detalle_playlist(playlist_id: str = Path(..., pattern=_PB_ID_PATTERN), user: dict = Depends(require_b2c_user)):
     pl = await pb_playlists.obtener(user["token"], playlist_id)
     if not pl:
         raise HTTPException(status_code=404, detail="Playlist not found")
@@ -256,11 +275,17 @@ async def detalle_playlist(playlist_id: str, user: dict = Depends(require_b2c_us
 
 
 class PlaylistReordenarBody(BaseModel):
-    fact_ids: list[int]
+    # Tope generoso (una playlist real no tiene miles de tracks) sin permitir
+    # una lista arbitrariamente larga; cada fact_id nunca es 0 ni negativo.
+    fact_ids: list[Annotated[int, Field(ge=1)]] = Field(..., max_length=2000)
 
 
 @router.put("/playlists/{playlist_id}/reordenar")
-async def reordenar_playlist(playlist_id: str, body: PlaylistReordenarBody, user: dict = Depends(require_b2c_user)):
+async def reordenar_playlist(
+    body: PlaylistReordenarBody,
+    playlist_id: str = Path(..., pattern=_PB_ID_PATTERN),
+    user: dict = Depends(require_b2c_user),
+):
     try:
         await pb_playlists.reordenar(user["token"], playlist_id, body.fact_ids)
     except httpx.HTTPStatusError as exc:
@@ -271,12 +296,14 @@ async def reordenar_playlist(playlist_id: str, body: PlaylistReordenarBody, user
 
 
 class PlaylistColaboradorBody(BaseModel):
-    email: str
+    email: EmailStr
 
 
 @router.post("/playlists/{playlist_id}/colaboradores", status_code=201)
 async def agregar_colaborador_playlist(
-    playlist_id: str, body: PlaylistColaboradorBody, user: dict = Depends(require_b2c_user),
+    body: PlaylistColaboradorBody,
+    playlist_id: str = Path(..., pattern=_PB_ID_PATTERN),
+    user: dict = Depends(require_b2c_user),
 ):
     fila = query_one(USUARIO_POR_EMAIL, {"email": body.email.strip()})
     if not fila:
@@ -295,7 +322,11 @@ async def agregar_colaborador_playlist(
 
 
 @router.delete("/playlists/{playlist_id}/colaboradores/{usuario_id}")
-async def quitar_colaborador_playlist(playlist_id: str, usuario_id: str, user: dict = Depends(require_b2c_user)):
+async def quitar_colaborador_playlist(
+    playlist_id: str = Path(..., pattern=_PB_ID_PATTERN),
+    usuario_id: str = Path(..., pattern=_PB_ID_PATTERN),
+    user: dict = Depends(require_b2c_user),
+):
     try:
         await pb_playlists.quitar_colaborador(user["token"], playlist_id, usuario_id)
     except httpx.HTTPStatusError as exc:
@@ -316,7 +347,11 @@ def _solo_propietario() -> HTTPException:
 
 
 @router.patch("/playlists/{playlist_id}")
-async def renombrar_playlist(playlist_id: str, body: PlaylistBody, user: dict = Depends(require_b2c_user)):
+async def renombrar_playlist(
+    body: PlaylistBody,
+    playlist_id: str = Path(..., pattern=_PB_ID_PATTERN),
+    user: dict = Depends(require_b2c_user),
+):
     name = body.name.strip()
     if not name:
         raise HTTPException(status_code=422, detail="El nombre no puede estar vacío")
@@ -335,7 +370,9 @@ class PlaylistVisibilidadBody(BaseModel):
 
 @router.patch("/playlists/{playlist_id}/visibilidad")
 async def actualizar_visibilidad_playlist(
-    playlist_id: str, body: PlaylistVisibilidadBody, user: dict = Depends(require_b2c_user),
+    body: PlaylistVisibilidadBody,
+    playlist_id: str = Path(..., pattern=_PB_ID_PATTERN),
+    user: dict = Depends(require_b2c_user),
 ):
     """Perfiles públicos (S10 ronda 2): exclusivo del dueño — un colaborador
     puede administrar tracks pero no decide qué se expone en el perfil
@@ -350,7 +387,7 @@ async def actualizar_visibilidad_playlist(
 
 
 @router.delete("/playlists/{playlist_id}")
-async def eliminar_playlist(playlist_id: str, user: dict = Depends(require_b2c_user)):
+async def eliminar_playlist(playlist_id: str = Path(..., pattern=_PB_ID_PATTERN), user: dict = Depends(require_b2c_user)):
     try:
         await pb_playlists.eliminar(user["token"], playlist_id)
     except httpx.HTTPStatusError as exc:
@@ -361,7 +398,11 @@ async def eliminar_playlist(playlist_id: str, user: dict = Depends(require_b2c_u
 
 
 @router.post("/playlists/{playlist_id}/tracks", status_code=201)
-async def agregar_track_playlist(playlist_id: str, body: PlaylistTrackBody, user: dict = Depends(require_b2c_user)):
+async def agregar_track_playlist(
+    body: PlaylistTrackBody,
+    playlist_id: str = Path(..., pattern=_PB_ID_PATTERN),
+    user: dict = Depends(require_b2c_user),
+):
     _assert_fact_exists(body.fact_id)
     token = user["token"]
     items = await pb_playlists.listar_tracks(token, playlist_id)
@@ -372,6 +413,10 @@ async def agregar_track_playlist(playlist_id: str, body: PlaylistTrackBody, user
 
 
 @router.delete("/playlists/{playlist_id}/tracks/{fact_id}")
-async def quitar_track_playlist(playlist_id: str, fact_id: int, user: dict = Depends(require_b2c_user)):
+async def quitar_track_playlist(
+    playlist_id: str = Path(..., pattern=_PB_ID_PATTERN),
+    fact_id: int = Path(..., ge=1),
+    user: dict = Depends(require_b2c_user),
+):
     await pb_playlists.quitar_track_por_fact_id(user["token"], playlist_id, fact_id)
     return {"status": "ok"}

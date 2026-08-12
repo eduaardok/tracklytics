@@ -217,6 +217,7 @@ function PlaylistDetail({ playlistId, onBack }: { playlistId: string; onBack: ()
               <input
                 className={styles.input}
                 type="email"
+                maxLength={254}
                 value={colabEmail}
                 onChange={(e) => setColabEmail(e.target.value)}
                 placeholder="Email del colaborador…"
