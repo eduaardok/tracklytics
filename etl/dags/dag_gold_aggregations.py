@@ -16,19 +16,31 @@ esa granularidad (ver `gold_ch.base.write_gold`) — correr el DAG dos veces
 seguidas para la misma granularidad deja el mismo resultado, nunca filas
 duplicadas.
 
-Disparo manual (`schedule_interval=None`), igual que
-`tracklytics_recalificacion` — no hay todavía un cron real para la capa
-Gold (eso, si se pide, sería un cambio explícito de `schedule_interval`, no
-algo a decidir en P2)."""
+S15: `schedule_interval="@weekly"` (cron real) — se alinea 1:1 con la
+cadencia de `tracklytics_etl` (semana académica simulada); Gold no es
+costoso de recalcular (60 tareas de agregación SQL sobre ClickHouse), pero
+no hay motivo para correrlo más seguido que la fuente que agrega, así que
+`@daily` habría sido puro desperdicio de scheduler. Sigue aceptando disparo
+manual además del cron (comportamiento normal de Airflow, no exclusivo).
 
+Guarda `hay_batch_nuevo` (ShortCircuitOperator): la cadencia semanal puede
+caer en una semana donde nadie disparó `tracklytics_etl` ni la generación
+bajo demanda (`dag_generar_bajo_demanda`, que ya encadena su propio refresco
+de Gold) — sin esto, esa corrida recalcularía 60 tareas sobre exactamente
+los mismos datos. Compara el último `ETL_LOGS.run_timestamp` exitoso
+(catálogo, 8123) contra el último `GOLD_ETL_LOG.ejecutado_en` (Gold, 8124):
+si no hay carga más nueva que la última corrida de Gold, salta limpiamente
+(no falla) y lo deja en el log de la tarea."""
+
+import logging
 from datetime import datetime, timedelta
 
 from airflow import DAG
-from airflow.operators.python import PythonOperator
+from airflow.operators.python import PythonOperator, ShortCircuitOperator
 
 from gold_ch.adquisicion import run_gold_adquisicion
 from gold_ch.api_consumo import run_gold_api_consumo
-from gold_ch.base import GRANULARIDADES
+from gold_ch.base import GRANULARIDADES, get_catalog_client, get_gold_client
 from gold_ch.comunidad import run_gold_comunidad
 from gold_ch.consumo_genero import run_gold_consumo_genero
 from gold_ch.contenido import run_gold_contenido
@@ -39,6 +51,9 @@ from gold_ch.pipeline import run_gold_pipeline
 from gold_ch.producto import run_gold_producto
 from gold_ch.regalias import run_gold_regalias
 from gold_ch.seguridad import run_gold_seguridad
+from utils.clickhouse_client import scalar
+
+log = logging.getLogger(__name__)
 
 DOMINIOS = [
     ("adquisicion",     run_gold_adquisicion),
@@ -55,6 +70,29 @@ DOMINIOS = [
     ("producto",         run_gold_producto),
 ]
 
+
+def hay_batch_nuevo() -> bool:
+    """True si hay una carga de catálogo exitosa más nueva que la última
+    corrida de Gold — condición para el `ShortCircuitOperator` de abajo.
+    Sin corridas previas de Gold (`GOLD_ETL_LOG` vacío) o sin cargas
+    exitosas todavía, no hay nada que comparar: se deja pasar (la propia
+    agregación no escribe nada si el catálogo está vacío, no es un caso que
+    haga falta bloquear acá)."""
+    ultima_carga = scalar(
+        get_catalog_client(), "SELECT max(run_timestamp) FROM ETL_LOGS WHERE status = 'success'",
+    )
+    ultima_gold = scalar(get_gold_client(), "SELECT max(ejecutado_en) FROM GOLD_ETL_LOG")
+    if ultima_carga is None or ultima_gold is None:
+        log.info("dag_gold_aggregations: sin corridas previas que comparar, se ejecuta.")
+        return True
+    corre = ultima_carga > ultima_gold
+    log.info(
+        "dag_gold_aggregations: última carga exitosa=%s, última corrida Gold=%s → %s",
+        ultima_carga, ultima_gold, "ejecuta" if corre else "salta (nada nuevo que agregar)",
+    )
+    return corre
+
+
 with DAG(
     dag_id="dag_gold_aggregations",
     description="Agrega el ClickHouse de catálogo (8123, solo lectura) en las 12 tablas "
@@ -66,10 +104,15 @@ with DAG(
         "retry_delay": timedelta(minutes=2),
     },
     start_date=datetime(2026, 7, 29),
-    schedule_interval=None,
+    schedule_interval="@weekly",
     catchup=False,
     tags=["tracklytics", "gold", "reportes-compuestos"],
 ) as dag:
+
+    task_guard = ShortCircuitOperator(
+        task_id="hay_batch_nuevo",
+        python_callable=hay_batch_nuevo,
+    )
 
     tareas = [
         PythonOperator(
@@ -81,6 +124,12 @@ with DAG(
         for granularidad in GRANULARIDADES
     ]
     # Independientes entre sí (cada una escribe su propia tabla+granularidad)
-    # — sin dependencias `>>`: el `SequentialExecutor` del proyecto las corre
-    # una por una igual, pero declararlas en paralelo dentro del DAG evita
-    # que un fallo en una tarea bloquee la ejecución de las demás.
+    # — sin dependencias `>>` entre ellas: el `SequentialExecutor` del
+    # proyecto las corre una por una igual, pero declararlas en paralelo
+    # dentro del DAG evita que un fallo en una tarea bloquee la ejecución de
+    # las demás. Sí dependen todas de `task_guard`: la comparación de
+    # timestamps es sobre frescura de datos, no sobre el modo de disparo, así
+    # que aplica igual a una corrida manual — si alguien dispara el DAG a
+    # mano sin que haya carga nueva, correcto también saltarlo (sigue siendo
+    # idempotente, no es un caso a bloquear con lógica aparte).
+    task_guard >> tareas
