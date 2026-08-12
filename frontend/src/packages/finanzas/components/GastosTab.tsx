@@ -116,7 +116,7 @@ export function GastosTab() {
       >
         <div className={styles.field}>
           <label className={styles.fieldLabel} htmlFor="gasto-concepto">Concepto</label>
-          <input id="gasto-concepto" className={styles.input} value={form.concepto} onChange={(e) => setForm({ ...form, concepto: e.target.value })} placeholder="Ej. Hosting ClickHouse Cloud" />
+          <input id="gasto-concepto" className={styles.input} maxLength={200} value={form.concepto} onChange={(e) => setForm({ ...form, concepto: e.target.value })} placeholder="Ej. Hosting ClickHouse Cloud" />
         </div>
         <div className={styles.field}>
           <label className={styles.fieldLabel} htmlFor="gasto-categoria">Categoría</label>
@@ -134,7 +134,7 @@ export function GastosTab() {
         </div>
         <div className={styles.field}>
           <label className={styles.fieldLabel} htmlFor="gasto-desc">Descripción (opcional)</label>
-          <input id="gasto-desc" className={styles.input} value={form.descripcion} onChange={(e) => setForm({ ...form, descripcion: e.target.value })} />
+          <input id="gasto-desc" className={styles.input} maxLength={2000} value={form.descripcion} onChange={(e) => setForm({ ...form, descripcion: e.target.value })} />
         </div>
         <button type="submit" className={styles.btnPrimary} disabled={crear.isPending || editar.isPending || !form.concepto.trim() || form.monto <= 0}>
           {editandoId ? (editar.isPending ? 'Guardando…' : 'Guardar cambios') : (crear.isPending ? 'Registrando…' : 'Registrar gasto')}

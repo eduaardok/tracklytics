@@ -72,9 +72,9 @@ export function ReembolsosTab() {
         </div>
         <div className={styles.field} style={{ minWidth: 220 }}>
           <label className={styles.fieldLabel} htmlFor="reemb-motivo">Motivo</label>
-          <input id="reemb-motivo" className={styles.input} value={form.motivo} onChange={(e) => setForm({ ...form, motivo: e.target.value })} placeholder="Ej. Reclamo de usuario" />
+          <input id="reemb-motivo" className={styles.input} maxLength={500} value={form.motivo} onChange={(e) => setForm({ ...form, motivo: e.target.value })} placeholder="Ej. Reclamo de usuario" />
         </div>
-        <button type="submit" className={styles.btnPrimary} disabled={procesar.isPending || !form.transaccion_id.trim() || form.monto <= 0}>
+        <button type="submit" className={styles.btnPrimary} disabled={procesar.isPending || !form.transaccion_id.trim() || form.monto <= 0 || !form.motivo.trim()}>
           {procesar.isPending ? 'Procesando…' : 'Procesar reembolso'}
         </button>
       </form>

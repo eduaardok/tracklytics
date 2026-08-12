@@ -3,8 +3,8 @@ import uuid
 from datetime import date, datetime, timedelta
 from typing import Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel
+from fastapi import APIRouter, Depends, HTTPException, Path, Query
+from pydantic import BaseModel, Field, field_validator
 
 from core.database import execute, get_client, query_one, query_rows
 from paquetes.analitica.queries import (
@@ -58,13 +58,21 @@ def _rango_dt(desde: date, hasta: date) -> tuple[datetime, datetime]:
 # ─────────────────────────────────────────────────────────────────────────────
 
 class GastoBody(BaseModel):
-    concepto: str
+    concepto: str = Field(min_length=1, max_length=200)
     categoria: Literal[
         "infraestructura", "marketing", "nomina", "licencias", "servicios", "soporte", "legal", "otros",
     ]
-    monto: float
+    monto: float = Field(gt=0)
     fecha: date
-    descripcion: str = ""
+    descripcion: str = Field(default="", max_length=2000)
+
+    @field_validator("concepto")
+    @classmethod
+    def _limpiar_concepto(cls, v: str) -> str:
+        v = v.strip()
+        if not v:
+            raise ValueError("El concepto del gasto no puede estar vacío")
+        return v
 
 
 def _gasto_o_404(gasto_id: str) -> dict:
@@ -76,11 +84,6 @@ def _gasto_o_404(gasto_id: str) -> dict:
 
 @router.post("/gastos", status_code=201)
 def crear_gasto(body: GastoBody, admin: dict = Depends(require_admin)):
-    if body.monto <= 0:
-        raise HTTPException(status_code=422, detail="El monto del gasto debe ser mayor que 0")
-    if not body.concepto.strip():
-        raise HTTPException(status_code=422, detail="El concepto del gasto no puede estar vacío")
-
     gasto_id = str(uuid.uuid4())
     admin_id = admin["record"]["id"]
     get_client().insert(
@@ -125,10 +128,16 @@ def listar_gastos(
 
 
 @router.put("/gastos/{gasto_id}")
-def editar_gasto(gasto_id: str, body: GastoBody, admin: dict = Depends(require_admin)):
+def editar_gasto(
+    body: GastoBody, gasto_id: str = Path(..., min_length=1, max_length=64), admin: dict = Depends(require_admin),
+):
     antes = _gasto_o_404(gasto_id)
-    if body.monto <= 0:
-        raise HTTPException(status_code=422, detail="El monto del gasto debe ser mayor que 0")
+    if antes["estado"] == "anulado":
+        # Transición de estado inválida (auditoría de validación): un gasto
+        # anulado es terminal — editarlo reviviría un registro que la
+        # auditoría contable ya trató como inexistente. Reactivarlo requiere
+        # crear un gasto nuevo, no editar el anulado.
+        raise HTTPException(status_code=409, detail="Un gasto anulado no puede editarse")
 
     execute(
         "ALTER TABLE FACT_GASTO_OPERATIVO UPDATE "
@@ -152,8 +161,10 @@ def editar_gasto(gasto_id: str, body: GastoBody, admin: dict = Depends(require_a
 
 
 @router.post("/gastos/{gasto_id}/anular")
-def anular_gasto(gasto_id: str, admin: dict = Depends(require_admin)):
+def anular_gasto(gasto_id: str = Path(..., min_length=1, max_length=64), admin: dict = Depends(require_admin)):
     antes = _gasto_o_404(gasto_id)
+    if antes["estado"] == "anulado":
+        raise HTTPException(status_code=409, detail="Este gasto ya está anulado")
     execute(
         "ALTER TABLE FACT_GASTO_OPERATIVO UPDATE estado = 'anulado' WHERE gasto_id = {gasto_id:String}",
         {"gasto_id": gasto_id},
@@ -170,10 +181,24 @@ def anular_gasto(gasto_id: str, admin: dict = Depends(require_admin)):
 # ─────────────────────────────────────────────────────────────────────────────
 
 class ReembolsoBody(BaseModel):
+    # Formato validado en el handler vía `uuid.UUID(...)` (da 404 "transacción
+    # no encontrada" en vez de 422 de formato — mismo comportamiento que antes
+    # de esta auditoría, no se toca: es la respuesta correcta de cara al admin,
+    # que no necesita distinguir "mal formado" de "no existe").
     transaccion_id: str
-    monto: float
+    monto: float = Field(gt=0)
     tipo: Literal["total", "parcial"]
-    motivo: str
+    # `motivo` no tenía NINGUNA validación (ni siquiera vacío) — un reembolso
+    # es una operación contable auditable, exige justificación.
+    motivo: str = Field(min_length=1, max_length=500)
+
+    @field_validator("motivo")
+    @classmethod
+    def _limpiar_motivo(cls, v: str) -> str:
+        v = v.strip()
+        if not v:
+            raise ValueError("El motivo del reembolso no puede estar vacío")
+        return v
 
 
 def _monto_disponible_reembolso(transaccion_id: str, monto_pagado: float) -> float:
@@ -205,9 +230,6 @@ def procesar_reembolso(body: ReembolsoBody, admin: dict = Depends(require_admin)
             status_code=422,
             detail=f"No se puede reembolsar una transacción en estado '{transaccion['estado']}'",
         )
-
-    if body.monto <= 0:
-        raise HTTPException(status_code=422, detail="El monto a reembolsar debe ser mayor que 0")
 
     monto_pagado = float(transaccion["monto"])
     disponible = _monto_disponible_reembolso(body.transaccion_id, monto_pagado)
