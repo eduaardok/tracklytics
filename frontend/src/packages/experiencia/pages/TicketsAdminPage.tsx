@@ -239,11 +239,11 @@ function CreateTicketModal({ pending, onClose, onSave }: {
       />
       <div className={styles.field}>
         <label className={styles.fieldLabel} htmlFor="tk-asunto">Asunto</label>
-        <input id="tk-asunto" className={styles.input} value={asunto} onChange={(e) => setAsunto(e.target.value)} placeholder="No puedo reproducir un track" />
+        <input id="tk-asunto" className={styles.input} maxLength={200} value={asunto} onChange={(e) => setAsunto(e.target.value)} placeholder="No puedo reproducir un track" />
       </div>
       <div className={styles.field}>
         <label className={styles.fieldLabel} htmlFor="tk-desc">Descripción</label>
-        <textarea id="tk-desc" className={styles.textarea} rows={4} value={descripcion} onChange={(e) => setDescripcion(e.target.value)} />
+        <textarea id="tk-desc" className={styles.textarea} rows={4} maxLength={5000} value={descripcion} onChange={(e) => setDescripcion(e.target.value)} />
       </div>
       <p className={styles.queueRowMeta}>El ticket se crea con estado "abierto".</p>
     </CrudModal>

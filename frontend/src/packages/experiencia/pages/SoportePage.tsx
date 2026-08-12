@@ -67,6 +67,7 @@ export function SoportePage() {
           <input
             id="ticket-asunto"
             className={styles.input}
+            maxLength={200}
             value={asunto}
             onChange={(e) => setAsunto(e.target.value)}
             placeholder="No puedo reproducir un track"
@@ -77,6 +78,7 @@ export function SoportePage() {
           <textarea
             id="ticket-descripcion"
             className={styles.textarea}
+            maxLength={5000}
             value={descripcion}
             onChange={(e) => setDescripcion(e.target.value)}
             placeholder="Describe el problema con el mayor detalle posible…"

@@ -1,10 +1,11 @@
 import random
+import re
 from datetime import datetime, timezone
 from typing import Literal
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel
+from fastapi import APIRouter, Depends, HTTPException, Path, Query
+from pydantic import BaseModel, Field, field_validator
 
 from core.cache import cached
 from core.config import AIRFLOW_PASS, AIRFLOW_URL, AIRFLOW_USER, YOUTUBE_API_KEY
@@ -137,7 +138,9 @@ async def _resolver_youtube_video_id(query: str) -> str | None:
 
 
 @router.get("/reproduccion/youtube-video-id")
-async def resolver_youtube_video_id(q: str = Query(..., min_length=1), user: dict = Depends(get_current_user)):
+async def resolver_youtube_video_id(
+    q: str = Query(..., min_length=1, max_length=200), user: dict = Depends(get_current_user),
+):
     """Solo requiere sesión iniciada (no un rol B2C específico) — mismo umbral
     de acceso que ya tiene la reproducción en el cliente. No expone
     `YOUTUBE_API_KEY` al navegador: el cliente solo recibe el `video_id`."""
@@ -379,12 +382,14 @@ def mix_diario(user: dict = Depends(require_b2c_user)):
 # ─────────────────────────────────────────────────────────────────────────────
 
 class TicketBody(BaseModel):
-    asunto: str
-    descripcion: str
+    asunto: str = Field(min_length=1, max_length=200)
+    descripcion: str = Field(min_length=1, max_length=5000)
     # S13-P2 (patrón CRUD docente): admin puede crear un ticket EN NOMBRE de
     # un usuario (campo "usuario afectado" del formulario) — un usuario B2C
     # normal lo ignora y siempre crea a nombre propio, igual que antes.
-    usuario_id: str | None = None
+    # `usuario_id` es un id de registro de PocketBase (15 caracteres típicos);
+    # 64 deja margen sin permitir strings arbitrariamente largos.
+    usuario_id: str | None = Field(None, min_length=1, max_length=64)
 
 
 class ActualizarTicketBody(BaseModel):
@@ -447,7 +452,9 @@ def obtener_ticket(fact_id: int, admin: dict = Depends(require_admin)):
 
 
 @router.put("/tickets/{fact_id}")
-def actualizar_ticket(fact_id: int, body: ActualizarTicketBody, admin: dict = Depends(require_admin)):
+def actualizar_ticket(
+    body: ActualizarTicketBody, fact_id: int = Path(..., ge=1), admin: dict = Depends(require_admin),
+):
     ticket = query_one(TICKET_POR_ID, {"fact_id": fact_id})
     if not ticket:
         raise HTTPException(status_code=404, detail="Ticket no encontrado")
@@ -517,12 +524,22 @@ def top_tracks_playlists(limit: int = Query(20, ge=1, le=100), user: dict = Depe
 # columna de tipo de plan en ClickHouse).
 # ─────────────────────────────────────────────────────────────────────────────
 
+# Formato real de un ID de registro de PocketBase (15 caracteres en base32
+# minúscula) — mismo hallazgo que `partners`/`biblioteca` (auditoría de
+# validación): `pb_client.suscripcion_activa_de_usuario()` (este paquete)
+# interpola `usuario_id` sin validar en un filtro armado por f-string
+# (`f'usuario_o_cliente="{usuario_id}" && estado="activa"'`). `TitularBody.
+# usuario_id` (admin-controlado, no viene de la sesión) llega directo a esa
+# función vía `crear_titular` — un `usuario_id` con `"` rompe el filtro.
+_PB_ID_PATTERN = r"^[a-z0-9]{15}$"
+
+
 class TitularBody(BaseModel):
-    usuario_id: str
+    usuario_id: str = Field(min_length=1, max_length=64, pattern=_PB_ID_PATTERN)
 
 
 class MiembroBody(BaseModel):
-    usuario_id: str
+    usuario_id: str = Field(min_length=1, max_length=64, pattern=_PB_ID_PATTERN)
 
 
 @router.post("/familia/titular", status_code=201)
@@ -560,7 +577,9 @@ async def crear_titular(body: TitularBody, admin: dict = Depends(require_admin))
 
 
 @router.get("/familia/resolver-suscripcion/{usuario_id}")
-async def resolver_suscripcion_de_usuario(usuario_id: str, admin: dict = Depends(require_admin)):
+async def resolver_suscripcion_de_usuario(
+    usuario_id: str = Path(..., pattern=_PB_ID_PATTERN), admin: dict = Depends(require_admin),
+):
     """UX (S11): el panel admin de plan familiar pedía `suscripcion_id` como
     texto libre — un ID de PocketBase que el humano no tiene forma de conocer.
     Se busca ahora por el usuario titular (`UserPicker`, ya usado arriba en la
@@ -611,7 +630,11 @@ def agregar_miembro(suscripcion_id: str, body: MiembroBody, admin: dict = Depend
 
 
 @router.delete("/familia/{suscripcion_id}/miembros/{usuario_id}")
-def quitar_miembro(suscripcion_id: str, usuario_id: str, admin: dict = Depends(require_admin)):
+def quitar_miembro(
+    suscripcion_id: str,
+    usuario_id: str = Path(..., pattern=_PB_ID_PATTERN),
+    admin: dict = Depends(require_admin),
+):
     if query_one(MIEMBRO_EXISTE, {"suscripcion_id": suscripcion_id, "usuario_id": usuario_id})["n"] == 0:
         raise HTTPException(status_code=404, detail="Este usuario no pertenece a este plan familiar")
 
@@ -637,8 +660,21 @@ def quitar_miembro(suscripcion_id: str, usuario_id: str, admin: dict = Depends(r
 # un Lead Data Engineer — cambio 2026-07-09.
 # ─────────────────────────────────────────────────────────────────────────────
 
+# RFC 5321 acota la parte local a 64 octetos y el dominio a 255 — 254 es el
+# límite práctico de una dirección completa citado por esa RFC.
+_EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+
+
 class MiembroEmailBody(BaseModel):
-    email: str
+    email: str = Field(min_length=3, max_length=254)
+
+    @field_validator("email")
+    @classmethod
+    def _validar_email(cls, v: str) -> str:
+        v = v.strip()
+        if not _EMAIL_RE.match(v):
+            raise ValueError("El correo electrónico no tiene un formato válido")
+        return v.lower()
 
 
 @router.post("/familia", status_code=201)
