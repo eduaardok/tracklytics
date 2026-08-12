@@ -1,7 +1,8 @@
+import re
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, field_validator
 
 from core.database import query_one, query_rows
 from paquetes.partners import pb_client
@@ -14,6 +15,30 @@ from paquetes.partners.queries import (
     METRICAS_POR_PARTNER, METRICAS_POR_PARTNER_TIER,
     TRACK_DETAIL, TRACKS_EXPORT, TRACKS_LIST,
 )
+
+# Formato real de un ID de registro de PocketBase (15 caracteres en base32
+# minúscula, confirmado contra datos reales de la colección `partners`, ej.
+# "ps79lu4vwi68hnm"). Se valida en el `Path(...)` de cada endpoint que recibe
+# `partner_id` ANTES de que llegue a `pb_client` — mismo criterio que
+# `deps.py::_API_KEY_RE` (validar el formato antes de usar el valor en un
+# filtro de PocketBase). Sin esto, `pb_client.get_partner()` arma el filtro
+# por concatenación de texto (`f'id="{partner_id}"'`) y `rotar_api_key()` /
+# `desactivar_partner()` / `actualizar_partner()` interpolan `partner_id`
+# directo en la URL del REST API de PocketBase (`f".../records/{partner_id}"`)
+# — un `partner_id` con `"` rompe el filtro (inyección de filtro PocketBase) y
+# uno con `/` cambia el recurso de destino de la petición PATCH (podría apuntar
+# a otra colección, ej. `_superusers`, ya que `pb_client` se autentica con el
+# token de superusuario). Acotar el formato en el borde de la API cierra ambas
+# vías sin tocar `pb_client.py`.
+_PB_ID_PATTERN = r"^[a-z0-9]{15}$"
+
+# `email_contacto` es un campo informativo (no de login, no dispara envíos
+# automáticos) que además acepta vacío ("" = sin contacto registrado) — por
+# eso no se usa `EmailStr` de Pydantic (rechaza el string vacío) y se valida
+# con este regex laxo solo cuando viene un valor no vacío.
+_EMAIL_RE = r"^[^@\s]+@[^@\s]+\.[^@\s]+$"
+_NOMBRE_MAX_LEN = 200
+_EMAIL_MAX_LEN = 254
 
 router = APIRouter(prefix="/partners/v1", tags=["Partners"])
 
@@ -68,9 +93,25 @@ async def metricas_por_partner():
 # (no en ClickHouse): pb_client escribe con token de superusuario (RT-01). La
 # API key se guarda hasheada; su texto claro se devuelve una sola vez.
 class PartnerCrearBody(BaseModel):
-    nombre: str
+    nombre: str = Field(min_length=1, max_length=_NOMBRE_MAX_LEN)
     tier: Literal["basico", "pro", "enterprise"]
-    email_contacto: str = ""
+    email_contacto: str = Field(default="", max_length=_EMAIL_MAX_LEN)
+
+    @field_validator("nombre")
+    @classmethod
+    def _limpiar_nombre(cls, v: str) -> str:
+        v = v.strip()
+        if not v:
+            raise ValueError("El nombre del partner no puede estar vacío")
+        return v
+
+    @field_validator("email_contacto")
+    @classmethod
+    def _validar_email(cls, v: str) -> str:
+        v = v.strip()
+        if v and not re.match(_EMAIL_RE, v):
+            raise ValueError("email_contacto no tiene formato de correo válido")
+        return v
 
 
 @v1_router.post("/admin", status_code=201)
@@ -93,7 +134,10 @@ async def listar_partners(admin: dict = Depends(require_partner_admin)):
 
 
 @v1_router.post("/admin/{partner_id}/rotar-key")
-async def rotar_key(partner_id: str, admin: dict = Depends(require_partner_admin)):
+async def rotar_key(
+    partner_id: str = Path(..., pattern=_PB_ID_PATTERN),
+    admin: dict = Depends(require_partner_admin),
+):
     if not await pb_client.get_partner(partner_id):
         raise HTTPException(status_code=404, detail="Partner no encontrado")
     api_key = pb_client.generar_api_key()
@@ -106,7 +150,10 @@ async def rotar_key(partner_id: str, admin: dict = Depends(require_partner_admin
 
 
 @v1_router.post("/admin/{partner_id}/desactivar")
-async def desactivar_partner(partner_id: str, admin: dict = Depends(require_partner_admin)):
+async def desactivar_partner(
+    partner_id: str = Path(..., pattern=_PB_ID_PATTERN),
+    admin: dict = Depends(require_partner_admin),
+):
     if not await pb_client.get_partner(partner_id):
         raise HTTPException(status_code=404, detail="Partner no encontrado")
     partner = await pb_client.desactivar_partner(partner_id)
@@ -121,14 +168,28 @@ async def desactivar_partner(partner_id: str, admin: dict = Depends(require_part
 # tenía Insertar y Desactivar pero no Editar — se agrega aquí, mismo criterio
 # de auditoría (`audit.record`) que el resto de las mutaciones de este router.
 class PartnerEditarBody(BaseModel):
-    nombre: str | None = None
+    nombre: str | None = Field(default=None, max_length=_NOMBRE_MAX_LEN)
     tier: Literal["basico", "pro", "enterprise"] | None = None
-    email_contacto: str | None = None
+    email_contacto: str | None = Field(default=None, max_length=_EMAIL_MAX_LEN)
     estado: Literal["vigente", "inactivo"] | None = None
+
+    @field_validator("email_contacto")
+    @classmethod
+    def _validar_email(cls, v: str | None) -> str | None:
+        if v is None:
+            return None
+        v = v.strip()
+        if v and not re.match(_EMAIL_RE, v):
+            raise ValueError("email_contacto no tiene formato de correo válido")
+        return v
 
 
 @v1_router.patch("/admin/{partner_id}")
-async def editar_partner(partner_id: str, body: PartnerEditarBody, admin: dict = Depends(require_partner_admin)):
+async def editar_partner(
+    body: PartnerEditarBody,
+    partner_id: str = Path(..., pattern=_PB_ID_PATTERN),
+    admin: dict = Depends(require_partner_admin),
+):
     antes = await pb_client.get_partner(partner_id)
     if not antes:
         raise HTTPException(status_code=404, detail="Partner no encontrado")

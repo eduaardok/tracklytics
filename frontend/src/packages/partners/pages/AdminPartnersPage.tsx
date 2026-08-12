@@ -231,7 +231,7 @@ function CreatePartnerModal({ pending, onClose, onSave }: {
     >
       <div className={styles.field}>
         <label className={styles.fieldLabel} htmlFor="p-nombre">Nombre</label>
-        <input id="p-nombre" className={styles.input} value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Acme Data Inc." />
+        <input id="p-nombre" className={styles.input} maxLength={200} value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Acme Data Inc." />
       </div>
       <div className={styles.field}>
         <label className={styles.fieldLabel} htmlFor="p-tier">Tier</label>
@@ -241,7 +241,7 @@ function CreatePartnerModal({ pending, onClose, onSave }: {
       </div>
       <div className={styles.field}>
         <label className={styles.fieldLabel} htmlFor="p-email">Email de contacto</label>
-        <input id="p-email" className={styles.input} type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="data@acme.com" />
+        <input id="p-email" className={styles.input} type="email" maxLength={254} value={email} onChange={(e) => setEmail(e.target.value)} placeholder="data@acme.com" />
       </div>
     </CrudModal>
   )
@@ -270,7 +270,7 @@ function EditPartnerModal({ partner, pending, onClose, onSave }: {
     >
       <div className={styles.field}>
         <label className={styles.fieldLabel} htmlFor="pe-nombre">Nombre</label>
-        <input id="pe-nombre" className={styles.input} value={nombre} onChange={(e) => setNombre(e.target.value)} />
+        <input id="pe-nombre" className={styles.input} maxLength={200} value={nombre} onChange={(e) => setNombre(e.target.value)} />
       </div>
       <div className={styles.field}>
         <label className={styles.fieldLabel} htmlFor="pe-tier">Tier</label>
@@ -280,7 +280,7 @@ function EditPartnerModal({ partner, pending, onClose, onSave }: {
       </div>
       <div className={styles.field}>
         <label className={styles.fieldLabel} htmlFor="pe-email">Email de contacto</label>
-        <input id="pe-email" className={styles.input} type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+        <input id="pe-email" className={styles.input} type="email" maxLength={254} value={email} onChange={(e) => setEmail(e.target.value)} />
       </div>
       <div className={styles.field}>
         <label className={styles.fieldLabel} htmlFor="pe-estado">Estado</label>
