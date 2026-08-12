@@ -5,7 +5,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from core.database import execute, get_client, query_one, query_rows
 from core.deps import get_current_user
@@ -85,24 +85,59 @@ def metodo_pago_existe(usuario_id: str, metodo_pago_id: str) -> bool:
 
 _NUMERO_TARJETA_RE = re.compile(r"^\d{16}$")
 _EXPIRACION_RE = re.compile(r"^(0[1-9]|1[0-2])/(\d{2})$")
+_ULTIMOS_4_RE = re.compile(r"^\d{4}$")
+
+# Cotas de longitud para los campos de texto libre de un método de pago —
+# mismo criterio que `gestion_datos` (auditoría de validación): ninguno de
+# estos campos tenía tope antes, así que un payload directo a la API (sin
+# pasar por el formulario) podía escribir strings arbitrariamente largos en
+# DIM_METODO_PAGO. Los valores son generosos para nombre/dirección real de
+# facturación, no arbitrarios de negocio.
+_TIPO_MAX_LEN = 30
+_NOMBRE_TITULAR_MAX_LEN = 200
+_DIRECCION_MAX_LEN = 300
+_CIUDAD_MAX_LEN = 150
+_CODIGO_POSTAL_MAX_LEN = 20
+_PAIS_MAX_LEN = 10
 
 
 class MetodoPagoBody(BaseModel):
-    tipo: str
+    # `tipo` no se restringe a un `Literal` fijo (marca de tarjeta / método):
+    # a diferencia de un estado de negocio, este campo es puramente
+    # descriptivo (nunca hay una rama de código que decida comportamiento
+    # según su valor) y el dominio ya admite más de una fuente en el
+    # frontend (`checkout.ts.inferirMarcaTarjeta` infiere 'visa'/'mastercard'/
+    # 'amex'/'discover'/'tarjeta'; `suscripciones/PlanesPage.tsx` usa
+    # 'Visa'/'Mastercard'/'Amex' fijos) — cerrarlo a un enum rompería
+    # cualquiera de los dos sin necesidad real. Se acota solo la longitud.
+    tipo: str = Field(max_length=_TIPO_MAX_LEN)
     # Compatibilidad con el alta rápida ya existente en `suscripciones/
     # PlanesPage.tsx` (sin checkout completo): si se manda `numero_tarjeta`,
     # `ultimos_4_digitos` se ignora y se deriva de ahí (ver validator abajo).
-    ultimos_4_digitos: str = ""
-    pais: str = ""
-    nombre_titular: str = ""
-    direccion: str = ""
-    ciudad: str = ""
-    codigo_postal: str = ""
+    ultimos_4_digitos: str = Field(default="", max_length=4)
+    pais: str = Field(default="", max_length=_PAIS_MAX_LEN)
+    nombre_titular: str = Field(default="", max_length=_NOMBRE_TITULAR_MAX_LEN)
+    direccion: str = Field(default="", max_length=_DIRECCION_MAX_LEN)
+    ciudad: str = Field(default="", max_length=_CIUDAD_MAX_LEN)
+    codigo_postal: str = Field(default="", max_length=_CODIGO_POSTAL_MAX_LEN)
     # Checkout realista (modelo-financiero-completar-huecos, CU-O99): número
     # de tarjeta y expiración simulados, SOLO para validar formato y derivar
     # los últimos 4 dígitos — nunca se persisten (design.md, decisión 7).
     numero_tarjeta: str | None = None
     fecha_expiracion: str | None = None
+
+    @field_validator("tipo")
+    @classmethod
+    def _validar_tipo(cls, v: str) -> str:
+        v = v.strip()
+        if not v:
+            raise ValueError("El tipo de método de pago no puede estar vacío")
+        return v
+
+    @field_validator("pais", "nombre_titular", "direccion", "ciudad", "codigo_postal")
+    @classmethod
+    def _limpiar_opcionales(cls, v: str) -> str:
+        return v.strip()
 
     @field_validator("numero_tarjeta")
     @classmethod
@@ -124,6 +159,19 @@ class MetodoPagoBody(BaseModel):
         if (anio, mes) < (ahora.year, ahora.month):
             raise ValueError("La tarjeta simulada está vencida")
         return v
+
+    @model_validator(mode="after")
+    def _validar_ultimos_4(self) -> "MetodoPagoBody":
+        # Si no viene `numero_tarjeta`, `ultimos_4_digitos` es la ÚNICA fuente
+        # de los dígitos mostrados al usuario (alta rápida de
+        # `suscripciones/PlanesPage.tsx`, que ya solo habilita su botón con
+        # exactamente 4 dígitos) — el backend no puede confiar en que todo
+        # cliente respete esa regla de UI. Cuando sí viene `numero_tarjeta`,
+        # el valor de este campo se ignora en el handler, así que no hace
+        # falta validarlo acá.
+        if self.numero_tarjeta is None and not _ULTIMOS_4_RE.match(self.ultimos_4_digitos):
+            raise ValueError("ultimos_4_digitos debe tener exactamente 4 dígitos numéricos")
+        return self
 
 
 @router.post("/metodos-pago", status_code=201)
@@ -197,10 +245,18 @@ async def listar_metodos_pago(user: dict = Depends(get_current_user)):
 # ─────────────────────────────────────────────────────────────────────────────
 
 class TransaccionBody(BaseModel):
-    metodo_pago_id: str
+    metodo_pago_id: str = Field(min_length=1)
     # Indicador de prueba (detalle técnico, no expuesto como concepto de
     # negocio): fuerza el resultado de la simulación de forma determinística.
     forzar_resultado: Literal["exitosa", "fallida"] | None = None
+
+    @field_validator("metodo_pago_id")
+    @classmethod
+    def _limpiar_metodo_pago_id(cls, v: str) -> str:
+        v = v.strip()
+        if not v:
+            raise ValueError("metodo_pago_id no puede estar vacío")
+        return v
 
 
 def _registrar_notificacion_factura(usuario_id: str, invoice_id: str, monto: float, iva: float, moneda: str) -> None:
@@ -399,15 +455,26 @@ def transacciones_recientes(admin: dict = Depends(require_admin)):
 # ─────────────────────────────────────────────────────────────────────────────
 
 class EmpresaBody(BaseModel):
-    razon_social: str
-    ruc:          str
-    direccion:    str
+    razon_social: str = Field(min_length=1, max_length=300)
+    ruc:          str = Field(min_length=1, max_length=50)
+    direccion:    str = Field(min_length=1, max_length=300)
     # IVA global + retención fiscal global (modelo-financiero-completar-
     # huecos, CU-O99/CU-O96) — reemplazan las constantes fijas anteriores;
     # un país con tasa propia en DIM_PAIS la sobreescribe (ver design.md,
-    # decisiones 3 y 6).
-    iva_tasa_global: float = 15.0
-    retencion_fiscal_pct_global: float = 10.0
+    # decisiones 3 y 6). Ambos son porcentajes en escala 0-100 (no 0-1): se
+    # dividen entre 100 en `resolver_iva_pct` / `regalias._resolver_retencion_pct`
+    # antes de aplicarse, y el propio formulario (`EmpresaConfigPage.tsx`) los
+    # etiqueta como "%" — de ahí `le=100`, nunca una fracción.
+    iva_tasa_global: float = Field(default=15.0, ge=0, le=100)
+    retencion_fiscal_pct_global: float = Field(default=10.0, ge=0, le=100)
+
+    @field_validator("razon_social", "ruc", "direccion")
+    @classmethod
+    def _limpiar_requeridos(cls, v: str) -> str:
+        v = v.strip()
+        if not v:
+            raise ValueError("El campo no puede estar vacío")
+        return v
 
 
 @router.get("/empresa")

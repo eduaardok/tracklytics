@@ -321,6 +321,7 @@ export function FacturacionPage() {
               value={nombreTitular}
               onChange={(e) => setNombreTitular(e.target.value)}
               placeholder="Como aparece en la tarjeta"
+              maxLength={200}
               required
             />
           </div>
@@ -378,6 +379,7 @@ export function FacturacionPage() {
               value={direccion}
               onChange={(e) => setDireccion(e.target.value)}
               placeholder="Calle y número"
+              maxLength={300}
             />
           </div>
           <div className={styles.field}>
@@ -390,6 +392,7 @@ export function FacturacionPage() {
               value={ciudad}
               onChange={(e) => setCiudad(e.target.value)}
               placeholder="Madrid"
+              maxLength={150}
             />
           </div>
           <div className={styles.field}>
@@ -418,6 +421,7 @@ export function FacturacionPage() {
               value={codigoPostal}
               onChange={(e) => setCodigoPostal(e.target.value)}
               placeholder="28001"
+              maxLength={20}
             />
           </div>
           <button

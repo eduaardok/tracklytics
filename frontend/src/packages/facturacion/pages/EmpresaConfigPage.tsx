@@ -48,6 +48,7 @@ export function EmpresaConfigPage() {
               id="empresa-razon-social"
               className={styles.input}
               type="text"
+              maxLength={300}
               value={form.razon_social}
               onChange={(e) => setForm((f) => ({ ...f, razon_social: e.target.value }))}
             />
@@ -58,6 +59,7 @@ export function EmpresaConfigPage() {
               id="empresa-ruc"
               className={styles.input}
               type="text"
+              maxLength={50}
               value={form.ruc}
               onChange={(e) => setForm((f) => ({ ...f, ruc: e.target.value }))}
             />
@@ -68,6 +70,7 @@ export function EmpresaConfigPage() {
               id="empresa-direccion"
               className={styles.input}
               type="text"
+              maxLength={300}
               value={form.direccion}
               onChange={(e) => setForm((f) => ({ ...f, direccion: e.target.value }))}
             />
@@ -82,6 +85,7 @@ export function EmpresaConfigPage() {
               type="number"
               step="0.1"
               min="0"
+              max="100"
               value={form.iva_tasa_global ?? 15}
               onChange={(e) => setForm((f) => ({ ...f, iva_tasa_global: Number(e.target.value) }))}
             />
@@ -96,6 +100,7 @@ export function EmpresaConfigPage() {
               type="number"
               step="0.1"
               min="0"
+              max="100"
               value={form.retencion_fiscal_pct_global ?? 10}
               onChange={(e) => setForm((f) => ({ ...f, retencion_fiscal_pct_global: Number(e.target.value) }))}
             />
