@@ -99,21 +99,21 @@ export function SimulacionPage() {
         <div className={styles.field}>
           <label className={styles.fieldLabel} htmlFor="sim-streams">Reproducciones</label>
           <input
-            id="sim-streams" className={styles.input} type="number" min="0"
+            id="sim-streams" className={styles.input} type="number" min="0" max="500000"
             value={nStreams} onChange={(e) => setNStreams(e.target.value)}
           />
         </div>
         <div className={styles.field}>
           <label className={styles.fieldLabel} htmlFor="sim-suscripciones">Suscripciones nuevas</label>
           <input
-            id="sim-suscripciones" className={styles.input} type="number" min="0"
+            id="sim-suscripciones" className={styles.input} type="number" min="0" max="5000"
             value={nSuscripciones} onChange={(e) => setNSuscripciones(e.target.value)}
           />
         </div>
         <div className={styles.field}>
           <label className={styles.fieldLabel} htmlFor="sim-impresiones">Impresiones publicitarias</label>
           <input
-            id="sim-impresiones" className={styles.input} type="number" min="0"
+            id="sim-impresiones" className={styles.input} type="number" min="0" max="20000"
             value={nImpresiones} onChange={(e) => setNImpresiones(e.target.value)}
           />
         </div>

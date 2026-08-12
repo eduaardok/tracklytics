@@ -2,7 +2,7 @@ from datetime import date, datetime, timedelta
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from core.config import AIRFLOW_PASS, AIRFLOW_URL, AIRFLOW_USER
 from core.database import query_rows
@@ -37,6 +37,15 @@ DOMINIOS_BAJO_DEMANDA = (
 DAG_BAJO_DEMANDA = "dag_generar_bajo_demanda"
 DAG_GOLD = "dag_gold_aggregations"
 
+# Auditoría de validación de entrada: rango máximo aceptado para
+# `/generar-historico`. Se usa el mismo horizonte que la capa Gold agrega
+# realmente (`etl/gold_ch/base.py::VENTANA_ORIGEN_DIAS`, 1095 días = 3 años,
+# el mayor de los 5 horizontes por granularidad) — pedir un rango más amplio
+# no es un error de negocio en sí, pero genera actividad que ningún informe
+# compuesto vuelve a leer nunca, además de disparar meses-dominio de más
+# contra Airflow/ClickHouse sin ningún beneficio.
+RANGO_MAXIMO_DIAS = 1095
+
 
 class GenerarHistoricoBody(BaseModel):
     periodo_inicio: date
@@ -68,6 +77,19 @@ async def generar_historico(body: GenerarHistoricoBody):
     60 tareas) para que los 30 informes compuestos reflejen lo nuevo."""
     if body.periodo_fin <= body.periodo_inicio:
         raise HTTPException(status_code=422, detail="periodo_fin debe ser posterior a periodo_inicio")
+    if (body.periodo_fin - body.periodo_inicio).days > RANGO_MAXIMO_DIAS:
+        raise HTTPException(
+            status_code=422,
+            detail=f"El rango no puede superar {RANGO_MAXIMO_DIAS} días (~3 años) — es la misma "
+                   "ventana histórica que agrega la capa Gold; un rango mayor generaría actividad "
+                   "que ningún informe compuesto llega a leer.",
+        )
+    # `dominios` se valida aquí (whitelist explícita contra DOMINIOS_BAJO_DEMANDA) en vez de
+    # tipar el campo como `list[Literal[...]]` en el modelo: un Literal inválido lo rechazaría
+    # igual con 422, pero como error de parseo de Pydantic (`detail` en forma de lista de
+    # objetos) — `frontend/src/shared/lib/api-client.ts::request()` ignora ese formato a
+    # propósito y cae a un mensaje genérico. Manteniendo la validación aquí, el cliente sigue
+    # mostrando qué dominio exacto fue rechazado.
     dominios = body.dominios or list(DOMINIOS_BAJO_DEMANDA)
     invalidos = [d for d in dominios if d not in DOMINIOS_BAJO_DEMANDA]
     if invalidos:
@@ -132,11 +154,22 @@ N_STREAMS_DEFAULT = 5000
 N_SUSCRIPCIONES_DEFAULT = 50
 N_IMPRESIONES_DEFAULT = 200
 
+# Cotas superiores (auditoría de validación de entrada). A diferencia de
+# `/generar-historico` (despacha un DAG de Airflow y responde de inmediato),
+# este endpoint corre síncrono en el hilo del request: genera e inserta en
+# ClickHouse antes de responder. Sin tope, un valor desmedido (un cero de más
+# por error, o deliberado) bloquea el request y arma un batch insert sin
+# límite. 100x cada default es generoso para pruebas de carga manuales sin
+# permitir eso.
+N_STREAMS_MAX = N_STREAMS_DEFAULT * 100
+N_SUSCRIPCIONES_MAX = N_SUSCRIPCIONES_DEFAULT * 100
+N_IMPRESIONES_MAX = N_IMPRESIONES_DEFAULT * 100
+
 
 class GenerarActividadBody(BaseModel):
-    n_streams: int = N_STREAMS_DEFAULT
-    n_suscripciones: int = N_SUSCRIPCIONES_DEFAULT
-    n_impresiones: int = N_IMPRESIONES_DEFAULT
+    n_streams: int = Field(default=N_STREAMS_DEFAULT, ge=0, le=N_STREAMS_MAX)
+    n_suscripciones: int = Field(default=N_SUSCRIPCIONES_DEFAULT, ge=0, le=N_SUSCRIPCIONES_MAX)
+    n_impresiones: int = Field(default=N_IMPRESIONES_DEFAULT, ge=0, le=N_IMPRESIONES_MAX)
 
 
 @router.post("/generar-actividad", status_code=201)
