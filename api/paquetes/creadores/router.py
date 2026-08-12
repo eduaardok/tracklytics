@@ -2,8 +2,8 @@ import uuid
 from datetime import datetime, timezone
 from typing import Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel
+from fastapi import APIRouter, Depends, HTTPException, Path, Query
+from pydantic import BaseModel, Field, field_validator
 
 from core.database import execute, get_client, query_one, query_rows
 from core.deps import get_current_user
@@ -48,7 +48,15 @@ _FACT_SUBIDA_COLS_VER = _FACT_SUBIDA_COLS + ["version"]
 # ─────────────────────────────────────────────────────────────────────────────
 
 class SolicitudCuentaBody(BaseModel):
-    nombre_artistico: str
+    nombre_artistico: str = Field(min_length=1, max_length=150)
+
+    @field_validator("nombre_artistico")
+    @classmethod
+    def _limpiar_nombre(cls, v: str) -> str:
+        v = v.strip()
+        if not v:
+            raise ValueError("El nombre artístico no puede estar vacío")
+        return v
 
 
 class ResolverCuentaBody(BaseModel):
@@ -92,7 +100,11 @@ def listar_cuentas_admin(estado: str | None = Query(None)):
 
 
 @router.post("/admin/cuentas/{cuenta_artista_id}/resolver")
-def resolver_cuenta(cuenta_artista_id: str, body: ResolverCuentaBody, admin: dict = Depends(require_admin)):
+def resolver_cuenta(
+    body: ResolverCuentaBody,
+    cuenta_artista_id: str = Path(..., min_length=1, max_length=64),
+    admin: dict = Depends(require_admin),
+):
     cuenta = query_one(CUENTA_ACTUAL_POR_ID, {"cuenta_artista_id": cuenta_artista_id})
     if not cuenta:
         raise HTTPException(status_code=404, detail="Cuenta de artista no encontrada")
@@ -128,11 +140,30 @@ def resolver_cuenta(cuenta_artista_id: str, body: ResolverCuentaBody, admin: dic
 # ─────────────────────────────────────────────────────────────────────────────
 
 class SubidaTrackBody(BaseModel):
-    track_name: str
-    album_name: str = ""
-    genre_id: int
-    duration_ms: int
+    track_name: str = Field(min_length=1, max_length=200)
+    album_name: str = Field(default="", max_length=200)
+    genre_id: int = Field(ge=1)
+    # Rango real observado en FACT_TRACKS: min=0 (artefacto de datos heredado
+    # de la ingesta original, no un caso de negocio real), max≈5.24M ms
+    # (~87 min). Para una subida NUEVA de un artista, ge=1000 (mínimo 1
+    # segundo — 0 no es un track real) y le=10_800_000 (3 horas, generoso
+    # sobre el máximo observado para permitir DJ sets/podcasts sin abrir la
+    # puerta a un valor absurdo).
+    duration_ms: int = Field(ge=1000, le=10_800_000)
     explicit: bool = False
+
+    @field_validator("track_name")
+    @classmethod
+    def _limpiar_track_name(cls, v: str) -> str:
+        v = v.strip()
+        if not v:
+            raise ValueError("El nombre del track no puede estar vacío")
+        return v
+
+    @field_validator("album_name")
+    @classmethod
+    def _limpiar_album_name(cls, v: str) -> str:
+        return v.strip()
 
 
 class ResolverTrackBody(BaseModel):
@@ -198,7 +229,11 @@ def listar_tracks_admin(estado: str | None = Query(None)):
 
 
 @router.post("/admin/tracks/{subida_id}/resolver")
-async def resolver_track(subida_id: str, body: ResolverTrackBody, admin: dict = Depends(require_admin)):
+async def resolver_track(
+    body: ResolverTrackBody,
+    subida_id: str = Path(..., min_length=1, max_length=64),
+    admin: dict = Depends(require_admin),
+):
     subida = query_one(SUBIDA_ACTUAL_POR_ID, {"subida_id": subida_id})
     if not subida:
         raise HTTPException(status_code=404, detail="Subida no encontrada")
@@ -253,10 +288,10 @@ async def resolver_track(subida_id: str, body: ResolverTrackBody, admin: dict = 
 # ── Edición y retiro de un track propio por el artista (change p1-ciclos-vida) ─
 
 class EditarTrackBody(BaseModel):
-    track_name: str | None = None
-    album_name: str | None = None
-    genre_id: int | None = None
-    descripcion: str | None = None
+    track_name: str | None = Field(default=None, min_length=1, max_length=200)
+    album_name: str | None = Field(default=None, max_length=200)
+    genre_id: int | None = Field(default=None, ge=1)
+    descripcion: str | None = Field(default=None, max_length=2000)
 
 
 def _subida_propia_o_error(subida_id: str, cuenta: dict) -> dict:
@@ -273,7 +308,11 @@ def _siguiente_version(subida_id: str) -> int:
 
 
 @router.put("/tracks/{subida_id}")
-def editar_track(subida_id: str, body: EditarTrackBody, cuenta: dict = Depends(require_cuenta_artista_aprobada)):
+def editar_track(
+    body: EditarTrackBody,
+    subida_id: str = Path(..., min_length=1, max_length=64),
+    cuenta: dict = Depends(require_cuenta_artista_aprobada),
+):
     """El artista edita la metadata de un track propio. Si el track estaba
     `aprobado`, vuelve a `pendiente` para revisión editorial."""
     subida = _subida_propia_o_error(subida_id, cuenta)
@@ -321,7 +360,10 @@ def editar_track(subida_id: str, body: EditarTrackBody, cuenta: dict = Depends(r
 
 
 @router.post("/tracks/{subida_id}/retirar")
-def retirar_track(subida_id: str, cuenta: dict = Depends(require_cuenta_artista_aprobada)):
+def retirar_track(
+    subida_id: str = Path(..., min_length=1, max_length=64),
+    cuenta: dict = Depends(require_cuenta_artista_aprobada),
+):
     """El artista retira un track propio: estado `retirado` + takedown en el
     catálogo (disponible=0 sobre el track promovido, si existe)."""
     subida = _subida_propia_o_error(subida_id, cuenta)

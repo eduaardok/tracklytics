@@ -227,6 +227,7 @@ export function CuentaArtistaPage() {
                 id="nombre_artistico"
                 className={styles.input}
                 type="text"
+                maxLength={150}
                 value={nombreArtistico}
                 onChange={(e) => setNombreArtistico(e.target.value)}
                 placeholder="DJ Nova"
@@ -286,6 +287,7 @@ export function CuentaArtistaPage() {
                     id="track_name"
                     className={styles.input}
                     type="text"
+                    maxLength={200}
                     value={trackName}
                     onChange={(e) => setTrackName(e.target.value)}
                     required
@@ -297,6 +299,7 @@ export function CuentaArtistaPage() {
                     id="album_name"
                     className={styles.input}
                     type="text"
+                    maxLength={200}
                     value={albumName}
                     onChange={(e) => setAlbumName(e.target.value)}
                     placeholder="Sencillo"
@@ -324,6 +327,7 @@ export function CuentaArtistaPage() {
                     className={styles.input}
                     type="number"
                     min={1}
+                    max={10800}
                     value={durationSeconds}
                     onChange={(e) => setDurationSeconds(e.target.value)}
                     placeholder="198"
@@ -421,14 +425,14 @@ function TrackEditDialog({ track, generos, pending, onClose, onSave }: {
           if (!nombre.trim()) return
           onSave({ track_name: nombre.trim(), album_name: album.trim(), genre_id: Number(genreId), descripcion: descripcion.trim() })
         }}>
-          <label className={styles.modalField}><span className={styles.fieldLabel}>Nombre</span><input className={styles.input} value={nombre} onChange={(e) => setNombre(e.target.value)} /></label>
-          <label className={styles.modalField}><span className={styles.fieldLabel}>Álbum</span><input className={styles.input} value={album} onChange={(e) => setAlbum(e.target.value)} /></label>
+          <label className={styles.modalField}><span className={styles.fieldLabel}>Nombre</span><input className={styles.input} maxLength={200} value={nombre} onChange={(e) => setNombre(e.target.value)} /></label>
+          <label className={styles.modalField}><span className={styles.fieldLabel}>Álbum</span><input className={styles.input} maxLength={200} value={album} onChange={(e) => setAlbum(e.target.value)} /></label>
           <label className={styles.modalField}><span className={styles.fieldLabel}>Género</span>
             <select className={styles.input} value={genreId} onChange={(e) => setGenreId(e.target.value)}>
               {generos.map((g) => <option key={g.genre_id} value={g.genre_id}>{g.name}</option>)}
             </select>
           </label>
-          <label className={styles.modalField}><span className={styles.fieldLabel}>Descripción</span><textarea className={styles.textarea} rows={3} value={descripcion} onChange={(e) => setDescripcion(e.target.value)} /></label>
+          <label className={styles.modalField}><span className={styles.fieldLabel}>Descripción</span><textarea className={styles.textarea} rows={3} maxLength={2000} value={descripcion} onChange={(e) => setDescripcion(e.target.value)} /></label>
           <div className={styles.modalActions}>
             <button type="button" className={styles.btnGhost} onClick={onClose}>Cancelar</button>
             <button type="submit" className={styles.btnPrimary} disabled={pending || !nombre.trim()}>{pending ? 'Guardando…' : 'Guardar cambios'}</button>
