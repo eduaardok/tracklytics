@@ -2,8 +2,8 @@ import random
 from datetime import datetime, timezone
 from typing import Literal
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
-from pydantic import BaseModel
+from fastapi import APIRouter, Depends, Header, HTTPException, Path, Query, Request
+from pydantic import BaseModel, Field
 
 from core.database import execute, get_client, query_one, query_rows
 from core.deps import get_current_user, require_b2c_user
@@ -89,7 +89,7 @@ def _gen_fact_id() -> int:
 # ─────────────────────────────────────────────────────────────────────────────
 
 @router.post("/seguimiento/{artista_id}", status_code=201)
-def seguir_artista(artista_id: int, user: dict = Depends(require_b2c_user)):
+def seguir_artista(artista_id: int = Path(..., ge=1), user: dict = Depends(require_b2c_user)):
     usuario_id = user["record"]["id"]
     if query_one(ARTISTA_EXISTE, {"artista_id": artista_id})["n"] == 0:
         raise HTTPException(status_code=404, detail="Artista no encontrado")
@@ -105,7 +105,7 @@ def seguir_artista(artista_id: int, user: dict = Depends(require_b2c_user)):
 
 
 @router.delete("/seguimiento/{artista_id}")
-def dejar_de_seguir(artista_id: int, user: dict = Depends(require_b2c_user)):
+def dejar_de_seguir(artista_id: int = Path(..., ge=1), user: dict = Depends(require_b2c_user)):
     usuario_id = user["record"]["id"]
     if query_one(SEGUIMIENTO_ACTIVO_EXISTE, {"usuario_id": usuario_id, "artista_id": artista_id})["n"] == 0:
         raise HTTPException(status_code=404, detail="No sigues a este artista")
@@ -136,9 +136,14 @@ def feed_actividad(user: dict = Depends(get_current_user)):
 # ─────────────────────────────────────────────────────────────────────────────
 
 class ComentarioBody(BaseModel):
-    fact_id_track: int
-    contenido: str
-    comentario_padre_id: int | None = None
+    # fact_id_track/comentario_padre_id: FK a fact_id de FACT_TRACKS/FACT_COMENTARIO,
+    # nunca 0 ni negativo en el dominio real (mismo criterio que catalogo.md).
+    fact_id_track: int = Field(..., ge=1)
+    # 2000 caracteres: generoso para un comentario de track (varios párrafos),
+    # sin permitir que alguien mande un string de 1MB como "comentario" (auditoría
+    # de validación) — no hay límite de negocio documentado, es un techo defensivo.
+    contenido: str = Field(..., min_length=1, max_length=2000)
+    comentario_padre_id: int | None = Field(None, ge=1)
 
 
 @router.post("/comentarios", status_code=201)
@@ -230,7 +235,7 @@ def listar_comentarios(fact_id_track: int, user: dict = Depends(get_current_user
 # ─────────────────────────────────────────────────────────────────────────────
 
 class BloqueoBody(BaseModel):
-    usuario_id: str
+    usuario_id: str = Field(..., min_length=1)
 
 
 _BRIDGE_BLOQUEO_COLS = [
@@ -256,7 +261,7 @@ def bloquear_usuario(body: BloqueoBody, user: dict = Depends(require_b2c_user)):
 
 
 @router.delete("/bloqueos/{usuario_id}")
-def desbloquear_usuario(usuario_id: str, user: dict = Depends(require_b2c_user)):
+def desbloquear_usuario(usuario_id: str = Path(..., min_length=1), user: dict = Depends(require_b2c_user)):
     bloqueador_id = user["record"]["id"]
     fila = query_one(BLOQUEO_VIGENTE, {
         "bloqueador_id": bloqueador_id, "bloqueado_id": usuario_id,
@@ -290,7 +295,7 @@ class ModerarComentarioBody(BaseModel):
 
 
 @router.post("/admin/comentarios/{fact_id}/moderar")
-def moderar_comentario(fact_id: int, body: ModerarComentarioBody, admin: dict = Depends(require_admin)):
+def moderar_comentario(body: ModerarComentarioBody, fact_id: int = Path(..., ge=1), admin: dict = Depends(require_admin)):
     comentario = query_one(COMENTARIO_POR_ID, {"fact_id": fact_id})
     if not comentario:
         raise HTTPException(status_code=404, detail="Comentario no encontrado")
@@ -343,9 +348,11 @@ _FACT_DENUNCIA_COLS = [
 
 class DenunciaBody(BaseModel):
     tipo_objeto: TipoObjetoDenuncia
-    objeto_id: str
+    # objeto_id es un fact_id UInt64 en texto (máx. 20 dígitos) — 50 da margen
+    # sin dejar pasar un payload arbitrariamente largo.
+    objeto_id: str = Field(..., min_length=1, max_length=50)
     motivo: MotivoDenuncia
-    descripcion: str = ""
+    descripcion: str = Field("", max_length=1000)
 
 
 @router.post("/denuncias", status_code=201)
@@ -407,7 +414,7 @@ class ActualizarDenunciaBody(BaseModel):
     # sanción va en la misma acción que la resolución para que moderar sea un
     # solo paso y no dos pantallas distintas.
     emitir_strike: bool = False
-    motivo: str = ""
+    motivo: str = Field("", max_length=500)
 
 
 def _autor_del_contenido_denunciado(denuncia: dict) -> str | None:
@@ -426,10 +433,22 @@ def _autor_del_contenido_denunciado(denuncia: dict) -> str | None:
 
 
 @router.put("/admin/denuncias/{denuncia_id}")
-def actualizar_denuncia_admin(denuncia_id: int, body: ActualizarDenunciaBody, admin: dict = Depends(require_admin)):
+def actualizar_denuncia_admin(
+    body: ActualizarDenunciaBody, denuncia_id: int = Path(..., ge=1), admin: dict = Depends(require_admin),
+):
     actual = query_one(DENUNCIA_POR_ID, {"denuncia_id": denuncia_id})
     if not actual:
         raise HTTPException(status_code=404, detail="Denuncia no encontrada")
+    # Transición de estado inválida (auditoría de validación): "resuelta" es
+    # terminal — una denuncia ya resuelta no puede volver a "revisada" ni
+    # re-resolverse (ej. para emitir un segundo strike por el mismo caso).
+    # No hay flujo de "reabrir" en el diseño de p1-ciclos-vida/p2-descubrimiento-
+    # comunidad, así que se rechaza en vez de permitir un retroceso silencioso.
+    if actual["estado"] == "resuelta":
+        raise HTTPException(
+            status_code=409,
+            detail="Esta denuncia ya fue resuelta y no puede modificarse",
+        )
     if body.emitir_strike and not body.motivo.strip():
         raise HTTPException(status_code=422, detail="Un strike requiere motivo")
 
@@ -475,9 +494,11 @@ def actualizar_denuncia_admin(denuncia_id: int, body: ActualizarDenunciaBody, ad
 class ComparticionBody(BaseModel):
     tipo_interaccion_id: Literal["compartir_track", "compartir_playlist", "compartir_perfil_artista"]
     canal: Literal["x", "whatsapp", "copiar_enlace"]
-    fact_id_track: int | None = None
-    artista_id: int | None = None
-    playlist_id: str | None = None
+    fact_id_track: int | None = Field(None, ge=1)
+    artista_id: int | None = Field(None, ge=1)
+    # playlist_id es un id de PocketBase (15 caracteres alfanuméricos) — 50 da
+    # margen sin aceptar un valor arbitrariamente largo.
+    playlist_id: str | None = Field(None, min_length=1, max_length=50)
 
 
 def _armar_contenido_compartir(body: ComparticionBody) -> dict:
@@ -566,7 +587,7 @@ def notificaciones_admin(admin: dict = Depends(require_admin)):
 
 
 @router.patch("/notificaciones/{fact_id}/leer")
-def marcar_notificacion_leida(fact_id: int, user: dict = Depends(get_current_user)):
+def marcar_notificacion_leida(fact_id: int = Path(..., ge=1), user: dict = Depends(get_current_user)):
     notif = query_one(NOTIFICACION_POR_ID, {"fact_id": fact_id})
     if not notif:
         raise HTTPException(status_code=404, detail="Notificación no encontrada")

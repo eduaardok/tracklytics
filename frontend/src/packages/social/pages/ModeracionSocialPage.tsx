@@ -265,6 +265,7 @@ function DenunciasPanel() {
                       type="text"
                       className={styles.strikeMotivo}
                       placeholder="Motivo del strike"
+                      maxLength={500}
                       value={motivoPor[d.denuncia_id] ?? ''}
                       onChange={(e) => setMotivoPor((p) => ({ ...p, [d.denuncia_id]: e.target.value }))}
                     />

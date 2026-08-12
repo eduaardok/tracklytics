@@ -149,6 +149,7 @@ export function TrackSocialPage() {
           value={contenido}
           onChange={(e) => setContenido(e.target.value)}
           placeholder={replyingTo != null ? 'Escribe tu respuesta…' : 'Escribe un comentario…'}
+          maxLength={2000}
           required
         />
         <div className={styles.commentFormActions}>

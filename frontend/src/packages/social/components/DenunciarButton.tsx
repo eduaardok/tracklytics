@@ -51,7 +51,7 @@ export function DenunciarButton({ tipoObjeto, objetoId, label = 'Denunciar', cla
               </label>
               <label className={styles.field}>
                 <span className={styles.fieldLabel}>Descripción (opcional)</span>
-                <textarea className={styles.textarea} rows={3} value={descripcion} onChange={(e) => setDescripcion(e.target.value)} placeholder="Cuéntanos qué ocurre…" />
+                <textarea className={styles.textarea} rows={3} maxLength={1000} value={descripcion} onChange={(e) => setDescripcion(e.target.value)} placeholder="Cuéntanos qué ocurre…" />
               </label>
               <div className={styles.modalActions}>
                 <button type="button" className={styles.btnGhost} onClick={() => setOpen(false)}>Cancelar</button>
