@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field, field_validator
 
 from core.database import execute, get_client, query_one, query_rows
 from core.deps import get_current_user
-from paquetes.creadores.deps import require_admin, require_cuenta_artista_aprobada
+from paquetes.creadores.deps import require_admin, require_admin_lectura_cuentas, require_cuenta_artista_aprobada
 from paquetes.creadores.promocion import (
     NEUTRAL_AUDIO_DEFAULTS, perfil_audio_por_genero, promover_a_fact_tracks,
 )
@@ -90,7 +90,7 @@ def mi_cuenta(user: dict = Depends(get_current_user)):
     return cuenta
 
 
-@router.get("/admin/cuentas", dependencies=[Depends(require_admin)])
+@router.get("/admin/cuentas", dependencies=[Depends(require_admin_lectura_cuentas)])
 def listar_cuentas_admin(estado: str | None = Query(None)):
     where, params = "", {}
     if estado:

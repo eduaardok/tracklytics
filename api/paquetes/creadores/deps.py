@@ -11,7 +11,16 @@ from paquetes.seguridad.deps import require_rol_admin
 # siempre pasa.
 require_admin = require_rol_admin("admin_contenido")
 
-__all__ = ["require_admin", "require_cuenta_artista_aprobada"]
+# S16-P3 (verificación UX por rol): `GET /admin/cuentas` también lo consume
+# RegaliasAdminPage (`/seguridad/regalias`, admin_finanzas) para poblar el
+# selector de artista al registrar una liquidación — admin_finanzas quedaba
+# con 403 en esa sola llamada (dropdown vacío, sin error visible en
+# pantalla) pese a que la página en sí es 100% suya. Solo esa LECTURA se
+# abre a admin_finanzas; aprobación/rechazo de cuentas sigue exclusiva de
+# admin_contenido (`require_admin` de arriba, sin tocar).
+require_admin_lectura_cuentas = require_rol_admin("admin_contenido", "admin_finanzas")
+
+__all__ = ["require_admin", "require_admin_lectura_cuentas", "require_cuenta_artista_aprobada"]
 
 
 def require_cuenta_artista_aprobada(user: dict = Depends(get_current_user)) -> dict:

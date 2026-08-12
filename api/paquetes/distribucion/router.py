@@ -15,6 +15,14 @@ from paquetes.seguridad.deps import require_rol_admin
 # gestión de sellos, licencias, restricciones geográficas y disponibilidad de
 # catálogo pertenece al área de contenido. `superadmin` siempre pasa.
 require_admin = require_rol_admin("admin_contenido")
+# S16-P3 (verificación UX por rol): `GET /sellos` también lo consume
+# RegaliasAdminPage (`/seguridad/regalias`, admin_finanzas) para poblar el
+# selector de sello al registrar una liquidación — admin_finanzas quedaba
+# con 403 en esa sola llamada (dropdown vacío, sin error visible en
+# pantalla) pese a que la página en sí es 100% suya. Solo la LECTURA de
+# sellos se abre a admin_finanzas; alta/edición de sellos sigue exclusiva
+# de admin_contenido (`require_admin` de arriba, sin tocar).
+require_admin_lectura_sellos = require_rol_admin("admin_contenido", "admin_finanzas")
 from paquetes.distribucion.queries import (
     ALBUM_EXISTE,
     ARTISTA_EXISTE,
@@ -157,7 +165,7 @@ def editar_sello(body: SelloBody, sello_id: int = Path(..., ge=1), admin: dict =
     return {"status": "ok", "sello_id": sello_id, "nombre": body.nombre, "pais": body.pais}
 
 
-@router.get("/sellos", dependencies=[Depends(require_admin)])
+@router.get("/sellos", dependencies=[Depends(require_admin_lectura_sellos)])
 def listar_sellos():
     return {"data": query_rows(SELLOS_LIST)}
 

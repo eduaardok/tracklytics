@@ -6,6 +6,7 @@ from fastapi.responses import JSONResponse
 
 from core.database import get_client
 from paquetes.analitica.router import router as analitica_router
+from paquetes.analitica.router import router_infra as analitica_infra_router
 from paquetes.analitica.router import v1_router as analitica_v1_router
 from paquetes.biblioteca.router import router as biblioteca_router
 from paquetes.catalogo.router import router as catalogo_router
@@ -77,6 +78,7 @@ async def registrar_error_sistema(request: Request, exc: Exception):
 
 app.include_router(catalogo_router)
 app.include_router(analitica_router)
+app.include_router(analitica_infra_router)
 app.include_router(analitica_v1_router)
 app.include_router(gestion_router)
 app.include_router(gestion_v1_router)

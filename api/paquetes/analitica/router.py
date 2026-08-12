@@ -7,7 +7,7 @@ from core.cache import cached
 from core.database import query_one, query_rows
 from paquetes.analitica.benchmark_sql import ejecutar_benchmark, listar_informes
 from paquetes.analitica.bsc import bsc_resumen
-from paquetes.analitica.deps import require_b2b_panel_access, require_staff, require_tier
+from paquetes.analitica.deps import require_b2b_panel_access, require_cualquier_admin, require_staff, require_tier
 from paquetes.analitica.proyeccion import clasificar_trayectoria, proyectar_serie
 from paquetes.analitica.queries import (
     ADQUISICION_POR_CANAL,
@@ -210,6 +210,30 @@ v1_router = APIRouter(
     dependencies=[Depends(require_b2b_panel_access)],
 )
 
+# S16-P3 (verificación UX por rol): router aparte para endpoints de solo
+# lectura sin relación con ningún departamento específico, reusados en el
+# sidebar de `SeguridadShell` sin restricción de `roles:` (visibles a
+# CUALQUIER admin) — `require_b2b_panel_access` de `v1_router` de arriba
+# solo reconoce staff interno (superadmin) o Cliente B2B, así que un admin
+# de área (admin_finanzas, admin_contenido, ...) se quedaba con 403 pese a
+# que el link le aparecía en el sidebar sin restricción (bug real, ver
+# docs/VERIFICACION_UX_ROLES.md). No se puede "aflojar" el dependency de un
+# router ya declarado para una sola ruta — de ahí el router propio en vez
+# de mover `require_cualquier_admin` a `v1_router`, que ampliaría de más el
+# resto de endpoints B2B de ese router.
+router_infra = APIRouter(
+    prefix="/app/v1/analitica",
+    tags=["Analitica v1"],
+    dependencies=[Depends(require_cualquier_admin)],
+)
+
+
+@router_infra.get("/disponibilidad")
+def v1_disponibilidad():
+    """CU-O55: % de disponibilidad por componente de infraestructura y semana.
+    No confundir con la restricción geográfica de reproducción de `distribucion`."""
+    return {"data": query_rows(DISPONIBILIDAD_POR_COMPONENTE)}
+
 
 @v1_router.get("/dashboard")
 @cached(ttl=60)
@@ -301,13 +325,6 @@ def v1_tendencias(
 def v1_adquisicion():
     """CU-O54: usuarios nuevos por canal de marketing y semana. Tier Pro (b2b-tier-access-analitica)."""
     return {"data": query_rows(ADQUISICION_POR_CANAL)}
-
-
-@v1_router.get("/disponibilidad")
-def v1_disponibilidad():
-    """CU-O55: % de disponibilidad por componente de infraestructura y semana.
-    No confundir con la restricción geográfica de reproducción de `distribucion`."""
-    return {"data": query_rows(DISPONIBILIDAD_POR_COMPONENTE)}
 
 
 @v1_router.get("/engagement")

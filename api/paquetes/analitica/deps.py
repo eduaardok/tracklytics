@@ -99,3 +99,29 @@ def require_staff(user: dict = Depends(get_current_user)) -> dict:
             detail="El reporte diario operativo es exclusivo de Data Analyst/BI Lead",
         )
     return user
+
+
+async def require_cualquier_admin(user: dict = Depends(get_current_user)) -> dict:
+    """S16-P3 (verificación UX por rol): gating para endpoints de solo
+    lectura sin relación con ningún departamento específico, reusados como
+    página de `SeguridadShell` visible a TODOS los admins (sin `roles:` en
+    el nav) — ej. `/analitica/disponibilidad` como `/seguridad/disponibilidad`
+    — pero que TAMBIÉN sirven de panel B2B (`/analitica/disponibilidad`,
+    `NAV_BASE` de `AnalyticaShell`, cualquier tier con sesión activa).
+
+    `require_b2b_panel_access` por sí solo no alcanza para el primer caso:
+    solo reconoce `role == "admin"` (bootstrap superadmin) o `superadmin`
+    vía BRIDGE — un admin de área (`admin_finanzas`, `admin_contenido`,
+    `admin_comunidad`, `admin_datos`, `admin_comercial`) no es ninguno de
+    los dos, así que quedaba con 403 pese a que el sidebar le mostraba el
+    link sin restricción de rol (bug real, encontrado con Playwright
+    logueado como cada una de las 7 cuentas demo — ver
+    docs/VERIFICACION_UX_ROLES.md). Acá se prueba primero CUALQUIER rol
+    administrativo vigente (`roles_admin_vigentes` no vacío); si no hay
+    ninguno, se delega tal cual en `require_b2b_panel_access` (staff
+    bootstrap o Cliente B2B con suscripción activa) — no se duplica esa
+    lógica, para no desincronizarla si cambia."""
+    usuario_id = user.get("record", {}).get("id", "")
+    if usuario_id and roles_admin_vigentes(usuario_id):
+        return user
+    return await require_b2b_panel_access(user)
