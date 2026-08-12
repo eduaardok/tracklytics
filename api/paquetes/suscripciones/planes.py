@@ -1,4 +1,5 @@
 import os
+from typing import Literal
 
 PLANES_B2C = [
     {"id": "free",    "tipo_actor": "b2c", "nombre": "Free",
@@ -60,6 +61,16 @@ PLANES_B2B = [
 ]
 
 PLANES: dict[str, dict] = {p["id"]: p for p in PLANES_B2C + PLANES_B2B}
+
+# Catálogo cerrado de `plan_id` (auditoria_validacion): antes `plan_id`/
+# `nuevo_plan_id` en los BaseModel de `router.py` eran `str` libre —
+# `PLANES.get(body.plan_id)` ya devolvía 404 para cualquier valor no listado
+# acá, así que no había forma de crear un plan inventado, pero el error
+# llegaba tarde (tras la deserialización) y no quedaba declarado en el
+# schema/Swagger. Literal fijo, no derivado de `PLANES.keys()`: los IDs de
+# plan son parte del contrato de negocio (ver DIM_PLAN, init_clickhouse.py),
+# no un valor que cambie sin una decisión explícita de agregar un plan nuevo.
+PlanId = Literal["free", "premium", "estudiante", "basico", "pro", "enterprise"]
 
 
 def planes_para_rol(role: str) -> list[dict]:

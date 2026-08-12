@@ -3,7 +3,7 @@ from datetime import datetime, timedelta
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel
+from pydantic import BaseModel, EmailStr, Field
 
 from core.database import get_client, query_one, query_rows
 from core.deps import get_current_user
@@ -18,12 +18,22 @@ require_admin = require_rol_admin("admin_comercial")
 from paquetes.suscripciones import pb_client
 from paquetes.suscripciones.queries import PLAN_PRECIO_ACTUAL, PLANES_PRECIOS_TODOS
 from paquetes.suscripciones.planes import (
-    PLANES, email_institucional_valido, plan_valido_para_rol, planes_para_rol,
+    PLANES, PlanId, email_institucional_valido, plan_valido_para_rol, planes_para_rol,
 )
 
 router = APIRouter(prefix="/app/v1/suscripciones", tags=["Suscripciones"])
 
 MotivoCancelacion = Literal["precio", "no_uso", "competencia", "otro"]
+
+# Estados reales que este paquete escribe en la colección `suscripciones` de
+# PocketBase (campo `estado`, texto libre del lado de PocketBase — ver
+# pb_init.py). "suspendida" NO es uno de ellos: no existe ningún `estado=
+# "suspendida"` escrito en todo el paquete (grep verificado) — una suscripción
+# incumplidora se degrada a `free`/se cancela (dunning, CU-O95), nunca queda
+# "suspendida". Se documenta acá porque el filtro admin del frontend
+# (`AdminSuscripcionesPage.tsx`) sí ofrecía esa opción — un filtro que nunca
+# podía devolver resultados, corregido en este mismo cambio.
+EstadoSuscripcion = Literal["activa", "cancelada", "pago_pendiente"]
 
 # Dunning (modelo-financiero-completar-huecos, CU-O95, design.md decisión 2):
 # número de intentos de cobro fallidos antes de degradar la suscripción.
@@ -51,15 +61,22 @@ DIAS_TRIAL_PREMIUM = 7
 
 
 class ConfirmarSuscripcion(BaseModel):
-    plan_id: str
+    plan_id: PlanId
     # `metodo_pago_id` real de DIM_METODO_PAGO (ver POST /facturacion/metodos-pago)
     # — activar un plan de pago cobra en la misma operación (cambio 2026-07-09,
     # antes aceptaba cualquier string libre sin verificar un método real).
-    metodo_pago_id: str | None = None
+    # min_length=1 (no solo `str | None`): un método de pago vacío `""` pasaba
+    # el chequeo `if not body.metodo_pago_id` cuando el precio era 0, pero
+    # llegaba tal cual hasta `metodo_pago_existe` en cualquier plan de pago.
+    metodo_pago_id: str | None = Field(default=None, min_length=1, max_length=100)
     # Requerido solo para `plan_id='estudiante'` — validación de elegibilidad
     # de punto de venta, no se persiste (monetizacion-retencion-mejoras, ver
-    # design.md decisión 6).
-    email_institucional: str | None = None
+    # design.md decisión 6). EmailStr (no `str` libre): garantiza forma de
+    # email válida antes de que `email_institucional_valido` (planes.py)
+    # aplique la regla de negocio existente (substring de dominio
+    # institucional) — esa regla de negocio no se toca, solo se le exige un
+    # email real como entrada en vez de cualquier texto.
+    email_institucional: EmailStr | None = None
 
 
 def _role(user: dict) -> str:
@@ -268,13 +285,15 @@ async def cancelar_suscripcion(
 # ─────────────────────────────────────────────────────────────────────────────
 
 class CambiarPlanBody(BaseModel):
-    nuevo_plan_id: str
+    nuevo_plan_id: PlanId
     # Fallback si la suscripción no tiene `metodo_pago_id` propio — solo las
     # suscripciones creadas en período de prueba lo guardan hoy
     # (`confirmar_suscripcion`); un plan de pago normal no lo persiste, así
     # que un upgrade sobre esa suscripción necesita que el cliente indique
-    # cuál de sus métodos ya registrados usar.
-    metodo_pago_id: str | None = None
+    # cuál de sus métodos ya registrados usar. Mismo min_length=1 que
+    # `ConfirmarSuscripcion.metodo_pago_id` (auditoría de validación): evita
+    # que un "" vacío llegue hasta `metodo_pago_existe`.
+    metodo_pago_id: str | None = Field(default=None, min_length=1, max_length=100)
 
 
 @router.put("/{suscripcion_id}/plan")
@@ -354,7 +373,7 @@ async def cambiar_plan(
 # ─────────────────────────────────────────────────────────────────────────────
 
 class ProcesarCobroBody(BaseModel):
-    metodo_pago_id: str | None = None
+    metodo_pago_id: str | None = Field(default=None, min_length=1, max_length=100)
     forzar_resultado: Literal["exitosa", "fallida"] | None = None
 
 
@@ -420,7 +439,7 @@ async def procesar_cobro(
 # ─────────────────────────────────────────────────────────────────────────────
 
 class PrecioPlanBody(BaseModel):
-    precio_usd: float
+    precio_usd: float = Field(ge=0)
 
 
 @router.get("/admin/planes")
@@ -441,8 +460,6 @@ def listar_precios_planes(admin: dict = Depends(require_admin)):
 def actualizar_precio_plan(plan_id: str, body: PrecioPlanBody, admin: dict = Depends(require_admin)):
     if plan_id not in PLANES:
         raise HTTPException(status_code=404, detail="Plan no encontrado")
-    if body.precio_usd < 0:
-        raise HTTPException(status_code=422, detail="El precio no puede ser negativo")
     get_client().insert(
         "DIM_PLAN", [(plan_id, body.precio_usd, 1)], column_names=["plan_id", "precio_usd", "activo"],
     )
@@ -471,8 +488,8 @@ def _pb_escape(valor: str) -> str:
 
 @router.get("/admin/suscripciones")
 async def listar_suscripciones_admin(
-    estado: str | None = Query(None),
-    plan_id: str | None = Query(None),
+    estado: EstadoSuscripcion | None = Query(None),
+    plan_id: PlanId | None = Query(None),
     fecha_desde: str | None = Query(None),
     fecha_hasta: str | None = Query(None),
     page: int = Query(1, ge=1),
@@ -503,7 +520,7 @@ async def detalle_suscripcion_admin(suscripcion_id: str, admin: dict = Depends(r
 
 
 class CancelarAdminBody(BaseModel):
-    motivo: str = ""
+    motivo: str = Field(default="", max_length=500)
 
 
 @router.post("/admin/suscripciones/{suscripcion_id}/cancelar")
@@ -533,14 +550,15 @@ async def cancelar_suscripcion_admin(suscripcion_id: str, body: CancelarAdminBod
 
 
 class ExtenderBody(BaseModel):
-    dias: int
-    motivo: str = ""
+    # Tope de 365 días (auditoría de validación): una extensión de cortesía
+    # administrativa de más de un año no es un caso de negocio real — algo
+    # así debería pasar por un plan/proceso distinto, no por este endpoint.
+    dias: int = Field(gt=0, le=365)
+    motivo: str = Field(default="", max_length=500)
 
 
 @router.post("/admin/suscripciones/{suscripcion_id}/extender")
 async def extender_suscripcion_admin(suscripcion_id: str, body: ExtenderBody, admin: dict = Depends(require_admin)):
-    if body.dias <= 0:
-        raise HTTPException(status_code=422, detail="El número de días debe ser mayor que 0")
     sus = await pb_client.obtener_admin(suscripcion_id)
     if not sus:
         raise HTTPException(status_code=404, detail="Suscripción no encontrada")

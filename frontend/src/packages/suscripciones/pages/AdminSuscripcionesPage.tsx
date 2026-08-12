@@ -7,7 +7,12 @@ import { ExportPDFButton } from '@shared/components/ExportPDFButton'
 import { suscripcionesApi, type SuscripcionAdminRecord } from '../api/suscripciones.api'
 import styles from './AdminSuscripcionesPage.module.css'
 
-const ESTADOS = ['activa', 'cancelada', 'suspendida', 'pago_pendiente']
+// "suspendida" no existe como estado real (auditoría de validación): el
+// backend nunca escribe ese valor — una suscripción incumplidora se degrada
+// a pago_pendiente/se cancela (dunning, CU-O95), nunca queda "suspendida".
+// Ese filtro nunca podía devolver resultados; se retira junto con el fix del
+// backend (EstadoSuscripcion, api/paquetes/suscripciones/router.py).
+const ESTADOS = ['activa', 'cancelada', 'pago_pendiente']
 
 function fmtDate(iso?: string | null) {
   if (!iso) return '—'
@@ -209,10 +214,10 @@ function ExtenderDialog({ sus, onClose, onDone, onError, onSuccess }: {
         <p className={styles.modalBody}>Cortesía por incidente — desplaza la fecha de vencimiento del usuario <span className={styles.mono}>{sus.usuario_o_cliente.slice(0, 10)}…</span>.</p>
         <form className={styles.modalForm} onSubmit={(e) => { e.preventDefault(); if (Number(dias) > 0) m.mutate() }}>
           <label className={styles.field}><span className={styles.fieldLabel}>Días</span>
-            <input className={styles.select} type="number" min="1" value={dias} onChange={(e) => setDias(e.target.value)} />
+            <input className={styles.select} type="number" min="1" max="365" value={dias} onChange={(e) => setDias(e.target.value)} />
           </label>
           <label className={styles.field}><span className={styles.fieldLabel}>Motivo</span>
-            <input className={styles.select} value={motivo} onChange={(e) => setMotivo(e.target.value)} placeholder="Ej.: caída del servicio" />
+            <input className={styles.select} maxLength={500} value={motivo} onChange={(e) => setMotivo(e.target.value)} placeholder="Ej.: caída del servicio" />
           </label>
           <div className={styles.modalActions}>
             <button type="button" className={styles.btnGhost} onClick={onClose}>Cerrar</button>
