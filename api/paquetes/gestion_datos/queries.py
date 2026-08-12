@@ -63,6 +63,19 @@ def dim_str_cols_sql(ch_db: str, ch_table: str) -> str:
     )
 
 
+def dim_columns_sql(ch_db: str, ch_table: str) -> str:
+    """Whitelist de columnas reales (nombre + tipo) de una tabla de
+    dimensión — usada para validar las keys de `DimRecord.data` antes de
+    usarlas como identificadores de columna en INSERT/UPDATE (nunca se
+    interpola texto de usuario como identificador SQL sin pasar por esta
+    whitelist primero)."""
+    return (
+        f"SELECT name, type FROM system.columns "
+        f"WHERE database = '{ch_db}' AND table = '{ch_table}' "
+        f"ORDER BY position"
+    )
+
+
 DATA_QUALITY_COUNTS = """
 SELECT
     count()                                  AS total_records,

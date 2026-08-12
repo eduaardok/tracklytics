@@ -10,14 +10,23 @@ import styles from './CrudDimensionesPage.module.css'
 const FACTS_OPTION = '__facts__'
 const PAGE_LIMIT = 20
 
+// Longitud máxima de un campo de texto libre en este formulario — refleja
+// `_MAX_STR_LEN` en `api/paquetes/gestion_datos/router.py` (auditoría de
+// validación de entrada de datos: antes no había ningún límite, ni aquí ni
+// en el backend).
+const MAX_TEXT_LEN = 500
+
 // Formulario genérico: los campos se derivan de las keys de una fila real
 // (primera fila cargada, o la fila en edición) — no hay endpoint de esquema
 // para 11 tablas heterogéneas, así que "crear" solo está disponible una vez
 // que la tabla ya tiene al menos un registro que sirva de plantilla de campos.
 // Se asume la primera key devuelta por `SELECT *` como PK (mismo criterio que
 // `dim_pk_sql` en el backend: ORDER BY position LIMIT 1) — se muestra pero no
-// se deja editar en modo edición, igual que el backend descarta silenciosamente
-// cualquier intento de cambiarla (`dim_update`, filtro `k != pk`).
+// se deja editar en modo edición. El backend ahora rechaza explícitamente
+// (400) cualquier intento de incluir la PK en el payload de `dim_update`, en
+// vez de descartarla en silencio como antes (auditoría de validación) — este
+// disabled es solo la capa de UX/feedback inmediato, la protección real vive
+// en el backend.
 function DimForm({ fields, initial, pkKey, isEdit, onSubmit, onCancel, pending, error }: {
   fields:   string[]
   initial:  DimRow
@@ -31,6 +40,7 @@ function DimForm({ fields, initial, pkKey, isEdit, onSubmit, onCancel, pending, 
   const [values, setValues] = useState<Record<string, string>>(
     Object.fromEntries(fields.map((f) => [f, initial[f] == null ? '' : String(initial[f])])),
   )
+  const [localError, setLocalError] = useState<string | null>(null)
 
   function inputType(v: unknown): 'number' | 'checkbox' | 'text' {
     if (typeof v === 'number') return 'number'
@@ -45,14 +55,35 @@ function DimForm({ fields, initial, pkKey, isEdit, onSubmit, onCancel, pending, 
       if (isEdit && f === pkKey) continue
       const raw = values[f]
       const kind = inputType(initial[f])
-      data[f] = kind === 'number' ? Number(raw) : kind === 'checkbox' ? raw === 'true' : raw
+      if (kind === 'number') {
+        const n = Number(raw)
+        if (raw.trim() === '' || Number.isNaN(n)) {
+          setLocalError(`"${f}" debe ser un número válido.`)
+          return
+        }
+        if (n < 0) {
+          setLocalError(`"${f}" no puede ser negativo.`)
+          return
+        }
+        data[f] = n
+      } else if (kind === 'checkbox') {
+        data[f] = raw === 'true'
+      } else {
+        const trimmed = raw.trim()
+        if (trimmed.length > MAX_TEXT_LEN) {
+          setLocalError(`"${f}" excede la longitud máxima permitida (${MAX_TEXT_LEN} caracteres).`)
+          return
+        }
+        data[f] = trimmed
+      }
     }
+    setLocalError(null)
     onSubmit(data)
   }
 
   return (
     <form className={styles.form} onSubmit={handleSubmit}>
-      {error && <p className={styles.errorText}>{error}</p>}
+      {(localError || error) && <p className={styles.errorText}>{localError ?? error}</p>}
       <div className={styles.formGrid}>
         {fields.map((f) => {
           const kind = inputType(initial[f])
@@ -76,6 +107,8 @@ function DimForm({ fields, initial, pkKey, isEdit, onSubmit, onCancel, pending, 
                   type={kind === 'number' ? 'number' : 'text'}
                   value={values[f]}
                   disabled={locked}
+                  min={kind === 'number' ? 0 : undefined}
+                  maxLength={kind === 'text' ? MAX_TEXT_LEN : undefined}
                   onChange={(e) => setValues((v) => ({ ...v, [f]: e.target.value }))}
                 />
               )}

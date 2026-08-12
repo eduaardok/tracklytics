@@ -48,3 +48,13 @@ def query_one(sql: str, parameters: Optional[dict] = None) -> Optional[dict]:
 def execute(sql: str, parameters: Optional[dict] = None) -> None:
     client = get_client()
     client.command(sql, parameters=parameters or {})
+
+
+def insert_row(table: str, data: dict) -> None:
+    """Inserta una fila vía el protocolo nativo de clickhouse-connect
+    (`Client.insert`), no SQL de texto — los valores viajan serializados por
+    el driver, nunca interpolados en una query (auditoría de validación,
+    hallazgo crítico `gestion_datos.dim_create`: la versión anterior
+    construía `INSERT ... VALUES (...)` con f-strings, inyectable)."""
+    client = get_client()
+    client.insert(table, [list(data.values())], column_names=list(data.keys()))

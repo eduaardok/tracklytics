@@ -9,16 +9,21 @@ from core.config import (
     AIRFLOW_DAG, AIRFLOW_PASS, AIRFLOW_URL, AIRFLOW_USER, CH_DB, DIM_FK_COLUMN, DIM_TABLES,
     RECALIFICACION_DAG,
 )
-from core.database import execute, get_client, query_one, query_rows
+from core.database import execute, get_client, insert_row, query_one, query_rows
 from paquetes.gestion_datos.deps import require_lead_data_engineer
 from paquetes.gestion_datos.queries import (
     ETL_LOGS, ETL_LOGS_TOTAL, ETL_STATUS_LAST,
     DATA_QUALITY_COUNTS, DATA_QUALITY_REJECTION, DATA_QUALITY_LAST_LOAD,
     CARGAS_HISTORIAL, CARGAS_ULTIMA, ETL_BATCH_EXISTS,
     ETL_MUESTRA, ETL_MUESTRA_LAST_WEEK, ETL_DISTRIBUCION_GENEROS,
-    dim_fk_references_sql, dim_list_sql, dim_list_total_sql, dim_pk_sql, dim_str_cols_sql,
-    facts_list_sql, etl_distribucion_atributo_sql,
+    dim_columns_sql, dim_fk_references_sql, dim_list_sql, dim_list_total_sql, dim_pk_sql,
+    dim_str_cols_sql, facts_list_sql, etl_distribucion_atributo_sql,
 )
+
+# Longitud máxima aceptada para un valor de texto libre en el CRUD genérico de
+# dimensiones — sin esto, un string arbitrariamente largo se insertaba tal
+# cual (auditoría de validación de entrada de datos).
+_MAX_STR_LEN = 500
 
 router = APIRouter(tags=["Data Management"], dependencies=[Depends(require_lead_data_engineer)])
 
@@ -189,6 +194,35 @@ def _get_pk_column(ch_table: str) -> str:
     return row["name"]
 
 
+def _get_columns(ch_table: str) -> dict[str, str]:
+    """Whitelist real de columnas (nombre -> tipo ClickHouse) de una tabla de
+    dimensión. Toda key de `DimRecord.data` se valida contra esta whitelist
+    antes de usarse como identificador de columna — nunca se interpola una
+    key de usuario directo en SQL sin pasar por aquí primero."""
+    rows = query_rows(dim_columns_sql(CH_DB, ch_table))
+    return {row["name"]: row["type"] for row in rows}
+
+
+def _clean_and_validate_data(data: dict[str, Any], columns: dict[str, str]) -> dict[str, Any]:
+    unknown = [k for k in data if k not in columns]
+    if unknown:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Columna(s) desconocida(s) para esta tabla: {unknown}. Válidas: {list(columns)}",
+        )
+    cleaned: dict[str, Any] = {}
+    for k, v in data.items():
+        if isinstance(v, str):
+            v = v.strip()
+            if len(v) > _MAX_STR_LEN:
+                raise HTTPException(
+                    status_code=422,
+                    detail=f"'{k}' excede la longitud máxima permitida ({_MAX_STR_LEN} caracteres).",
+                )
+        cleaned[k] = v
+    return cleaned
+
+
 @router.get("/dim/{table}", tags=["Dimensions"])
 def dim_list(
     table:  str,
@@ -233,8 +267,10 @@ def dim_create(table: str, body: DimRecord):
     if not body.data:
         raise HTTPException(status_code=422, detail="data must not be empty")
 
-    pk   = _get_pk_column(ch_table)
-    data = dict(body.data)
+    columns = _get_columns(ch_table)
+    data    = _clean_and_validate_data(dict(body.data), columns)
+
+    pk = _get_pk_column(ch_table)
     if pk not in data or not data[pk]:
         # Sin esto, ClickHouse inserta el default de la columna (0 para
         # enteros) para el PK omitido, y todo registro creado por esta vía
@@ -244,13 +280,13 @@ def dim_create(table: str, body: DimRecord):
         next_id = query_one(f"SELECT max({pk}) AS n FROM {ch_table}")
         data[pk] = (next_id["n"] if next_id and next_id["n"] else 0) + 1
 
-    cols = ", ".join(data.keys())
-    vals = ", ".join(
-        f"'{v}'" if isinstance(v, str) else str(v)
-        for v in data.values()
-    )
+    # Inserta vía el protocolo nativo del driver (core.database.insert_row),
+    # no SQL de texto — antes esta función construía `INSERT ... VALUES (...)`
+    # con f-strings interpolando directamente las keys/values del payload:
+    # inyección de SQL real (hallazgo crítico de la auditoría de validación,
+    # ver docs/auditoria_validacion/gestion_datos.md).
     try:
-        execute(f"INSERT INTO {ch_table} ({cols}) VALUES ({vals})")
+        insert_row(ch_table, data)
     except Exception as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     return {"message": "Record created", "data": data}
@@ -262,15 +298,38 @@ def dim_update(table: str, record_id: int, body: DimRecord):
     pk = _get_pk_column(ch_table)
     if not body.data:
         raise HTTPException(status_code=422, detail="data must not be empty")
-    assignments = ", ".join(
-        f"{k} = '{v}'" if isinstance(v, str) else f"{k} = {v}"
-        for k, v in body.data.items()
-        if k != pk
-    )
-    if not assignments:
+
+    columns = _get_columns(ch_table)
+    data    = _clean_and_validate_data(dict(body.data), columns)
+
+    if pk in data:
+        # El identificador es inmutable tras la creación del registro: se
+        # rechaza explícitamente en vez de sobreescribirlo o descartarlo en
+        # silencio (auditoría de validación — antes se filtraba sin avisar).
+        raise HTTPException(
+            status_code=400,
+            detail=f"'{pk}' es la clave primaria de esta tabla y no puede modificarse en una actualización.",
+        )
+    if not data:
         raise HTTPException(status_code=422, detail="No updatable fields provided")
+
+    # Nombres de columna: solo los ya validados contra `columns` (whitelist
+    # real de system.columns) llegan a interpolarse como identificadores.
+    # Valores: siempre parametrizados, nunca interpolados como texto —
+    # mismo motivo que en `dim_create`.
+    assignments = []
+    params: dict[str, Any] = {"record_id": record_id}
+    for i, (k, v) in enumerate(data.items()):
+        p = f"p_{i}"
+        assignments.append(f"{k} = {{{p}:{columns[k]}}}")
+        params[p] = v
+    set_clause = ", ".join(assignments)
+
     try:
-        execute(f"ALTER TABLE {ch_table} UPDATE {assignments} WHERE {pk} = {record_id}")
+        execute(
+            f"ALTER TABLE {ch_table} UPDATE {set_clause} WHERE {pk} = {{record_id:{columns[pk]}}}",
+            params,
+        )
     except Exception as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     return {"message": "Record updated", "id": record_id}
@@ -284,6 +343,7 @@ def dim_delete(
 ):
     ch_table  = _resolve_table(table)
     pk        = _get_pk_column(ch_table)
+    columns   = _get_columns(ch_table)
     fk_column = DIM_FK_COLUMN.get(table)
 
     if fk_column:
@@ -299,7 +359,10 @@ def dim_delete(
             )
 
     try:
-        execute(f"ALTER TABLE {ch_table} DELETE WHERE {pk} = {record_id}")
+        execute(
+            f"ALTER TABLE {ch_table} DELETE WHERE {pk} = {{record_id:{columns[pk]}}}",
+            {"record_id": record_id},
+        )
     except Exception as exc:
         raise HTTPException(status_code=400, detail=str(exc))
 
