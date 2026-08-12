@@ -19,6 +19,8 @@ from paquetes.facturacion.queries import (
     INGRESO_TOTAL_HISTORICO,
     INVOICE_DETALLE,
     INVOICES_POR_USUARIO,
+    METODO_PAGO_DETALLE,
+    METODO_PAGO_EN_USO_VIGENTE,
     METODO_PAGO_EXISTE,
     METODOS_PAGO_POR_USUARIO,
     NOTIFICACIONES_EMAIL_POR_USUARIO,
@@ -206,6 +208,33 @@ def registrar_metodo_pago(body: MetodoPagoBody, user: dict = Depends(get_current
         },
     )
     return {"status": "ok", "metodo_pago_id": metodo_pago_id}
+
+
+@router.delete("/metodos-pago/{metodo_pago_id}")
+def eliminar_metodo_pago(metodo_pago_id: str, user: dict = Depends(get_current_user)):
+    usuario_id = user["record"]["id"]
+    if not metodo_pago_existe(usuario_id, metodo_pago_id):
+        raise HTTPException(status_code=404, detail="Método de pago no encontrado para este usuario")
+
+    if query_one(METODO_PAGO_EN_USO_VIGENTE, {"usuario_id": usuario_id, "metodo_pago_id": metodo_pago_id}):
+        raise HTTPException(
+            status_code=409,
+            detail="No se puede eliminar: este método de pago cubre el período de facturación en curso de una suscripción activa.",
+        )
+
+    antes = query_one(METODO_PAGO_DETALLE, {"usuario_id": usuario_id, "metodo_pago_id": metodo_pago_id}) or {}
+    execute(
+        "ALTER TABLE DIM_METODO_PAGO DELETE WHERE usuario_id = {usuario_id:String} AND metodo_pago_id = {metodo_pago_id:String}",
+        {"usuario_id": usuario_id, "metodo_pago_id": metodo_pago_id},
+    )
+    audit.record(
+        usuario_id=usuario_id,
+        accion="eliminacion_metodo_pago",
+        tabla_afectada="DIM_METODO_PAGO",
+        antes=antes,
+        despues=None,
+    )
+    return {"status": "ok"}
 
 
 @router.get("/metodos-pago")

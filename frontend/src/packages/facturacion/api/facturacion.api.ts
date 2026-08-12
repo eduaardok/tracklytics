@@ -14,6 +14,9 @@ export const facturacionApi = {
   registrarMetodoPago: (body: RegistrarMetodoPagoBody) =>
     apiClient.post<{ status: string; metodo_pago_id: string }>('/facturacion/metodos-pago', body),
 
+  eliminarMetodoPago: (metodoPagoId: string) =>
+    apiClient.delete<{ status: string }>(`/facturacion/metodos-pago/${metodoPagoId}`),
+
   pagarSuscripcion: (body: PagarSuscripcionBody) =>
     apiClient.post<PagoResultado>('/facturacion/transacciones', body),
 

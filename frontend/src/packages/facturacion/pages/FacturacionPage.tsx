@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type MouseEvent } from 'react'
 import { Link } from 'react-router-dom'
+import { Trash2 } from 'lucide-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ErrorState } from '@shared/components/ErrorState'
 import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
@@ -142,6 +143,25 @@ export function FacturacionPage() {
     onError: (err) => toast.error(apiErrorMessage(err, 'No se pudo agregar el método de pago.')),
   })
 
+  const eliminarMetodo = useMutation({
+    mutationFn: (metodoPagoId: string) => facturacionApi.eliminarMetodoPago(metodoPagoId),
+    onSuccess: (_res, metodoPagoId) => {
+      if (selectedMethodId === metodoPagoId) setSelectedMethodId('')
+      queryClient.invalidateQueries({ queryKey: ['facturacion', 'metodos-pago'] })
+      toast.success('Método de pago eliminado')
+    },
+    onError: (err) => toast.error(apiErrorMessage(err, 'No se pudo eliminar el método de pago.')),
+  })
+
+  async function handleEliminarMetodo(e: MouseEvent, metodoPagoId: string, ultimos4: string) {
+    e.stopPropagation()
+    const ok = await confirm(
+      `¿Eliminar el método de pago terminado en ${ultimos4}? Esta acción no se puede deshacer.`,
+      { title: 'Eliminar método de pago', confirmLabel: 'Eliminar' },
+    )
+    if (ok) eliminarMetodo.mutate(metodoPagoId)
+  }
+
   // Espera `ms` sin bloquear — usada solo para los estados intermedios
   // cosméticos ("Validando…" / "Autorizando…") antes de la llamada real.
   const esperar = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
@@ -252,13 +272,19 @@ export function FacturacionPage() {
           {metodosData.map((m) => {
             const selected = m.metodo_pago_id === selectedMethodId
             return (
-              <button
+              <div
                 key={m.metodo_pago_id}
-                type="button"
                 role="radio"
+                tabIndex={0}
                 aria-checked={selected}
                 className={`${styles.methodRow} ${selected ? styles.methodRowSelected : ''}`}
                 onClick={() => setSelectedMethodId(m.metodo_pago_id)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault()
+                    setSelectedMethodId(m.metodo_pago_id)
+                  }
+                }}
               >
                 <span className={styles.radioIndicator} aria-hidden="true">
                   <span className={styles.radioDot} />
@@ -267,7 +293,16 @@ export function FacturacionPage() {
                 <span className={styles.methodNumber}>•••• {m.ultimos_4_digitos}</span>
                 {m.nombre_titular && <span className={styles.methodCountry}>{m.nombre_titular}</span>}
                 <span className={styles.methodCountry}>{m.pais || '—'}</span>
-              </button>
+                <button
+                  type="button"
+                  aria-label={`Eliminar método de pago terminado en ${m.ultimos_4_digitos}`}
+                  className={styles.deleteBtn}
+                  disabled={eliminarMetodo.isPending}
+                  onClick={(e) => handleEliminarMetodo(e, m.metodo_pago_id, m.ultimos_4_digitos)}
+                >
+                  <Trash2 size={14} aria-hidden="true" />
+                </button>
+              </div>
             )
           })}
         </div>

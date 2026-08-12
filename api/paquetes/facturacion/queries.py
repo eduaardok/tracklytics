@@ -24,6 +24,18 @@ WHERE usuario_id = {usuario_id:String} AND metodo_pago_id = {metodo_pago_id:Stri
 LIMIT 1
 """
 
+# Detalle de un único método de pago — usado para el `antes` del audit log al
+# eliminar (distinto de METODOS_PAGO_POR_USUARIO, que trae TODOS los del
+# usuario; acá filtramos por `metodo_pago_id` para no auditar el método
+# equivocado si el usuario tiene más de uno registrado).
+METODO_PAGO_DETALLE = """
+SELECT metodo_pago_id, tipo, ultimos_4_digitos, pais,
+       nombre_titular, direccion, ciudad, codigo_postal, creado_en
+FROM DIM_METODO_PAGO
+WHERE usuario_id = {usuario_id:String} AND metodo_pago_id = {metodo_pago_id:String}
+LIMIT 1
+"""
+
 TRANSACCIONES_POR_USUARIO = """
 SELECT transaccion_id, usuario_id, metodo_pago_id, suscripcion_id, monto, moneda, estado, fecha
 FROM FACT_TRANSACCION_PAGO
@@ -137,5 +149,20 @@ WHERE t.suscripcion_id = {suscripcion_id:String}
   AND t.estado = 'exitosa' AND t.concepto = 'suscripcion'
   AND t.periodo_fin >= today()
 ORDER BY t.fecha DESC
+LIMIT 1
+"""
+
+# ── Borrado de método de pago (change delete-metodo-pago) ──────────────────
+# Un método de pago no se puede borrar mientras esté cubriendo el período de
+# facturación EN CURSO de una suscripción de pago — mismo criterio de
+# "período vigente" que ya usa `ULTIMA_TRANSACCION_SUSCRIPCION_VIGENTE`, pero
+# filtrado por `metodo_pago_id` en vez de `suscripcion_id`: no hace falta
+# resolver qué suscripciones están activas en PocketBase, el propio pago
+# exitoso con `periodo_fin` futuro ya implica que ese método sigue
+# respaldando un cobro vigente.
+METODO_PAGO_EN_USO_VIGENTE = """
+SELECT transaccion_id FROM FACT_TRANSACCION_PAGO
+WHERE usuario_id = {usuario_id:String} AND metodo_pago_id = {metodo_pago_id:String}
+  AND estado = 'exitosa' AND concepto = 'suscripcion' AND periodo_fin >= today()
 LIMIT 1
 """
