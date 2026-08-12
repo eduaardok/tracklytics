@@ -64,32 +64,11 @@
   padding: var(--space-md);
 }
 
-/* ── Key-value data table (CSS grid, 2-col) ── */
-.kv {
+/* ── KPICard sub-grid (escala del catálogo, audio promedio) ── */
+.kpiSubGrid {
   display: grid;
-  grid-template-columns: 1fr auto;
-  row-gap: 6px;
-  column-gap: var(--space-md);
-}
-
-.kvLabel {
-  font-family: var(--font-sans);
-  font-size: 0.8125rem;
-  font-weight: 400;
-  color: var(--color-muted);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.kvValue {
-  font-family: var(--font-mono);
-  font-size: 0.8125rem;
-  font-weight: 400;
-  color: var(--color-ink);
-  text-align: right;
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: var(--space-sm);
 }
 
 /* ── Ranked list (top genres / top artists) ── */

@@ -1,15 +1,28 @@
 import { useRef } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { Disc3, Mic2, Tags, Gauge, Zap, Music4, Smile, Timer } from 'lucide-react'
 import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { MiniLineChart } from '@shared/components/charts/MiniLineChart'
 import { MiniBarChart, type BarDatum } from '@shared/components/charts/MiniBarChart'
 import { CHART_COLORS } from '@shared/components/charts/colors'
 import { ExportPDFButton } from '@shared/components/ExportPDFButton'
+import { KPICard } from '@shared/components/KPICard'
 import { analiticaApi } from '../api/analitica.api'
 import styles from './DashboardPage.module.css'
 
 const fmt    = (n: number)         => n.toLocaleString('es-ES')
 const fmtDec = (n: number, d = 4) => n.toFixed(d)
+// KPICard usa `font-size: 2rem` para el valor — números de 7+ dígitos
+// (catálogo real: 1.313.556 tracks) se salían de una card de ~110px de
+// ancho mínimo (encontrado en verificación visual con Playwright, no en el
+// diseño). Notación compacta en es-ES escribe la unidad como palabra
+// ("29,9 mil", no "29,9K") — para números de 6 dígitos o menos eso ocupa
+// MÁS espacio que el número completo ("29.863"), así que solo compacta a
+// partir de 1M, donde "1,3 M" sí gana contra "1.313.556". `fmt()` (sin
+// compactar) sigue siendo el que se usa en el subtítulo, donde cabe el
+// número completo sin problema.
+const fmtKpi = (n: number) =>
+  n >= 1_000_000 ? new Intl.NumberFormat('es-ES', { notation: 'compact', maximumFractionDigits: 1 }).format(n) : fmt(n)
 
 function fmtTs(ts: string): string {
   try {
@@ -116,33 +129,21 @@ export function DashboardPage() {
       <div className={styles.topGrid}>
         <div>
           <p className={styles.sectionLabel}>Escala del catálogo</p>
-          <div className={styles.panel}>
-            <dl className={styles.kv}>
-              <dt className={styles.kvLabel}>Tracks</dt>
-              <dd className={styles.kvValue}>{fmt(totals.tracks)}</dd>
-              <dt className={styles.kvLabel}>Artistas</dt>
-              <dd className={styles.kvValue}>{fmt(totals.artists)}</dd>
-              <dt className={styles.kvLabel}>Géneros</dt>
-              <dd className={styles.kvValue}>{totals.genres}</dd>
-            </dl>
+          <div className={styles.kpiSubGrid}>
+            <KPICard title="Tracks" value={fmtKpi(totals.tracks)} icon={Disc3} />
+            <KPICard title="Artistas" value={fmtKpi(totals.artists)} icon={Mic2} />
+            <KPICard title="Géneros" value={totals.genres} icon={Tags} />
           </div>
         </div>
 
         <div>
           <p className={styles.sectionLabel}>Audio promedio</p>
-          <div className={styles.panel}>
-            <dl className={styles.kv}>
-              <dt className={styles.kvLabel}>Popularidad</dt>
-              <dd className={styles.kvValue}>{fmtDec(audio.avg_popularity, 2)}</dd>
-              <dt className={styles.kvLabel}>Energy</dt>
-              <dd className={styles.kvValue}>{fmtDec(audio.avg_energy)}</dd>
-              <dt className={styles.kvLabel}>Danceability</dt>
-              <dd className={styles.kvValue}>{fmtDec(audio.avg_danceability)}</dd>
-              <dt className={styles.kvLabel}>Valence</dt>
-              <dd className={styles.kvValue}>{fmtDec(audio.avg_valence)}</dd>
-              <dt className={styles.kvLabel}>Tempo</dt>
-              <dd className={styles.kvValue}>{fmtDec(audio.avg_tempo, 2)} bpm</dd>
-            </dl>
+          <div className={styles.kpiSubGrid}>
+            <KPICard title="Popularidad" value={fmtDec(audio.avg_popularity, 2)} icon={Gauge} />
+            <KPICard title="Energy" value={fmtDec(audio.avg_energy)} icon={Zap} />
+            <KPICard title="Danceability" value={fmtDec(audio.avg_danceability)} icon={Music4} />
+            <KPICard title="Valence" value={fmtDec(audio.avg_valence)} icon={Smile} />
+            <KPICard title="Tempo" value={`${fmtDec(audio.avg_tempo, 2)} bpm`} icon={Timer} />
           </div>
         </div>
       </div>
