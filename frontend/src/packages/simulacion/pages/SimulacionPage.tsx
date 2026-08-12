@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { apiErrorMessage } from '@shared/lib/api-client'
 import { useToast } from '@shared/context/ToastContext'
+import { AirflowLinkButton } from '@shared/components/AirflowLinkButton'
 import { simulacionApi } from '../api/simulacion.api'
 import { DOMINIOS_BAJO_DEMANDA, type DominioBajoDemanda } from '../types'
 import styles from './SimulacionPage.module.css'
@@ -185,6 +186,7 @@ export function SimulacionPage() {
         >
           {generarHistorico.isPending ? 'Disparando…' : 'Generar y refrescar Gold'}
         </button>
+        <AirflowLinkButton dagId="dag_generar_bajo_demanda" className={styles.btnGhost} />
       </form>
 
       <div className={styles.chipRow}>
