@@ -57,6 +57,8 @@ export function LicenciasTab() {
     }),
   })
 
+  const fechaFinInvalida = fechaFin !== '' && fechaInicio !== '' && fechaFin <= fechaInicio
+
   const crear = useMutation({
     mutationFn: () => distribucionApi.crearLicencia({
       sello_id: Number(selloId),
@@ -84,7 +86,7 @@ export function LicenciasTab() {
       <p className={styles.sectionLabel} data-pdf-export-ignore="true">Nueva licencia</p>
       <form
         className={styles.form}
-        onSubmit={(e) => { e.preventDefault(); if (selloId && paisId && fechaInicio) crear.mutate() }}
+        onSubmit={(e) => { e.preventDefault(); if (selloId && paisId && fechaInicio && !fechaFinInvalida) crear.mutate() }}
         data-pdf-export-ignore="true"
       >
         <div className={styles.field}>
@@ -107,9 +109,19 @@ export function LicenciasTab() {
         </div>
         <div className={styles.field}>
           <label className={styles.fieldLabel} htmlFor="lic-fin">Fecha fin (opcional)</label>
-          <input id="lic-fin" className={styles.input} type="date" value={fechaFin} onChange={(e) => setFechaFin(e.target.value)} />
+          <input
+            id="lic-fin"
+            className={styles.input}
+            type="date"
+            value={fechaFin}
+            min={fechaInicio || undefined}
+            onChange={(e) => setFechaFin(e.target.value)}
+          />
+          {fechaFinInvalida && (
+            <span className={styles.errorText}>La fecha fin debe ser posterior a la fecha de inicio.</span>
+          )}
         </div>
-        <button className={styles.btnPrimary} type="submit" disabled={crear.isPending || !selloId || !paisId || !fechaInicio}>
+        <button className={styles.btnPrimary} type="submit" disabled={crear.isPending || !selloId || !paisId || !fechaInicio || fechaFinInvalida}>
           {crear.isPending ? 'Creando…' : 'Crear licencia'}
         </button>
       </form>
@@ -181,6 +193,7 @@ export function LicenciasTab() {
                 onChange={(e) => setMotivo(e.target.value)}
                 placeholder="Ej.: incumplimiento de contrato"
                 rows={3}
+                maxLength={500}
                 autoFocus
               />
               <div className={styles.modalActions}>

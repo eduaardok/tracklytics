@@ -141,7 +141,7 @@ export function ConfiguracionGlobalTab() {
       >
         <div className={styles.field}>
           <label className={styles.fieldLabel} htmlFor="pais-nombre">Nombre</label>
-          <input id="pais-nombre" className={styles.input} value={form.nombre}
+          <input id="pais-nombre" className={styles.input} value={form.nombre} maxLength={100}
             onChange={(e) => setForm((f) => ({ ...f, nombre: e.target.value }))} placeholder="Uruguay" />
         </div>
         <div className={styles.field}>
@@ -156,18 +156,18 @@ export function ConfiguracionGlobalTab() {
         </div>
         <div className={styles.field}>
           <label className={styles.fieldLabel} htmlFor="pais-tasa">Tasa de cambio a USD (referencial)</label>
-          <input id="pais-tasa" className={styles.input} type="number" step="0.0001" min="0" value={form.tasa_cambio_a_usd}
+          <input id="pais-tasa" className={styles.input} type="number" step="0.0001" min="0.0001" value={form.tasa_cambio_a_usd}
             onChange={(e) => setForm((f) => ({ ...f, tasa_cambio_a_usd: Number(e.target.value) }))} />
         </div>
         <div className={styles.field}>
           <label className={styles.fieldLabel} htmlFor="pais-iva">IVA propio (%) — vacío = usa el global</label>
-          <input id="pais-iva" className={styles.input} type="number" step="0.1" min="0"
+          <input id="pais-iva" className={styles.input} type="number" step="0.1" min="0" max="100"
             value={form.iva_tasa ?? ''}
             onChange={(e) => setForm((f) => ({ ...f, iva_tasa: e.target.value === '' ? null : Number(e.target.value) }))} />
         </div>
         <div className={styles.field}>
           <label className={styles.fieldLabel} htmlFor="pais-retencion">Retención fiscal propia (%) — vacío = usa la global</label>
-          <input id="pais-retencion" className={styles.input} type="number" step="0.1" min="0"
+          <input id="pais-retencion" className={styles.input} type="number" step="0.1" min="0" max="100"
             value={form.retencion_fiscal_pct ?? ''}
             onChange={(e) => setForm((f) => ({ ...f, retencion_fiscal_pct: e.target.value === '' ? null : Number(e.target.value) }))} />
         </div>
@@ -201,12 +201,12 @@ export function ConfiguracionGlobalTab() {
                   <tr key={p.pais_id} style={{ opacity: p.activo ? 1 : 0.5 }}>
                     {editando ? (
                       <>
-                        <td><input className={styles.input} value={editForm.nombre} onChange={(e) => setEditForm((f) => ({ ...f, nombre: e.target.value }))} /></td>
-                        <td><input className={styles.input} value={editForm.codigo_iso} onChange={(e) => setEditForm((f) => ({ ...f, codigo_iso: e.target.value.toUpperCase() }))} /></td>
-                        <td><input className={styles.input} value={editForm.moneda_codigo} onChange={(e) => setEditForm((f) => ({ ...f, moneda_codigo: e.target.value.toUpperCase() }))} /></td>
-                        <td><input className={styles.input} type="number" step="0.0001" value={editForm.tasa_cambio_a_usd} onChange={(e) => setEditForm((f) => ({ ...f, tasa_cambio_a_usd: Number(e.target.value) }))} /></td>
-                        <td><input className={styles.input} type="number" step="0.1" value={editForm.iva_tasa ?? ''} onChange={(e) => setEditForm((f) => ({ ...f, iva_tasa: e.target.value === '' ? null : Number(e.target.value) }))} /></td>
-                        <td><input className={styles.input} type="number" step="0.1" value={editForm.retencion_fiscal_pct ?? ''} onChange={(e) => setEditForm((f) => ({ ...f, retencion_fiscal_pct: e.target.value === '' ? null : Number(e.target.value) }))} /></td>
+                        <td><input className={styles.input} value={editForm.nombre} maxLength={100} onChange={(e) => setEditForm((f) => ({ ...f, nombre: e.target.value }))} /></td>
+                        <td><input className={styles.input} value={editForm.codigo_iso} maxLength={2} onChange={(e) => setEditForm((f) => ({ ...f, codigo_iso: e.target.value.toUpperCase() }))} /></td>
+                        <td><input className={styles.input} value={editForm.moneda_codigo} maxLength={3} onChange={(e) => setEditForm((f) => ({ ...f, moneda_codigo: e.target.value.toUpperCase() }))} /></td>
+                        <td><input className={styles.input} type="number" step="0.0001" min="0.0001" value={editForm.tasa_cambio_a_usd} onChange={(e) => setEditForm((f) => ({ ...f, tasa_cambio_a_usd: Number(e.target.value) }))} /></td>
+                        <td><input className={styles.input} type="number" step="0.1" min="0" max="100" value={editForm.iva_tasa ?? ''} onChange={(e) => setEditForm((f) => ({ ...f, iva_tasa: e.target.value === '' ? null : Number(e.target.value) }))} /></td>
+                        <td><input className={styles.input} type="number" step="0.1" min="0" max="100" value={editForm.retencion_fiscal_pct ?? ''} onChange={(e) => setEditForm((f) => ({ ...f, retencion_fiscal_pct: e.target.value === '' ? null : Number(e.target.value) }))} /></td>
                         <td>{p.activo ? 'Sí' : 'No'}</td>
                         <td className={styles.tableActions}>
                           <button className={styles.btnGhost} disabled={editarPais.isPending} onClick={() => editarPais.mutate(p.pais_id)}>Guardar</button>

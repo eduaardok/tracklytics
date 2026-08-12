@@ -104,7 +104,8 @@ export function SolicitudesLicenciaTab() {
     setCanalesSel((prev) => (prev.includes(id) ? prev.filter((c) => c !== id) : [...prev, id]))
   }
 
-  const puedeCrear = selloId !== '' && paisesSel.length > 0 && canalesSel.length > 0 && fechaInicio !== ''
+  const fechaFinInvalida = fechaFin !== '' && fechaInicio !== '' && fechaFin <= fechaInicio
+  const puedeCrear = selloId !== '' && paisesSel.length > 0 && canalesSel.length > 0 && fechaInicio !== '' && !fechaFinInvalida
 
   return (
     <div ref={reportRef}>
@@ -134,7 +135,17 @@ export function SolicitudesLicenciaTab() {
         </div>
         <div className={styles.field}>
           <label className={styles.fieldLabel} htmlFor="sol-fin">Fecha fin propuesta (opcional)</label>
-          <input id="sol-fin" className={styles.input} type="date" value={fechaFin} onChange={(e) => setFechaFin(e.target.value)} />
+          <input
+            id="sol-fin"
+            className={styles.input}
+            type="date"
+            value={fechaFin}
+            min={fechaInicio || undefined}
+            onChange={(e) => setFechaFin(e.target.value)}
+          />
+          {fechaFinInvalida && (
+            <span className={styles.errorText}>La fecha fin debe ser posterior a la fecha de inicio.</span>
+          )}
         </div>
         <div className={styles.field} style={{ gridColumn: '1 / -1' }}>
           <span className={styles.fieldLabel}>Países solicitados</span>
@@ -203,6 +214,7 @@ export function SolicitudesLicenciaTab() {
                             placeholder="Motivo del rechazo…"
                             value={motivo}
                             onChange={(e) => setMotivo(e.target.value)}
+                            maxLength={500}
                             autoFocus
                           />
                           <button className={styles.btnGhostDanger} type="submit" disabled={isPending || !motivo.trim()}>

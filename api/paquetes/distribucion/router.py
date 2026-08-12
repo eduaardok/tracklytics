@@ -3,8 +3,8 @@ import uuid
 from datetime import date, datetime, timezone
 from typing import Literal, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel
+from fastapi import APIRouter, Depends, HTTPException, Path, Query
+from pydantic import BaseModel, Field, field_validator
 
 from core.database import execute, get_client, query_one, query_rows
 from core.deps import require_b2c_user
@@ -114,11 +114,11 @@ def registrar_restriccion_reproduccion(usuario_id: str, fact_id_track: int, pais
 # ─────────────────────────────────────────────────────────────────────────────
 
 class SelloBody(BaseModel):
-    nombre: str
+    nombre: str = Field(min_length=1, max_length=150)
     # País del sello (modelo-financiero-completar-huecos, design.md decisión
     # 3) — texto libre, mismo criterio que DIM_USUARIO.pais, resuelto contra
     # DIM_PAIS vía `resolver_pais_id` para la retención fiscal de regalías.
-    pais: str = ""
+    pais: str = Field(default="", max_length=100)
 
 
 @router.post("/sellos", status_code=201)
@@ -138,7 +138,7 @@ def crear_sello(body: SelloBody, admin: dict = Depends(require_admin)):
 
 
 @router.put("/sellos/{sello_id}")
-def editar_sello(sello_id: int, body: SelloBody, admin: dict = Depends(require_admin)):
+def editar_sello(body: SelloBody, sello_id: int = Path(..., ge=1), admin: dict = Depends(require_admin)):
     sello = query_one(SELLO_POR_ID, {"sello_id": sello_id})
     if not sello:
         raise HTTPException(status_code=404, detail="Sello no encontrado")
@@ -188,15 +188,29 @@ def listar_paises_publico():
 # ─────────────────────────────────────────────────────────────────────────────
 
 class PaisConfigBody(BaseModel):
-    nombre: str
-    codigo_iso: str
-    moneda_codigo: str = "USD"
+    nombre: str = Field(min_length=1, max_length=100)
+    # ISO 3166-1 alpha-2 (2 letras) — el frontend ya limita a maxLength=2.
+    codigo_iso: str = Field(min_length=2, max_length=2)
+    # ISO 4217 (3 letras), p.ej. "USD"/"UYU".
+    moneda_codigo: str = Field(default="USD", min_length=3, max_length=3)
     # Tasa de referencia simulada y congelada respecto a USD — nunca una
-    # cotización de forex real (design.md, decisión 4).
-    tasa_cambio_a_usd: float = 1.0
+    # cotización de forex real (design.md, decisión 4). Debe ser positiva:
+    # una tasa 0 o negativa rompería cualquier conversión de moneda aguas
+    # abajo (facturacion/regalias).
+    tasa_cambio_a_usd: float = Field(default=1.0, gt=0)
     # None = usa la tasa global de la plataforma (DIM_EMPRESA), ver decisión 6.
-    iva_tasa: Optional[float] = None
-    retencion_fiscal_pct: Optional[float] = None
+    # Escala 0-100 (porcentaje), mismo criterio que
+    # `facturacion.EmpresaConfigBody.iva_tasa_global/retencion_fiscal_pct_global`.
+    iva_tasa: Optional[float] = Field(default=None, ge=0, le=100)
+    retencion_fiscal_pct: Optional[float] = Field(default=None, ge=0, le=100)
+
+    @field_validator("codigo_iso", "moneda_codigo")
+    @classmethod
+    def _uppercase_alpha(cls, v: str) -> str:
+        v = v.strip().upper()
+        if not v.isalpha():
+            raise ValueError("Debe contener solo letras")
+        return v
 
 
 @router.get("/admin/paises", dependencies=[Depends(require_admin)])
@@ -228,7 +242,7 @@ def crear_pais(body: PaisConfigBody, admin: dict = Depends(require_admin)):
 
 
 @router.put("/admin/paises/{pais_id}")
-def editar_pais(pais_id: int, body: PaisConfigBody, admin: dict = Depends(require_admin)):
+def editar_pais(body: PaisConfigBody, pais_id: int = Path(..., ge=1), admin: dict = Depends(require_admin)):
     pais = query_one(PAIS_CONFIG_POR_ID, {"pais_id": pais_id})
     if not pais:
         raise HTTPException(status_code=404, detail="País no encontrado")
@@ -251,7 +265,7 @@ def editar_pais(pais_id: int, body: PaisConfigBody, admin: dict = Depends(requir
 
 
 @router.post("/admin/paises/{pais_id}/desactivar")
-def desactivar_pais(pais_id: int, admin: dict = Depends(require_admin)):
+def desactivar_pais(pais_id: int = Path(..., ge=1), admin: dict = Depends(require_admin)):
     pais = query_one(PAIS_CONFIG_POR_ID, {"pais_id": pais_id})
     if not pais:
         raise HTTPException(status_code=404, detail="País no encontrado")
@@ -264,7 +278,7 @@ def desactivar_pais(pais_id: int, admin: dict = Depends(require_admin)):
 
 
 @router.post("/admin/paises/{pais_id}/activar")
-def activar_pais(pais_id: int, admin: dict = Depends(require_admin)):
+def activar_pais(pais_id: int = Path(..., ge=1), admin: dict = Depends(require_admin)):
     pais = query_one(PAIS_CONFIG_POR_ID, {"pais_id": pais_id})
     if not pais:
         raise HTTPException(status_code=404, detail="País no encontrado")
@@ -287,11 +301,13 @@ def listar_tipos_restriccion():
 
 
 class AsignarSelloBody(BaseModel):
-    sello_id: int
+    sello_id: int = Field(ge=1)
 
 
 @router.put("/artistas/{artist_id}/sello")
-def asignar_sello_artista(artist_id: int, body: AsignarSelloBody, admin: dict = Depends(require_admin)):
+def asignar_sello_artista(
+    body: AsignarSelloBody, artist_id: int = Path(..., ge=1), admin: dict = Depends(require_admin),
+):
     if query_one(ARTISTA_EXISTE, {"artist_id": artist_id})["n"] == 0:
         raise HTTPException(status_code=404, detail="Artista no encontrado")
     if query_one(SELLO_EXISTE, {"sello_id": body.sello_id})["n"] == 0:
@@ -308,7 +324,9 @@ def asignar_sello_artista(artist_id: int, body: AsignarSelloBody, admin: dict = 
 
 
 @router.put("/albumes/{album_id}/sello")
-def asignar_sello_album(album_id: int, body: AsignarSelloBody, admin: dict = Depends(require_admin)):
+def asignar_sello_album(
+    body: AsignarSelloBody, album_id: int = Path(..., ge=1), admin: dict = Depends(require_admin),
+):
     if query_one(ALBUM_EXISTE, {"album_id": album_id})["n"] == 0:
         raise HTTPException(status_code=404, detail="Álbum no encontrado")
     if query_one(SELLO_EXISTE, {"sello_id": body.sello_id})["n"] == 0:
@@ -329,10 +347,18 @@ def asignar_sello_album(album_id: int, body: AsignarSelloBody, admin: dict = Dep
 # ─────────────────────────────────────────────────────────────────────────────
 
 class LicenciaBody(BaseModel):
-    sello_id: int
-    pais_id: int
+    sello_id: int = Field(ge=1)
+    pais_id: int = Field(ge=1)
     fecha_inicio: date
     fecha_fin: date | None = None
+
+    @field_validator("fecha_fin")
+    @classmethod
+    def _fecha_fin_posterior(cls, v: date | None, info) -> date | None:
+        inicio = info.data.get("fecha_inicio")
+        if v is not None and inicio is not None and v <= inicio:
+            raise ValueError("fecha_fin debe ser posterior a fecha_inicio")
+        return v
 
 
 @router.post("/licencias", status_code=201)
@@ -359,11 +385,13 @@ def crear_licencia(body: LicenciaBody, admin: dict = Depends(require_admin)):
 
 
 class RevocarLicenciaBody(BaseModel):
-    motivo: str
+    motivo: str = Field(min_length=1, max_length=500)
 
 
 @router.post("/licencias/{licencia_id}/revocar")
-def revocar_licencia(licencia_id: int, body: RevocarLicenciaBody, admin: dict = Depends(require_admin)):
+def revocar_licencia(
+    body: RevocarLicenciaBody, licencia_id: int = Path(..., ge=1), admin: dict = Depends(require_admin),
+):
     """Revoca una licencia ya activa (change p1-ciclos-vida): la marca como
     `revocada`, registra motivo y fecha. Una licencia revocada deja de contar
     como activa para la disponibilidad (LICENCIAS_ACTIVAS_TOTAL filtra
@@ -413,15 +441,25 @@ def listar_licencias(sello_id: int | None = Query(None), pais_id: int | None = Q
 # ─────────────────────────────────────────────────────────────────────────────
 
 class SolicitudLicenciaBody(BaseModel):
-    sello_id: int
-    paises_solicitados: list[int]
-    canales_solicitados: list[int]
+    sello_id: int = Field(ge=1)
+    # Acotado a un tamaño razonable de catálogo de países/canales — el
+    # catálogo real (DIM_PAIS/DIM_CANAL_DISTRIBUCION) es de bajo volumen.
+    paises_solicitados: list[int] = Field(min_length=1, max_length=300)
+    canales_solicitados: list[int] = Field(min_length=1, max_length=50)
     fecha_inicio_propuesta: date
     fecha_fin_propuesta: date | None = None
 
+    @field_validator("fecha_fin_propuesta")
+    @classmethod
+    def _fecha_fin_posterior(cls, v: date | None, info) -> date | None:
+        inicio = info.data.get("fecha_inicio_propuesta")
+        if v is not None and inicio is not None and v <= inicio:
+            raise ValueError("fecha_fin_propuesta debe ser posterior a fecha_inicio_propuesta")
+        return v
+
 
 class RechazarSolicitudBody(BaseModel):
-    motivo: str
+    motivo: str = Field(min_length=1, max_length=500)
 
 
 @router.post("/solicitudes-licencia", status_code=201)
@@ -492,7 +530,9 @@ def _resolver_solicitud_pendiente(solicitud_id: str) -> dict:
 
 
 @router.post("/solicitudes-licencia/{solicitud_id}/aprobar")
-def aprobar_solicitud_licencia(solicitud_id: str, admin: dict = Depends(require_admin)):
+def aprobar_solicitud_licencia(
+    solicitud_id: str = Path(..., min_length=1, max_length=64), admin: dict = Depends(require_admin),
+):
     solicitud = _resolver_solicitud_pendiente(solicitud_id)
     admin_id = admin["record"]["id"]
 
@@ -525,7 +565,11 @@ def aprobar_solicitud_licencia(solicitud_id: str, admin: dict = Depends(require_
 
 
 @router.post("/solicitudes-licencia/{solicitud_id}/rechazar")
-def rechazar_solicitud_licencia(solicitud_id: str, body: RechazarSolicitudBody, admin: dict = Depends(require_admin)):
+def rechazar_solicitud_licencia(
+    body: RechazarSolicitudBody,
+    solicitud_id: str = Path(..., min_length=1, max_length=64),
+    admin: dict = Depends(require_admin),
+):
     if not body.motivo.strip():
         raise HTTPException(status_code=422, detail="El motivo de rechazo no puede estar vacío")
     solicitud = _resolver_solicitud_pendiente(solicitud_id)
@@ -553,10 +597,10 @@ def rechazar_solicitud_licencia(solicitud_id: str, body: RechazarSolicitudBody, 
 # ─────────────────────────────────────────────────────────────────────────────
 
 class RestriccionBody(BaseModel):
-    fact_id_track: int
-    pais_id: int
-    canal_id: int
-    tipo_restriccion_id: int
+    fact_id_track: int = Field(ge=1)
+    pais_id: int = Field(ge=1)
+    canal_id: int = Field(ge=1)
+    tipo_restriccion_id: int = Field(ge=1)
 
 
 @router.post("/restricciones", status_code=201)
@@ -587,7 +631,12 @@ def crear_restriccion(body: RestriccionBody, admin: dict = Depends(require_admin
 
 
 @router.delete("/restricciones/{fact_id_track}/{pais_id}/{canal_id}")
-def desactivar_restriccion(fact_id_track: int, pais_id: int, canal_id: int, admin: dict = Depends(require_admin)):
+def desactivar_restriccion(
+    fact_id_track: int = Path(..., ge=1),
+    pais_id: int = Path(..., ge=1),
+    canal_id: int = Path(..., ge=1),
+    admin: dict = Depends(require_admin),
+):
     activa = restriccion_activa(fact_id_track, pais_id, canal_id)
     if not activa:
         raise HTTPException(status_code=404, detail="No existe una restricción activa para esa combinación")

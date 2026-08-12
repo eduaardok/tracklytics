@@ -89,6 +89,8 @@ export function SellosTab() {
             value={nombre}
             onChange={(e) => setNombre(e.target.value)}
             placeholder="Universal Music Group"
+            maxLength={150}
+            required
           />
         </div>
         <div className={styles.field}>
@@ -101,6 +103,7 @@ export function SellosTab() {
             value={pais}
             onChange={(e) => setPais(e.target.value)}
             placeholder="Ecuador"
+            maxLength={100}
           />
         </div>
         <button className={styles.btnPrimary} type="submit" disabled={crear.isPending || !nombre.trim()}>
@@ -134,6 +137,7 @@ export function SellosTab() {
                         className={styles.input}
                         value={editNombre}
                         autoFocus
+                        maxLength={150}
                         onChange={(e) => setEditNombre(e.target.value)}
                         onKeyDown={(e) => {
                           if (e.key === 'Enter') editar.mutate({ id: s.sello_id, nombre: editNombre, pais: editPais })
@@ -153,6 +157,7 @@ export function SellosTab() {
                           if (e.key === 'Escape') setEditId(null)
                         }}
                         placeholder="Ecuador"
+                        maxLength={100}
                       />
                     ) : (s.pais || '—')}
                   </td>
