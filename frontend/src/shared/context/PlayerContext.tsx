@@ -38,6 +38,15 @@ type PlayerContextValue = {
   play:             (track: PlayableTrack) => void
   togglePlay:       () => void
   seek:             (ms: number) => void
+  // Transporte anterior/siguiente (botones de PlayerBar). `playNext` es el
+  // mismo avance que ya dispara automáticamente el fin de un track;
+  // `playPrevious` retrocede sobre un historial en memoria de lo ya sonado
+  // (no persistido, igual que `queue`). `hasNext`/`hasPrevious` habilitan el
+  // deshabilitado visual de cada botón cuando no hay a dónde ir.
+  playNext:         () => void
+  playPrevious:     () => void
+  hasNext:          boolean
+  hasPrevious:      boolean
   // Corta la reproducción por completo y limpia el track actual — a
   // diferencia de `togglePlay` (pausa, conserva `currentTrack`/cola), esto
   // deja el reproductor como si nunca se hubiera tocado play. Usado desde
@@ -206,6 +215,13 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   const volumeRef        = useRef(volume)
   useEffect(() => { queueRef.current = queue }, [queue])
   useEffect(() => { volumeRef.current = volume }, [volume])
+  // Historial de "anterior" — en memoria únicamente, mismo criterio que
+  // `queue` (se vacía al recargar). Un ref porque solo `playPrevious` lo lee
+  // en el momento del click; `historyLength` es el espejo reactivo que deja
+  // a `hasPrevious` disparar un re-render cuando el historial cambia (un ref
+  // por sí solo no lo haría).
+  const historyRef                          = useRef<PlayableTrack[]>([])
+  const [historyLength, setHistoryLength]   = useState(0)
   // Progreso simulado por reloj de pared, independiente del audio (que es
   // silencioso/casi inaudible a propósito — ver `startSimulatedPlayback`):
   // `elapsedBase` es lo ya transcurrido antes de la pausa actual,
@@ -298,7 +314,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     startSimTicker(track.duration_ms || 180_000)
   }, [destroyYtPlayer, stopSimulated, startSimTicker])
 
-  const play = useCallback((track: PlayableTrack) => {
+  const play = useCallback((track: PlayableTrack, opts?: { skipHistory?: boolean }) => {
     // RN-EXP-gate-reproduccion: sin sesión, ni reproducción real ni
     // simulada — antes cualquier error (incluido el 401 de
     // `youtube-video-id`) caía al fallback de audio simulado, dejando ver
@@ -307,6 +323,16 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     if (!isAuthenticated()) {
       toast.error('Inicia sesión gratis para escuchar — regístrate o inicia sesión para reproducir música.')
       return
+    }
+    // Historial de "anterior": empuja el track que está a punto de ser
+    // REEMPLAZADO (no el nuevo) — el historial representa lo que ya sonó.
+    // `skipHistory` lo salta cuando `playPrevious` llama a `play()` para
+    // retroceder: sin este flag, retroceder empujaría el track actual de
+    // vuelta al historial y alternar siguiente/anterior quedaría atrapado
+    // en un ciclo de 2 tracks.
+    if (!opts?.skipHistory && currentTrack) {
+      historyRef.current.push(currentTrack)
+      setHistoryLength(historyRef.current.length)
     }
     const token = ++playTokenRef.current
     clearTimer()
@@ -412,7 +438,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       // `loadYouTubeApi()` (script bloqueado/timeout, ver arriba).
       startSimulatedPlayback(track, token)
     })
-  }, [clearTimer, destroyYtPlayer, stopSimulated, startSimulatedPlayback, toast])
+  }, [clearTimer, destroyYtPlayer, stopSimulated, startSimulatedPlayback, toast, currentTrack])
 
   const stop = useCallback(() => {
     // Invalida cualquier `play()` en vuelo (ej. la promesa de
@@ -527,6 +553,24 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     play(next)
   }
 
+  // Alias expuesto al consumidor (botón "siguiente" de PlayerBar) — misma
+  // función, mismo motivo de ser declaración y no `useCallback` que
+  // `advanceQueue`, para no quedar con un `play` obsoleto en el closure.
+  function playNext() {
+    advanceQueue()
+  }
+
+  // Retrocede sobre `historyRef`: saca el último track sonado y lo reproduce
+  // con `skipHistory` para no volver a empujarlo — ver el comentario grande
+  // en `play()` sobre por qué, si no, "siguiente"/"anterior" alternados
+  // quedarían atrapados en un ciclo de 2 tracks.
+  function playPrevious() {
+    const previous = historyRef.current.pop()
+    if (!previous) return
+    setHistoryLength(historyRef.current.length)
+    play(previous, { skipHistory: true })
+  }
+
   useEffect(() => () => { clearTimer(); destroyYtPlayer(); stopSimulated() }, [clearTimer, destroyYtPlayer, stopSimulated])
 
   return (
@@ -535,6 +579,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
         currentTrack, isPlaying, progressMs,
         playbackUnavailable, playbackUnavailableReason: playbackReason,
         play, togglePlay, seek, stop, reportPlaybackIssue,
+        playNext, playPrevious, hasNext: queue.length > 0, hasPrevious: historyLength > 0,
         queue, enqueue, enqueueMany, replaceQueue, removeFromQueue, moveInQueue,
         volume, setVolume,
       }}

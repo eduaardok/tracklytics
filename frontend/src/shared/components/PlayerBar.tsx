@@ -1,7 +1,7 @@
 import type { KeyboardEvent, MouseEvent, ReactNode } from 'react'
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ListMusic, Volume2, VolumeX } from 'lucide-react'
+import { ListMusic, SkipBack, SkipForward, Volume2, VolumeX } from 'lucide-react'
 import { usePlayer } from '@shared/context/PlayerContext'
 import { AlbumArt } from './AlbumArt'
 import { TrackName } from './TrackName'
@@ -34,6 +34,7 @@ type Props = {
 export function PlayerBar({ actions }: Props) {
   const {
     currentTrack, isPlaying, progressMs, playbackUnavailable, playbackUnavailableReason, togglePlay, seek,
+    playNext, playPrevious, hasNext, hasPrevious,
     queue, removeFromQueue, moveInQueue, volume, setVolume,
   } = usePlayer()
   const navigate = useNavigate()
@@ -81,6 +82,16 @@ export function PlayerBar({ actions }: Props) {
       <div className={styles.controls}>
         <button
           type="button"
+          className={styles.iconBtn}
+          onClick={playPrevious}
+          disabled={!hasPrevious}
+          aria-label="Anterior"
+          title="Anterior"
+        >
+          <SkipBack size={16} aria-hidden="true" />
+        </button>
+        <button
+          type="button"
           className={styles.playBtn}
           onClick={togglePlay}
           disabled={playbackUnavailable}
@@ -88,6 +99,16 @@ export function PlayerBar({ actions }: Props) {
           aria-label={playbackUnavailable ? (playbackUnavailableReason ?? 'No disponible') : isPlaying ? 'Pausar' : 'Reproducir'}
         >
           {playbackUnavailable ? '⊘' : isPlaying ? '⏸' : '▶'}
+        </button>
+        <button
+          type="button"
+          className={styles.iconBtn}
+          onClick={playNext}
+          disabled={!hasNext}
+          aria-label="Siguiente"
+          title="Siguiente"
+        >
+          <SkipForward size={16} aria-hidden="true" />
         </button>
         {playbackUnavailable ? (
           <span className={playbackUnavailableReason ? styles.blockedReason : styles.time}>
