@@ -26,9 +26,7 @@ En esta especificación, "ingesta de nuevos lotes de catálogo" se describe como
 | Operativo | Lead Data Engineer | Ingesta y calidad de datos del catálogo | CU-O14 Auditar historial y calidad de las cargas de datos | Como Lead Data Engineer, quiero auditar el historial y calidad de cada carga, para detectar y corregir problemas de integridad de datos |
 | Operativo | Lead Data Engineer | Ingesta y calidad de datos del catálogo | CU-O15 Administrar (CRUD) dimensiones del catálogo | Como Lead Data Engineer, quiero administrar las tablas de dimensión del catálogo, para mantener consistente el modelo de datos analítico |
 | Operativo | Lead Data Engineer | Ingesta y calidad de datos del catálogo | CU-O79 Recalificar el catálogo existente | Como Lead Data Engineer, quiero disparar una recalificación en bloque de los registros ya cargados con año/país sin informar o audio incoherente con su género, para corregir la calidad del catálogo sin editar la tabla de hechos directamente |
-
 ## Requirements
-
 ### Requirement: Disparo de ejecución de ingesta
 El sistema SHALL permitir disparar la ejecución de una ingesta de catálogo desde la interfaz de gestión, identificando el período/lote a cargar.
 
@@ -156,15 +154,32 @@ El `fact_id` asignado a un track SHALL permanecer estable a través de sucesivas
 - **THEN** el sistema no genera ningún `fact_id` que ya esté en uso por un track de otra semana o carga
 
 ### Requirement: Asignación de identificador único al crear una dimensión
-Al crear un nuevo valor de dimensión desde el CRUD de la interfaz de gestión, el sistema SHALL asignar automáticamente un identificador único cuando el operador no especifique uno, calculado a partir del máximo identificador existente en esa tabla. El sistema NO SHALL dejar un registro nuevo con un identificador vacío, nulo o repetido respecto a otro registro existente.
 
-#### Scenario: Crear un valor de dimensión sin especificar id
-- **WHEN** el Lead Data Engineer crea un nuevo valor de dimensión sin especificar su identificador
-- **THEN** el sistema le asigna un identificador único, distinto de cualquier otro registro existente en esa tabla
+Al crear un nuevo valor de dimensión desde el CRUD de la interfaz de gestión, el sistema SHALL
+asignar automáticamente un identificador único, calculado a partir del máximo identificador
+existente en esa tabla. El sistema SHALL ignorar cualquier identificador que el operador incluya
+en la solicitud de creación — el id nunca se ingresa ni se controla manualmente, en ningún caso.
+El sistema NO SHALL dejar un registro nuevo con un identificador vacío, nulo o repetido respecto
+a otro registro existente.
+
+#### Scenario: Crear un valor de dimensión
+
+- **WHEN** el Lead Data Engineer crea un nuevo valor de dimensión
+- **THEN** el sistema le asigna un identificador único, distinto de cualquier otro registro
+  existente en esa tabla, sin ofrecer forma de especificarlo manualmente
+
+#### Scenario: Un identificador incluido en la solicitud de creación se ignora
+
+- **WHEN** una solicitud de creación de un valor de dimensión incluye un identificador,
+  coincida o no con uno ya existente
+- **THEN** el sistema lo ignora y asigna igualmente un identificador único calculado por el
+  propio sistema, sin usar el valor recibido
 
 #### Scenario: Editar o eliminar un registro recién creado por su id
-- **WHEN** el Lead Data Engineer edita o elimina un registro que fue creado sin especificar id
-- **THEN** la operación afecta únicamente a ese registro, sin impactar a ningún otro registro de la misma tabla
+
+- **WHEN** el Lead Data Engineer edita o elimina un registro que fue creado por el sistema
+- **THEN** la operación afecta únicamente a ese registro, sin impactar a ningún otro registro de
+  la misma tabla
 
 ## Entradas
 

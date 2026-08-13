@@ -42,6 +42,13 @@ function DimForm({ fields, initial, pkKey, isEdit, onSubmit, onCancel, pending, 
   )
   const [localError, setLocalError] = useState<string | null>(null)
 
+  // El id lo asigna siempre el backend (nunca el cliente) — al crear, ni
+  // siquiera se muestra el campo (antes se precargaba con el id de la fila
+  // usada como plantilla de campos, invitando a enviarlo tal cual: hallazgo
+  // real, dos álbumes con el mismo album_id). Al editar sigue visible pero
+  // bloqueado, como recordatorio de qué registro es.
+  const displayFields = isEdit ? fields : fields.filter((f) => f !== pkKey)
+
   function inputType(v: unknown): 'number' | 'checkbox' | 'text' {
     if (typeof v === 'number') return 'number'
     if (typeof v === 'boolean') return 'checkbox'
@@ -52,7 +59,7 @@ function DimForm({ fields, initial, pkKey, isEdit, onSubmit, onCancel, pending, 
     e.preventDefault()
     const data: Record<string, unknown> = {}
     for (const f of fields) {
-      if (isEdit && f === pkKey) continue
+      if (f === pkKey) continue
       const raw = values[f]
       const kind = inputType(initial[f])
       if (kind === 'number') {
@@ -85,7 +92,7 @@ function DimForm({ fields, initial, pkKey, isEdit, onSubmit, onCancel, pending, 
     <form className={styles.form} onSubmit={handleSubmit}>
       {(localError || error) && <p className={styles.errorText}>{localError ?? error}</p>}
       <div className={styles.formGrid}>
-        {fields.map((f) => {
+        {displayFields.map((f) => {
           const kind = inputType(initial[f])
           const locked = isEdit && f === pkKey
           return (

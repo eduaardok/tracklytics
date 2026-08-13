@@ -159,7 +159,7 @@ def data_quality():
 # ── FACT_TRACKS (read-only) ───────────────────────────────────────────────────
 
 @router.get("/facts", tags=["Facts"])
-def facts_list(
+async def facts_list(
     page:   int = Query(1,  ge=1),
     limit:  int = Query(50, ge=1, le=500),
     search: Optional[str] = Query(None),
@@ -170,9 +170,14 @@ def facts_list(
     if search and search.strip():
         where = "WHERE position(lower(track_name), lower({search:String})) > 0"
         params["search"] = search.strip()
-    rows  = query_rows(facts_list_sql(where), params)
-    total = query_one(f"SELECT count() AS n FROM FACT_TRACKS {where}", params)["n"]
-    return {"data": rows, "page": page, "limit": limit, "total": total}
+    # PERF (pre-demo S16): filas y conteo son independientes entre sí — en
+    # paralelo con asyncio.gather/to_thread, mismo patrón que /ingesta/cargas
+    # y /search, en vez de dos round-trips secuenciales a ClickHouse.
+    rows, total_row = await asyncio.gather(
+        asyncio.to_thread(query_rows, facts_list_sql(where), params),
+        asyncio.to_thread(query_one, f"SELECT count() AS n FROM FACT_TRACKS {where}", params),
+    )
+    return {"data": rows, "page": page, "limit": limit, "total": total_row["n"]}
 
 
 # ── Generic DIM CRUD ──────────────────────────────────────────────────────────
@@ -224,7 +229,7 @@ def _clean_and_validate_data(data: dict[str, Any], columns: dict[str, str]) -> d
 
 
 @router.get("/dim/{table}", tags=["Dimensions"])
-def dim_list(
+async def dim_list(
     table:  str,
     page:   int = Query(1,  ge=1),
     limit:  int = Query(50, ge=1, le=500),
@@ -243,9 +248,13 @@ def dim_list(
             )
             where = f"WHERE {conditions}"
             params["search"] = search.strip()
-    rows  = query_rows(dim_list_sql(ch_table, where), params)
-    total = query_one(dim_list_total_sql(ch_table, where), params)["n"]
-    return {"data": rows, "page": page, "limit": limit, "total": total}
+    # PERF (pre-demo S16): mismo criterio que /facts — filas y conteo son
+    # independientes, se piden en paralelo en vez de en secuencia.
+    rows, total_row = await asyncio.gather(
+        asyncio.to_thread(query_rows, dim_list_sql(ch_table, where), params),
+        asyncio.to_thread(query_one, dim_list_total_sql(ch_table, where), params),
+    )
+    return {"data": rows, "page": page, "limit": limit, "total": total_row["n"]}
 
 
 @router.get("/dim/{table}/{record_id}", tags=["Dimensions"])
@@ -271,14 +280,32 @@ def dim_create(table: str, body: DimRecord):
     data    = _clean_and_validate_data(dict(body.data), columns)
 
     pk = _get_pk_column(ch_table)
-    if pk not in data or not data[pk]:
-        # Sin esto, ClickHouse inserta el default de la columna (0 para
-        # enteros) para el PK omitido, y todo registro creado por esta vía
-        # queda con el mismo id — un UPDATE/DELETE posterior por ese id
-        # afecta a todos los registros con el mismo defecto (bug CU-O15,
-        # auditoría 2026-07-09).
-        next_id = query_one(f"SELECT max({pk}) AS n FROM {ch_table}")
-        data[pk] = (next_id["n"] if next_id and next_id["n"] else 0) + 1
+    # El identificador SIEMPRE lo asigna el sistema, nunca el cliente — se
+    # descarta cualquier valor de `pk` que venga en el payload en vez de
+    # confiar en él. Antes, un `pk` incluido en el body (ej. el formulario
+    # de "Nuevo" precargaba la fila del primer registro visible como
+    # plantilla, id incluido) se insertaba tal cual sin comprobar si ya
+    # existía — hallazgo real: dos álbumes con el mismo `album_id` (auditoría
+    # de validación, pre-demo S16). `dim_update` ya rechaza explícitamente
+    # cambiar el pk; acá el criterio es más estricto todavía: ni se acepta.
+    data.pop(pk, None)
+    next_id = query_one(f"SELECT max({pk}) AS n FROM {ch_table}")
+    nuevo_id = (next_id["n"] if next_id and next_id["n"] else 0) + 1
+    # `max+1` no es atómico: dos creaciones casi simultáneas sobre la misma
+    # tabla podrían calcular el mismo `nuevo_id` (MergeTree no tiene
+    # constraint de unicidad que lo impida solo). Se reconfirma justo antes
+    # de insertar y se avanza si alguien más ya lo tomó — acotado a unos
+    # pocos intentos, no un loop sin límite.
+    for _ in range(5):
+        ya_existe = query_one(
+            f"SELECT count() AS n FROM {ch_table} WHERE {pk} = {{id:{columns[pk]}}}", {"id": nuevo_id},
+        )
+        if not ya_existe or ya_existe["n"] == 0:
+            break
+        nuevo_id += 1
+    else:
+        raise HTTPException(status_code=409, detail=f"No se pudo asignar un '{pk}' disponible, intenta de nuevo.")
+    data[pk] = nuevo_id
 
     # Inserta vía el protocolo nativo del driver (core.database.insert_row),
     # no SQL de texto — antes esta función construía `INSERT ... VALUES (...)`
