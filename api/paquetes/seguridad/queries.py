@@ -187,7 +187,23 @@ FROM (
     )
     WHERE usuario_id = {usuario_id:String} AND fecha_fin IS NULL
 ) s
-LEFT JOIN DIM_DISPOSITIVO d ON d.dispositivo_id = s.dispositivo_id
+LEFT JOIN (
+    -- DIM_DISPOSITIVO es MergeTree simple (no ReplacingMergeTree) sin
+    -- constraint de unicidad real sobre (usuario_id, dispositivo_id) — el
+    -- guard "insertar solo si no existe" en `_asegurar_dispositivo` tiene una
+    -- ventana de carrera (SELECT-then-INSERT) que puede dejar más de una fila
+    -- para el mismo dispositivo_id. Sin este `GROUP BY`, el LEFT JOIN de abajo
+    -- multiplicaba UNA sesión abierta en tantas filas como duplicados hubiera
+    -- en DIM_DISPOSITIVO (hallazgo real: 7 filas de "Mis sesiones" para un
+    -- único sesion_id). `argMin` por `primera_vez_visto` fija el resultado al
+    -- primer valor visto, estable aunque se sigan acumulando duplicados.
+    SELECT
+        dispositivo_id,
+        argMin(tipo, primera_vez_visto) AS tipo,
+        argMin(os, primera_vez_visto)   AS os
+    FROM DIM_DISPOSITIVO
+    GROUP BY dispositivo_id
+) d ON d.dispositivo_id = s.dispositivo_id
 ORDER BY s.fecha_inicio DESC
 """
 
@@ -244,7 +260,15 @@ LEFT JOIN (
     )
     WHERE revocado = 0
 ) r ON r.usuario_id = s.usuario_id
-LEFT JOIN DIM_DISPOSITIVO d ON d.dispositivo_id = s.dispositivo_id
+LEFT JOIN (
+    -- Mismo dedup que MIS_SESIONES_ABIERTAS — ver ese comentario para el porqué.
+    SELECT
+        dispositivo_id,
+        argMin(tipo, primera_vez_visto) AS tipo,
+        argMin(os, primera_vez_visto)   AS os
+    FROM DIM_DISPOSITIVO
+    GROUP BY dispositivo_id
+) d ON d.dispositivo_id = s.dispositivo_id
 WHERE s.fecha_fin IS NULL
 ORDER BY s.fecha_inicio DESC
 LIMIT {limit:UInt32}
