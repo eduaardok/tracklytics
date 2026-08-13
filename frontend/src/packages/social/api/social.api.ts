@@ -29,12 +29,18 @@ export const socialApi = {
     apiClient.post<ComentarioResultado>('/social/comentarios', body),
 
   // ── Moderación (admin) ──────────────────────────────────────────────────────
-  comentariosAdmin: (params: { factIdTrack?: number; estado?: string } = {}) => {
+  // Paginado (antes traía TODA `FACT_COMENTARIO` de una vez — ~38k filas,
+  // ~11.5MB de JSON, colgaba /seguridad/social al renderizar una lista sin
+  // virtualizar con eso) — mismo contrato page/limit/total que `denunciasAdmin`.
+  comentariosAdmin: (params: { factIdTrack?: number; estado?: string; page?: number; limit?: number } = {}) => {
     const qs = new URLSearchParams()
     if (params.factIdTrack != null) qs.set('fact_id_track', String(params.factIdTrack))
     if (params.estado) qs.set('estado', params.estado)
-    const suffix = qs.toString() ? `?${qs.toString()}` : ''
-    return apiClient.get<ApiResponse<Comentario>>(`/social/admin/comentarios${suffix}`)
+    qs.set('page', String(params.page ?? 1))
+    qs.set('limit', String(params.limit ?? 20))
+    return apiClient.get<{ data: Comentario[]; total: number; page: number; limit: number }>(
+      `/social/admin/comentarios?${qs.toString()}`,
+    )
   },
 
   moderarComentario: (factId: number, body: ModerarComentarioBody) =>

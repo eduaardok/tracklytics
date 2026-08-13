@@ -40,6 +40,7 @@ from paquetes.social.queries import (
     SEGUIMIENTO_ACTIVO_EXISTE,
     TRACK_EXISTE,
     USUARIO_EXISTE,
+    comentarios_admin_count_sql,
     comentarios_admin_sql,
     denuncias_admin_sql,
     denuncias_count_sql,
@@ -321,8 +322,10 @@ def moderar_comentario(body: ModerarComentarioBody, fact_id: int = Path(..., ge=
 def listar_comentarios_admin(
     fact_id_track: int | None = Query(None),
     estado: str | None = Query(None),
+    page: int = Query(1, ge=1),
+    limit: int = Query(20, ge=1, le=100),
 ):
-    clauses, params = [], {}
+    clauses, params = [], {"limit": limit, "offset": (page - 1) * limit}
     if fact_id_track is not None:
         clauses.append("c.fact_id_track = {fact_id_track:UInt64}")
         params["fact_id_track"] = fact_id_track
@@ -330,7 +333,9 @@ def listar_comentarios_admin(
         clauses.append("c.estado_moderacion = {estado:String}")
         params["estado"] = estado
     where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
-    return {"data": query_rows(comentarios_admin_sql(where), params)}
+    data = query_rows(comentarios_admin_sql(where), params)
+    total = query_one(comentarios_admin_count_sql(where), params)["total"]
+    return {"data": data, "total": total, "page": page, "limit": limit}
 
 
 # ─────────────────────────────────────────────────────────────────────────────

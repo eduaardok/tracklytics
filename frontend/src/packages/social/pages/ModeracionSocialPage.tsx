@@ -28,16 +28,19 @@ const FILTROS: { value: string; label: string }[] = [
   { value: 'eliminado', label: 'Eliminados' },
 ]
 
+const COMENTARIOS_PAGE_SIZE = 20
+
 export function ModeracionSocialPage() {
   useDocumentTitle('Moderación social')
   const queryClient = useQueryClient()
   const toast = useToast()
   const reportRef = useRef<HTMLElement>(null)
   const [estado, setEstado] = useState('')
+  const [page, setPage] = useState(1)
 
   const comentarios = useQuery({
-    queryKey: ['social', 'admin', 'comentarios', estado],
-    queryFn:  () => socialApi.comentariosAdmin({ estado: estado || undefined }),
+    queryKey: ['social', 'admin', 'comentarios', estado, page],
+    queryFn:  () => socialApi.comentariosAdmin({ estado: estado || undefined, page, limit: COMENTARIOS_PAGE_SIZE }),
   })
 
   const dashboard = useQuery({
@@ -70,6 +73,8 @@ export function ModeracionSocialPage() {
 
   const pending = moderar.isPending ? moderar.variables : undefined
   const data: Comentario[] = comentarios.data?.data ?? []
+  const totalComentarios = comentarios.data?.total ?? 0
+  const totalPages = Math.max(1, Math.ceil(totalComentarios / COMENTARIOS_PAGE_SIZE))
 
   return (
     <section className={styles.page} ref={reportRef}>
@@ -101,13 +106,13 @@ export function ModeracionSocialPage() {
 
       <div className={styles.queuePanel}>
         <div className={styles.queueHeader}>
-          <span className={styles.queueTitle}>Comentarios ({data.length})</span>
+          <span className={styles.queueTitle}>Comentarios ({totalComentarios})</span>
           <div className={styles.queueFilters} data-pdf-export-ignore="true">
             {FILTROS.map((f) => (
               <button
                 key={f.value}
                 className={`${styles.filterChip} ${estado === f.value ? styles['filterChip--active'] : ''}`}
-                onClick={() => setEstado(f.value)}
+                onClick={() => { setEstado(f.value); setPage(1) }}
               >
                 {f.label}
               </button>
@@ -159,6 +164,18 @@ export function ModeracionSocialPage() {
               )
             })}
           </ul>
+        )}
+
+        {totalPages > 1 && (
+          <div className={styles.queueHeader} data-pdf-export-ignore="true">
+            <button className={styles.btnGhost} type="button" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
+              ← Anterior
+            </button>
+            <span className={styles.queueRowMeta}>Página {page} / {totalPages}</span>
+            <button className={styles.btnGhost} type="button" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>
+              Siguiente →
+            </button>
+          </div>
         )}
       </div>
 

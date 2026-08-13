@@ -114,15 +114,25 @@ El sistema SHALL permitir a un usuario con rol admin ocultar o eliminar un comen
 - **THEN** el sistema rechaza la operación indicando que es exclusiva de admin
 
 ### Requirement: Cola administrativa de comentarios
-El sistema SHALL permitir a un usuario con rol admin consultar todos los comentarios de la plataforma, filtrables por track o por estado de moderación, incluyendo su estado de moderación en la respuesta.
 
-#### Scenario: Admin consulta todos los comentarios
-- **WHEN** un usuario con rol admin solicita el listado administrativo de comentarios, opcionalmente filtrado por track o por estado de moderación
-- **THEN** el sistema retorna los comentarios solicitados junto con su estado de moderación
+El sistema SHALL permitir a un usuario con rol admin consultar los comentarios de la plataforma
+de forma paginada, filtrables por track o por estado de moderación, incluyendo su estado de
+moderación en la respuesta. La respuesta SHALL incluir el conteo total de comentarios que
+coinciden con el filtro aplicado, además de la página solicitada.
+
+#### Scenario: Admin consulta una página del listado administrativo de comentarios
+
+- **WHEN** un usuario con rol admin solicita el listado administrativo de comentarios,
+  opcionalmente filtrado por track o por estado de moderación, y opcionalmente indicando página
+  y tamaño de página
+- **THEN** el sistema retorna esa página de comentarios junto con su estado de moderación y el
+  conteo total de comentarios que coinciden con el filtro
 
 #### Scenario: Usuario sin rol admin intenta consultar la cola administrativa
-- **WHEN** un usuario con rol distinto de admin intenta acceder al listado administrativo de comentarios
-- **THEN** el sistema rechaza la operación indicando que es exclusiva de admin
+
+- **WHEN** un usuario con rol distinto de admin intenta acceder al listado administrativo de
+  comentarios
+- **THEN** el sistema rechaza la operación
 
 ### Requirement: Compartir contenido
 El sistema SHALL permitir a un Usuario B2C autenticado registrar la intención de compartir un track, un perfil de artista o una playlist a través de un canal soportado (X, WhatsApp o copiar enlace), sin realizar ninguna llamada real a servicios externos. Cada tipo de objeto compartido SHALL identificarse mediante su propio campo (track, artista o playlist), no un identificador genérico compartido entre los tres. El sistema SHALL validar la existencia del track o del artista compartido contra el catálogo; una playlist compartida SHALL aceptarse sin validar su existencia, por vivir fuera del catálogo administrado por esta capability.

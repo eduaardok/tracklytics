@@ -185,12 +185,22 @@ SELECT count() AS n FROM DIM_USUARIO WHERE usuario_id = {usuario_id:String}
 
 
 def comentarios_admin_sql(where: str) -> str:
+    # Paginado (mismo patrón que `denuncias_admin_sql`): sin LIMIT/OFFSET esta
+    # query devolvía TODA `FACT_COMENTARIO` de una sola vez — con el dataset
+    # real (~38k comentarios, ~11.5MB de JSON) el fetch + el render de una
+    # lista sin virtualizar colgaban la pestaña ("la página no responde",
+    # reportado desde /seguridad/social).
     return f"""
     SELECT {_COMENTARIO_COLS}
     FROM FACT_COMENTARIO c
     {where}
     ORDER BY c.fecha_creacion DESC
+    LIMIT {{limit:UInt32}} OFFSET {{offset:UInt32}}
     """
+
+
+def comentarios_admin_count_sql(where: str) -> str:
+    return f"SELECT count() AS total FROM FACT_COMENTARIO c {where}"
 
 
 # ── Denuncias de contenido (change p1-ciclos-vida) ───────────────────────────
