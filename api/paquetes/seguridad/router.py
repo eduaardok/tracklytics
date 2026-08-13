@@ -793,6 +793,17 @@ async def exportar_mis_datos(user: dict = Depends(get_current_user)):
 async def baja_cuenta(user: dict = Depends(get_current_user)):
     usuario_id = user["record"]["id"]
 
+    # Una cuenta con capacidad administrativa (superadmin o cualquiera de los
+    # 6 roles de área en BRIDGE_USUARIO_ROL_ADMIN) no puede darse de baja a sí
+    # misma: el staff interno depende de esa cuenta para operar el sistema, y
+    # una baja accidental (o maliciosa desde una sesión comprometida) la
+    # dejaría sin acceso administrativo sin ningún paso de por medio.
+    if user.get("record", {}).get("role", "") == "admin" or roles_admin_vigentes(usuario_id):
+        raise HTTPException(
+            status_code=403,
+            detail="Las cuentas con rol administrativo no pueden darse de baja a sí mismas",
+        )
+
     # Cancela la suscripción activa si la tiene (con el token del propio usuario).
     try:
         activas = await susc_pb.list_activas(user["token"], usuario_id)

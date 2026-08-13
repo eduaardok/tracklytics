@@ -525,21 +525,28 @@ export function ProfilePage() {
         </button>
       </div>
 
-      <div className={styles.dangerZone}>
-        <h2 className={styles.sectionTitle}>Dar de baja mi cuenta</h2>
-        <p className={styles.note}>
-          Perderás el acceso, se cerrarán todas tus sesiones y se cancelará tu suscripción activa.
-          Esta acción es irreversible.
-        </p>
-        <button
-          type="button"
-          className={styles.btnDanger}
-          disabled={darDeBaja.isPending}
-          onClick={handleDarDeBaja}
-        >
-          {darDeBaja.isPending ? 'Procesando…' : 'Dar de baja mi cuenta'}
-        </button>
-      </div>
+      {/* Una cuenta con capacidad administrativa (superadmin o cualquiera de
+          los 6 roles de área) no puede darse de baja a sí misma — el backend
+          ya lo rechaza con 403 (`POST /perfil/baja`), esto solo evita
+          ofrecer una acción que siempre va a fallar y que además borraría el
+          acceso administrativo de quien la ve por accidente. */}
+      {!user.esAdmin && (
+        <div className={styles.dangerZone}>
+          <h2 className={styles.sectionTitle}>Dar de baja mi cuenta</h2>
+          <p className={styles.note}>
+            Perderás el acceso, se cerrarán todas tus sesiones y se cancelará tu suscripción activa.
+            Esta acción es irreversible.
+          </p>
+          <button
+            type="button"
+            className={styles.btnDanger}
+            disabled={darDeBaja.isPending}
+            onClick={handleDarDeBaja}
+          >
+            {darDeBaja.isPending ? 'Procesando…' : 'Dar de baja mi cuenta'}
+          </button>
+        </div>
+      )}
     </section>
   )
 }
