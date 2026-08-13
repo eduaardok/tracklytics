@@ -5,24 +5,65 @@
 @import '@fontsource/space-grotesk/700.css';
 @import '@fontsource/jetbrains-mono/400.css';
 
-/* Design tokens */
+/* ── Design tokens ──────────────────────────────────────────────────────────
+   Light es el tema por defecto (`:root`, sin atributo) — el docente pidió
+   explícitamente "no sistemas con fondos negros". El oscuro original se
+   conserva intacto bajo `:root[data-theme='dark']` (ver ThemeContext), sin
+   perder ningún valor. Los nombres de variable no cambian: los componentes
+   que ya consumían `var(--color-*)` se re-tematizan solos, no requieren
+   tocar su CSS.
+
+   Colores que se mantienen CONSTANTES entre temas (no listados dos veces):
+   fill de marca (--color-primary/-hover), radios, tipografía, espaciado,
+   motion, z-index — su contraste con el texto que llevan encima (blanco)
+   no depende del fondo de la página. Lo que sí cambia por tema es todo lo
+   que se pinta directamente sobre el fondo: superficies, texto, bordes y
+   los tokens de texto "acento" (primary-light/accent), que en dark son
+   claros para leerse sobre oscuro y en light se oscurecen para leerse
+   sobre claro (AA, ≥4.5:1). */
 :root {
-  /* Colors */
-  --color-primary:        oklch(0.48 0.15 290);
-  --color-primary-light:  oklch(0.68 0.14 290);
-  --color-accent:         oklch(0.70 0.14 195);
-  /* Gradiente violeta de botones primarios (S13 polish visual) — mismos dos
-     tonos de violeta ya definidos arriba, sin introducir un tercer color. */
-  --gradient-primary:     linear-gradient(135deg, var(--color-primary-light), var(--color-primary));
-  --color-bg:             oklch(0.09 0.010 285);
-  --color-surface:        oklch(0.14 0.012 285);
-  --color-surface-raised: oklch(0.18 0.014 285);
-  --color-ink:            oklch(0.92 0.008 285);
-  --color-muted:          oklch(0.58 0.010 285);
-  --color-error:          oklch(0.65 0.22 25);
-  --color-warning:        oklch(0.78 0.18 70);
-  --color-success:        oklch(0.72 0.16 150);
-  --color-border:         oklch(0.22 0.012 285);
+  /* Colors — fill de marca, igual en ambos temas */
+  --color-primary:       oklch(0.48 0.15 290);
+  --color-primary-hover: oklch(0.54 0.16 290);
+  --color-error-fill:    oklch(0.65 0.22 25);
+  --color-warning-fill:  oklch(0.78 0.18 70);
+  --color-success-fill:  oklch(0.72 0.16 150);
+  /* Fill de badges/chips que llevan texto oscuro fijo encima (ej. contador
+     de la cola en PlayerBar) — mismo valor en ambos temas, a diferencia de
+     --color-accent (que sí cambia: ese es para texto/datos sobre el fondo
+     de la página, no para un fill con su propio texto emparejado). */
+  --color-accent-fill:   oklch(0.70 0.14 195);
+  --color-on-accent-fill: oklch(0.09 0.010 285);
+
+  /* Colors — Light (default) */
+  --color-primary-light:  oklch(0.42 0.17 290);
+  --color-accent:          oklch(0.46 0.13 195);
+  --color-bg:              oklch(0.985 0.004 290);
+  --color-surface:         oklch(1 0 0);
+  --color-surface-raised:  oklch(0.965 0.012 290);
+  --color-ink:             oklch(0.20 0.03 285);
+  --color-muted:           oklch(0.46 0.02 285);
+  --color-error:           oklch(0.52 0.22 25);
+  --color-warning:         oklch(0.50 0.14 70);
+  --color-success:         oklch(0.48 0.14 150);
+  --color-border:          oklch(0.90 0.008 285);
+  --color-border-strong:   oklch(0.72 0.01 285);
+  --color-hover-row:       oklch(0.94 0.014 290);
+  --color-track-bg:        oklch(0.87 0.008 285);
+
+  /* Overlays / translúcidos — Light */
+  --overlay-soft:               oklch(0 0 0 / 0.05);
+  --overlay-chrome-bg:          oklch(1 0 0 / 0.85);
+  --overlay-player-bg:          oklch(1 0 0 / 0.92);
+  --overlay-tint-primary-soft:  oklch(0.48 0.15 290 / 0.08);
+  /* Fondo sólido (sin alpha) del PlayerBar — usado donde se necesita un
+     color opaco real, no translúcido (ej. el anillo de recorte del badge
+     del ecualizador sobre la portada). En light coincide con --color-surface. */
+  --player-bg-solid:            oklch(1 0 0);
+
+  /* Gradiente violeta de botones primarios — mismos dos tonos de violeta ya
+     definidos arriba, sin introducir un tercer color. */
+  --gradient-primary: linear-gradient(135deg, var(--color-primary-light), var(--color-primary));
 
   /* Typography */
   --font-sans: 'Space Grotesk', system-ui, sans-serif;
@@ -60,14 +101,49 @@
   /* Reproductor persistente (AppShell) */
   --player-bar-height: 72px;
 
-  /* Glassmorphism de cards (S14-FINAL polish) — mismo violeta translúcido en
-     todo el sistema, nunca un color nuevo. */
+  /* Glassmorphism de cards — Light: blanco translúcido con blur, en vez del
+     violeta translúcido sobre negro del tema oscuro (ese fondo no existe en
+     light: replicar el mismo tinte violeta a baja opacidad quedaba casi
+     invisible sobre #FAFAFA). */
+  --glass-bg:          oklch(1 0 0 / 0.72);
+  --glass-border:      oklch(0.48 0.15 290 / 0.14);
+  --glass-border-hover: oklch(0.48 0.15 290 / 0.30);
+  --glass-shadow-hover: 0 4px 24px oklch(0.48 0.15 290 / 0.12);
+
+  /* Tooltip de charts (Recharts) — Light */
+  --chart-tooltip-bg:     oklch(1 0 0 / 0.96);
+  --chart-tooltip-border: oklch(0.48 0.15 290 / 0.18);
+}
+
+/* ── Dark (alternativa vía ThemeToggle) — valores originales del sistema,
+   sin cambios. ── */
+:root[data-theme='dark'] {
+  --color-primary-light:  oklch(0.68 0.14 290);
+  --color-accent:          oklch(0.70 0.14 195);
+  --color-bg:              oklch(0.09 0.010 285);
+  --color-surface:         oklch(0.14 0.012 285);
+  --color-surface-raised:  oklch(0.18 0.014 285);
+  --color-ink:             oklch(0.92 0.008 285);
+  --color-muted:           oklch(0.58 0.010 285);
+  --color-error:           oklch(0.65 0.22 25);
+  --color-warning:         oklch(0.78 0.18 70);
+  --color-success:         oklch(0.72 0.16 150);
+  --color-border:          oklch(0.22 0.012 285);
+  --color-border-strong:   oklch(0.38 0.012 285);
+  --color-hover-row:       oklch(0.22 0.012 285);
+  --color-track-bg:        oklch(0.25 0.012 285);
+
+  --overlay-soft:               oklch(1 0 0 / 0.07);
+  --overlay-chrome-bg:          oklch(0.09 0.010 285 / 0.92);
+  --overlay-player-bg:          oklch(0.11 0.011 285 / 0.96);
+  --overlay-tint-primary-soft:  oklch(0.18 0.03 290 / 0.35);
+  --player-bg-solid:            oklch(0.11 0.011 285);
+
   --glass-bg:          rgba(139, 92, 246, 0.06);
   --glass-border:      rgba(139, 92, 246, 0.12);
   --glass-border-hover: rgba(139, 92, 246, 0.25);
   --glass-shadow-hover: 0 4px 24px rgba(139, 92, 246, 0.08);
 
-  /* Tooltip de charts (Recharts) — mismo tratamiento en todos los charts. */
   --chart-tooltip-bg:     rgba(15, 10, 30, 0.95);
   --chart-tooltip-border: rgba(139, 92, 246, 0.2);
 }
@@ -94,7 +170,7 @@
   transition: background var(--duration-standard) var(--ease-standard);
 }
 .row-hover:hover {
-  background: rgba(139, 92, 246, 0.06);
+  background: var(--overlay-tint-primary-soft);
 }
 
 /* Global reset */
@@ -117,6 +193,8 @@ body {
   font-size: 0.9375rem;
   font-weight: 400;
   line-height: 1.6;
+  transition: background-color var(--duration-deliberate) var(--ease-standard),
+              color var(--duration-deliberate) var(--ease-standard);
 }
 
 /* Reduced motion */

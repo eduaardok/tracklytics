@@ -14,6 +14,7 @@ import { GlobalSearch } from '@packages/catalogo/components/GlobalSearch'
 // Mismo criterio: `@packages/social` exporta ModeracionSocialPage (dashboard
 // con Recharts) en su barrel — import directo del componente.
 import { NotificationBell } from '@packages/social/components/NotificationBell'
+import { ThemeToggle } from '@shared/components/ThemeToggle'
 import { PlayerBarActions } from '@packages/catalogo'
 // Import directo (no vía el barrel `@packages/publicidad`): ese barrel
 // también exporta PublicidadAdminPage, que no debe entrar al bundle
@@ -156,6 +157,7 @@ export function AppShell() {
         </a>
         <GlobalSearch />
         <div className={styles.headerActions}>
+          <ThemeToggle />
           <NotificationBell />
           <UserMenu />
         </div>

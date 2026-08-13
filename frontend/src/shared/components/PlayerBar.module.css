@@ -28,7 +28,7 @@
   gap: var(--space-lg);
   height: var(--player-bar-height);
   padding: 0 var(--space-lg);
-  background: oklch(0.11 0.011 285 / 0.96);
+  background: var(--overlay-player-bg);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
   border-top: 1px solid var(--color-border);
@@ -47,7 +47,7 @@
   transition: background-color var(--duration-fast) var(--ease-standard);
 }
 
-.trackInfo:hover { background-color: oklch(1 0 0 / 0.05); }
+.trackInfo:hover { background-color: var(--overlay-soft); }
 
 .trackInfo:focus-visible {
   outline: none;
@@ -76,7 +76,7 @@
   height: 20px;
   border-radius: 50%;
   background: var(--color-primary);
-  box-shadow: 0 0 0 2px oklch(0.11 0.011 285);
+  box-shadow: 0 0 0 2px var(--player-bg-solid);
 }
 
 .eq {
@@ -196,7 +196,7 @@
   flex: 1;
   height: 4px;
   border-radius: var(--radius-pill);
-  background: oklch(0.25 0.012 285);
+  background: var(--color-track-bg);
   cursor: pointer;
 }
 
@@ -259,7 +259,7 @@
     background-color var(--duration-fast) var(--ease-standard);
 }
 
-.iconBtn:hover { color: var(--color-ink); background-color: oklch(1 0 0 / 0.06); }
+.iconBtn:hover { color: var(--color-ink); background-color: var(--overlay-soft); }
 
 .iconBtn:focus-visible {
   outline: none;
@@ -281,8 +281,8 @@
   height: 14px;
   padding: 0 3px;
   border-radius: var(--radius-pill);
-  background: var(--color-accent);
-  color: oklch(0.09 0.010 285);
+  background: var(--color-accent-fill);
+  color: var(--color-on-accent-fill);
   font-family: var(--font-mono);
   font-size: 0.5625rem;
   font-weight: 700;

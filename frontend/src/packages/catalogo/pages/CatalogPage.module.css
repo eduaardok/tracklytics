@@ -155,7 +155,7 @@
 
 .clearBtn:hover {
   color: var(--color-ink);
-  border-color: oklch(0.35 0.012 285);
+  border-color: var(--color-border-strong);
   background: var(--color-surface);
 }
 
@@ -296,7 +296,7 @@
 }
 
 .genreChipActive:hover {
-  background: oklch(0.54 0.16 290);
+  background: var(--color-primary-hover);
 }
 
 /* ── Filtros avanzados de búsqueda (S10 Día 3) ── */

@@ -5,6 +5,7 @@ import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { apiErrorMessage } from '@shared/lib/api-client'
 import { landingPostLogin } from '@shared/lib/roles'
 import { resolverDestinoPostAuth } from '@packages/suscripciones'
+import { ThemeToggle } from '@shared/components/ThemeToggle'
 import { authApi } from '../api/auth.api'
 import { AuthHero } from './AuthHero'
 import styles from './AuthPages.module.css'
@@ -110,6 +111,9 @@ export function LoginPage() {
 
   return (
     <div className={styles.split}>
+      <div className={styles.themeToggleSlot}>
+        <ThemeToggle />
+      </div>
       <AuthHero />
 
       <div className={styles.formPanel}>

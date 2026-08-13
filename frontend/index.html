@@ -5,6 +5,18 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="icon" type="image/png" href="/logo.png" />
     <title>Tracklytics</title>
+    <script>
+      // Aplica el tema guardado antes del primer paint — sin esto, una
+      // preferencia dark persistida mostraría un flash de light (default)
+      // hasta que React monte ThemeProvider.
+      (function () {
+        try {
+          if (localStorage.getItem('tracklytics-theme') === 'dark') {
+            document.documentElement.setAttribute('data-theme', 'dark')
+          }
+        } catch (e) {}
+      })()
+    </script>
   </head>
   <body>
     <div id="root"></div>

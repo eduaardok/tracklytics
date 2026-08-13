@@ -82,7 +82,7 @@
     border-color var(--duration-fast) var(--ease-standard);
 }
 
-.logoutBtn:hover { color: var(--color-ink); border-color: oklch(0.38 0.012 285); }
+.logoutBtn:hover { color: var(--color-ink); border-color: var(--color-border-strong); }
 .logoutBtn:disabled { opacity: 0.5; cursor: not-allowed; }
 
 @media (max-width: 640px) {

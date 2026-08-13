@@ -17,7 +17,7 @@
   align-items: center;
   gap: var(--space-sm);
   padding: 0 var(--space-lg);
-  background: oklch(0.09 0.010 285 / 0.92);
+  background: var(--overlay-chrome-bg);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
   border-bottom: 1px solid var(--color-border);

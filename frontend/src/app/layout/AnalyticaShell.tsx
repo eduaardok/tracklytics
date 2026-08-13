@@ -9,6 +9,7 @@ import { RequireSuscripcionActiva } from '@packages/analitica'
 // Import directo, no vía el barrel `@packages/seguridad` (arrastraría los
 // dashboards con Recharts de ese paquete al chunk de AnalyticaShell).
 import { UserMenu } from '@packages/seguridad/components/UserMenu'
+import { ThemeToggle } from '@shared/components/ThemeToggle'
 // `usePlanActivo` (paquete `suscripciones`) es la única forma de saber el
 // tier B2B del cliente en el cliente sin reimplementar la regla de negocio
 // (mismo criterio que el resto del gating: reaccionar al estado real, no
@@ -127,6 +128,7 @@ export function AnalyticaShell() {
           <span className={styles.panelBadge}>panel</span>
         </span>
         <ZoneSwitcher zone="analitica" />
+        <ThemeToggle />
         <UserMenu />
       </header>
 

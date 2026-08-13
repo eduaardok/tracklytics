@@ -90,7 +90,7 @@
 
 .dropdownItem:hover,
 .dropdownItem:focus-visible {
-  background-color: oklch(0.22 0.012 285);
+  background-color: var(--color-hover-row);
   outline: none;
 }
 

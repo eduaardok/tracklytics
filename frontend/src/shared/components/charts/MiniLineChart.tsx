@@ -1,6 +1,7 @@
 import {
   LineChart, Line, CartesianGrid, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer,
 } from 'recharts'
+import { useTheme } from '@shared/context/ThemeContext'
 import { ChartTooltip } from './ChartTooltip'
 import { formatShortDate, formatTooltipValue } from './format'
 import styles from './charts.module.css'
@@ -19,13 +20,24 @@ type Props = {
   denseDates?: boolean
 }
 
-const AXIS_TICK = { fill: 'oklch(0.58 0.010 285)', fontSize: 10, fontFamily: 'var(--font-mono)' }
-const GRID_STROKE = 'oklch(0.22 0.012 285)'
+// Recharts aplica `fill`/`stroke` como atributo SVG crudo — no resuelve
+// custom properties CSS de forma confiable ahí (mismo motivo que
+// STATUS_COLORS en colors.ts), así que el eje/grid necesita su propio par
+// claro/oscuro leído del ThemeContext en vez de var(--color-muted/-border).
+const AXIS_TICK_BY_THEME = {
+  light: { fill: 'oklch(0.46 0.02 285)', fontSize: 10, fontFamily: 'var(--font-mono)' },
+  dark:  { fill: 'oklch(0.58 0.010 285)', fontSize: 10, fontFamily: 'var(--font-mono)' },
+} as const
+const GRID_STROKE_BY_THEME = { light: 'oklch(0.88 0.006 285)', dark: 'oklch(0.22 0.012 285)' } as const
 
 // Line chart de 1-N series — mismo lenguaje visual que DisponibilidadInfraPage
 // (analitica), reusado aquí para no repetir la config de ejes/grid en cada
 // uno de los 6 dashboards nuevos (RT-04, S10 Día 3).
 export function MiniLineChart({ data, xKey, series, emptyLabel = 'Sin datos todavía.', denseDates = false }: Props) {
+  const { theme } = useTheme()
+  const AXIS_TICK = AXIS_TICK_BY_THEME[theme]
+  const GRID_STROKE = GRID_STROKE_BY_THEME[theme]
+
   if (data.length === 0) return <div className={styles.emptyChart}>{emptyLabel}</div>
 
   return (

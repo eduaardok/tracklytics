@@ -110,12 +110,12 @@
 
 .item:hover,
 .item:focus-visible {
-  background: oklch(0.22 0.012 285);
+  background: var(--color-hover-row);
   outline: none;
 }
 
 .itemUnread {
-  background: oklch(0.18 0.03 290 / 0.35);
+  background: var(--overlay-tint-primary-soft);
 }
 
 .dot {

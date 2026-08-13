@@ -1,17 +1,28 @@
 import { BarChart, Bar, CartesianGrid, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts'
+import { useTheme } from '@shared/context/ThemeContext'
 import { ChartTooltip } from './ChartTooltip'
 import { formatTooltipValue } from './format'
 import styles from './charts.module.css'
 
 export type BarDatum = { name: string; value: number }
 
-const AXIS_TICK = { fill: 'oklch(0.58 0.010 285)', fontSize: 10, fontFamily: 'var(--font-sans)' }
-const GRID_STROKE = 'oklch(0.22 0.012 285)'
+// Mismo motivo que MiniLineChart: recharts no resuelve custom properties CSS
+// de forma confiable en atributos SVG, así que el eje/grid lee su par
+// claro/oscuro directo del ThemeContext.
+const AXIS_TICK_BY_THEME = {
+  light: { fill: 'oklch(0.46 0.02 285)', fontSize: 10, fontFamily: 'var(--font-sans)' },
+  dark:  { fill: 'oklch(0.58 0.010 285)', fontSize: 10, fontFamily: 'var(--font-sans)' },
+} as const
+const GRID_STROKE_BY_THEME = { light: 'oklch(0.88 0.006 285)', dark: 'oklch(0.22 0.012 285)' } as const
 
 // Bar chart horizontal ranking (top-N) — una sola serie, una barra por
 // categoría (país, artista). `layout="vertical"` en recharts = barras
 // horizontales, eje de categorías en Y.
 export function MiniBarChart({ data, color, emptyLabel = 'Sin datos todavía.' }: { data: BarDatum[]; color: string; emptyLabel?: string }) {
+  const { theme } = useTheme()
+  const AXIS_TICK = AXIS_TICK_BY_THEME[theme]
+  const GRID_STROKE = GRID_STROKE_BY_THEME[theme]
+
   if (data.length === 0) return <div className={styles.emptyChart}>{emptyLabel}</div>
 
   return (

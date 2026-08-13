@@ -1,8 +1,16 @@
 .split {
+  position: relative;
   min-height: 100vh;
   display: grid;
   grid-template-columns: 1fr 1fr;
   background: var(--color-bg);
+}
+
+.themeToggleSlot {
+  position: absolute;
+  top: var(--space-md);
+  right: var(--space-md);
+  z-index: var(--z-sticky);
 }
 
 /* ── Hero panel ──
@@ -250,7 +258,7 @@
 }
 
 .input::placeholder { color: var(--color-muted); }
-.input:hover  { border-color: oklch(0.38 0.012 285); }
+.input:hover  { border-color: var(--color-border-strong); }
 .input:focus  { border-color: var(--color-primary); }
 
 /* ── Account type picker ── */
@@ -329,7 +337,7 @@
   transition: background-color var(--duration-standard) var(--ease-standard);
 }
 
-.submit:hover:not(:disabled) { background: oklch(0.54 0.16 290); }
+.submit:hover:not(:disabled) { background: var(--color-primary-hover); }
 .submit:focus-visible { outline: none; box-shadow: 0 0 0 2px oklch(0.48 0.15 290 / 0.5); }
 .submit:disabled { opacity: 0.5; cursor: not-allowed; }
 
