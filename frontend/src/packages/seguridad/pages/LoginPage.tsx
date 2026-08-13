@@ -68,7 +68,17 @@ export function LoginPage() {
     setError(null); setInfo(null); setSubmitting(true)
     try {
       const resp = await authApi.recuperarPassword(email)
-      setInfo(resp.mensaje)
+      // Entorno de demostración: no hay envío real de correo, así que el
+      // token viaja en la propia respuesta (cuando el email existe) y se
+      // precarga acá — mismo criterio que el banner de verificación de
+      // email. Antes este flujo generaba el token en el backend pero nunca
+      // lo mostraba en ningún lado, dejándolo imposible de completar.
+      if (resp.token_recuperacion) {
+        setToken(resp.token_recuperacion)
+        setInfo(`${resp.mensaje} — entorno de demostración: no se envía correo real, tu token ya quedó cargado abajo.`)
+      } else {
+        setInfo(resp.mensaje)
+      }
       setModo('restablecer')
     } catch (err) {
       setError(apiErrorMessage(err, 'No se pudo procesar la solicitud.'))

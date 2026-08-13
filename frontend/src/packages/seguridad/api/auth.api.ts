@@ -111,9 +111,15 @@ export const authApi = {
     apiClient.delete<{ status: string }>(`/seguridad/sesiones/${sesionId}`),
 
   // Recuperación de contraseña simulada (change roles-gestion-usuarios): el
-  // backend responde siempre genérico, sin revelar si el correo existe.
+  // backend responde siempre genérico, sin revelar si el correo existe. Sin
+  // proveedor de correo real, `token_recuperacion` viaja en la respuesta
+  // cuando el email sí existe — mismo patrón que `reenviarVerificacion`
+  // (antes el backend generaba el token pero nunca lo exponía en ningún
+  // lado, dejando este flujo imposible de completar en este entorno).
   recuperarPassword: (email: string) =>
-    apiClient.post<{ status: string; mensaje: string }>('/seguridad/auth/recuperar', { email }),
+    apiClient.post<{ status: string; mensaje: string; token_recuperacion?: string }>(
+      '/seguridad/auth/recuperar', { email },
+    ),
 
   restablecerPassword: (token: string, nuevaPassword: string) =>
     apiClient.post<{ status: string }>('/seguridad/auth/restablecer', {

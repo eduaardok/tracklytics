@@ -632,22 +632,32 @@ _MENSAJE_RECUPERACION = "Si el email existe, recibirás instrucciones"
 @router.post("/auth/recuperar")
 async def recuperar_password(body: RecuperarBody):
     usuario = await pb_client.buscar_por_email(body.email)
-    if usuario:
-        token = str(uuid.uuid4())
-        expira = datetime.now(timezone.utc) + timedelta(minutes=TOKEN_RECUPERACION_TTL_MIN)
-        get_client().insert(
-            "FACT_TOKEN_RECUPERACION",
-            [(token, usuario["id"], expira, 0, datetime.now(timezone.utc), "recuperacion")],
-            column_names=_TOKEN_COLS,
-        )
-        audit.record(
-            usuario_id=usuario["id"], accion="solicitar_recuperacion_password",
-            tabla_afectada="FACT_TOKEN_RECUPERACION", antes=None,
-            despues={"email": body.email},
-        )
     # Respuesta genérica idéntica exista o no el correo — no filtra qué correos
-    # están registrados.
-    return {"status": "ok", "mensaje": _MENSAJE_RECUPERACION}
+    # están registrados. El campo `token_recuperacion` solo se agrega cuando
+    # sí hay usuario (más abajo); nunca lo revela un email inexistente.
+    respuesta = {"status": "ok", "mensaje": _MENSAJE_RECUPERACION}
+    if not usuario:
+        return respuesta
+
+    token = str(uuid.uuid4())
+    expira = datetime.now(timezone.utc) + timedelta(minutes=TOKEN_RECUPERACION_TTL_MIN)
+    get_client().insert(
+        "FACT_TOKEN_RECUPERACION",
+        [(token, usuario["id"], expira, 0, datetime.now(timezone.utc), "recuperacion")],
+        column_names=_TOKEN_COLS,
+    )
+    audit.record(
+        usuario_id=usuario["id"], accion="solicitar_recuperacion_password",
+        tabla_afectada="FACT_TOKEN_RECUPERACION", antes=None,
+        despues={"email": body.email},
+    )
+    # Flujo simulado: no hay proveedor de correo real, así que el token viaja
+    # en la respuesta — mismo patrón que `reenviar_verificacion` (verificación
+    # de email). Antes este endpoint SÍ generaba el token pero nunca lo
+    # exponía en ningún lado (ni acá ni en la UI), dejando el flujo de
+    # restablecimiento de contraseña imposible de completar en este entorno
+    # (hallazgo real, pre-demo S16).
+    return {**respuesta, "token_recuperacion": token}
 
 
 @router.post("/auth/restablecer")
