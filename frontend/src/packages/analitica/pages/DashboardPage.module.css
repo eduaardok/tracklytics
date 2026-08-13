@@ -62,12 +62,16 @@
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   padding: var(--space-md);
+  box-shadow: var(--shadow-card);
 }
 
 /* ── KPICard sub-grid (escala del catálogo, audio promedio) ── */
 .kpiSubGrid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  /* 110px (antes) alcanzaba a colisionar con un valor decimal de 6
+     caracteres (ej. "0.6186") a este ancho — 140px da margen real sin
+     perder densidad (S15-02, ver KPICard.module.css .value). */
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   gap: var(--space-sm);
 }
 
@@ -135,6 +139,7 @@
   align-items: center;
   gap: var(--space-lg);
   flex-wrap: wrap;
+  box-shadow: var(--shadow-card);
 }
 
 .etlBadge {

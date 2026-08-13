@@ -44,6 +44,7 @@
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   padding: 2px;
+  box-shadow: var(--shadow-card);
 }
 
 .viewBtn {
@@ -290,7 +291,7 @@
 }
 
 .genreChipActive {
-  color: var(--color-ink);
+  color: var(--color-on-primary);
   background: var(--color-primary);
   border-color: var(--color-primary);
 }
@@ -311,7 +312,10 @@
   gap: var(--space-md);
   margin-top: var(--space-sm);
   padding: var(--space-md);
-  background: var(--color-surface);
+  /* Zona agrupada DENTRO de la página (no una card elevada aparte) —
+     --color-surface-secondary la distingue de los cards reales (blanco
+     puro) sin inventar un tercer nivel de elevación. */
+  background: var(--color-surface-secondary);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
 }
@@ -327,7 +331,7 @@
 
 .advancedFilterField input {
   width: 120px;
-  background: var(--color-bg);
+  background: var(--color-surface);
   color: var(--color-ink);
   font-family: var(--font-sans);
   font-size: 0.875rem;

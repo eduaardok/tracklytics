@@ -25,6 +25,15 @@
   /* Colors — fill de marca, igual en ambos temas */
   --color-primary:       oklch(0.48 0.15 290);
   --color-primary-hover: oklch(0.54 0.16 290);
+  /* Texto/ícono sobre el fill de --color-primary (botones sólidos violeta:
+     Entrar, play del reproductor, Reproducir del mix diario, confirmar,
+     crear playlist). Bug real de S15-01: esos botones usaban
+     `color: var(--color-ink)` — correcto en dark (ink casi blanco), pero en
+     light ink es casi negro, dando texto oscuro sobre relleno violeta oscuro
+     (botón "invisible"/de bajísimo contraste). --color-ink es "texto sobre
+     el fondo de la página" y cambia por tema a propósito; esto es "texto
+     sobre un fill que NUNCA cambia", así que también debe ser constante. */
+  --color-on-primary:    oklch(0.98 0.006 285);
   --color-error-fill:    oklch(0.65 0.22 25);
   --color-warning-fill:  oklch(0.78 0.18 70);
   --color-success-fill:  oklch(0.72 0.16 150);
@@ -35,21 +44,48 @@
   --color-accent-fill:   oklch(0.70 0.14 195);
   --color-on-accent-fill: oklch(0.09 0.010 285);
 
-  /* Colors — Light (default) */
+  /* Colors — Light (default)
+     Profundidad tonal (S15-02): antes --color-surface (cards) Y el sidebar
+     usaban el MISMO token — sin diferencia visual entre "piso de la página",
+     "sidebar" y "card", todo se veía como una sola superficie plana. Ahora
+     son 4 escalones deliberados, blanco + gris + violeta pálido:
+       --color-bg (piso, gris-violeta perceptible, NUNCA blanco puro)
+       < --color-bg-sidebar (casi blanco, apenas por encima del piso)
+       < --color-surface (blanco puro — cards, el nivel más "elevado")
+       ~ --color-surface-secondary (agrupación DENTRO de una card: headers
+         de tabla, franjas de fila alterna — mismo nivel que bg-sidebar,
+         pero con un rol distinto)
+     --color-bg-accent-subtle es aparte de esta escalera: no es un nivel de
+     elevación, es un acento puntual (violeta pálido plano), 1-2 usos por
+     página como pide el brief — nunca un fondo general. */
   --color-primary-light:  oklch(0.42 0.17 290);
   --color-accent:          oklch(0.46 0.13 195);
-  --color-bg:              oklch(0.985 0.004 290);
+  --color-bg:              oklch(0.955 0.010 292);
+  --color-bg-sidebar:      oklch(0.98 0.007 292);
   --color-surface:         oklch(1 0 0);
-  --color-surface-raised:  oklch(0.965 0.012 290);
+  --color-surface-secondary: oklch(0.968 0.009 292);
+  --color-surface-raised:  oklch(0.960 0.011 292);
+  --color-bg-accent-subtle: oklch(0.93 0.03 291);
   --color-ink:             oklch(0.20 0.03 285);
   --color-muted:           oklch(0.46 0.02 285);
   --color-error:           oklch(0.52 0.22 25);
   --color-warning:         oklch(0.50 0.14 70);
   --color-success:         oklch(0.48 0.14 150);
-  --color-border:          oklch(0.90 0.008 285);
-  --color-border-strong:   oklch(0.72 0.01 285);
+  --color-border:          oklch(0.89 0.014 292);
+  --color-border-strong:   oklch(0.80 0.02 292);
   --color-hover-row:       oklch(0.94 0.014 290);
   --color-track-bg:        oklch(0.87 0.008 285);
+  /* Sombra de card perceptible (blanco puro sobre --color-bg gris-violeta) —
+     tinte violeta en vez de negro puro, para que "pertenezca" a la paleta en
+     vez de leerse como una sombra genérica de framework. No existe en dark:
+     ese tema usa elevación tonal pura (ver .card-glass más abajo / DESIGN.md
+     "Shadow Prohibition"), los shadows ahí quedan reservados a focus/modal. */
+  --shadow-card: 0 1px 3px oklch(0.48 0.15 290 / 0.07), 0 1px 2px oklch(0.20 0.03 285 / 0.05);
+  /* Card "hero" flotante (login) — más sombra que --shadow-card porque
+     flota sobre el piso gris-violeta sin borde de por medio; tinte violeta
+     en vez del negro puro que usaba antes (se leía pesado/genérico sobre un
+     fondo claro). */
+  --shadow-card-lg: 0 24px 48px oklch(0.48 0.15 290 / 0.16), 0 4px 12px oklch(0.20 0.03 285 / 0.08);
 
   /* Overlays / translúcidos — Light */
   --overlay-soft:               oklch(0 0 0 / 0.05);
@@ -121,8 +157,16 @@
   --color-primary-light:  oklch(0.68 0.14 290);
   --color-accent:          oklch(0.70 0.14 195);
   --color-bg:              oklch(0.09 0.010 285);
+  /* Dark ya tenía su propia jerarquía de 3 escalones tonales (Ground/Raised/
+     Lifted, ver DESIGN.md §4) — el sidebar SIEMPRE fue el mismo nivel que
+     una card ahí (`--color-surface`), a propósito, así que los tokens nuevos
+     de light no le agregan un escalón nuevo: apuntan al mismo valor que ya
+     tenían para no tocar el diseño oscuro original. */
+  --color-bg-sidebar:      oklch(0.14 0.012 285);
   --color-surface:         oklch(0.14 0.012 285);
+  --color-surface-secondary: oklch(0.18 0.014 285);
   --color-surface-raised:  oklch(0.18 0.014 285);
+  --color-bg-accent-subtle: oklch(0.20 0.035 290);
   --color-ink:             oklch(0.92 0.008 285);
   --color-muted:           oklch(0.58 0.010 285);
   --color-error:           oklch(0.65 0.22 25);
@@ -132,6 +176,10 @@
   --color-border-strong:   oklch(0.38 0.012 285);
   --color-hover-row:       oklch(0.22 0.012 285);
   --color-track-bg:        oklch(0.25 0.012 285);
+  /* Sin sombra en dark — la profundidad se expresa con la escalera tonal de
+     arriba (DESIGN.md "Shadow Prohibition"), no con drop shadows. */
+  --shadow-card: none;
+  --shadow-card-lg: 0 24px 48px oklch(0 0 0 / 0.28);
 
   --overlay-soft:               oklch(1 0 0 / 0.07);
   --overlay-chrome-bg:          oklch(0.09 0.010 285 / 0.92);
@@ -157,6 +205,7 @@
   -webkit-backdrop-filter: blur(12px);
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
   transition: border-color var(--duration-standard) var(--ease-standard),
               box-shadow var(--duration-standard) var(--ease-standard);
 }

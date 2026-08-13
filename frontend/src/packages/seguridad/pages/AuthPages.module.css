@@ -23,7 +23,11 @@
   flex-direction: column;
   justify-content: center;
   padding: var(--space-2xl);
-  background: var(--color-surface);
+  /* Zona de acento puntual (S15-02) — violeta pálido plano, uno de los 1-2
+     usos por página; el formPanel de al lado se queda en --color-bg (piso
+     gris-violeta neutro) para que el contraste hero/form sea intencional,
+     no aleatorio. */
+  background: var(--color-bg-accent-subtle);
   border-right: 1px solid var(--color-border);
   position: relative;
   overflow: hidden;
@@ -105,20 +109,69 @@
   color: var(--color-accent);
 }
 
-/* Dato real del catálogo bajo el tagline (ver AuthHero.tsx) — antes el panel
-   pasaba directo del tagline a la lista de features, sin ningún elemento que
-   diera peso propio al espacio entre ambos. */
-.statLine {
-  font-family: var(--font-sans);
-  font-size: 0.875rem;
-  color: var(--color-muted);
+/* Dato real del catálogo bajo el tagline (ver AuthHero.tsx) — antes era una
+   sola línea de texto plano; ahora una card propia (S15-02) con el mismo
+   tratamiento visual que un KPICard, para que el panel no pase directo del
+   tagline a la lista de features sin ningún elemento con peso propio. */
+.statCard {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  padding: var(--space-md);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
   max-width: 34ch;
+}
+
+.statIcon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  border-radius: var(--radius-md);
+  background: oklch(0.48 0.15 290 / 0.12);
+  color: var(--color-primary-light);
+}
+
+.statBody {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
 }
 
 .statNumber {
   font-family: var(--font-mono);
+  font-size: 1.25rem;
   font-weight: 600;
-  color: var(--color-primary-light);
+  line-height: 1.2;
+  color: var(--color-ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.statCaption {
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+  color: var(--color-muted);
+}
+
+/* Collage de portadas reales — textura visual real bajo el dato de catálogo,
+   ver AuthHero.tsx. `AlbumArt` ya trae su propio fallback de gradiente por
+   género, así que se ve intencional incluso cuando `imagen_url` todavía no
+   está resuelta para ese álbum. */
+.collage {
+  display: flex;
+  gap: var(--space-sm);
+}
+
+.collageArt {
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-card);
+  flex-shrink: 0;
 }
 
 .features {
@@ -203,7 +256,7 @@
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
-  box-shadow: 0 24px 48px oklch(0 0 0 / 0.28);
+  box-shadow: var(--shadow-card-lg);
 }
 
 .card::before {
@@ -327,7 +380,7 @@
   font-family: var(--font-sans);
   font-size: 0.9375rem;
   font-weight: 600;
-  color: var(--color-ink);
+  color: var(--color-on-primary);
   background: var(--color-primary);
   border: none;
   border-radius: var(--radius-md);
@@ -405,7 +458,7 @@
 
   .heroInner { gap: var(--space-sm); }
 
-  .statLine, .features, .techs {
+  .statCard, .collage, .features, .techs {
     display: none;
   }
 }

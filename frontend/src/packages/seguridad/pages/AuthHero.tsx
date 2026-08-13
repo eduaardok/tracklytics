@@ -1,9 +1,10 @@
 import { useQuery } from '@tanstack/react-query'
-import { LayoutGrid, BarChart3, Library, ListMusic } from 'lucide-react'
+import { LayoutGrid, BarChart3, Library, ListMusic, Disc3 } from 'lucide-react'
 // Import directo, no vía el barrel `@packages/catalogo` — AuthHero es pública/
 // eager igual que LoginPage, evita depender de todo lo que ese barrel decida
 // reexportar a futuro (mismo criterio ya documentado en AboutPage.tsx).
 import { catalogoApi } from '@packages/catalogo/api/catalogo.api'
+import { AlbumArt } from '@shared/components/AlbumArt'
 import styles from './AuthPages.module.css'
 
 const FEATURES = [
@@ -41,6 +42,19 @@ export function AuthHero() {
   })
   const totalTracks = tracksQuery.data?.total
 
+  // Collage de portadas reales (S15-02): antes el panel terminaba en la
+  // lista de features, con un tercio inferior vacío en viewports altos/
+  // anchos — mismo endpoint que ya usa PlaylistsSection del catálogo, sin
+  // inventar datos. AlbumArt ya trae su propio fallback de gradiente por
+  // género cuando `imagen_url` todavía no está resuelta, así que el collage
+  // se ve intencional incluso mientras el backfill de portadas avanza.
+  const albumsQuery = useQuery({
+    queryKey: ['catalogo', 'albums-collage'],
+    queryFn:  () => catalogoApi.albumsSearch('', 4),
+    staleTime: 5 * 60_000,
+  })
+  const collageAlbums = albumsQuery.data?.data ?? []
+
   return (
     <div className={styles.hero}>
       <div className={styles.heroGlow} aria-hidden="true" />
@@ -51,11 +65,28 @@ export function AuthHero() {
           <MiniEqualizer />
         </div>
         <p className={styles.tagline}>// analiza. descubre. escucha.</p>
-        <p className={styles.statLine}>
-          {totalTracks != null
-            ? <><span className={styles.statNumber}>{totalTracks.toLocaleString('es')}</span> tracks reales, analizados en tiempo real.</>
-            : 'Un catálogo en expansión constante, analizado en tiempo real.'}
-        </p>
+
+        <div className={styles.statCard}>
+          <span className={styles.statIcon} aria-hidden="true"><Disc3 size={22} /></span>
+          <span className={styles.statBody}>
+            {totalTracks != null ? (
+              <>
+                <span className={styles.statNumber}>{totalTracks.toLocaleString('es')}</span>
+                <span className={styles.statCaption}>tracks reales, analizados en tiempo real</span>
+              </>
+            ) : (
+              <span className={styles.statCaption}>Un catálogo en expansión constante, analizado en tiempo real.</span>
+            )}
+          </span>
+        </div>
+
+        {collageAlbums.length > 0 && (
+          <div className={styles.collage} aria-hidden="true">
+            {collageAlbums.map((a) => (
+              <AlbumArt key={a.album_id} src={a.imagen_url} alt="" size={56} genreSeed={a.name} className={styles.collageArt} />
+            ))}
+          </div>
+        )}
 
         <ul className={styles.features}>
           {FEATURES.map((f) => (

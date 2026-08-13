@@ -149,7 +149,7 @@
   border-radius: 50%;
   border: none;
   background: var(--color-primary);
-  color: var(--color-ink);
+  color: var(--color-on-primary);
   font-size: 0.9375rem;
   cursor: pointer;
   transition: background-color var(--duration-standard) var(--ease-standard);

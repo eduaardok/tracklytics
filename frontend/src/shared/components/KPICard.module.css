@@ -22,11 +22,18 @@
 
 .value {
   font-family: var(--font-mono);
-  font-size: 2rem;
+  font-size: 1.75rem;
   font-weight: 600;
   color: var(--color-ink);
   font-variant-numeric: tabular-nums;
   line-height: 1.1;
+  /* Bug real (S15-02, hallado al ensanchar el contenedor del dashboard):
+     un valor decimal sin espacios (ej. "0.6186") no tiene dónde hacer line
+     break y desbordaba horizontalmente por encima de la card vecina en vez
+     de ajustarse — a diferencia de "122.10 bpm", que sí podía partir en el
+     espacio. `overflow-wrap` deja partir el string si hace falta, sin
+     depender de que el valor tenga un espacio para envolver. */
+  overflow-wrap: anywhere;
 }
 
 .footRow {

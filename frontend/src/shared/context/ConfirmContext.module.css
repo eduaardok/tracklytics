@@ -68,7 +68,7 @@
 .confirmBtn {
   background: var(--color-primary);
   border: none;
-  color: var(--color-ink);
+  color: var(--color-on-primary);
 }
 .confirmBtn:hover { background: oklch(0.54 0.16 290); }
 .confirmBtn:focus-visible { outline: none; box-shadow: 0 0 0 2px oklch(0.48 0.15 290 / 0.5); }

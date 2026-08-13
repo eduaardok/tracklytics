@@ -121,7 +121,7 @@
   height: calc(100vh - 56px);
   overflow-x: hidden;
   overflow-y: auto;
-  background: var(--color-surface);
+  background: var(--color-bg-sidebar);
   border-right: 1px solid var(--color-border);
   padding: var(--space-sm) 0;
   display: flex;
@@ -262,8 +262,13 @@
   padding-bottom: calc(var(--player-bar-height) + var(--space-2xl));
 }
 
+/* 900px (S15-01) dejaba franjas laterales grandes en escritorio estándar
+   (1440px+, sidebar 220px): el catálogo es una grilla de cards, no prosa —
+   ensanchar deja que quepan más columnas por fila en vez de comprimirse al
+   centro (S15-02, herencia de un layout pensado para dark donde esa
+   franja lateral se disimulaba más). */
 .content {
-  max-width: 900px;
+  max-width: 1240px;
   margin: 0 auto;
 }
 
