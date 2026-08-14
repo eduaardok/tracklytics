@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { Sparkles } from 'lucide-react'
+import { Sparkles, Music } from 'lucide-react'
 
 import { experienciaApi } from '@packages/experiencia/api/experiencia.api'
 import { AlbumArt } from '@shared/components/AlbumArt'
@@ -50,7 +50,7 @@ export function MixDiarioCard() {
     <div className={styles.card}>
       <div className={styles.art} aria-hidden="true">
         {isLoading
-          ? <div className={styles.artSkel} />
+          ? <div className={styles.artSkel}><Music size={18} aria-hidden="true" /></div>
           : data!.data.slice(0, PORTADAS_VISIBLES).map((t, i) => (
               <AlbumArt key={`${t.fact_id}-${i}`} src={t.imagen_url} alt="" size={44} />
             ))}

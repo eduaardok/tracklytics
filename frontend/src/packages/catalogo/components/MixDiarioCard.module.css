@@ -30,11 +30,33 @@
   box-shadow: 0 0 0 2px var(--color-surface);
 }
 
+/* Bug real (S15-03): era un <div> vacío sin animación — un rectángulo sólido
+   plano que se lee como una imagen rota, no como "cargando". Mismo patrón
+   de shimmer ya usado en CatalogPage/DashboardPage (`skelPulse`, duplicado
+   localmente por CSS Modules — no hay `@keyframes` compartido entre
+   archivos en este proyecto) más un ícono centrado para que la intención
+   ("esto es música, está preparándose") sea legible incluso en el primer
+   frame, antes de que la animación dé una vuelta. */
 .artSkel {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   width: 44px;
   height: 44px;
+  flex-shrink: 0;
   border-radius: var(--radius-sm);
   background: var(--color-surface-raised);
+  color: var(--color-muted);
+  animation: skelPulse 1.6s ease-in-out infinite;
+}
+
+@keyframes skelPulse {
+  0%, 100% { opacity: 0.45; }
+  50%       { opacity: 0.85; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .artSkel { animation: none; opacity: 0.65; }
 }
 
 .info {
