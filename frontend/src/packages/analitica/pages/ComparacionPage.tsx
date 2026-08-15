@@ -10,12 +10,16 @@ import { tierInsuficienteInfo } from '../lib/tierError'
 import type { ArtistAudioStats, ArtistSearchResult } from '../types'
 import styles from './ComparacionPage.module.css'
 
-const fmt    = (n: number)        => n.toLocaleString('es-ES')
-const fmtDec = (n: number, d = 4) => n.toFixed(d)
+// Los `avg_*` de audio pueden ser `null` (artista sin tracks propios, ver
+// comentario en types.ts — bug real de S16 Prompt 05: esto tiraba abajo
+// toda la página al llamar `.toFixed()` sobre `null`). `fmt` maneja null
+// explícitamente en vez de asumir que el valor siempre está.
+const fmt    = (n: number | null)        => n == null ? '—' : n.toLocaleString('es-ES')
+const fmtDec = (n: number | null, d = 4) => n == null ? '—' : n.toFixed(d)
 
-const DIFF_ROWS: Array<{ label: string; get: (a: ArtistAudioStats) => number; fmt: (n: number) => string }> = [
+const DIFF_ROWS: Array<{ label: string; get: (a: ArtistAudioStats) => number | null; fmt: (n: number | null) => string }> = [
   { label: 'Tracks',           get: (a) => a.track_count,          fmt },
-  { label: 'Popularidad',      get: (a) => a.avg_popularity,       fmt: (n) => n.toFixed(2) },
+  { label: 'Popularidad',      get: (a) => a.avg_popularity,       fmt: (n) => n == null ? '—' : n.toFixed(2) },
   { label: 'Danceability',     get: (a) => a.avg_danceability,     fmt: fmtDec },
   { label: 'Energy',           get: (a) => a.avg_energy,           fmt: fmtDec },
   { label: 'Speechiness',      get: (a) => a.avg_speechiness,      fmt: fmtDec },

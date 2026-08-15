@@ -30,14 +30,18 @@ export function genreToAudioValues(g: GenreAudioProfile): AudioFeatureValues {
   }
 }
 
+// `avg_*` puede venir NULL (artista sin tracks no-`user_uploaded`, ver
+// comentario en types.ts) — 0 es el único valor que el radar (SVG/Recharts,
+// dominio fijo 0-1) puede graficar sin romperse; ComparacionPage es quien
+// muestra "sin datos" explícito en la tabla, esto solo protege el chart.
 export function artistToAudioValues(a: ArtistAudioStats): AudioFeatureValues {
   return {
-    danceability:     a.avg_danceability,
-    energy:           a.avg_energy,
-    speechiness:      a.avg_speechiness,
-    acousticness:     a.avg_acousticness,
-    instrumentalness: a.avg_instrumentalness,
-    liveness:         a.avg_liveness,
-    valence:          a.avg_valence,
+    danceability:     a.avg_danceability ?? 0,
+    energy:           a.avg_energy ?? 0,
+    speechiness:      a.avg_speechiness ?? 0,
+    acousticness:     a.avg_acousticness ?? 0,
+    instrumentalness: a.avg_instrumentalness ?? 0,
+    liveness:         a.avg_liveness ?? 0,
+    valence:          a.avg_valence ?? 0,
   }
 }
