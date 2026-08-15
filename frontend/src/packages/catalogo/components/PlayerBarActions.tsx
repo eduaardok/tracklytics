@@ -1,3 +1,4 @@
+import { Heart } from 'lucide-react'
 import { usePlayer } from '@shared/context/PlayerContext'
 import { useFavoritos } from '../hooks/useFavoritos'
 import { AddToPlaylistMenu } from './AddToPlaylistMenu'
@@ -23,7 +24,7 @@ export function PlayerBarActions() {
         title={favorite ? 'Quitar de favoritos' : 'Añadir a favoritos'}
         aria-label={favorite ? 'Quitar de favoritos' : 'Añadir a favoritos'}
       >
-        ♥
+        <Heart size={16} aria-hidden="true" fill={favorite ? 'currentColor' : 'none'} />
       </button>
       <AddToPlaylistMenu factId={currentTrack.fact_id} />
     </>

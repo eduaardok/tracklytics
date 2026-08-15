@@ -1,6 +1,6 @@
 import type { MouseEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ListPlus } from 'lucide-react'
+import { Heart, ListPlus, Play, X } from 'lucide-react'
 import { usePlayer } from '@shared/context/PlayerContext'
 import { AlbumArt } from '@shared/components/AlbumArt'
 import { TrackName, FeaturingCaption } from '@shared/components/TrackName'
@@ -109,7 +109,9 @@ export function LibraryTrackRow({ track, position, timeAgo, onRemove, removeTitl
         {timeAgo && <span className={styles.timeAgo}>{timeAgo}</span>}
         <span className={styles.duration}>{formatDuration(track.duration_ms)}</span>
         <div className={styles.actions}>
-          <button type="button" className={styles.actionBtn} onClick={handlePlay} title="Reproducir" aria-label="Reproducir">▶</button>
+          <button type="button" className={styles.actionBtn} onClick={handlePlay} title="Reproducir" aria-label="Reproducir">
+            <Play size={16} aria-hidden="true" fill="currentColor" />
+          </button>
           <button type="button" className={styles.actionBtn} onClick={handleEnqueue} title="Agregar a la cola" aria-label="Agregar a la cola">
             <ListPlus size={16} aria-hidden="true" />
           </button>
@@ -120,7 +122,7 @@ export function LibraryTrackRow({ track, position, timeAgo, onRemove, removeTitl
             title={favorite ? 'Quitar de favoritos' : 'Añadir a favoritos'}
             aria-label={favorite ? 'Quitar de favoritos' : 'Añadir a favoritos'}
           >
-            ♥
+            <Heart size={16} aria-hidden="true" fill={favorite ? 'currentColor' : 'none'} />
           </button>
           {onRemove && (
             <button
@@ -130,7 +132,7 @@ export function LibraryTrackRow({ track, position, timeAgo, onRemove, removeTitl
               title={removeTitle ?? 'Quitar'}
               aria-label={removeTitle ?? 'Quitar'}
             >
-              ✕
+              <X size={16} aria-hidden="true" />
             </button>
           )}
         </div>

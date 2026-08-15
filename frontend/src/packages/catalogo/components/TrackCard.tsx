@@ -1,6 +1,6 @@
 import type { KeyboardEvent, MouseEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ListPlus, Radio } from 'lucide-react'
+import { Heart, ListPlus, Play, Radio } from 'lucide-react'
 import { usePlayer } from '@shared/context/PlayerContext'
 import { AlbumArt } from '@shared/components/AlbumArt'
 import { TrackName, FeaturingCaption } from '@shared/components/TrackName'
@@ -118,7 +118,7 @@ export function TrackCard({ track, position }: Props) {
             title="Reproducir"
             aria-label="Reproducir"
           >
-            ▶
+            <Play size={16} aria-hidden="true" fill="currentColor" />
           </button>
           <button
             type="button"
@@ -148,7 +148,7 @@ export function TrackCard({ track, position }: Props) {
                 title={favorite ? 'Quitar de favoritos' : 'Añadir a favoritos'}
                 aria-label={favorite ? 'Quitar de favoritos' : 'Añadir a favoritos'}
               >
-                ♥
+                <Heart size={16} aria-hidden="true" fill={favorite ? 'currentColor' : 'none'} />
               </button>
               <AddToPlaylistMenu factId={track.fact_id} />
             </>

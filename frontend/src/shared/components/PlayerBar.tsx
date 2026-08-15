@@ -1,7 +1,7 @@
 import type { KeyboardEvent, MouseEvent, ReactNode } from 'react'
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ListMusic, SkipBack, SkipForward, Volume2, VolumeX } from 'lucide-react'
+import { Ban, ListMusic, Pause, Play, SkipBack, SkipForward, Volume2, VolumeX } from 'lucide-react'
 import { usePlayer } from '@shared/context/PlayerContext'
 import { AlbumArt } from './AlbumArt'
 import { TrackName } from './TrackName'
@@ -98,7 +98,13 @@ export function PlayerBar({ actions }: Props) {
           title={playbackUnavailable ? (playbackUnavailableReason ?? 'No disponible') : undefined}
           aria-label={playbackUnavailable ? (playbackUnavailableReason ?? 'No disponible') : isPlaying ? 'Pausar' : 'Reproducir'}
         >
-          {playbackUnavailable ? '⊘' : isPlaying ? '⏸' : '▶'}
+          {playbackUnavailable ? (
+            <Ban size={16} aria-hidden="true" />
+          ) : isPlaying ? (
+            <Pause size={16} aria-hidden="true" fill="currentColor" />
+          ) : (
+            <Play size={16} aria-hidden="true" fill="currentColor" />
+          )}
         </button>
         <button
           type="button"
