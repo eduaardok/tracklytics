@@ -122,7 +122,9 @@
   overflow-x: hidden;
   overflow-y: auto;
   background: var(--color-bg-sidebar);
-  border-right: 1px solid var(--color-border);
+  /* Borde violeta perceptible, no gris-con-tinte — refuerzo de marca (S15-04)
+     acotado a un borde de 1px, dentro del margen del One Voice Rule. */
+  border-right: 1px solid color-mix(in oklch, var(--color-primary) 15%, var(--color-border));
   padding: var(--space-sm) 0;
   display: flex;
   flex-direction: column;
@@ -152,6 +154,7 @@
   align-items: center;
   gap: var(--space-sm);
   padding: 7px var(--space-md);
+  border-left: 3px solid transparent;
   font-family: var(--font-sans);
   font-size: 0.8125rem;
   font-weight: 500;
@@ -160,7 +163,7 @@
   white-space: nowrap;
   transition:
     color var(--duration-fast) var(--ease-standard),
-    background-color var(--duration-fast) var(--ease-standard);
+    border-color var(--duration-fast) var(--ease-standard);
 }
 
 .navIcon {
@@ -232,14 +235,16 @@
   box-shadow: inset 0 0 0 2px oklch(0.48 0.15 290 / 0.4);
 }
 
+/* Estado activo por color, no por "pill" de fondo (DESIGN.md §5, "the active
+   state is color, not shape") — texto en Violet Light + borde lateral de
+   3px, sin fill violeta detrás que duplique la señal. */
 .navActive {
   color: var(--color-primary-light);
-  background-color: oklch(0.48 0.15 290 / 0.10);
+  border-left-color: var(--color-primary-light);
 }
 
 .navActive:hover {
   color: var(--color-primary-light);
-  background-color: oklch(0.48 0.15 290 / 0.14);
 }
 
 .divider {

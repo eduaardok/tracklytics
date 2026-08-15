@@ -126,7 +126,11 @@
 }
 
 .actionBtn:hover { color: var(--color-ink); background: var(--color-surface-raised); }
-.actionBtnActive { color: var(--color-error); }
+/* Violeta, no rojo — --color-error queda reservado a errores/destructivo
+   (DESIGN.md). Teal (--color-accent) tampoco aplica: "Signal Rule" lo
+   reserva a datos, nunca a UI chrome. --color-primary-light es la misma
+   variante de "texto/ícono de estado" que ya usa el nav activo. */
+.actionBtnActive { color: var(--color-primary-light); }
 
 @media (prefers-reduced-motion: reduce) {
   .row { transition: none; }

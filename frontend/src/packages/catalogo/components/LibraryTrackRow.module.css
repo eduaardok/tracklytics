@@ -115,7 +115,7 @@
 }
 
 .actionBtn:hover { color: var(--color-ink); background: var(--color-surface-raised); }
-.actionBtnActive { color: var(--color-error); }
+.actionBtnActive { color: var(--color-primary-light); }
 .actionBtnDanger:hover { color: var(--color-error); }
 
 @media (max-width: 480px) {

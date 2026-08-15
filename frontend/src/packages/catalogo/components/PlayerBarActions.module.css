@@ -17,4 +17,4 @@
 
 .actionBtn:hover { color: var(--color-ink); background: var(--overlay-soft); }
 .actionBtn:focus-visible { outline: none; box-shadow: 0 0 0 2px oklch(0.48 0.15 290 / 0.5); }
-.actionBtnActive { color: var(--color-error); }
+.actionBtnActive { color: var(--color-primary-light); }
