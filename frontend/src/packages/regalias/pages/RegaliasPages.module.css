@@ -232,7 +232,7 @@
 .actionsCol { text-align: right; white-space: nowrap; }
 .actions { display: inline-flex; gap: var(--space-xs); justify-content: flex-end; flex-wrap: wrap; align-items: center; }
 .badge { display: inline-block; font-family: var(--font-sans); font-size: 0.6875rem; font-weight: 600; padding: 2px 8px; border-radius: 999px; border: 1px solid transparent; }
-.badgeOk  { color: #34d399; background: color-mix(in srgb, #34d399 14%, transparent); border-color: color-mix(in srgb, #34d399 30%, transparent); }
+.badgeOk  { color: var(--color-success); background: color-mix(in srgb, var(--color-success) 14%, transparent); border-color: color-mix(in srgb, var(--color-success) 30%, transparent); }
 .badgeOff { color: var(--color-muted); background: color-mix(in srgb, var(--color-muted) 12%, transparent); border-color: var(--color-border); }
 .btnGhost, .btnGhostDanger {
   font-family: var(--font-sans); font-size: 0.75rem; font-weight: 600; padding: 5px 10px; height: 30px;
@@ -240,8 +240,8 @@
 }
 .btnGhost:hover:not(:disabled) { border-color: var(--color-primary); }
 .btnGhost:disabled { opacity: 0.4; cursor: not-allowed; }
-.btnGhostDanger { color: #f87171; border-color: color-mix(in srgb, #f87171 35%, var(--color-border)); }
-.btnGhostDanger:hover:not(:disabled) { border-color: #f87171; background: color-mix(in srgb, #f87171 10%, transparent); }
+.btnGhostDanger { color: var(--color-error); border-color: color-mix(in srgb, var(--color-error) 35%, var(--color-border)); }
+.btnGhostDanger:hover:not(:disabled) { border-color: var(--color-error); background: color-mix(in srgb, var(--color-error) 10%, transparent); }
 .btnGhostDanger:disabled { opacity: 0.4; cursor: not-allowed; }
 .modalBackdrop { position: fixed; inset: 0; z-index: 1000; display: grid; place-items: center; padding: var(--space-lg); background: color-mix(in srgb, #000 62%, transparent); backdrop-filter: blur(2px); }
 .modal { width: min(520px, 100%); max-height: 90vh; overflow-y: auto; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-lg, 12px); padding: var(--space-lg); box-shadow: 0 24px 60px -12px rgba(0,0,0,0.6); }
@@ -249,5 +249,5 @@
 .modalBody { font-family: var(--font-sans); font-size: 0.8125rem; font-weight: 500; color: var(--color-muted); margin: var(--space-sm) 0 var(--space-xs); }
 .modalForm { display: flex; flex-direction: column; gap: var(--space-sm); }
 .modalRow { display: grid; grid-template-columns: repeat(auto-fit, minmax(90px, 1fr)); gap: var(--space-sm); }
-.modalWarn { font-family: var(--font-sans); font-size: 0.8125rem; color: #f87171; }
+.modalWarn { font-family: var(--font-sans); font-size: 0.8125rem; color: var(--color-error); }
 .modalActions { display: flex; justify-content: flex-end; gap: var(--space-sm); margin-top: var(--space-sm); }

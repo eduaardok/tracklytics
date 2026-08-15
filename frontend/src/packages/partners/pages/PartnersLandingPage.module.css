@@ -91,7 +91,7 @@
   padding: var(--space-md);
   font-family: var(--font-mono);
   font-size: 0.8125rem;
-  color: #9ae6b4;
+  color: var(--color-success-fill);
   overflow-x: auto;
   white-space: pre;
 }
@@ -142,7 +142,7 @@
   word-break: break-word;
   max-height: 320px;
   overflow-y: auto;
-  color: #9ae6b4;
+  color: var(--color-success);
   margin: 0;
 }
 

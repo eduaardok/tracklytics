@@ -43,7 +43,7 @@
 .pagerLabel { font-family: var(--font-sans); font-size: 0.8125rem; color: var(--color-muted); }
 
 .badge { display: inline-block; font-family: var(--font-sans); font-size: 0.6875rem; font-weight: 600; padding: 2px 8px; border-radius: 999px; border: 1px solid transparent; }
-.badgeOk { color: #34d399; background: color-mix(in srgb, #34d399 14%, transparent); border-color: color-mix(in srgb, #34d399 30%, transparent); }
+.badgeOk { color: var(--color-success); background: color-mix(in srgb, var(--color-success) 14%, transparent); border-color: color-mix(in srgb, var(--color-success) 30%, transparent); }
 .badgeOff { color: var(--color-muted); background: color-mix(in srgb, var(--color-muted) 12%, transparent); border-color: var(--color-border); }
 
 .btnGhost, .btnGhostDanger, .btnPrimary {
@@ -53,8 +53,8 @@
 .btnGhost, .btnGhostDanger { background: transparent; border: 1px solid var(--color-border); color: var(--color-ink); }
 .btnGhost:hover:not(:disabled) { border-color: var(--color-primary); }
 .btnGhost:disabled { opacity: 0.4; cursor: not-allowed; }
-.btnGhostDanger { color: #f87171; border-color: color-mix(in srgb, #f87171 35%, var(--color-border)); }
-.btnGhostDanger:hover:not(:disabled) { border-color: #f87171; background: color-mix(in srgb, #f87171 10%, transparent); }
+.btnGhostDanger { color: var(--color-error); border-color: color-mix(in srgb, var(--color-error) 35%, var(--color-border)); }
+.btnGhostDanger:hover:not(:disabled) { border-color: var(--color-error); background: color-mix(in srgb, var(--color-error) 10%, transparent); }
 .btnGhostDanger:disabled { opacity: 0.4; cursor: not-allowed; }
 .btnPrimary { background: var(--gradient-primary); border: none; color: var(--color-ink); height: 34px; padding: 6px 14px; }
 .btnPrimary:hover:not(:disabled) { filter: brightness(1.1); }

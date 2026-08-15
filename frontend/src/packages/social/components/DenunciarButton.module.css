@@ -8,7 +8,7 @@
   padding: 2px 4px;
   cursor: pointer;
 }
-.trigger:hover { color: #f87171; text-decoration: underline; }
+.trigger:hover { color: var(--color-error); text-decoration: underline; }
 
 .modalBackdrop {
   position: fixed; inset: 0; z-index: 1000;
