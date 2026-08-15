@@ -125,6 +125,31 @@
 .btnGhost:hover { background: oklch(1 0 0 / 0.2); }
 .btnGhostActive { background: oklch(1 0 0 / 0.28); }
 
+/* Botón fuera del hero (ej. "Volver" al pie de la página): .btnGhost de
+   arriba es vidrio esmerilado calibrado para el gradiente violeta→teal del
+   hero, con texto/fondo blanco fijo — al reusarse fuera del hero (sobre
+   --color-bg, que en light es casi blanco) el texto quedaba blanco sobre
+   blanco. Mismo patrón "ghost" ya usado fuera de hero en BibliotecaPage e
+   InvoiceDetailPage: transparente + borde + texto de las variables
+   semánticas, así se re-tematiza solo. */
+.btnBack {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--color-muted);
+  background: transparent;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 9px var(--space-md);
+  cursor: pointer;
+  transition: color var(--duration-fast) var(--ease-standard), border-color var(--duration-fast) var(--ease-standard);
+}
+
+.btnBack:hover { color: var(--color-ink); border-color: var(--color-border-strong); }
+
 /* ── Stat grid ── */
 .attrGrid {
   display: grid;

@@ -1,6 +1,6 @@
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { ListPlus, Lock } from 'lucide-react'
+import { ArrowLeft, Heart, ListPlus, Lock, Play } from 'lucide-react'
 import { catalogoApi } from '../api/catalogo.api'
 import { usePlayer } from '@shared/context/PlayerContext'
 import { AlbumArt } from '@shared/components/AlbumArt'
@@ -127,7 +127,8 @@ export function TrackDetailPage() {
                 }
               }}
             >
-              ▶ Reproducir
+              <Play size={16} aria-hidden="true" fill="currentColor" style={{ verticalAlign: '-3px', marginRight: 4 }} />
+              Reproducir
             </button>
             <button
               type="button"
@@ -144,7 +145,8 @@ export function TrackDetailPage() {
                   className={`${styles.btnGhost} ${favorite ? styles.btnGhostActive : ''}`}
                   onClick={() => toggle(track.fact_id)}
                 >
-                  ♥ {favorite ? 'Quitar de favoritos' : 'Añadir a favoritos'}
+                  <Heart size={16} aria-hidden="true" fill={favorite ? 'currentColor' : 'none'} style={{ verticalAlign: '-3px', marginRight: 4 }} />
+                  {favorite ? 'Quitar de favoritos' : 'Añadir a favoritos'}
                 </button>
                 <AddToPlaylistMenu factId={track.fact_id} />
               </>
@@ -193,8 +195,9 @@ export function TrackDetailPage() {
         </div>
       )}
 
-      <button type="button" className={styles.btnGhost} style={{ marginTop: 'var(--space-xl)' }} onClick={() => navigate(-1)}>
-        ← Volver
+      <button type="button" className={styles.btnBack} style={{ marginTop: 'var(--space-xl)' }} onClick={() => navigate(-1)}>
+        <ArrowLeft size={16} aria-hidden="true" />
+        Volver
       </button>
     </section>
   )
