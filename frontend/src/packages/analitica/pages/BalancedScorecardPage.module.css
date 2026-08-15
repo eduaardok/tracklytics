@@ -25,6 +25,49 @@
   color: var(--color-muted);
 }
 
+.headActions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  flex-wrap: wrap;
+}
+
+/* Toggle Vista Dashboard / Vista Asistida — mismo patrón visual que el
+   selector lista/cuadrícula de CatalogPage (segmented pill), sin duplicar
+   ningún token de color. */
+.toggle {
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: var(--radius-md);
+  background: var(--color-surface-secondary);
+  border: 1px solid var(--color-border);
+}
+
+.toggleBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-muted);
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color var(--duration-fast) var(--ease-standard), color var(--duration-fast) var(--ease-standard);
+}
+
+.toggleBtn:hover { color: var(--color-ink); }
+
+.toggleBtnActive {
+  background: var(--color-surface);
+  color: var(--color-primary-light);
+  box-shadow: var(--shadow-card);
+}
+
 .grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
@@ -101,7 +144,7 @@
 .progressTrack {
   height: 4px;
   border-radius: var(--radius-pill);
-  background: rgba(139, 92, 246, 0.1);
+  background: color-mix(in srgb, var(--color-primary) 10%, transparent);
   overflow: hidden;
 }
 
@@ -124,4 +167,158 @@
   font-family: var(--font-mono);
   font-size: 0.6875rem;
   color: var(--color-muted);
+}
+
+/* El color del semáforo nunca es la única señal — esta etiqueta de texto
+   siempre lo acompaña (accesibilidad, DESIGN.md). */
+.semaforoTextLabel {
+  font-weight: 600;
+}
+
+.sinDatos {
+  font-family: var(--font-sans);
+  font-size: 0.75rem;
+  font-style: italic;
+  color: var(--color-muted);
+}
+
+/* ── Vista Asistida ──────────────────────────────────────────────────────── */
+
+.asistidaPanel {
+  composes: card-glass from global;
+  padding: var(--space-lg);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+.asistidaHead {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  padding-bottom: var(--space-md);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.asistidaTitle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  font-family: var(--font-sans);
+  font-size: 1.0625rem;
+  font-weight: 600;
+  color: var(--color-ink);
+}
+
+.metodologia {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--color-muted);
+  line-height: 1.5;
+}
+
+.correlaciones {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.correlacionCard {
+  display: flex;
+  gap: var(--space-sm);
+  padding: var(--space-md);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--color-warning) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-warning) 30%, var(--color-border));
+}
+
+.correlacionIcon {
+  flex-shrink: 0;
+  color: var(--color-warning);
+  margin-top: 2px;
+}
+
+.correlacionMsg {
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+  color: var(--color-ink);
+  line-height: 1.4;
+}
+
+.correlacionKpis {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  color: var(--color-muted);
+}
+
+.diagGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: var(--space-md);
+}
+
+.diagCard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  padding: var(--space-md);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-secondary);
+  border: 1px solid var(--color-border);
+}
+
+.diagHead {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  flex-wrap: wrap;
+}
+
+.diagIndicador {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--color-ink);
+}
+
+.diagBody {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.diagStat {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--color-muted);
+}
+
+.diagAnomalia { color: var(--color-warning); }
+
+.diagNota {
+  font-family: var(--font-sans);
+  font-size: 0.6875rem;
+  font-style: italic;
+  color: var(--color-muted);
+}
+
+.indiceCard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  padding: var(--space-md);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-accent-subtle);
+  border: 1px solid var(--color-border);
+}
+
+.indiceRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
 }

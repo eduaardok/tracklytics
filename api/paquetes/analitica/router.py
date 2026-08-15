@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Path, Query
 from core.cache import cached
 from core.database import query_one, query_rows
 from paquetes.analitica.benchmark_sql import ejecutar_benchmark, listar_informes
-from paquetes.analitica.bsc import bsc_resumen
+from paquetes.analitica.bsc import bsc_analisis_inteligente, bsc_resumen
 from paquetes.analitica.deps import require_b2b_panel_access, require_cualquier_admin, require_staff, require_tier
 from paquetes.analitica.proyeccion import clasificar_trayectoria, proyectar_serie
 from paquetes.analitica.queries import (
@@ -632,10 +632,24 @@ def v1_benchmark_sql_ejecutar(informe_id: str):
 @v1_router.get("/bsc/resumen", dependencies=[Depends(require_staff)], tags=["BSC"])
 @cached(ttl=300)
 def v1_bsc_resumen():
-    """Balanced Scorecard estratégico (S14-FINAL, Fase 6, CU-E01..CU-E07):
-    4 perspectivas × 2 KPIs cada una, calculados desde Gold real (ver
-    `paquetes.analitica.bsc`). `require_staff`, mismo gate que
+    """Balanced Scorecard estratégico (S16, Prompt 05): 4 perspectivas con
+    los 13 KPIs del cuadro resumen BSC (S14 §13.3), calculados desde Gold
+    real (ver `paquetes.analitica.bsc`). `require_staff`, mismo gate que
     reporte-diario/churn/funnel-conversion/pnl/mrr-arr — todos herramientas
     estratégicas de staff interno, no paneles de cliente B2B (analyst no
     entra, mismo criterio ya establecido para esos 5 endpoints)."""
     return bsc_resumen()
+
+
+@v1_router.get("/bsc/analisis-inteligente", dependencies=[Depends(require_staff)], tags=["BSC"])
+@cached(ttl=300)
+def v1_bsc_analisis_inteligente():
+    """Motor de diagnóstico 100% algorítmico sobre el mismo BSC de
+    `/bsc/resumen` (S16, Prompt 05, "Vista Asistida"): regresión lineal
+    (numpy.polyfit) para proyección, detección de anomalías por Z-score
+    sobre la serie histórica de cada KPI, desviación % vs. meta y reglas de
+    correlación cruzada predefinidas entre KPIs (ver `paquetes.analitica.bsc`).
+    Cero llamadas a LLM o servicios de IA — requisito de defendibilidad
+    académica, ver campo `metodologia` de la respuesta. Mismo gate que
+    `/bsc/resumen` (`require_staff`)."""
+    return bsc_analisis_inteligente()

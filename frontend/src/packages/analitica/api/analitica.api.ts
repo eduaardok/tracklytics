@@ -9,7 +9,7 @@ import type {
   TendenciaSemana, ReporteDiario,
   AdquisicionCanal, DisponibilidadComponente,
   ChurnMensual, FunnelConversion, PnlConsolidado, MrrArr,
-  ProyeccionGenero, ProyeccionArtista, BscResumen,
+  ProyeccionGenero, ProyeccionArtista, BscResumen, BscAnalisisInteligente,
   BenchmarkInforme, BenchmarkResultado,
 } from '../types'
 
@@ -124,9 +124,12 @@ export const analiticaApi = {
   mrrArr: (desde: string, hasta: string) =>
     apiClient.get<MrrArr>(`/analitica/mrr-arr?desde=${desde}&hasta=${hasta}`),
 
-  // ── Balanced Scorecard estratégico (S14-FINAL, solo staff/admin) ───────────
+  // ── Balanced Scorecard estratégico (S16, Prompt 05, solo staff/admin) ──────
   bsc: () =>
     apiClient.get<BscResumen>('/analitica/bsc/resumen'),
+
+  bscAnalisisInteligente: () =>
+    apiClient.get<BscAnalisisInteligente>('/analitica/bsc/analisis-inteligente'),
 
   // ── Benchmark SQL directo vs. Gold (S16-P2, solo staff/admin) ──────────────
   // `benchmarkEjecutar` es deliberadamente bajo demanda (POST, nunca en un

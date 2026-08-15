@@ -53,18 +53,27 @@ export type GenreAudioProfile = {
 }
 
 // ── Audio stats de artista (ARTIST_AUDIO_STATS_V1) ──────────────────────────────
+// Los `avg_*` son `avgIf(..., source_type != 'user_uploaded')` — un artista
+// cuyo catálogo es 100% contenido subido por usuarios (existe al menos uno
+// real: "YASERSX", artist_id 29864) no tiene ninguna fila que promediar,
+// así que ClickHouse devuelve NULL, no 0. Bug real encontrado en S16
+// Prompt 05: el tipo anterior los declaraba `number` sin más, y
+// ComparacionPage llamaba `.toFixed()` directo sobre esos campos — con un
+// artista así, esto tiraba abajo la página completa (React Router
+// "Unexpected Application Error!"). Nullable a propósito para forzar el
+// manejo explícito en cada consumidor (ComparacionPage, audioFeatures.ts).
 export type ArtistAudioStats = {
   artist_id:             number
   name:                  string
   track_count:           number
   avg_popularity:        number
-  avg_danceability:      number
-  avg_energy:            number
-  avg_speechiness:       number
-  avg_acousticness:      number
-  avg_instrumentalness:  number
-  avg_liveness:          number
-  avg_valence:           number
+  avg_danceability:      number | null
+  avg_energy:            number | null
+  avg_speechiness:       number | null
+  avg_acousticness:      number | null
+  avg_instrumentalness:  number | null
+  avg_liveness:          number | null
+  avg_valence:           number | null
   explicit_count:        number
 }
 
@@ -160,18 +169,61 @@ export type MrrArr = {
 }
 
 // ── Balanced Scorecard estratégico (S14-FINAL, Fase 6) ──────────────────────
+export type BscSemaforo = 'verde' | 'amarillo' | 'rojo' | 'sin_datos'
+
 export type BscKpi = {
-  indicador:      string
-  valor_actual:   number
-  unidad:         string
-  meta:           string
-  porcentaje_meta: number
-  semaforo:       'verde' | 'amarillo' | 'rojo'
-  tendencia:      number[]
-  es_estimado:    boolean
+  indicador:        string
+  valor_actual:     number | null
+  unidad:           string
+  meta:             string
+  meta_valor:       number | null
+  invertido:        boolean
+  porcentaje_meta:  number | null
+  semaforo:         BscSemaforo
+  tendencia:        number[]
+  es_estimado:      boolean
+  nota:             string | null
+  desglose_regional?: Array<{ region: string; registros_nuevos: number }>
 }
 export type BscPerspectiva = { nombre: string; kpis: BscKpi[] }
 export type BscResumen = { perspectivas: BscPerspectiva[] }
+
+// ── Vista Asistida — motor 100% algorítmico (S16, Prompt 05) ───────────────
+// `metodologia` se muestra tal cual en pantalla (evidencia de defendibilidad
+// académica: regresión + anomalías + reglas de correlación, cero IA/LLM).
+export type BscAnomalia = { indice: number; valor: number; z_score: number }
+
+export type BscDiagnostico = {
+  indicador:            string
+  semaforo:             BscSemaforo
+  valor_actual?:         number
+  meta?:                 string
+  desviacion_pct:        number | null
+  proyeccion:            number | null
+  proyeccion_horizonte?: number[]
+  anomalias:             BscAnomalia[]
+  nota:                  string | null
+}
+
+export type BscCorrelacion = {
+  regla:              string
+  mensaje:            string
+  kpis_involucrados:  string[]
+}
+
+export type BscIndiceDesempeno = {
+  indicador:    string
+  valor_actual: number
+  tendencia:    number[]
+  nota:         string
+}
+
+export type BscAnalisisInteligente = {
+  diagnosticos:              BscDiagnostico[]
+  correlaciones:             BscCorrelacion[]
+  indice_desempeno_relativo: BscIndiceDesempeno | null
+  metodologia:               string
+}
 
 // ── Benchmark SQL directo vs. Gold (S16-P2, solo staff/admin) ──────────────
 // No confundir con `/analitica/benchmark` (ArtistaBenchmarkPage, comparación
