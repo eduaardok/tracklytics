@@ -1,11 +1,9 @@
-import { useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { usePlayer } from '@shared/context/PlayerContext'
 import { AlbumArt } from '@shared/components/AlbumArt'
 import { ErrorState } from '@shared/components/ErrorState'
 import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
-import { ExportPDFButton } from '@shared/components/ExportPDFButton'
 import { experienciaApi } from '../api/experiencia.api'
 import type { Recomendacion, SeccionRecomendaciones } from '../types'
 import styles from './ExperienciaPages.module.css'
@@ -77,7 +75,6 @@ function SeccionRecos({ seccion }: { seccion: SeccionRecomendaciones }) {
 
 export function RecomendacionesPage() {
   useDocumentTitle('Para ti')
-  const reportRef = useRef<HTMLElement>(null)
 
   const recomendaciones = useQuery({
     queryKey: ['experiencia', 'recomendaciones'],
@@ -88,11 +85,8 @@ export function RecomendacionesPage() {
   const totalTracks = secciones.reduce((acc, s) => acc + s.data.length, 0)
 
   return (
-    <section className={styles.page} ref={reportRef}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--space-md)', flexWrap: 'wrap' }}>
-        <h1 className={styles.heading}>Para ti</h1>
-        <ExportPDFButton targetRef={reportRef} fileName="recomendaciones" title="Para ti" />
-      </div>
+    <section className={styles.page}>
+      <h1 className={styles.heading}>Para ti</h1>
       <span className={styles.subtitle}>Recomendaciones personalizadas, en varias miradas</span>
 
       {recomendaciones.isError ? (
