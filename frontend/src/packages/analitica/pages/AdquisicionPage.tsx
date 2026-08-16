@@ -1,4 +1,4 @@
-import { useRef } from 'react'
+import { useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { analiticaApi } from '../api/analitica.api'
@@ -28,10 +28,35 @@ function pivotByCanal(rows: AdquisicionCanal[]) {
 export function AdquisicionPage() {
   useDocumentTitle('Adquisición de usuarios')
   const reportRef = useRef<HTMLElement>(null)
-  const adquisicion = useQuery({
-    queryKey: ['analitica', 'adquisicion'],
-    queryFn:  () => analiticaApi.adquisicion(),
+
+  // FASE 6 (Prompt 10): filtro de rango de fechas + canal — antes la tabla
+  // pivotada era plana, sin forma de acotarla.
+  const [fechaDesde, setFechaDesde] = useState('')
+  const [fechaHasta, setFechaHasta] = useState('')
+  const [canalesActivos, setCanalesActivos] = useState<string[]>([])
+
+  const canalesQuery = useQuery({
+    queryKey: ['analitica', 'adquisicion-canales'],
+    queryFn:  () => analiticaApi.adquisicionCanales(),
   })
+  const canalesDisponibles = canalesQuery.data?.data ?? []
+
+  const adquisicion = useQuery({
+    queryKey: ['analitica', 'adquisicion', fechaDesde, fechaHasta, canalesActivos],
+    queryFn:  () => analiticaApi.adquisicion({ fechaDesde: fechaDesde || undefined, fechaHasta: fechaHasta || undefined, canales: canalesActivos }),
+  })
+
+  function toggleCanal(canal: string) {
+    setCanalesActivos((prev) => prev.includes(canal) ? prev.filter((c) => c !== canal) : [...prev, canal])
+  }
+
+  function limpiarFiltros() {
+    setFechaDesde('')
+    setFechaHasta('')
+    setCanalesActivos([])
+  }
+
+  const hayFiltrosActivos = !!fechaDesde || !!fechaHasta || canalesActivos.length > 0
 
   const data = adquisicion.data?.data ?? []
   const { canales, semanas, porSemana } = pivotByCanal(data)
@@ -47,6 +72,40 @@ export function AdquisicionPage() {
         {semanas.length > 0 ? `// ${semanas.length} semanas` : '// usuarios nuevos por canal de marketing'}
       </span>
 
+      <div className={styles.filters} data-pdf-export-ignore="true">
+        <label className={styles.field}>
+          <span className={styles.fieldLabel}>Desde</span>
+          <input type="date" className={styles.input} value={fechaDesde} onChange={(e) => setFechaDesde(e.target.value)} />
+        </label>
+        <label className={styles.field}>
+          <span className={styles.fieldLabel}>Hasta</span>
+          <input type="date" className={styles.input} value={fechaHasta} onChange={(e) => setFechaHasta(e.target.value)} />
+        </label>
+        {canalesDisponibles.length > 0 && (
+          <div className={styles.field}>
+            <span className={styles.fieldLabel}>Canal</span>
+            <div className={styles.canalChips}>
+              {canalesDisponibles.map((canal) => (
+                <button
+                  key={canal}
+                  type="button"
+                  className={`${styles.canalChip} ${canalesActivos.includes(canal) ? styles.canalChipActive : ''}`}
+                  aria-pressed={canalesActivos.includes(canal)}
+                  onClick={() => toggleCanal(canal)}
+                >
+                  {canal}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+        {hayFiltrosActivos && (
+          <button type="button" className={styles.clearFiltersBtn} onClick={limpiarFiltros}>
+            Limpiar filtros
+          </button>
+        )}
+      </div>
+
       {adquisicion.isLoading && <div className={styles.panel} style={{ minHeight: 200 }} />}
 
       {adquisicion.isError && (
@@ -60,7 +119,12 @@ export function AdquisicionPage() {
       )}
 
       {!adquisicion.isLoading && !adquisicion.isError && semanas.length === 0 && (
-        <EmptyState icon="◔" title="Sin datos de adquisición todavía" />
+        <EmptyState
+          icon="◔"
+          title={hayFiltrosActivos ? 'Sin resultados para este filtro' : 'Sin datos de adquisición todavía'}
+          actionLabel={hayFiltrosActivos ? 'Limpiar filtros' : undefined}
+          onAction={hayFiltrosActivos ? limpiarFiltros : undefined}
+        />
       )}
 
       {semanas.length > 0 && (
