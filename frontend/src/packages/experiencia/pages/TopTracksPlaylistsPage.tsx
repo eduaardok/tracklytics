@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { getRole } from '@shared/lib/session'
+import { getUser } from '@shared/lib/session'
+import { esSuperadmin, rolesDeUsuario } from '@shared/lib/roles'
 import { ErrorState } from '@shared/components/ErrorState'
 import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { apiErrorMessage } from '@shared/lib/api-client'
@@ -17,7 +18,12 @@ export function TopTracksPlaylistsPage() {
   useDocumentTitle('Tracks más agregados a playlists')
   const queryClient = useQueryClient()
   const toast = useToast()
-  const isAdmin = getRole() === 'admin'
+  // FASE 1/8 (Prompt 10): backend gatea `/playlists/sincronizar` con
+  // `require_rol_admin("admin_comunidad")` (superadmin o admin_comunidad
+  // vigente en el BRIDGE) — `getRole() === 'admin'` solo reconocía al
+  // bootstrap de PocketBase, no a esas cuentas.
+  const user = getUser()
+  const isAdmin = esSuperadmin(user) || rolesDeUsuario(user).includes('admin_comunidad')
 
   const topTracks = useQuery({
     queryKey: ['experiencia', 'playlists-top-tracks'],

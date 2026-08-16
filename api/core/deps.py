@@ -84,10 +84,24 @@ async def get_current_user_optional(
 
 
 def verify_analytics_access(user: dict = Depends(get_current_user)) -> dict:
+    """FASE 8 (Prompt 10): además de `role` crudo ('admin'/'analyst'), acepta
+    superadmin vigente en BRIDGE_USUARIO_ROL_ADMIN — mismo fallback que
+    `_es_staff_interno` (paquetes/analitica/deps.py) y `require_rol_admin`
+    (paquetes/seguridad/deps.py). Sin esto, cuentas admin asignadas por el
+    BRIDGE (ej. `superadmin@demo.tracklytics.com`, `role` crudo "user") caían
+    en 403 "Insufficient permissions" en el único consumidor de este guard
+    (`GET /experiencia/playlists/top-tracks`) — reportado como "no carga".
+    Import local (no a nivel de módulo) para evitar el ciclo
+    `core.deps` -> `paquetes.seguridad.deps` -> `core.deps`."""
     role = user.get("record", {}).get("role", "")
-    if role not in ("admin", "analyst"):
-        raise HTTPException(status_code=403, detail="Insufficient permissions")
-    return user
+    if role in ("admin", "analyst"):
+        return user
+    usuario_id = user.get("record", {}).get("id", "")
+    if usuario_id:
+        from paquetes.seguridad.deps import roles_admin_vigentes
+        if "superadmin" in roles_admin_vigentes(usuario_id):
+            return user
+    raise HTTPException(status_code=403, detail="Insufficient permissions")
 
 
 def require_b2c_user(user: dict = Depends(get_current_user)) -> dict:

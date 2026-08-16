@@ -26,7 +26,8 @@ import { usePlanActivo } from '@packages/suscripciones'
 import { PlayerBar } from '@shared/components/PlayerBar'
 import { PageTransition } from '@shared/components/PageTransition'
 import { usePlayer } from '@shared/context/PlayerContext'
-import { getRole } from '@shared/lib/session'
+import { getRole, getUser } from '@shared/lib/session'
+import { esSuperadmin } from '@shared/lib/roles'
 import { getSidebarCollapsed, setSidebarCollapsed } from '@shared/lib/ui-prefs'
 import { MobileNavDrawer } from './MobileNavDrawer'
 import styles from './AppShell.module.css'
@@ -65,10 +66,22 @@ const NAV_SECONDARY: NavItem[] = [
 // propio divider — conceptualmente son "salir a otro panel", no una acción
 // más dentro de la app de consumo. (La salida de vuelta vive en `ZoneSwitcher`,
 // montado dentro de esos dos shells.)
-function navAdminFor(role: string | null): NavItem[] {
+// FASE 1 (Prompt 10): la gating original usaba `role` crudo de PocketBase
+// (`role === 'admin'`), que solo vale para la cuenta superadmin bootstrap —
+// las cuentas admin asignadas por BRIDGE_USUARIO_ROL_ADMIN (ej.
+// `superadmin@demo.tracklytics.com`, con `role: "user"` + fila `superadmin`
+// en el BRIDGE) quedaban sin ver "Analítica"/"Administración" pese a tener
+// acceso real (las rutas SÍ las dejaban entrar vía `RequireAuth`/backend,
+// que ya usan `esAdmin`/`esSuperadmin`). "Analítica" replica exactamente el
+// gating de `require_b2b_panel_access` (`_es_staff_interno` = superadmin,
+// no cualquier admin de área) + analyst; "Administración" replica
+// `RequireAuth roles={['admin']}` sobre `/seguridad`, que acepta cualquier
+// rol admin (`esAdmin`, incluidas las 5 áreas) porque cada sub-página filtra
+// su propia sección.
+function navAdminFor(role: string | null, superadmin: boolean, esAdmin: boolean): NavItem[] {
   const items: NavItem[] = []
-  if (role === 'admin' || role === 'analyst') items.push({ to: '/analitica', label: 'Analítica', icon: BarChart3 })
-  if (role === 'admin') items.push({ to: '/seguridad', label: 'Administración', icon: ShieldCheck })
+  if (superadmin || role === 'analyst') items.push({ to: '/analitica', label: 'Analítica', icon: BarChart3 })
+  if (esAdmin) items.push({ to: '/seguridad', label: 'Administración', icon: ShieldCheck })
   return items
 }
 
@@ -81,7 +94,10 @@ export function AppShell() {
   const [collapsed, setCollapsed] = useState(getSidebarCollapsed)
   const location = useLocation()
   const role = getRole()
-  const navAdmin = navAdminFor(role)
+  const user = getUser()
+  const superadmin = esSuperadmin(user)
+  const esAdmin = Boolean(user?.esAdmin)
+  const navAdmin = navAdminFor(role, superadmin, esAdmin)
   // admin (Lead Data Engineer/CTO) tiene acceso completo sin plan ni pago —
   // "Mi Plan" y "Facturación" no aplican a esa cuenta, se ocultan en vez de
   // mostrar un flujo de suscripción/cobro que el backend ahora rechaza.

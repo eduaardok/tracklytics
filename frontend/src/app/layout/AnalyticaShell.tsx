@@ -2,7 +2,7 @@ import { Suspense, useState } from 'react'
 import { Outlet, NavLink, useLocation } from 'react-router-dom'
 import {
   LayoutDashboard, Activity, Music, GitCompare, Target, TrendingUp, ListMusic,
-  UserPlus, ServerCog, CalendarDays, UserMinus, Filter, Scale, CircleDollarSign,
+  UserPlus, HeartPulse, CalendarDays, UserMinus, Filter, Scale, CircleDollarSign,
   LineChart, AreaChart, PanelLeftClose, PanelLeftOpen, LayoutGrid, Gauge, type LucideIcon,
 } from 'lucide-react'
 import { RequireSuscripcionActiva } from '@packages/analitica'
@@ -16,7 +16,8 @@ import { ThemeToggle } from '@shared/components/ThemeToggle'
 // adivinar) — se usa solo para decidir si se muestra la sección "Predictivo"
 // de la nav, el gating real sigue viviendo en `require_tier` (backend).
 import { usePlanActivo } from '@packages/suscripciones'
-import { getRole } from '@shared/lib/session'
+import { getUser } from '@shared/lib/session'
+import { esSuperadmin } from '@shared/lib/roles'
 import { RouteLoadingFallback } from '@shared/components/RouteLoadingFallback'
 import { PageTransition } from '@shared/components/PageTransition'
 import { ZoneSwitcher } from '@shared/components/ZoneSwitcher'
@@ -58,7 +59,7 @@ const NAV_BASE: NavItem[] = [
   { to: '/analitica/tendencias',       label: 'Tendencias',     icon: TrendingUp },
   { to: '/analitica/playlists-top',    label: 'Playlists',      icon: ListMusic },
   { to: '/analitica/adquisicion',      label: 'Adquisición',    icon: UserPlus },
-  { to: '/analitica/disponibilidad',   label: 'Disponibilidad', icon: ServerCog },
+  { to: '/analitica/disponibilidad',   label: 'Salud del sistema', icon: HeartPulse },
 ]
 
 // Backend exige `require_staff` (role=admin) en /reporte-diario, /churn,
@@ -92,8 +93,16 @@ export function AnalyticaShell() {
   // — nada que proteger ahí, y gatearlos causaría un loop de redirect contra
   // su propio destino.
   const sinGating = COMING_SOON_PATHS.includes(location.pathname)
-  const esEnterprise = tipoPlan === 'enterprise' || getRole() === 'admin'
-  const esAdmin = getRole() === 'admin'
+  const user = getUser()
+  // FASE 1 (Prompt 10): NAV_STAFF replica `require_staff`/`_es_staff_interno`
+  // del backend (api/paquetes/analitica/deps.py) — superadmin únicamente
+  // (role==='admin' o fila 'superadmin' vigente en el BRIDGE), NO cualquier
+  // admin de área. `getRole() === 'admin'` no reconocía a las cuentas
+  // superadmin asignadas por BRIDGE (`role` crudo queda "user"), ocultando
+  // "Reporte diario"/"Churn"/etc. pese a tener acceso real.
+  const superadmin = esSuperadmin(user)
+  const esEnterprise = tipoPlan === 'enterprise' || superadmin
+  const esAdmin = superadmin
 
   function toggleCollapsed() {
     setCollapsed((prev) => {
