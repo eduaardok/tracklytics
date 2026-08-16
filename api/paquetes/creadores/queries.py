@@ -89,6 +89,7 @@ _SUBIDA_COLS = """
     s.track_name          AS track_name,
     s.album_name          AS album_name,
     s.genre_id            AS genre_id,
+    s.genre_ids           AS genre_ids,
     s.descripcion         AS descripcion,
     s.duration_ms         AS duration_ms,
     s.explicit            AS explicit

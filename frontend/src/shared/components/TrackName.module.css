@@ -9,3 +9,21 @@
   opacity: 0.7;
   vertical-align: middle;
 }
+
+/* Contenido explícito (S16) — badge chico tipo Spotify ("E"), neutro (no
+   rojo/alarmante): es informativo, no una advertencia de seguridad. */
+.explicitBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  margin-left: 6px;
+  border: 1px solid var(--color-muted);
+  border-radius: 2px;
+  font-size: 0.625em;
+  line-height: 1;
+  font-weight: 700;
+  color: var(--color-muted);
+  vertical-align: middle;
+}

@@ -22,6 +22,10 @@ export type Track = {
   // los ~1M tracks generados sintéticamente (vs. ~113k reales), nunca se
   // usa para filtrar ni se persiste ningún cambio a partir de este campo.
   source_type?: 'real' | 'synthetic' | 'user_uploaded'
+  // S16: DIM_EXPLICIT_TYPE — 1 = Clean, 2 = Explicit (ver `explicitoBadge`
+  // en TrackCard/TrackGridCard/TrackDetailPage). Opcional: no todas las
+  // queries de listado lo exponen todavía.
+  explicit_id?: number
 }
 
 // `danceability/energy/valence/speechiness/acousticness/instrumentalness/
@@ -178,6 +182,7 @@ export type SearchTrack = {
   es_featuring?:  boolean
   artistas_feat?: string[]
   source_type?:   'real' | 'synthetic' | 'user_uploaded'
+  explicit_id?:   number
 }
 
 export type SearchArtista = {

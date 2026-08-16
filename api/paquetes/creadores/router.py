@@ -142,7 +142,12 @@ def resolver_cuenta(
 class SubidaTrackBody(BaseModel):
     track_name: str = Field(min_length=1, max_length=200)
     album_name: str = Field(default="", max_length=200)
-    genre_id: int = Field(ge=1)
+    # Multi-género (S16 — auditoría de revisores): el dataset base ya modela
+    # N:M track-género vía filas repetidas por `track_id` en FACT_TRACKS
+    # (confirmado antes de este cambio, ver `promover_a_fact_tracks`); lo que
+    # faltaba era que la subida de artista lo aceptara. Tope de 5, igual que
+    # el máximo real observado en tracks del catálogo con más géneros.
+    genre_ids: list[int] = Field(min_length=1, max_length=5)
     # Rango real observado en FACT_TRACKS: min=0 (artefacto de datos heredado
     # de la ingesta original, no un caso de negocio real), max≈5.24M ms
     # (~87 min). Para una subida NUEVA de un artista, ge=1000 (mínimo 1
@@ -165,6 +170,14 @@ class SubidaTrackBody(BaseModel):
     def _limpiar_album_name(cls, v: str) -> str:
         return v.strip()
 
+    @field_validator("genre_ids")
+    @classmethod
+    def _generos_unicos(cls, v: list[int]) -> list[int]:
+        # Orden estable (dict.fromkeys en vez de set()) — el primer género
+        # sigue siendo el "principal" (perfil de audio, columna genre_id de
+        # compatibilidad), da igual en qué orden el usuario los marcó.
+        return list(dict.fromkeys(v))
+
 
 class ResolverTrackBody(BaseModel):
     decision: Literal["aprobar", "rechazar"]
@@ -176,23 +189,26 @@ def subir_track(
     cuenta: dict = Depends(require_cuenta_artista_aprobada),
     _verificado: dict = Depends(require_email_verificado),
 ):
-    genero_existe = query_one(GENERO_EXISTE, {"genre_id": body.genre_id})["n"] > 0
-    if not genero_existe:
-        raise HTTPException(status_code=422, detail="El género indicado no existe")
+    for genre_id in body.genre_ids:
+        if query_one(GENERO_EXISTE, {"genre_id": genre_id})["n"] == 0:
+            raise HTTPException(status_code=422, detail=f"El género indicado no existe: {genre_id}")
 
     staging_id = str(uuid.uuid4())
-    d = {**NEUTRAL_AUDIO_DEFAULTS, **perfil_audio_por_genero(body.genre_id)}
+    # Perfil de audio calibrado contra el género principal (el primero
+    # marcado) — perfiles neutros de todos modos (design.md, sin DSP real),
+    # no hace falta promediar entre géneros.
+    d = {**NEUTRAL_AUDIO_DEFAULTS, **perfil_audio_por_genero(body.genre_ids[0])}
     get_client().insert(
         "STG_ARTIST_UPLOADS",
         [(
             staging_id, cuenta["cuenta_artista_id"], body.track_name, body.album_name,
-            body.genre_id, body.duration_ms, int(body.explicit),
+            body.genre_ids[0], body.genre_ids, body.duration_ms, int(body.explicit),
             d["danceability"], d["energy"], d["key"], d["loudness"], d["mode"],
             d["speechiness"], d["acousticness"], d["instrumentalness"], d["liveness"],
             d["valence"], d["tempo"], d["time_signature"],
         )],
         column_names=[
-            "staging_id", "cuenta_artista_id", "track_name", "album_name", "genre_id",
+            "staging_id", "cuenta_artista_id", "track_name", "album_name", "genre_id", "genre_ids",
             "duration_ms", "explicit", "danceability", "energy", "key", "loudness",
             "mode", "speechiness", "acousticness", "instrumentalness", "liveness",
             "valence", "tempo", "time_signature",
@@ -290,8 +306,13 @@ async def resolver_track(
 class EditarTrackBody(BaseModel):
     track_name: str | None = Field(default=None, min_length=1, max_length=200)
     album_name: str | None = Field(default=None, max_length=200)
-    genre_id: int | None = Field(default=None, ge=1)
+    genre_ids: list[int] | None = Field(default=None, min_length=1, max_length=5)
     descripcion: str | None = Field(default=None, max_length=2000)
+
+    @field_validator("genre_ids")
+    @classmethod
+    def _generos_unicos(cls, v: list[int] | None) -> list[int] | None:
+        return list(dict.fromkeys(v)) if v is not None else v
 
 
 def _subida_propia_o_error(subida_id: str, cuenta: dict) -> dict:
@@ -326,10 +347,12 @@ def editar_track(
         sets.append("track_name = {tn:String}"); params["tn"] = body.track_name.strip()
     if body.album_name is not None:
         sets.append("album_name = {al:String}"); params["al"] = body.album_name.strip()
-    if body.genre_id is not None:
-        if query_one(GENERO_EXISTE, {"genre_id": body.genre_id})["n"] == 0:
-            raise HTTPException(status_code=422, detail="El género indicado no existe")
-        sets.append("genre_id = {gid:UInt16}"); params["gid"] = body.genre_id
+    if body.genre_ids is not None:
+        for genre_id in body.genre_ids:
+            if query_one(GENERO_EXISTE, {"genre_id": genre_id})["n"] == 0:
+                raise HTTPException(status_code=422, detail=f"El género indicado no existe: {genre_id}")
+        sets.append("genre_id = {gid:UInt16}"); params["gid"] = body.genre_ids[0]
+        sets.append("genre_ids = {gids:Array(UInt16)}"); params["gids"] = body.genre_ids
     if body.descripcion is not None:
         sets.append("descripcion = {desc:String}"); params["desc"] = body.descripcion.strip()
     if not sets:
@@ -381,9 +404,15 @@ def retirar_track(
     )
     fact_id = subida["fact_id_promovido"]
     if fact_id is not None:
+        # Por track_id (= staging_id), no por `fact_id_promovido` (S16): un
+        # track multi-género promueve a varias filas de FACT_TRACKS que
+        # comparten `track_id` pero tienen `fact_id` distinto — filtrar por un
+        # solo `fact_id` solo ocultaría el género "principal" y dejaría el
+        # resto visible en el catálogo. Mismo criterio que el takedown
+        # administrativo (`catalogo` router).
         execute(
-            "ALTER TABLE FACT_TRACKS UPDATE disponible = 0 WHERE fact_id = {fid:UInt64}",
-            {"fid": fact_id},
+            "ALTER TABLE FACT_TRACKS UPDATE disponible = 0 WHERE track_id = {tid:String}",
+            {"tid": subida["staging_id"]},
         )
     audit.record(
         usuario_id=cuenta["usuario_id"], accion="retirar_track_artista",

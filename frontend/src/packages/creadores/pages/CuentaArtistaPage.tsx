@@ -1,8 +1,8 @@
 import { useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { catalogoApi } from '@packages/catalogo'
-import { ApiError, apiErrorMessage } from '@shared/lib/api-client'
+import { ApiError, apiErrorMessage, fieldErrorsFromApiError } from '@shared/lib/api-client'
 import { ErrorState } from '@shared/components/ErrorState'
 import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { useToast } from '@shared/context/ToastContext'
@@ -83,6 +83,51 @@ function esNoEncontrado(error: unknown): boolean {
   return error instanceof ApiError && error.status === 404
 }
 
+type UploadStep = 'subiendo' | 'analizando' | 'verificando' | 'publicado'
+
+const UPLOAD_STEPS: { key: UploadStep; label: string }[] = [
+  { key: 'subiendo',    label: 'Subiendo archivo' },
+  { key: 'analizando',  label: 'Analizando audio' },
+  { key: 'verificando', label: 'Verificando derechos' },
+  { key: 'publicado',   label: 'Pendiente de revisión' },
+]
+
+// Simulación de procesamiento tipo YouTube (S16, FASE 5) — puramente de
+// percepción de producto: el track ya quedó guardado en el backend con la
+// llamada real (ver mutación `subir`), esto es solo la capa visual de pasos
+// sobre esa misma llamada, nunca un segundo intento ni un estado inventado
+// que no corresponda al flujo real de aprobación (el paso final es
+// "Pendiente de revisión", el estado real con el que la subida siempre
+// queda hasta que un admin la aprueba).
+function UploadProgress({ step }: { step: UploadStep }) {
+  const activeIndex = UPLOAD_STEPS.findIndex((s) => s.key === step)
+  return (
+    <div className={styles.uploadProgress} role="status" aria-live="polite">
+      <div className={styles.uploadProgressBarTrack}>
+        <div
+          className={styles.uploadProgressBarFill}
+          style={{ transform: `scaleX(${(activeIndex + 1) / UPLOAD_STEPS.length})` }}
+        />
+      </div>
+      <ul className={styles.uploadProgressSteps}>
+        {UPLOAD_STEPS.map((s, i) => (
+          <li
+            key={s.key}
+            className={
+              i < activeIndex ? styles.uploadStepDone
+                : i === activeIndex ? styles.uploadStepActive
+                : styles.uploadStepPending
+            }
+          >
+            {i < activeIndex ? <CheckIcon /> : <span className={styles.uploadStepDot} aria-hidden="true" />}
+            {s.label}
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
 function SkelTrackRow() {
   return (
     <li className={styles.trackRow} aria-hidden="true">
@@ -105,12 +150,27 @@ export function CuentaArtistaPage() {
   const [nombreArtistico, setNombreArtistico] = useState(searchParams.get('nombre') ?? '')
   const [trackName, setTrackName]             = useState('')
   const [albumName, setAlbumName]             = useState('')
-  const [genreId, setGenreId]                 = useState('')
+  // Multi-género (S16): antes un único `genreId` con un <select>.
+  const [genreIds, setGenreIds]               = useState<number[]>([])
   const [durationSeconds, setDurationSeconds] = useState('')
   const [explicit, setExplicit]               = useState(false)
+  // Errores por campo del formulario de subida (S16 — auditoría de
+  // revisores): antes cualquier 422 caía a un `ErrorState` genérico fijo
+  // ("No se pudo subir el track. Intenta de nuevo.") que ni siquiera leía el
+  // error real de la mutación.
+  const [uploadFieldErrors, setUploadFieldErrors] = useState<Record<string, string>>({})
+  // Simulación de procesamiento tipo YouTube (S16, FASE 5) — puramente de
+  // percepción de producto, no un paso real adicional: el track ya se
+  // guarda en STG_ARTIST_UPLOADS con la llamada real de siempre, esto solo
+  // agrega feedback visual de pasos alrededor de esa misma llamada. Mismo
+  // patrón cosmético ya establecido en FacturacionPage.tsx (`procesando`,
+  // "Validando…"/"Autorizando…" antes del cobro real).
+  const [uploadStep, setUploadStep] = useState<null | 'subiendo' | 'analizando' | 'verificando' | 'publicado'>(null)
 
   const queryClient = useQueryClient()
   const toast = useToast()
+
+  const esperar = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
   const cuenta = useQuery({
     queryKey: ['creadores', 'cuenta'],
@@ -140,27 +200,53 @@ export function CuentaArtistaPage() {
   })
 
   const subir = useMutation({
-    mutationFn: () =>
-      creadoresApi.subirTrack({
+    mutationFn: async () => {
+      // Secuencia de pasos (FASE 5) alrededor de la única llamada real —
+      // el track ya queda guardado en STG_ARTIST_UPLOADS/FACT_SUBIDA_TRACK
+      // en cuanto `subirTrack` resuelve, los pasos de antes/después son
+      // solo feedback visual (no bloquean ni repiten nada del backend).
+      setUploadStep('subiendo')
+      await esperar(500)
+      setUploadStep('analizando')
+      await esperar(700)
+      setUploadStep('verificando')
+      await esperar(500)
+      const res = await creadoresApi.subirTrack({
         track_name:  trackName,
         album_name:  albumName,
-        genre_id:    Number(genreId),
+        genre_ids:   genreIds,
         duration_ms: Math.round(Number(durationSeconds) * 1000),
         explicit,
-      }),
+      })
+      setUploadStep('publicado')
+      await esperar(500)
+      return res
+    },
     onSuccess: () => {
-      setTrackName(''); setAlbumName(''); setGenreId(''); setDurationSeconds(''); setExplicit(false)
+      setTrackName(''); setAlbumName(''); setGenreIds([]); setDurationSeconds(''); setExplicit(false)
+      setUploadFieldErrors({})
+      setUploadStep(null)
       queryClient.invalidateQueries({ queryKey: ['creadores', 'tracks'] })
       toast.success('Track subido — pendiente de revisión')
     },
-    onError: (err) => toast.error(apiErrorMessage(err, 'No se pudo subir el track.')),
+    onError: (err) => {
+      setUploadStep(null)
+      // Antes: `<ErrorState message="No se pudo subir el track. Intenta de
+      // nuevo." />` fijo, ignoraba el error real de la mutación por completo
+      // (auditoría S16). `genre_ids`/`duration_ms` llegan con `loc` anidado
+      // (`['body','genre_ids']`), `fieldErrorsFromApiError` ya lo resuelve al
+      // último segmento no numérico.
+      const porCampo = fieldErrorsFromApiError(err)
+      setUploadFieldErrors(porCampo ?? {})
+      toast.error(apiErrorMessage(err, 'No se pudo subir el track.'))
+    },
   })
 
   const [editTrack, setEditTrack] = useState<SubidaTrack | null>(null)
   const confirm = useConfirm()
 
   const editar = useMutation({
-    mutationFn: ({ id, body }: { id: string; body: { track_name: string; album_name: string; genre_id: number; descripcion: string } }) =>
+    mutationFn: ({ id, body }: { id: string; body: { track_name: string; album_name: string; genre_ids: number[]; descripcion: string } }) =>
       creadoresApi.editarTrack(id, body),
     onSuccess: (res) => {
       setEditTrack(null)
@@ -273,10 +359,15 @@ export function CuentaArtistaPage() {
                 className={styles.uploadForm}
                 onSubmit={(e) => {
                   e.preventDefault()
-                  if (!trackName.trim() || !genreId || !durationSeconds) {
-                    toast.error('Completa nombre, género y duración del track.')
+                  const errores: Record<string, string> = {}
+                  if (!trackName.trim()) errores.track_name = 'Ingresa el nombre del track.'
+                  if (genreIds.length === 0) errores.genre_ids = 'Selecciona al menos un género.'
+                  if (!durationSeconds) errores.duration_ms = 'Ingresa la duración.'
+                  if (Object.keys(errores).length > 0) {
+                    setUploadFieldErrors(errores)
                     return
                   }
+                  setUploadFieldErrors({})
                   subir.mutate()
                 }}
                 noValidate
@@ -289,9 +380,10 @@ export function CuentaArtistaPage() {
                     type="text"
                     maxLength={200}
                     value={trackName}
-                    onChange={(e) => setTrackName(e.target.value)}
+                    onChange={(e) => { setTrackName(e.target.value); setUploadFieldErrors((f) => ({ ...f, track_name: '' })) }}
                     required
                   />
+                  {uploadFieldErrors.track_name && <span className={styles.fieldHint}>{uploadFieldErrors.track_name}</span>}
                 </div>
                 <div className={styles.field}>
                   <label className={styles.fieldLabel} htmlFor="album_name">Álbum (opcional)</label>
@@ -305,20 +397,29 @@ export function CuentaArtistaPage() {
                     placeholder="Sencillo"
                   />
                 </div>
-                <div className={styles.field}>
-                  <label className={styles.fieldLabel} htmlFor="genre_id">Género</label>
-                  <select
-                    id="genre_id"
-                    className={styles.select}
-                    value={genreId}
-                    onChange={(e) => setGenreId(e.target.value)}
-                    required
-                  >
-                    <option value="" disabled>Selecciona…</option>
+                {/* Multi-género (S16): FACT_TRACKS ya modela N:M track-género
+                    vía filas repetidas por track_id — antes la subida solo
+                    permitía elegir uno. */}
+                <div className={`${styles.field} ${styles['field--wide']}`}>
+                  <span className={styles.fieldLabel}>Géneros</span>
+                  <div className={styles.genreMultiSelect} role="group" aria-label="Géneros del track">
                     {generosData.map((g) => (
-                      <option key={g.genre_id} value={g.genre_id}>{g.name}</option>
+                      <label key={g.genre_id} className={styles.genreCheckboxItem}>
+                        <input
+                          type="checkbox"
+                          checked={genreIds.includes(g.genre_id)}
+                          onChange={(e) => {
+                            setGenreIds((prev) => e.target.checked
+                              ? [...prev, g.genre_id]
+                              : prev.filter((id) => id !== g.genre_id))
+                            setUploadFieldErrors((f) => ({ ...f, genre_ids: '' }))
+                          }}
+                        />
+                        {g.name}
+                      </label>
                     ))}
-                  </select>
+                  </div>
+                  {uploadFieldErrors.genre_ids && <span className={styles.fieldHint}>{uploadFieldErrors.genre_ids}</span>}
                 </div>
                 <div className={styles.field}>
                   <label className={styles.fieldLabel} htmlFor="duration_seconds">Duración (segundos)</label>
@@ -329,10 +430,11 @@ export function CuentaArtistaPage() {
                     min={1}
                     max={10800}
                     value={durationSeconds}
-                    onChange={(e) => setDurationSeconds(e.target.value)}
+                    onChange={(e) => { setDurationSeconds(e.target.value); setUploadFieldErrors((f) => ({ ...f, duration_ms: '' })) }}
                     placeholder="198"
                     required
                   />
+                  {uploadFieldErrors.duration_ms && <span className={styles.fieldHint}>{uploadFieldErrors.duration_ms}</span>}
                 </div>
                 <div className={`${styles.field} ${styles.checkboxField}`}>
                   <input
@@ -344,10 +446,13 @@ export function CuentaArtistaPage() {
                   <label className={styles.fieldLabel} htmlFor="explicit">Contenido explícito</label>
                 </div>
                 <button className={`${styles.btnPrimary} ${styles['btnPrimary--full']}`} type="submit" disabled={subir.isPending}>
-                  {subir.isPending ? 'Subiendo…' : 'Subir track'}
+                  {subir.isPending ? 'Procesando…' : 'Subir track'}
                 </button>
               </form>
-              {subir.isError && <ErrorState message="No se pudo subir el track. Intenta de nuevo." />}
+              {uploadStep && <UploadProgress step={uploadStep} />}
+              {subir.isError && Object.keys(uploadFieldErrors).length === 0 && (
+                <ErrorState message={apiErrorMessage(subir.error, 'No se pudo subir el track. Intenta de nuevo.')} />
+              )}
 
               <p className={styles.sectionLabel}>Mis tracks subidos</p>
               {tracks.isLoading ? (
@@ -370,6 +475,17 @@ export function CuentaArtistaPage() {
                       </div>
                       <div className={styles.trackActions}>
                         <EstadoBadge estado={t.estado_nombre} />
+                        {/* Comentarios recibidos (S16 — vista de artista): reusa
+                            la página de comentarios ya existente por track
+                            (`/social/track/:factId`), en vez de duplicar la UI
+                            de hilos acá. Solo tiene sentido si el track ya fue
+                            aprobado y promovido — antes de eso no tiene fact_id
+                            en el catálogo real. */}
+                        {t.fact_id_promovido != null && (
+                          <Link to={`/social/track/${t.fact_id_promovido}`} className={styles.btnGhost}>
+                            Comentarios
+                          </Link>
+                        )}
                         {t.estado_nombre !== 'retirado' && (
                           <>
                             <button type="button" className={styles.btnGhost} onClick={() => setEditTrack(t)}>Editar</button>
@@ -406,11 +522,13 @@ function TrackEditDialog({ track, generos, pending, onClose, onSave }: {
   generos: { genre_id: number; name: string }[]
   pending: boolean
   onClose: () => void
-  onSave: (body: { track_name: string; album_name: string; genre_id: number; descripcion: string }) => void
+  onSave: (body: { track_name: string; album_name: string; genre_ids: number[]; descripcion: string }) => void
 }) {
   const [nombre, setNombre] = useState(track.track_name)
   const [album, setAlbum] = useState(track.album_name)
-  const [genreId, setGenreId] = useState(String(track.genre_id))
+  // Multi-género (S16) — precarga desde `genre_ids` si el backend ya lo trae,
+  // con `genre_id` como respaldo (tracks editados antes de este cambio).
+  const [genreIds, setGenreIds] = useState<number[]>(track.genre_ids?.length ? track.genre_ids : [track.genre_id])
   const [descripcion, setDescripcion] = useState(track.descripcion ?? '')
 
   return (
@@ -422,20 +540,32 @@ function TrackEditDialog({ track, generos, pending, onClose, onSave }: {
         )}
         <form className={styles.modalForm} onSubmit={(e) => {
           e.preventDefault()
-          if (!nombre.trim()) return
-          onSave({ track_name: nombre.trim(), album_name: album.trim(), genre_id: Number(genreId), descripcion: descripcion.trim() })
+          if (!nombre.trim() || genreIds.length === 0) return
+          onSave({ track_name: nombre.trim(), album_name: album.trim(), genre_ids: genreIds, descripcion: descripcion.trim() })
         }}>
           <label className={styles.modalField}><span className={styles.fieldLabel}>Nombre</span><input className={styles.input} maxLength={200} value={nombre} onChange={(e) => setNombre(e.target.value)} /></label>
           <label className={styles.modalField}><span className={styles.fieldLabel}>Álbum</span><input className={styles.input} maxLength={200} value={album} onChange={(e) => setAlbum(e.target.value)} /></label>
-          <label className={styles.modalField}><span className={styles.fieldLabel}>Género</span>
-            <select className={styles.input} value={genreId} onChange={(e) => setGenreId(e.target.value)}>
-              {generos.map((g) => <option key={g.genre_id} value={g.genre_id}>{g.name}</option>)}
-            </select>
-          </label>
+          <div className={styles.modalField}>
+            <span className={styles.fieldLabel}>Géneros</span>
+            <div className={styles.genreMultiSelect} role="group" aria-label="Géneros del track">
+              {generos.map((g) => (
+                <label key={g.genre_id} className={styles.genreCheckboxItem}>
+                  <input
+                    type="checkbox"
+                    checked={genreIds.includes(g.genre_id)}
+                    onChange={(e) => setGenreIds((prev) => e.target.checked
+                      ? [...prev, g.genre_id]
+                      : prev.filter((id) => id !== g.genre_id))}
+                  />
+                  {g.name}
+                </label>
+              ))}
+            </div>
+          </div>
           <label className={styles.modalField}><span className={styles.fieldLabel}>Descripción</span><textarea className={styles.textarea} rows={3} maxLength={2000} value={descripcion} onChange={(e) => setDescripcion(e.target.value)} /></label>
           <div className={styles.modalActions}>
             <button type="button" className={styles.btnGhost} onClick={onClose}>Cancelar</button>
-            <button type="submit" className={styles.btnPrimary} disabled={pending || !nombre.trim()}>{pending ? 'Guardando…' : 'Guardar cambios'}</button>
+            <button type="submit" className={styles.btnPrimary} disabled={pending || !nombre.trim() || genreIds.length === 0}>{pending ? 'Guardando…' : 'Guardar cambios'}</button>
           </div>
         </form>
       </div>

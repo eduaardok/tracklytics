@@ -23,7 +23,10 @@ export type SubidaTrack = {
   fact_id_promovido:  number | null
   track_name:         string
   album_name:         string
+  // `genre_id` (primer género, compatibilidad) se conserva; `genre_ids` es
+  // la fuente real desde S16 (multi-género).
   genre_id:           number
+  genre_ids:          number[]
   descripcion:        string
   duration_ms:        number
   explicit:           number
@@ -33,7 +36,7 @@ export type SubidaTrack = {
 export type EditarTrackBody = {
   track_name?:  string
   album_name?:  string
-  genre_id?:    number
+  genre_ids?:   number[]
   descripcion?: string
 }
 
@@ -48,7 +51,7 @@ export type ResolverCuentaBody = {
 export type SubidaTrackBody = {
   track_name:  string
   album_name?: string
-  genre_id:    number
+  genre_ids:   number[]
   duration_ms: number
   explicit?:   boolean
 }

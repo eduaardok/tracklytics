@@ -481,6 +481,12 @@ DDL_STATEMENTS = [
         track_name        String,
         album_name        String,
         genre_id          UInt16,
+        -- S16: multi-género en subida de artista (antes un track subido solo
+        -- podía tener un género, aunque FACT_TRACKS ya modela N:M vía filas
+        -- repetidas por track_id). `genre_id` se conserva por compatibilidad
+        -- (primer género, siguen escribiéndolo el backfill sintético y
+        -- lecturas viejas); `genre_ids` es la fuente real para la promoción.
+        genre_ids         Array(UInt16) DEFAULT [genre_id],
         duration_ms       UInt32,
         explicit          UInt8,
         danceability      Float32,

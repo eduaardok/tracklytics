@@ -90,7 +90,7 @@ export function TrackDetailPage() {
         <div className={styles.heroMeta}>
           <span className={styles.heroType}>Canción</span>
           <h1 className={styles.heroName}>
-            <TrackName name={track.track_name} esFeaturing={track.es_featuring} sourceType={track.source_type} featBadgeClassName={styles.featBadge} />
+            <TrackName name={track.track_name} esFeaturing={track.es_featuring} sourceType={track.source_type} featBadgeClassName={styles.featBadge} explicitId={track.explicit_id} />
           </h1>
           <FeaturingCaption esFeaturing={track.es_featuring} artistasFeat={track.artistas_feat} className={styles.featArtists} />
           <div className={styles.heroSub}>

@@ -83,6 +83,7 @@ export function TrackGridCard({ track, queue, index }: Props) {
             esFeaturing={track.es_featuring}
             sourceType={track.source_type}
             featBadgeClassName={styles.featBadge}
+            explicitId={track.explicit_id}
           />
         </p>
         <p className={styles.artist} title={track.artist_name}>{track.artist_name}</p>

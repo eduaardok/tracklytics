@@ -183,7 +183,7 @@ function MejorResultado({ track, queue }: { track: SearchTrack; queue: SearchTra
         <AlbumArt src={track.imagen_url} alt="" size={88} />
         <div className={styles.bestInfo}>
           <Link to={`/catalogo/track/${track.fact_id}`} className={styles.bestName}>
-            <TrackName name={track.track_name} esFeaturing={track.es_featuring} sourceType={track.source_type} featBadgeClassName={styles.featBadge} />
+            <TrackName name={track.track_name} esFeaturing={track.es_featuring} sourceType={track.source_type} featBadgeClassName={styles.featBadge} explicitId={track.explicit_id} />
           </Link>
           <span className={styles.bestMeta}>{track.artist_name}</span>
           <span className={styles.bestGenre}>{track.genre_name}</span>
@@ -208,7 +208,7 @@ function TrackRow({ track, queue, index }: { track: SearchTrack; queue: SearchTr
       <AlbumArt src={track.imagen_url} alt="" size={40} />
       <div className={styles.rowInfo}>
         <Link to={`/catalogo/track/${track.fact_id}`} className={styles.rowName}>
-          <TrackName name={track.track_name} esFeaturing={track.es_featuring} sourceType={track.source_type} featBadgeClassName={styles.featBadge} />
+          <TrackName name={track.track_name} esFeaturing={track.es_featuring} sourceType={track.source_type} featBadgeClassName={styles.featBadge} explicitId={track.explicit_id} />
         </Link>
         <span className={styles.rowMeta}>{track.artist_name} · {track.genre_name}</span>
         <FeaturingCaption esFeaturing={track.es_featuring} artistasFeat={track.artistas_feat} className={styles.featArtists} />

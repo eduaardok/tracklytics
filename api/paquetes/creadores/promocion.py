@@ -105,10 +105,20 @@ async def promover_a_fact_tracks(staging_row: dict, nombre_artistico: str) -> in
     """Promueve un registro de STG_ARTIST_UPLOADS ya aprobado a FACT_TRACKS con
     `source_type='user_uploaded'` (design.md, "Promoción a FACT_TRACKS").
     `staging_row` es la fila de STG_ARTIST_UPLOADS (incluye los valores
-    neutros de audio ya guardados en la subida)."""
+    neutros de audio ya guardados en la subida).
+
+    Multi-género (S16): una fila de STG_ARTIST_UPLOADS con N géneros promueve
+    a N filas de FACT_TRACKS que comparten el mismo `track_id` (=
+    `staging_id`) — mismo modelo N:M que ya usa el resto del catálogo
+    (track_id repetido, una fila por género; ver `TRACKS_TOP`/takedown
+    administrativo en `catalogo`). Devuelve el `fact_id` de la primera fila
+    (el género "principal") — el resto se ocultan/consultan siempre por
+    `track_id`, nunca por `fact_id` individual (ver `retirar_track`,
+    router.py), así que un solo id de referencia alcanza para notificaciones/
+    auditoría."""
     artist_id = _resolver_artist_id(nombre_artistico)
     album_id = _resolver_album_id(staging_row["album_name"], staging_row["track_name"])
-    genre_id = staging_row["genre_id"]
+    genre_ids = staging_row.get("genre_ids") or [staging_row["genre_id"]]
 
     key = staging_row["key"]
     mode = staging_row["mode"]
@@ -128,12 +138,11 @@ async def promover_a_fact_tracks(staging_row: dict, nombre_artistico: str) -> in
     async with _promocion_lock:
         load_week = (query_one(LOAD_WEEK_MAX) or {}).get("n") or 1
         max_fact_id = (query_one(FACT_ID_MAX) or {}).get("n") or 0
-        fact_id = max(max_fact_id, FACT_ID_FLOOR_USER_UPLOADED - 1) + 1
+        primer_fact_id = max(max_fact_id, FACT_ID_FLOOR_USER_UPLOADED - 1) + 1
 
-        get_client().insert(
-            "FACT_TRACKS",
-            [(
-                fact_id, staging_row["staging_id"], staging_row["track_name"],
+        filas = [
+            (
+                primer_fact_id + i, staging_row["staging_id"], staging_row["track_name"],
                 artist_id, album_id, genre_id, load_week,
                 key_id, mode_id, time_signature_id, explicit_id,
                 popularity_range_id, tempo_range_id, energy_level_id,
@@ -142,7 +151,12 @@ async def promover_a_fact_tracks(staging_row: dict, nombre_artistico: str) -> in
                 staging_row["speechiness"], staging_row["acousticness"],
                 staging_row["instrumentalness"], staging_row["liveness"],
                 staging_row["valence"], tempo, load_week, "user_uploaded",
-            )],
+            )
+            for i, genre_id in enumerate(genre_ids)
+        ]
+        get_client().insert(
+            "FACT_TRACKS",
+            filas,
             column_names=[
                 "fact_id", "track_id", "track_name",
                 "artist_id", "album_id", "genre_id", "date_id",
@@ -155,4 +169,4 @@ async def promover_a_fact_tracks(staging_row: dict, nombre_artistico: str) -> in
                 "valence", "tempo", "load_week", "source_type",
             ],
         )
-        return fact_id
+        return primer_fact_id
