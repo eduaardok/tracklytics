@@ -59,11 +59,15 @@ El sistema SHALL permitir a un usuario con rol `admin` aprobar o rechazar una cu
 - **THEN** el sistema rechaza la operación indicando que es exclusiva de `admin`
 
 ### Requirement: Subida de un track por un artista con cuenta aprobada
-El sistema SHALL permitir a un usuario cuya cuenta de artista esté en estado `aprobada` subir un track (nombre, álbum opcional, género existente, duración y marca de contenido explícito), quedando registrado en `STG_ARTIST_UPLOADS` y su revisión en estado `pendiente`. El sistema SHALL rechazar la subida si el usuario no tiene una cuenta de artista aprobada. Las características de audio de partida del track SHALL calibrarse contra el perfil típico del género elegido (mismo perfil empírico por género que usa la ingesta), en vez de un valor neutro fijo idéntico para cualquier género; si el género no tiene una muestra mínima de tracks de origen, el sistema SHALL usar el perfil general del catálogo como respaldo.
+El sistema SHALL permitir a un usuario cuya cuenta de artista esté en estado `aprobada` subir un track (nombre, álbum opcional, uno o más géneros existentes, duración y marca de contenido explícito), quedando registrado en `STG_ARTIST_UPLOADS` y su revisión en estado `pendiente`. El sistema SHALL aceptar hasta 5 géneros por track. El sistema SHALL rechazar la subida si el usuario no tiene una cuenta de artista aprobada, o si alguno de los géneros indicados no existe. Las características de audio de partida del track SHALL calibrarse contra el perfil típico del primer género elegido (mismo perfil empírico por género que usa la ingesta), en vez de un valor neutro fijo idéntico para cualquier género; si ese género no tiene una muestra mínima de tracks de origen, el sistema SHALL usar el perfil general del catálogo como respaldo.
 
-#### Scenario: Subida exitosa de un track
-- **WHEN** un usuario con cuenta de artista `aprobada` envía nombre, género válido, duración y marca de contenido explícito para un nuevo track
+#### Scenario: Subida exitosa de un track con un género
+- **WHEN** un usuario con cuenta de artista `aprobada` envía nombre, un género válido, duración y marca de contenido explícito para un nuevo track
 - **THEN** el sistema registra el track subido asociado a esa cuenta de artista, con su revisión en estado `pendiente`
+
+#### Scenario: Subida exitosa de un track con múltiples géneros
+- **WHEN** un usuario con cuenta de artista `aprobada` envía nombre, dos o más géneros válidos, duración y marca de contenido explícito para un nuevo track
+- **THEN** el sistema registra el track subido con todos los géneros indicados, y al ser aprobado promueve una fila de `FACT_TRACKS` por cada género, todas compartiendo el mismo `track_id`
 
 #### Scenario: Usuario sin cuenta de artista aprobada intenta subir un track
 - **WHEN** un usuario sin cuenta de artista, o con cuenta `pendiente` o `rechazada`, intenta subir un track
@@ -144,17 +148,32 @@ El sistema SHALL permitir a un artista con cuenta aprobada editar el nombre, ál
 - **THEN** el sistema rechaza la operación con 403
 
 ### Requirement: Retiro de un track propio por el artista
-El sistema SHALL permitir a un artista con cuenta aprobada retirar un track propio, marcándolo con estado `retirado` y ejecutando el takedown equivalente en el catálogo (`FACT_TRACKS.disponible = 0`).
+El sistema SHALL permitir a un artista con cuenta aprobada retirar un track propio, marcándolo con estado `retirado` y ejecutando el takedown equivalente en el catálogo (`FACT_TRACKS.disponible = 0` para todas las filas que compartan el `track_id` del track retirado, sin importar cuántos géneros tenga).
 
-#### Scenario: Retirar un track propio
-- **WHEN** un artista aprobado retira un track propio
+#### Scenario: Retirar un track propio de un solo género
+- **WHEN** un artista aprobado retira un track propio que pertenece a un único género
 - **THEN** el sistema marca el track como `retirado` y lo oculta del catálogo público
+
+#### Scenario: Retirar un track propio con múltiples géneros
+- **WHEN** un artista aprobado retira un track propio que fue promovido a más de una fila de `FACT_TRACKS` (uno por género)
+- **THEN** el sistema oculta todas esas filas del catálogo público, no solo la del género principal
+
+### Requirement: Vista de comentarios recibidos en tracks propios
+El sistema SHALL permitir a un artista con cuenta aprobada acceder, desde la lista de sus tracks subidos, a los comentarios recibidos en cada track propio que ya fue aprobado y promovido al catálogo.
+
+#### Scenario: Artista accede a los comentarios de un track propio aprobado
+- **WHEN** un artista con cuenta aprobada consulta la lista de sus tracks subidos y selecciona un track ya aprobado y promovido
+- **THEN** el sistema le permite ver el hilo de comentarios reales recibidos en ese track
+
+#### Scenario: Track todavía no promovido no ofrece vista de comentarios
+- **WHEN** un artista consulta un track propio que todavía está `pendiente` de revisión (sin promover al catálogo)
+- **THEN** el sistema no ofrece un enlace a comentarios para ese track, porque todavía no existe en el catálogo real
 
 ## Entradas
 
 - Nombre artístico (solicitud de cuenta de artista).
 - Decisión de aprobación o rechazo y, opcionalmente, identificador de la cuenta o del track (resolución administrativa).
-- Nombre del track, álbum (opcional), género existente, duración y marca de contenido explícito (subida de track).
+- Nombre del track, álbum (opcional), uno o más géneros existentes, duración y marca de contenido explícito (subida de track).
 - Identificador de usuario o de cuenta de artista objetivo, opcional (consultas administrativas; por defecto el propio usuario autenticado).
 
 ## Salidas
