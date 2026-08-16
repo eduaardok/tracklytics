@@ -1,5 +1,6 @@
 import { useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { Building2 } from 'lucide-react'
 import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { apiErrorMessage } from '@shared/lib/api-client'
 import { useToast } from '@shared/context/ToastContext'
@@ -139,7 +140,7 @@ export function AdminPartnersPage() {
             {partners.isLoading ? (
               <SkeletonTableRows columns={5} />
             ) : filtrados.length === 0 ? (
-              <tr><td colSpan={5}><EmptyState icon="( ∅ )" title="Sin partners" body={data.length === 0 ? 'Todavía no hay partners registrados.' : 'Prueba con otro filtro.'} /></td></tr>
+              <tr><td colSpan={5}><EmptyState icon={<Building2 size={22} aria-hidden="true" />} title="Sin partners" body={data.length === 0 ? 'Todavía no hay partners registrados.' : 'Prueba con otro filtro.'} /></td></tr>
             ) : filtrados.map((p) => {
               const activo = p.estado === 'vigente'
               return (

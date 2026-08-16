@@ -44,9 +44,8 @@
 .statLabel {
   font-family: var(--font-mono);
   font-size: 0.6875rem;
+  font-weight: 600;
   color: var(--color-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
 }
 
 /* ── Tabs ── */

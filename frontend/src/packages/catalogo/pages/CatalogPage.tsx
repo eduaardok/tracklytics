@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { LayoutGrid, List } from 'lucide-react'
+import { LayoutGrid, List, SearchX } from 'lucide-react'
 import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { getCatalogViewMode, setCatalogViewMode, type CatalogViewMode } from '@shared/lib/ui-prefs'
 import { genreAccent } from '@shared/lib/genre-colors'
@@ -320,7 +320,7 @@ function CancionesSection({ genre, onToggleGenre }: CancionesProps) {
 
       {!isError && !isLoading && tracks.length === 0 && (
         <EmptyState
-          icon="( ∅ )"
+          icon={<SearchX size={22} aria-hidden="true" />}
           title="Sin resultados"
           body="Prueba con otro nombre de artista o track."
         />
@@ -396,7 +396,7 @@ function PlaylistsSection() {
 
       {!isError && !isLoading && playlists.length === 0 && (
         <EmptyState
-          icon="( ∅ )"
+          icon={<SearchX size={22} aria-hidden="true" />}
           title="Sin resultados"
           body="Prueba con otro nombre de playlist."
         />
@@ -492,7 +492,7 @@ function ArtistasSection() {
 
       {!isError && !isLoading && artists.length === 0 && (
         <EmptyState
-          icon="( ∅ )"
+          icon={<SearchX size={22} aria-hidden="true" />}
           title="Sin resultados"
           body="Prueba con otro nombre de artista."
         />
@@ -581,7 +581,7 @@ function GenerosSection({ onSelectGenre }: GenerosProps) {
 
       {!isError && !isLoading && shown.length === 0 && (
         <EmptyState
-          icon="( ∅ )"
+          icon={<SearchX size={22} aria-hidden="true" />}
           title="Sin resultados"
           body="Prueba con otro nombre de género."
         />

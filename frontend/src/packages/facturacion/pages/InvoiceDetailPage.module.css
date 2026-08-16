@@ -102,8 +102,7 @@
 .sectionLabel {
   font-family: var(--font-sans);
   font-size: 0.6875rem;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
+  font-weight: 600;
   color: var(--color-muted);
   margin-bottom: 4px;
 }
@@ -127,7 +126,7 @@
 
 .table tbody tr:hover { background: var(--color-surface-raised); transition: background-color 150ms ease; }
 
-.table th { font-size: 0.6875rem; text-transform: uppercase; color: var(--color-muted); }
+.table th { font-size: 0.6875rem; font-weight: 600; color: var(--color-muted); }
 .right { text-align: right; }
 
 .statusOk, .statusPending {

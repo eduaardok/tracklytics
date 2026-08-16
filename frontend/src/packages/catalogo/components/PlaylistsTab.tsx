@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Globe, Lock } from 'lucide-react'
+import { Globe, ListMusic, Lock } from 'lucide-react'
 import { apiErrorMessage } from '@shared/lib/api-client'
 import { useToast } from '@shared/context/ToastContext'
 import { useConfirm } from '@shared/context/ConfirmContext'
@@ -236,7 +236,7 @@ function PlaylistDetail({ playlistId, onBack }: { playlistId: string; onBack: ()
 
       {data.data.length === 0 ? (
         <EmptyState
-          icon="( ∅ )"
+          icon={<ListMusic size={22} aria-hidden="true" />}
           title="Esta playlist está vacía."
           body="Agrega canciones desde el catálogo."
         />
@@ -353,7 +353,7 @@ export function PlaylistsTab() {
 
       {playlists.length === 0 ? (
         <EmptyState
-          icon="( ∅ )"
+          icon={<ListMusic size={22} aria-hidden="true" />}
           title="Aún no tienes playlists."
           body="¡Crea una y organiza tu música!"
         />

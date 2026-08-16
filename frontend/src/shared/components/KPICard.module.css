@@ -12,7 +12,10 @@
   gap: 6px;
 }
 
-.icon { color: var(--color-primary-light); }
+/* Violeta es marca/interacción, no dato (DESIGN.md, Signal Palette) — el
+   ícono de una KPI card es metadata visual, no una acción, así que va
+   muted en vez de competir con el violeta real de la UI (nav activo, CTAs). */
+.icon { color: var(--color-muted); }
 
 .title {
   font-family: var(--font-sans);

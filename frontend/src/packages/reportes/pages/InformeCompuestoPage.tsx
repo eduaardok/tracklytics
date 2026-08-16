@@ -1,4 +1,5 @@
 import { useParams } from 'react-router-dom'
+import { FileQuestion } from 'lucide-react'
 import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { useCompoundReport } from '@shared/hooks/useCompoundReport'
 import { ReportLayout } from '@shared/components/reportes/ReportLayout'
@@ -26,7 +27,7 @@ export function InformeCompuestoPage() {
   if (!config) {
     return (
       <EmptyState
-        icon="( ∅ )"
+        icon={<FileQuestion size={22} aria-hidden="true" />}
         title="Informe no encontrado"
         body={`No existe un informe configurado para "${departamento}/${informe}".`}
       />

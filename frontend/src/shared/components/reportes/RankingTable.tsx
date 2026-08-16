@@ -1,5 +1,5 @@
 import { memo, useState } from 'react'
-import { TrendingDown, TrendingUp } from 'lucide-react'
+import { BarChart3, TrendingDown, TrendingUp } from 'lucide-react'
 import { EmptyState } from '@shared/components/EmptyState'
 import styles from './RankingTable.module.css'
 
@@ -35,7 +35,7 @@ export const RankingTable = memo(function RankingTable({ datos, columnas, variac
   const [pagina, setPagina] = useState(1)
 
   if (datos.length === 0) {
-    return <EmptyState icon="( ∅ )" title="Sin datos para este ranking" body="Prueba ampliando el rango de período." />
+    return <EmptyState icon={<BarChart3 size={22} aria-hidden="true" />} title="Sin datos para este ranking" body="Prueba ampliando el rango de período." />
   }
 
   const totalPaginas = Math.max(1, Math.ceil(datos.length / porPagina))

@@ -91,7 +91,6 @@
   align-items: center;
   gap: var(--space-sm);
   padding: 7px var(--space-md);
-  border-left: 3px solid transparent;
   font-family: var(--font-sans);
   font-size: 0.8125rem;
   font-weight: 500;
@@ -101,7 +100,7 @@
   transition:
     color var(--duration-fast) var(--ease-standard),
     background-color var(--duration-fast) var(--ease-standard),
-    border-color var(--duration-fast) var(--ease-standard);
+    box-shadow var(--duration-fast) var(--ease-standard);
 }
 
 .navIcon {
@@ -143,11 +142,15 @@
 /* Estado activo por color + borde lateral, no por fill de fondo (DESIGN.md §5). */
 .navActive {
   color: var(--color-primary-light);
-  border-left-color: var(--color-primary-light);
+  box-shadow: inset 3px 0 0 var(--color-primary-light);
 }
 
 .navActive:hover {
   color: var(--color-primary-light);
+}
+
+.navActive:focus-visible {
+  box-shadow: inset 3px 0 0 var(--color-primary-light), inset 0 0 0 2px oklch(0.48 0.15 290 / 0.4);
 }
 
 /* Secciones colapsables del sidebar (S12) — el label de cada sección (ej.
@@ -163,8 +166,6 @@
   font-family: var(--font-sans);
   font-size: 0.7rem;
   font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
   color: var(--color-muted);
   margin-top: var(--space-xs);
   border-top: 1px solid var(--color-border);

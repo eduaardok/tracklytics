@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
+import { SkeletonLoader } from '@shared/components/SkeletonLoader'
 import { analiticaApi } from '../api/analitica.api'
 import { TierUpsell } from '../components/TierUpsell'
 import { tierInsuficienteInfo } from '../lib/tierError'
@@ -35,18 +36,10 @@ function SearchIcon() {
 }
 
 function PanelSkeleton({ rows = 4 }: { rows?: number }) {
-  const widths = [55, 80, 60, 70]
   return (
     <div className={styles.panel}>
-      <span className={styles.skel} style={{ display: 'block', height: 20, width: '50%', marginBottom: 20 }} />
-      <span className={styles.skel} style={{ display: 'block', height: 4, marginBottom: 24 }} />
-      {Array.from({ length: rows }).map((_, i) => (
-        <span
-          key={i}
-          className={styles.skel}
-          style={{ display: 'block', height: 14, width: `${widths[i % widths.length]}%`, marginBottom: 10 }}
-        />
-      ))}
+      <SkeletonLoader count={1} height={20} className={styles.skelTitle} />
+      <SkeletonLoader count={rows} height={14} />
     </div>
   )
 }

@@ -2,6 +2,7 @@ import { memo } from 'react'
 import {
   PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
 } from 'recharts'
+import { PieChart as PieChartIcon } from 'lucide-react'
 import { ChartTooltip } from '@shared/components/charts/ChartTooltip'
 import { formatTooltipValue } from '@shared/components/charts/format'
 import { CATEGORICAL_ORDER } from '@shared/components/charts/colors'
@@ -27,7 +28,7 @@ const GRID_STROKE = 'oklch(0.22 0.012 285)'
 export const DistributionChart = memo(function DistributionChart({ datos, tipo, altura = 280 }: Props) {
   const filtrados = datos.filter((d) => d.valor > 0)
   if (filtrados.length === 0) {
-    return <EmptyState icon="( ∅ )" title="Sin datos para esta distribución" body="Prueba ampliando el rango de período." />
+    return <EmptyState icon={<PieChartIcon size={22} aria-hidden="true" />} title="Sin datos para esta distribución" body="Prueba ampliando el rango de período." />
   }
 
   const total = filtrados.reduce((sum, d) => sum + d.valor, 0)

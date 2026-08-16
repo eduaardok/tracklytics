@@ -214,6 +214,20 @@
   box-shadow: var(--glass-shadow-hover);
 }
 
+/* Escala Display (DESIGN.md §3, jerarquía tipográfica) — reservada a heros
+   B2C, máximo uno por pantalla: el heading principal de Catálogo y (S16
+   Fase 4) el headline del hero de login/register. `composes: text-display
+   from global` en vez de repetir font-size/line-height/letter-spacing en
+   cada .module.css que la use. */
+.text-display {
+  font-family: var(--font-sans);
+  font-weight: 700;
+  font-size: 2.25rem;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+}
+
 /* Fila de tabla con hover consistente — usada vía `composes` en tablas admin. */
 .row-hover {
   transition: background var(--duration-standard) var(--ease-standard);

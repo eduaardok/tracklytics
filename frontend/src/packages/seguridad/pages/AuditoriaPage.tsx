@@ -1,5 +1,6 @@
 import { useRef } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { ScrollText } from 'lucide-react'
 import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { MiniLineChart } from '@shared/components/charts/MiniLineChart'
 import { CHART_COLORS } from '@shared/components/charts/colors'
@@ -75,7 +76,7 @@ export function AuditoriaPage() {
               {isLoading ? (
                 <SkeletonTableRows columns={6} />
               ) : entradas.length === 0 ? (
-                <tr><td colSpan={6}><EmptyState icon="( ∅ )" title="Sin registros de auditoría todavía." /></td></tr>
+                <tr><td colSpan={6}><EmptyState icon={<ScrollText size={22} aria-hidden="true" />} title="Sin registros de auditoría todavía." /></td></tr>
               ) : (
                 entradas.map((e) => (
                   <tr key={e.audit_id}>

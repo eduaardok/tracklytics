@@ -1,5 +1,6 @@
 import { useRef } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { Activity } from 'lucide-react'
 import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { metricasApi } from '../api/metricas.api'
 import { ErrorState } from '@shared/components/ErrorState'
@@ -45,7 +46,7 @@ export function PartnersMetricasPage() {
 
       {!isError && !isLoading && partners.length === 0 && (
         <EmptyState
-          icon="( ∅ )"
+          icon={<Activity size={22} aria-hidden="true" />}
           title="Sin llamadas registradas todavía"
           body="En cuanto un partner consuma /partners/v1/*, sus métricas aparecerán aquí."
         />

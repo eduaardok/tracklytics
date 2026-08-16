@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Pause, Play } from 'lucide-react'
+import { Building2, Megaphone, Pause, Play } from 'lucide-react'
 import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { apiErrorMessage } from '@shared/lib/api-client'
 import { useToast } from '@shared/context/ToastContext'
@@ -294,7 +294,7 @@ export function PublicidadAdminPage() {
                 {campanas.isLoading ? (
                   <SkeletonTableRows columns={7} />
                 ) : campanasFiltradas.length === 0 ? (
-                  <tr><td colSpan={7}><EmptyState icon="( ∅ )" title="Sin campañas" body={campanasData.length === 0 ? 'Todavía no hay campañas publicitarias registradas.' : 'Prueba con otro filtro.'} /></td></tr>
+                  <tr><td colSpan={7}><EmptyState icon={<Megaphone size={22} aria-hidden="true" />} title="Sin campañas" body={campanasData.length === 0 ? 'Todavía no hay campañas publicitarias registradas.' : 'Prueba con otro filtro.'} /></td></tr>
                 ) : campanasFiltradas.map((c) => {
                   const est = estadoCampana(c)
                   const finalizada = c.estado_manual === 'finalizada'
@@ -381,7 +381,7 @@ export function PublicidadAdminPage() {
                 {anunciantes.isLoading ? (
                   <SkeletonTableRows columns={6} />
                 ) : anunciantesData.length === 0 ? (
-                  <tr><td colSpan={6}><EmptyState icon="( ∅ )" title="Sin anunciantes" body="Todavía no hay anunciantes registrados." /></td></tr>
+                  <tr><td colSpan={6}><EmptyState icon={<Building2 size={22} aria-hidden="true" />} title="Sin anunciantes" body="Todavía no hay anunciantes registrados." /></td></tr>
                 ) : anunciantesData.map((a) => (
                   <tr key={a.anunciante_id}>
                     <td>{a.anunciante_id}</td><td>{a.nombre}</td><td>{a.sector || '—'}</td>

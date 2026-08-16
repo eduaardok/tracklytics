@@ -188,7 +188,7 @@ export function BalancedScorecardPage() {
         <div className={styles.grid}>
           {data.perspectivas.map((persp) => (
             <div key={persp.nombre} className={styles.card}>
-              <h2 className={styles.cardTitle}>{persp.nombre.toUpperCase()}</h2>
+              <h2 className={styles.cardTitle}>{persp.nombre}</h2>
               <div className={styles.kpiList}>
                 {persp.kpis.map((kpi) => <KpiRow key={kpi.indicador} kpi={kpi} />)}
               </div>

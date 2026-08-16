@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { Inbox } from 'lucide-react'
 import { ErrorState } from '@shared/components/ErrorState'
 import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { MiniDonutChart } from '@shared/components/charts/MiniDonutChart'
@@ -148,7 +149,7 @@ export function TicketsAdminPage() {
             <SkeletonLoader count={4} height={40} />
           </div>
         ) : data.length === 0 ? (
-          <EmptyState icon="( ∅ )" title="Sin tickets" body="No hay tickets que coincidan con este filtro." />
+          <EmptyState icon={<Inbox size={22} aria-hidden="true" />} title="Sin tickets" body="No hay tickets que coincidan con este filtro." />
         ) : (
           <ul className={styles.queueList}>
             {data.map((t) => (

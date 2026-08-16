@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { ListMusic } from 'lucide-react'
 import { isAuthenticated } from '@shared/lib/session'
 import { apiErrorMessage } from '@shared/lib/api-client'
 import { useToast } from '@shared/context/ToastContext'
@@ -100,7 +101,7 @@ export function AddToPlaylistMenu({ factId }: Props) {
           onClick={(e) => e.stopPropagation()}
         >
           {playlists.length === 0 ? (
-            <EmptyState icon="( ∅ )" title="Aún no tienes playlists." />
+            <EmptyState icon={<ListMusic size={22} aria-hidden="true" />} title="Aún no tienes playlists." />
           ) : (
             <ul className={styles.list}>
               {playlists.map((pl) => (

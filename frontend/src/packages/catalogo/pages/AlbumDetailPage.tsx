@@ -1,5 +1,6 @@
 import { useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
+import { Disc3 } from 'lucide-react'
 import { catalogoApi } from '../api/catalogo.api'
 import { TrackCard } from '../components/TrackCard'
 import { AlbumArt } from '@shared/components/AlbumArt'
@@ -92,7 +93,7 @@ export function AlbumDetailPage() {
       {loadingTracks ? (
         <p className={styles.loading}>// cargando…</p>
       ) : tracks.length === 0 ? (
-        <EmptyState icon="( ∅ )" title="Sin canciones registradas para esta playlist." />
+        <EmptyState icon={<Disc3 size={22} aria-hidden="true" />} title="Sin canciones registradas para esta playlist." />
       ) : (
         <ul className={styles.trackList} aria-label="Canciones de la playlist">
           {tracks.map((track: Track, i: number) => (

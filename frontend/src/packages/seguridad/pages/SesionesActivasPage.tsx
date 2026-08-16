@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { LogOut } from 'lucide-react'
+import { LogOut, Monitor } from 'lucide-react'
 import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { ErrorState } from '@shared/components/ErrorState'
 import { SkeletonTableRows } from '@shared/components/SkeletonLoader'
@@ -180,7 +180,7 @@ export function SesionesActivasPage() {
                 <tr>
                   <td colSpan={6}>
                     <EmptyState
-                      icon="( ∅ )"
+                      icon={<Monitor size={22} aria-hidden="true" />}
                       title="Sin sesiones abiertas"
                       body={sesiones.length === 0 ? 'No hay sesiones activas en este momento.' : 'Prueba con otro filtro.'}
                     />

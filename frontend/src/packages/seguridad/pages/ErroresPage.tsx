@@ -1,5 +1,6 @@
 import { useRef } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { CheckCircle2 } from 'lucide-react'
 import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { SkeletonTableRows } from '@shared/components/SkeletonLoader'
 import { EmptyState } from '@shared/components/EmptyState'
@@ -43,7 +44,7 @@ export function ErroresPage() {
               {isLoading ? (
                 <SkeletonTableRows columns={6} />
               ) : errores.length === 0 ? (
-                <tr><td colSpan={6}><EmptyState icon="( ∅ )" title="Sin errores registrados." /></td></tr>
+                <tr><td colSpan={6}><EmptyState icon={<CheckCircle2 size={22} aria-hidden="true" />} title="Sin errores registrados." /></td></tr>
               ) : (
                 errores.map((e) => (
                   <tr key={e.error_id}>

@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { EyeOff, SearchX } from 'lucide-react'
 import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { apiErrorMessage } from '@shared/lib/api-client'
 import { useToast } from '@shared/context/ToastContext'
@@ -81,7 +82,7 @@ export function AdminTracksPage() {
               {resultados.isLoading ? (
                 <tr><td colSpan={3} className={styles.emptyState}>Buscando…</td></tr>
               ) : resultadosData.length === 0 ? (
-                <tr><td colSpan={3}><EmptyState icon="( ∅ )" title={`Sin resultados para «${buscado}»`} /></td></tr>
+                <tr><td colSpan={3}><EmptyState icon={<SearchX size={22} aria-hidden="true" />} title={`Sin resultados para «${buscado}»`} /></td></tr>
               ) : resultadosData.map((t) => (
                 <tr key={t.fact_id}>
                   <td>{t.track_name}</td><td>{t.artist_name}</td>
@@ -103,7 +104,7 @@ export function AdminTracksPage() {
             {ocultos.isLoading ? (
               <tr><td colSpan={3} className={styles.emptyState}>Cargando…</td></tr>
             ) : ocultosData.length === 0 ? (
-              <tr><td colSpan={3}><EmptyState icon="( ∅ )" title="No hay tracks ocultos" /></td></tr>
+              <tr><td colSpan={3}><EmptyState icon={<EyeOff size={22} aria-hidden="true" />} title="No hay tracks ocultos" /></td></tr>
             ) : ocultosData.map((t) => (
               <tr key={t.fact_id}>
                 <td>{t.track_name}</td><td>{t.artist_name}</td>

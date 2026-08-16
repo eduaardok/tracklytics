@@ -1,5 +1,6 @@
 import { useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
+import { Music2 } from 'lucide-react'
 import { catalogoApi } from '../api/catalogo.api'
 import { TrackCard } from '../components/TrackCard'
 import { AlbumArt } from '@shared/components/AlbumArt'
@@ -96,7 +97,7 @@ export function ArtistDetailPage() {
       {loadingTracks ? (
         <p className={styles.loading}>// cargando…</p>
       ) : tracks.length === 0 ? (
-        <EmptyState icon="( ∅ )" title="Sin canciones registradas para este artista." />
+        <EmptyState icon={<Music2 size={22} aria-hidden="true" />} title="Sin canciones registradas para este artista." />
       ) : (
         <ul className={styles.trackList} aria-label="Canciones del artista">
           {tracks.map((track: Track, i: number) => (

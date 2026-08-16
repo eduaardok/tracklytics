@@ -354,21 +354,13 @@
   line-height: 1.5;
 }
 
-/* ── Skeleton inside panel ── */
-.skel {
-  display: block;
-  background: var(--color-surface-raised);
-  border-radius: 3px;
-  animation: skelPulse 1.6s ease-in-out infinite;
-}
-
-@keyframes skelPulse {
-  0%, 100% { opacity: 0.35; }
-  50%       { opacity: 0.65; }
+/* ── Skeleton inside panel (SkeletonLoader compartido, ver EngagementPage.tsx) ── */
+.skelTitle {
+  margin-bottom: var(--space-lg);
+  max-width: 50%;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .skel { animation: none; opacity: 0.5; }
   .scoreFill { transition: none; }
 }
 
