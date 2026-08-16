@@ -17,6 +17,14 @@ import styles from './TrackCard.module.css'
 type Props = {
   track:    Track
   position: number
+  // Lista completa del listado donde vive esta card (catálogo, álbum,
+  // artista, búsqueda…), en el mismo orden que `position` — cuando está
+  // presente, tocar play encola el resto vía `playList` en vez de reproducir
+  // el track suelto (Fase 1, S16: "pones una canción y se corta al terminar"
+  // era el hueco de producto más grande de la auditoría). Opcional y con
+  // fallback a `play()` normal para no romper ningún call-site que todavía
+  // no pase la lista.
+  queue?: Track[]
 }
 
 function formatDuration(ms: number): string {
@@ -25,9 +33,9 @@ function formatDuration(ms: number): string {
   return `${m}:${s.toString().padStart(2, '0')}`
 }
 
-export function TrackCard({ track, position }: Props) {
+export function TrackCard({ track, position, queue }: Props) {
   const navigate = useNavigate()
-  const { play, reportPlaybackIssue, enqueue } = usePlayer()
+  const { play, playList, reportPlaybackIssue, enqueue } = usePlayer()
   const { pedirImpresion } = useAd()
   const { isAuthenticated, isFavorite, toggle, toggleError } = useFavoritos()
   const { iniciarRadio, iniciando } = useRadio()
@@ -44,7 +52,8 @@ export function TrackCard({ track, position }: Props) {
     // streaming freemium real. `pedirImpresion` resuelve de inmediato si el
     // usuario es premium o no hay campaña elegible.
     if (isAuthenticated) await pedirImpresion()
-    play(track)
+    if (queue && queue.length > 0) playList(queue, position - 1)
+    else play(track)
     if (isAuthenticated) {
       bibliotecaApi.registrarReproduccion(track.fact_id).catch((err) => {
         // Solo el bloqueo geográfico (RF-DIS-007) detiene la reproducción —

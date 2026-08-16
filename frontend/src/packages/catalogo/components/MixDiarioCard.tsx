@@ -19,7 +19,7 @@ const PORTADAS_VISIBLES = 4
  */
 export function MixDiarioCard() {
   const autenticado = isAuthenticated()
-  const { play, replaceQueue } = usePlayer()
+  const { playList } = usePlayer()
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ['experiencia', 'mix-diario'],
@@ -42,8 +42,7 @@ export function MixDiarioCard() {
       duration_ms: 0,
       imagen_url:  t.imagen_url,
     }))
-    play(cola[0])
-    replaceQueue(cola.slice(1))
+    playList(cola)
   }
 
   return (

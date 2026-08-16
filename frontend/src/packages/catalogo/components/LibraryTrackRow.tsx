@@ -24,14 +24,31 @@ type Props = {
   timeAgo?:   string
   onRemove?:  () => void
   removeTitle?: string
+  // Lista completa (favoritos/historial/playlist), mismo orden que
+  // `position` - habilita el encolado automatico de Fase 1 (S16) tambien
+  // fuera del catalogo/album/artista.
+  queue?: LibraryTrack[]
 }
 
 // Fila para favoritos/historial/tracks de playlist — estos endpoints devuelven
 // `LibraryTrack` (subconjunto de campos), no un `Track` completo, así que no
 // reusa TrackCard directamente.
-export function LibraryTrackRow({ track, position, timeAgo, onRemove, removeTitle }: Props) {
+function toPlayable(track: LibraryTrack) {
+  return {
+    fact_id:       track.fact_id,
+    track_name:    track.track_name,
+    artist_name:   track.artist_name,
+    duration_ms:   track.duration_ms,
+    imagen_url:    track.imagen_url,
+    es_featuring:  track.es_featuring,
+    artistas_feat: track.artistas_feat,
+    source_type:   track.source_type,
+  }
+}
+
+export function LibraryTrackRow({ track, position, timeAgo, onRemove, removeTitle, queue }: Props) {
   const navigate = useNavigate()
-  const { play, reportPlaybackIssue, enqueue } = usePlayer()
+  const { play, playList, reportPlaybackIssue, enqueue } = usePlayer()
   const { pedirImpresion } = useAd()
   const { isFavorite, toggle, toggleError } = useFavoritos()
   const favorite = isFavorite(track.fact_id)
@@ -40,27 +57,11 @@ export function LibraryTrackRow({ track, position, timeAgo, onRemove, removeTitl
     navigate(`/catalogo/track/${track.fact_id}`)
   }
 
-  // S14-P1: `imagen_url` ya viaja en `LibraryTrack` (antes no — ver
-  // `TRACKS_BY_FACT_IDS`/`FAVORITOS_ACTUALES`/`HISTORIAL_RECIENTE`, ahora la
-  // seleccionan las tres), así que la barra de reproducción también la
-  // recibe.
-  function toPlayable() {
-    return {
-      fact_id:       track.fact_id,
-      track_name:    track.track_name,
-      artist_name:   track.artist_name,
-      duration_ms:   track.duration_ms,
-      imagen_url:    track.imagen_url,
-      es_featuring:  track.es_featuring,
-      artistas_feat: track.artistas_feat,
-      source_type:   track.source_type,
-    }
-  }
-
   async function handlePlay(e: MouseEvent) {
     e.stopPropagation()
     await pedirImpresion()
-    play(toPlayable())
+    if (queue && queue.length > 0) playList(queue.map(toPlayable), position - 1)
+    else play(toPlayable(track))
     bibliotecaApi.registrarReproduccion(track.fact_id).catch((err) => {
       if (err instanceof ApiError && err.status === 403) {
         reportPlaybackIssue(apiErrorMessage(err, 'Este track no está disponible.'))
@@ -70,7 +71,7 @@ export function LibraryTrackRow({ track, position, timeAgo, onRemove, removeTitl
 
   function handleEnqueue(e: MouseEvent) {
     e.stopPropagation()
-    enqueue(toPlayable())
+    enqueue(toPlayable(track))
   }
 
   function handleFavorite(e: MouseEvent) {

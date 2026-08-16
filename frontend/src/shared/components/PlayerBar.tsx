@@ -1,8 +1,8 @@
 import type { KeyboardEvent, MouseEvent, ReactNode } from 'react'
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Ban, ListMusic, Pause, Play, SkipBack, SkipForward, Volume2, VolumeX } from 'lucide-react'
-import { usePlayer } from '@shared/context/PlayerContext'
+import { Ban, ListMusic, Pause, Play, Repeat, Repeat1, SkipBack, SkipForward, Volume2, VolumeX } from 'lucide-react'
+import { usePlayer, type RepeatMode } from '@shared/context/PlayerContext'
 import { AlbumArt } from './AlbumArt'
 import { TrackName } from './TrackName'
 import { QueuePanel } from './QueuePanel'
@@ -23,6 +23,13 @@ function Equalizer({ animated }: { animated: boolean }) {
   )
 }
 
+const REPEAT_CYCLE: Record<RepeatMode, RepeatMode> = { none: 'all', all: 'one', one: 'none' }
+const REPEAT_LABEL: Record<RepeatMode, string> = {
+  none: 'Repetir (desactivado)',
+  all:  'Repetir toda la cola (activado)',
+  one:  'Repetir esta canción (activado)',
+}
+
 type Props = {
   // Slot para acciones reales que dependen del dominio `catalogo` (favorito,
   // agregar a playlist) — PlayerBar vive en `shared/` y no debe importar de
@@ -36,6 +43,7 @@ export function PlayerBar({ actions }: Props) {
     currentTrack, isPlaying, progressMs, playbackUnavailable, playbackUnavailableReason, togglePlay, seek,
     playNext, playPrevious, hasNext, hasPrevious,
     queue, removeFromQueue, moveInQueue, volume, setVolume,
+    repeatMode, setRepeatMode,
   } = usePlayer()
   const navigate = useNavigate()
   const [queueOpen, setQueueOpen] = useState(false)
@@ -115,6 +123,17 @@ export function PlayerBar({ actions }: Props) {
           title="Siguiente"
         >
           <SkipForward size={16} aria-hidden="true" />
+        </button>
+        <button
+          type="button"
+          className={`${styles.iconBtn} ${repeatMode !== 'none' ? styles.iconBtnActive : ''}`}
+          onClick={() => setRepeatMode(REPEAT_CYCLE[repeatMode])}
+          aria-label={REPEAT_LABEL[repeatMode]}
+          aria-pressed={repeatMode !== 'none'}
+          title={REPEAT_LABEL[repeatMode]}
+        >
+          {repeatMode === 'one' ? <Repeat1 size={16} aria-hidden="true" /> : <Repeat size={16} aria-hidden="true" />}
+          {repeatMode === 'all' && <span className={styles.repeatDot} aria-hidden="true" />}
         </button>
         {playbackUnavailable ? (
           <span className={playbackUnavailableReason ? styles.blockedReason : styles.time}>

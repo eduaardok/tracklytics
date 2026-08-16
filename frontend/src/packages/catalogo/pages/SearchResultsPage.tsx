@@ -87,12 +87,12 @@ function Resultados({ data }: { data: { tracks: SearchTrack[]; artistas: SearchA
 
   return (
     <div className={styles.sections}>
-      {mejor && <MejorResultado track={mejor} />}
+      {mejor && <MejorResultado track={mejor} queue={data.tracks} />}
 
       {data.tracks.length > 0 && (
         <Seccion titulo="Canciones">
           <ul className={styles.list}>
-            {data.tracks.map((t) => <TrackRow key={t.fact_id} track={t} />)}
+            {data.tracks.map((t, i) => <TrackRow key={t.fact_id} track={t} queue={data.tracks} index={i} />)}
           </ul>
         </Seccion>
       )}
@@ -161,8 +161,21 @@ function Seccion({ titulo, children }: { titulo: string; children: React.ReactNo
   )
 }
 
-function MejorResultado({ track }: { track: SearchTrack }) {
-  const { play } = usePlayer()
+function toPlayable(track: SearchTrack) {
+  return {
+    fact_id:       track.fact_id,
+    track_name:    track.track_name,
+    artist_name:   track.artist_name,
+    duration_ms:   track.duration_ms,
+    imagen_url:    track.imagen_url,
+    es_featuring:  track.es_featuring,
+    artistas_feat: track.artistas_feat,
+    source_type:   track.source_type,
+  }
+}
+
+function MejorResultado({ track, queue }: { track: SearchTrack; queue: SearchTrack[] }) {
+  const { play, playList } = usePlayer()
   return (
     <div className={styles.section}>
       <p className={styles.sectionLabel}>Mejor resultado</p>
@@ -179,16 +192,7 @@ function MejorResultado({ track }: { track: SearchTrack }) {
         <button
           type="button"
           className={styles.btnPrimary}
-          onClick={() => play({
-            fact_id:       track.fact_id,
-            track_name:    track.track_name,
-            artist_name:   track.artist_name,
-            duration_ms:   track.duration_ms,
-            imagen_url:    track.imagen_url,
-            es_featuring:  track.es_featuring,
-            artistas_feat: track.artistas_feat,
-            source_type:   track.source_type,
-          })}
+          onClick={() => queue.length > 0 ? playList(queue.map(toPlayable), 0) : play(toPlayable(track))}
         >
           Reproducir
         </button>
@@ -197,8 +201,8 @@ function MejorResultado({ track }: { track: SearchTrack }) {
   )
 }
 
-function TrackRow({ track }: { track: SearchTrack }) {
-  const { play } = usePlayer()
+function TrackRow({ track, queue, index }: { track: SearchTrack; queue: SearchTrack[]; index: number }) {
+  const { play, playList } = usePlayer()
   return (
     <li className={styles.row}>
       <AlbumArt src={track.imagen_url} alt="" size={40} />
@@ -212,16 +216,7 @@ function TrackRow({ track }: { track: SearchTrack }) {
       <button
         type="button"
         className={styles.btnGhost}
-        onClick={() => play({
-          fact_id:       track.fact_id,
-          track_name:    track.track_name,
-          artist_name:   track.artist_name,
-          duration_ms:   track.duration_ms,
-          imagen_url:    track.imagen_url,
-          es_featuring:  track.es_featuring,
-          artistas_feat: track.artistas_feat,
-          source_type:   track.source_type,
-        })}
+        onClick={() => queue.length > 0 ? playList(queue.map(toPlayable), index) : play(toPlayable(track))}
       >
         Reproducir
       </button>

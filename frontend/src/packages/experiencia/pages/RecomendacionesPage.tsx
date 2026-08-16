@@ -33,13 +33,13 @@ function motivo(r: Recomendacion): string {
 // las incluye en `secciones` si vienen vacías, esta página no filtra nada).
 function SeccionRecos({ seccion }: { seccion: SeccionRecomendaciones }) {
   const navigate = useNavigate()
-  const { play } = usePlayer()
+  const { playList } = usePlayer()
 
   return (
     <div className={styles.recoSeccion}>
       <p className={styles.sectionLabel}>{seccion.titulo}</p>
       <ul className={styles.recoList}>
-        {seccion.data.map((r) => (
+        {seccion.data.map((r, i) => (
           <li key={r.impresion_id}>
             <div
               className={styles.recoRow}
@@ -59,7 +59,10 @@ function SeccionRecos({ seccion }: { seccion: SeccionRecomendaciones }) {
                 className={styles.btnGhost}
                 onClick={(e) => {
                   e.stopPropagation()
-                  play({ fact_id: r.fact_id, track_name: r.track_name, artist_name: r.artist_name, duration_ms: 0 })
+                  playList(
+                    seccion.data.map((x) => ({ fact_id: x.fact_id, track_name: x.track_name, artist_name: x.artist_name, duration_ms: 0, imagen_url: x.imagen_url })),
+                    i,
+                  )
                 }}
               >
                 Reproducir

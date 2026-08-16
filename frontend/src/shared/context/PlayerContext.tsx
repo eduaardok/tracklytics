@@ -36,6 +36,15 @@ type PlayerContextValue = {
   playbackUnavailable: boolean
   playbackUnavailableReason: string | null
   play:             (track: PlayableTrack) => void
+  // Reproduce `tracks[startIndex]` y encola el resto vía `replaceQueue` —
+  // mismo patrón que ya usaba `useRadio.ts` (play(cola[0]) + replaceQueue
+  // (cola.slice(1))), centralizado acá para que cualquier listado (catálogo,
+  // álbum, artista, playlist, búsqueda, favoritos, historial) reproduzca "en
+  // contexto" en vez de un track suelto que se corta al terminar. También
+  // guarda `tracks` como snapshot de sesión para `repeat-all` (ver
+  // `repeatMode`) — reencolar desde el principio requiere recordar la lista
+  // completa, no solo lo que quedaba por sonar.
+  playList:         (tracks: PlayableTrack[], startIndex?: number) => void
   togglePlay:       () => void
   seek:             (ms: number) => void
   // Transporte anterior/siguiente (botones de PlayerBar). `playNext` es el
@@ -75,7 +84,15 @@ type PlayerContextValue = {
   moveInQueue:      (index: number, direction: -1 | 1) => void
   volume:           number
   setVolume:        (volume: number) => void
+  // 'none' (default) = se detiene al agotar la cola, igual que antes.
+  // 'all' = al agotar la cola, la reencola desde el principio (snapshot de
+  // `playList`) en vez de detenerse. 'one' = al terminar el track actual,
+  // lo reinicia en vez de avanzar — la cola no se toca.
+  repeatMode:       RepeatMode
+  setRepeatMode:    (mode: RepeatMode) => void
 }
+
+export type RepeatMode = 'none' | 'all' | 'one'
 
 const PlayerContext = createContext<PlayerContextValue | null>(null)
 
@@ -189,6 +206,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   const [playbackReason, setPlaybackReason]           = useState<string | null>(null)
   const [queue, setQueue]                             = useState<PlayableTrack[]>([])
   const [volume, setVolumeState]                      = useState(0.8)
+  const [repeatMode, setRepeatModeState]               = useState<RepeatMode>('none')
 
   const timerRef        = useRef<ReturnType<typeof setInterval> | null>(null)
   const ytPlayerRef      = useRef<YTPlayerInstance | null>(null)
@@ -213,8 +231,24 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   // valor más reciente sin importar cuándo se creó el closure que lo usa.
   const queueRef         = useRef<PlayableTrack[]>([])
   const volumeRef        = useRef(volume)
+  const repeatModeRef    = useRef<RepeatMode>('none')
+  // Track actualmente sonando, en ref — igual motivo que `queueRef`: leído
+  // desde `advanceQueue` para `repeat-one`, que puede ejecutarse desde un
+  // closure de larga vida (ticker simulado) que no ve el `currentTrack` más
+  // reciente si lo leyera directo del state.
+  const currentTrackRef  = useRef<PlayableTrack | null>(null)
+  // Snapshot inmutable de la lista completa que originó la sesión de
+  // reproducción actual (`playList`) — a diferencia de `queue` (que se va
+  // vaciando con cada `advanceQueue`), esto no cambia hasta el próximo
+  // `playList`/`play` suelto, y es lo único que permite reencolar desde el
+  // principio en `repeat-all`. Un `enqueue()` manual posterior (ej. desde
+  // QueuePanel) no se refleja acá a propósito — repeat-all reencola la
+  // sesión original, no cualquier agregado manual sobre la marcha.
+  const sessionQueueRef  = useRef<PlayableTrack[]>([])
   useEffect(() => { queueRef.current = queue }, [queue])
   useEffect(() => { volumeRef.current = volume }, [volume])
+  useEffect(() => { repeatModeRef.current = repeatMode }, [repeatMode])
+  useEffect(() => { currentTrackRef.current = currentTrack }, [currentTrack])
   // Historial de "anterior" — en memoria únicamente, mismo criterio que
   // `queue` (se vacía al recargar). Un ref porque solo `playPrevious` lo lee
   // en el momento del click; `historyLength` es el espejo reactivo que deja
@@ -314,7 +348,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     startSimTicker(track.duration_ms || 180_000)
   }, [destroyYtPlayer, stopSimulated, startSimTicker])
 
-  const play = useCallback((track: PlayableTrack, opts?: { skipHistory?: boolean }) => {
+  const play = useCallback((track: PlayableTrack, opts?: { skipHistory?: boolean; keepSession?: boolean }) => {
     // RN-EXP-gate-reproduccion: sin sesión, ni reproducción real ni
     // simulada — antes cualquier error (incluido el 401 de
     // `youtube-video-id`) caía al fallback de audio simulado, dejando ver
@@ -324,6 +358,13 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       toast.error('Inicia sesión gratis para escuchar — regístrate o inicia sesión para reproducir música.')
       return
     }
+    // Snapshot de sesión para `repeat-all` (ver `sessionQueueRef`): un
+    // `play()` suelto (sin pasar por `playList`/`advanceQueue`/
+    // `playPrevious`, que pasan `keepSession: true`) es una sesión nueva de
+    // 1 track — sin este reset, reproducir un track suelto después de una
+    // sesión de álbum/playlist dejaría `repeat-all` reencolando la sesión
+    // vieja en vez de repetir el track que realmente está sonando.
+    if (!opts?.keepSession) sessionQueueRef.current = [track]
     // Historial de "anterior": empuja el track que está a punto de ser
     // REEMPLAZADO (no el nuevo) — el historial representa lo que ya sonó.
     // `skipHistory` lo salta cuando `playPrevious` llama a `play()` para
@@ -514,6 +555,23 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     setQueue(tracks)
   }, [])
 
+  // Reproducción "en contexto" (Fase 1, hueco de producto de mayor severidad
+  // de la auditoría): mismo patrón que ya usaba `useRadio.ts` a mano
+  // (play(cola[0]) + replaceQueue(cola.slice(1))), centralizado para que
+  // cualquier card de listado lo use con una sola llamada. `keepSession:
+  // true` evita que el propio `play()` pise el snapshot que se guarda dos
+  // líneas abajo.
+  const playList = useCallback((tracks: PlayableTrack[], startIndex = 0) => {
+    if (tracks.length === 0 || startIndex < 0 || startIndex >= tracks.length) return
+    play(tracks[startIndex], { keepSession: true })
+    sessionQueueRef.current = tracks
+    replaceQueue(tracks.slice(startIndex + 1))
+  }, [play, replaceQueue])
+
+  const setRepeatMode = useCallback((mode: RepeatMode) => {
+    setRepeatModeState(mode)
+  }, [])
+
   const removeFromQueue = useCallback((index: number) => {
     setQueue((prev) => prev.filter((_, i) => i !== index))
   }, [])
@@ -546,18 +604,41 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   // en el que `play` ya existe. Lee `queueRef` (no `queue`) por la misma
   // razón que el resto de refs de este archivo: evita closures obsoletas en
   // esos dos callbacks de larga vida.
-  function advanceQueue() {
+  // `manual` distingue el clic en "Siguiente" (`playNext`, debe avanzar
+  // SIEMPRE, incluso con repeat-one activo — nadie espera que "Siguiente"
+  // repita la misma canción) del fin natural del track (ticker/onStateChange
+  // ENDED, donde repeat-one sí debe reiniciar en vez de avanzar).
+  function advanceQueue(opts?: { manual?: boolean }) {
+    if (!opts?.manual && repeatModeRef.current === 'one') {
+      const track = currentTrackRef.current
+      if (track) play(track, { skipHistory: true, keepSession: true })
+      return
+    }
+
     const next = queueRef.current[0]
-    if (!next) return
-    setQueue((prev) => prev.slice(1))
-    play(next)
+    if (next) {
+      setQueue((prev) => prev.slice(1))
+      play(next, { keepSession: true })
+      return
+    }
+
+    // Cola agotada: repeat-all reencola desde el principio de la sesión
+    // (snapshot de `playList`, no de lo que quedaba en `queue`) en vez de
+    // detenerse — sin sesión guardada (ej. nunca se llamó `playList`), no
+    // hay nada sensato que reencolar y se cae al comportamiento de siempre
+    // (detención limpia, sin crash ni audio fantasma).
+    if (repeatModeRef.current === 'all' && sessionQueueRef.current.length > 0) {
+      const [first, ...rest] = sessionQueueRef.current
+      setQueue(rest)
+      play(first, { keepSession: true })
+    }
   }
 
   // Alias expuesto al consumidor (botón "siguiente" de PlayerBar) — misma
   // función, mismo motivo de ser declaración y no `useCallback` que
   // `advanceQueue`, para no quedar con un `play` obsoleto en el closure.
   function playNext() {
-    advanceQueue()
+    advanceQueue({ manual: true })
   }
 
   // Retrocede sobre `historyRef`: saca el último track sonado y lo reproduce
@@ -568,20 +649,25 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     const previous = historyRef.current.pop()
     if (!previous) return
     setHistoryLength(historyRef.current.length)
-    play(previous, { skipHistory: true })
+    play(previous, { skipHistory: true, keepSession: true })
   }
 
   useEffect(() => () => { clearTimer(); destroyYtPlayer(); stopSimulated() }, [clearTimer, destroyYtPlayer, stopSimulated])
+
+  // Con repeat-all, "Siguiente" sigue teniendo a dónde ir aunque la cola en
+  // vivo esté vacía (reencola la sesión) — sin esto el botón se veía
+  // deshabilitado justo cuando repeat-all garantiza que SÍ hay siguiente.
+  const hasNext = queue.length > 0 || (repeatMode === 'all' && sessionQueueRef.current.length > 0)
 
   return (
     <PlayerContext.Provider
       value={{
         currentTrack, isPlaying, progressMs,
         playbackUnavailable, playbackUnavailableReason: playbackReason,
-        play, togglePlay, seek, stop, reportPlaybackIssue,
-        playNext, playPrevious, hasNext: queue.length > 0, hasPrevious: historyLength > 0,
+        play, playList, togglePlay, seek, stop, reportPlaybackIssue,
+        playNext, playPrevious, hasNext, hasPrevious: historyLength > 0,
         queue, enqueue, enqueueMany, replaceQueue, removeFromQueue, moveInQueue,
-        volume, setVolume,
+        volume, setVolume, repeatMode, setRepeatMode,
       }}
     >
       {children}

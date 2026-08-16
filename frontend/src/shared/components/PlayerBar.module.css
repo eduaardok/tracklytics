@@ -268,6 +268,19 @@
 
 .iconBtnActive { color: var(--color-primary-light); }
 
+/* Distingue repeat-all de repeat-one sin depender solo del color: el ícono
+   ya cambia de forma (Repeat/Repeat1), este punto es la señal extra para
+   repeat-all (mismo ícono que "desactivado", pero con el punto + violeta). */
+.repeatDot {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 5px;
+  height: 5px;
+  border-radius: var(--radius-pill);
+  background: var(--color-primary-light);
+}
+
 .queueWrap {
   position: relative;
   display: flex;

@@ -271,6 +271,7 @@ function PlaylistDetail({ playlistId, onBack }: { playlistId: string; onBack: ()
                 position={i + 1}
                 onRemove={() => removeTrack.mutate(t.fact_id)}
                 removeTitle="Quitar de la playlist"
+                queue={data.data}
               />
             </li>
           ))}

@@ -11,14 +11,21 @@ import { isAuthenticated } from '@shared/lib/session'
 import type { Track } from '../types'
 import styles from './TrackGridCard.module.css'
 
-type Props = { track: Track }
+type Props = {
+  track: Track
+  // Lista completa + indice del track dentro de ella - mismo mecanismo de
+  // encolado automatico que TrackCard (Fase 1, S16), opcional para no
+  // romper usos existentes que no la pasen.
+  queue?: Track[]
+  index?: number
+}
 
 // Vista grid del catálogo (S13 polish visual): la misma fila de TrackCard
 // pero como tarjeta ~180×220 con portada grande — toggle grid/lista en
 // CatalogPage, preferencia recordada en localStorage (ver ui-prefs).
-export function TrackGridCard({ track }: Props) {
+export function TrackGridCard({ track, queue, index }: Props) {
   const navigate = useNavigate()
-  const { play, reportPlaybackIssue } = usePlayer()
+  const { play, playList, reportPlaybackIssue } = usePlayer()
   const { pedirImpresion } = useAd()
 
   function goToDetail() {
@@ -29,7 +36,8 @@ export function TrackGridCard({ track }: Props) {
     e.stopPropagation()
     const authed = isAuthenticated()
     if (authed) await pedirImpresion()
-    play(track)
+    if (queue && queue.length > 0 && index != null) playList(queue, index)
+    else play(track)
     if (authed) {
       bibliotecaApi.registrarReproduccion(track.fact_id).catch((err) => {
         if (err instanceof ApiError && err.status === 403) {

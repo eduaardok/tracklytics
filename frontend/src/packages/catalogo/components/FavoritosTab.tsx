@@ -34,7 +34,7 @@ export function FavoritosTab() {
       )}
       <ul className={styles.trackList} aria-label="Favoritos">
         {tracks.map((t, i) => (
-          <li key={t.fact_id}><LibraryTrackRow track={t} position={i + 1} /></li>
+          <li key={t.fact_id}><LibraryTrackRow track={t} position={i + 1} queue={tracks} /></li>
         ))}
       </ul>
     </>

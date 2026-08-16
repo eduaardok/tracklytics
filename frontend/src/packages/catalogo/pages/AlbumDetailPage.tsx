@@ -97,7 +97,7 @@ export function AlbumDetailPage() {
         <ul className={styles.trackList} aria-label="Canciones de la playlist">
           {tracks.map((track: Track, i: number) => (
             <li key={`${track.fact_id}-${track.track_id}`}>
-              <TrackCard track={track} position={i + 1} />
+              <TrackCard track={track} position={i + 1} queue={tracks} />
             </li>
           ))}
         </ul>

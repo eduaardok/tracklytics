@@ -83,7 +83,7 @@ export function PerfilPublicoPage() {
             ) : (
               <ul className={styles.followedList} style={{ border: 'none' }}>
                 {pl.data.map((t, i) => (
-                  <LibraryTrackRow key={t.fact_id} track={t} position={i + 1} />
+                  <LibraryTrackRow key={t.fact_id} track={t} position={i + 1} queue={pl.data} />
                 ))}
               </ul>
             )}

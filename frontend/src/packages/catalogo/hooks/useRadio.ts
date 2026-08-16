@@ -16,7 +16,7 @@ import { isAuthenticated } from '@shared/lib/session'
  */
 export function useRadio() {
   const [iniciando, setIniciando] = useState(false)
-  const { play, replaceQueue } = usePlayer()
+  const { playList } = usePlayer()
   const toast = useToast()
 
   async function iniciarRadio(factId: number) {
@@ -43,8 +43,10 @@ export function useRadio() {
         duration_ms: 0,
         imagen_url:  t.imagen_url,
       }))
-      play(cola[0])
-      replaceQueue(cola.slice(1))
+      // `playList` (Fase 1, S16): mismo play(cola[0]) + replaceQueue(cola.slice(1))
+      // de siempre, pero ahora también guarda `cola` como snapshot de sesión —
+      // sin eso, repeat-all no tendría nada que reencolar al agotar la radio.
+      playList(cola)
       toast.success(`Radio de "${r.semilla.track_name}" · ${cola.length} canciones`)
     } catch (err) {
       toast.error(apiErrorMessage(err, 'No se pudo iniciar la radio.'))

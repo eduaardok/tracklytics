@@ -41,7 +41,7 @@ export function HistorialTab() {
     <ul className={styles.trackList} aria-label="Historial de reproducción">
       {entries.map((entry, i) => (
         <li key={`${entry.fact_id}-${entry.event_timestamp}`}>
-          <LibraryTrackRow track={entry} position={i + 1} timeAgo={timeAgo(entry.event_timestamp)} />
+          <LibraryTrackRow track={entry} position={i + 1} timeAgo={timeAgo(entry.event_timestamp)} queue={entries} />
         </li>
       ))}
     </ul>

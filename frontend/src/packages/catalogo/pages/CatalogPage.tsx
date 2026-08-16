@@ -329,15 +329,15 @@ function CancionesSection({ genre, onToggleGenre }: CancionesProps) {
       {!isError && !isLoading && tracks.length > 0 && (
         viewMode === 'grid' ? (
           <div className={styles.trackGrid} aria-label="Cuadrícula de tracks">
-            {tracks.map((track: Track) => (
-              <TrackGridCard key={`${track.fact_id}-${track.track_id}`} track={track} />
+            {tracks.map((track: Track, i: number) => (
+              <TrackGridCard key={`${track.fact_id}-${track.track_id}`} track={track} queue={tracks} index={i} />
             ))}
           </div>
         ) : (
           <ol className={styles.list} aria-label="Lista de tracks">
             {tracks.map((track: Track, i: number) => (
               <li key={`${track.fact_id}-${track.track_id}`}>
-                <TrackCard track={track} position={i + 1} />
+                <TrackCard track={track} position={i + 1} queue={tracks} />
               </li>
             ))}
           </ol>
