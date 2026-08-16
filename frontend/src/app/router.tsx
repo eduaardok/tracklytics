@@ -1,14 +1,24 @@
 import { lazy, Suspense, type ComponentType } from 'react'
-import { createBrowserRouter } from 'react-router-dom'
+import { createBrowserRouter, Outlet } from 'react-router-dom'
+import { AuthPromptProvider } from '@shared/context/AuthPromptContext'
+import { PlayerProvider } from '@shared/context/PlayerContext'
 // Import directo (no vía el barrel `@app/layout`): ese índice también
 // re-exporta `AnalyticaShell` de forma estática — importar cualquier cosa de
 // él arrastraría ese módulo (y Recharts con él) de vuelta al bundle
 // principal, anulando el `lazyNamed` de abajo.
 import { AppShell } from '@app/layout/AppShell'
-import { SeguridadShell } from '@app/layout/SeguridadShell'
 import { RouteLoadingFallback } from '@shared/components/RouteLoadingFallback'
 import { NotFoundPage } from '@shared/components/NotFoundPage'
-import { CatalogPage, TrackDetailPage, ArtistDetailPage, AlbumDetailPage, BibliotecaPage } from '@packages/catalogo'
+// Solo lo que de verdad está en el camino crítico de "landing + login" queda
+// eager: AppShell + catálogo público (`/`) + LoginPage. Todo lo demás (perfil,
+// facturación, creadores, social, biblioteca, partners, admin) se sacó del
+// bundle principal con `lazyNamed` (hallazgo real de rendimiento, S16 prompt
+// 09: el bundle principal medía 600kB/176kB gzip — el mismo peso descargaba
+// cualquier visitante de `/login`, incluso sin sesión — ver bloque de abajo).
+import { CatalogPage } from '@packages/catalogo/pages/CatalogPage'
+import { TrackDetailPage } from '@packages/catalogo/pages/TrackDetailPage'
+import { ArtistDetailPage } from '@packages/catalogo/pages/ArtistDetailPage'
+import { AlbumDetailPage } from '@packages/catalogo/pages/AlbumDetailPage'
 import { SearchResultsPage } from '@packages/catalogo/pages/SearchResultsPage'
 // Mismo motivo que el bloque de arriba (`@app/layout`): 6 de estos 7 barrels
 // (seguridad/facturacion/creadores/social/distribucion/experiencia) también
@@ -19,26 +29,7 @@ import { SearchResultsPage } from '@packages/catalogo/pages/SearchResultsPage'
 // tocar el barrel desde código eager (hallazgo real: sin esto, el bundle
 // principal pasó de ~445kB a ~805kB — verificado con `npm run build`).
 import { RequireAuth } from '@packages/seguridad/components/RequireAuth'
-import { PermisosPage } from '@packages/seguridad/pages/PermisosPage'
-import { ErroresPage } from '@packages/seguridad/pages/ErroresPage'
 import { LoginPage } from '@packages/seguridad/pages/LoginPage'
-import { RegisterPage } from '@packages/seguridad/pages/RegisterPage'
-import { AboutPage } from '@packages/seguridad/pages/AboutPage'
-import { ProfilePage } from '@packages/seguridad/pages/ProfilePage'
-import { FacturacionPage } from '@packages/facturacion/pages/FacturacionPage'
-import { InvoiceDetailPage } from '@packages/facturacion/pages/InvoiceDetailPage'
-import { PlanesPage } from '@packages/suscripciones'
-import { CuentaArtistaPage } from '@packages/creadores/pages/CuentaArtistaPage'
-import { SeguidosSocialPage } from '@packages/social/pages/SeguidosSocialPage'
-import { ArtistaSocialPage } from '@packages/social/pages/ArtistaSocialPage'
-import { TrackSocialPage } from '@packages/social/pages/TrackSocialPage'
-import { PerfilPublicoPage } from '@packages/social/pages/PerfilPublicoPage'
-import { DisponibilidadPage } from '@packages/distribucion/pages/DisponibilidadPage'
-import { PartnersConsolePage, PartnersMetricasPage, PartnersLandingPage } from '@packages/partners'
-import { SoportePage } from '@packages/experiencia/pages/SoportePage'
-import { FamiliaAdminPage } from '@packages/experiencia/pages/FamiliaAdminPage'
-import { RecomendacionesPage } from '@packages/experiencia/pages/RecomendacionesPage'
-import { MisGananciasPage } from '@packages/regalias/pages/MisGananciasPage'
 
 // `/analitica` es la única sección con dependencias pesadas (Recharts, ver
 // docs/decisiones-refactorizacion.md §18) que no vale la pena bajar al
@@ -52,6 +43,34 @@ function lazyNamed<P extends object, K extends string>(
 ): ComponentType<P> {
   return lazy(() => loader().then((mod) => ({ default: mod[key] }))) as unknown as ComponentType<P>
 }
+
+// Fuera del camino crítico de landing/login (S16 prompt 09, hallazgo de
+// rendimiento): páginas secundarias que solo se visitan DESPUÉS de iniciar
+// sesión, o que son admin-only — no tenían por qué viajar en el bundle que
+// descarga cualquiera que solo entra a `/login` o navega el catálogo público.
+const SeguridadShell      = lazyNamed(() => import('@app/layout/SeguridadShell'), 'SeguridadShell')
+const PermisosPage        = lazyNamed(() => import('@packages/seguridad/pages/PermisosPage'), 'PermisosPage')
+const ErroresPage         = lazyNamed(() => import('@packages/seguridad/pages/ErroresPage'), 'ErroresPage')
+const RegisterPage        = lazyNamed(() => import('@packages/seguridad/pages/RegisterPage'), 'RegisterPage')
+const AboutPage           = lazyNamed(() => import('@packages/seguridad/pages/AboutPage'), 'AboutPage')
+const ProfilePage         = lazyNamed(() => import('@packages/seguridad/pages/ProfilePage'), 'ProfilePage')
+const FacturacionPage     = lazyNamed(() => import('@packages/facturacion/pages/FacturacionPage'), 'FacturacionPage')
+const InvoiceDetailPage   = lazyNamed(() => import('@packages/facturacion/pages/InvoiceDetailPage'), 'InvoiceDetailPage')
+const PlanesPage          = lazyNamed(() => import('@packages/suscripciones/pages/PlanesPage'), 'PlanesPage')
+const CuentaArtistaPage   = lazyNamed(() => import('@packages/creadores/pages/CuentaArtistaPage'), 'CuentaArtistaPage')
+const SeguidosSocialPage  = lazyNamed(() => import('@packages/social/pages/SeguidosSocialPage'), 'SeguidosSocialPage')
+const ArtistaSocialPage   = lazyNamed(() => import('@packages/social/pages/ArtistaSocialPage'), 'ArtistaSocialPage')
+const TrackSocialPage     = lazyNamed(() => import('@packages/social/pages/TrackSocialPage'), 'TrackSocialPage')
+const PerfilPublicoPage   = lazyNamed(() => import('@packages/social/pages/PerfilPublicoPage'), 'PerfilPublicoPage')
+const DisponibilidadPage  = lazyNamed(() => import('@packages/distribucion/pages/DisponibilidadPage'), 'DisponibilidadPage')
+const PartnersConsolePage  = lazyNamed(() => import('@packages/partners/pages/PartnersConsolePage'), 'PartnersConsolePage')
+const PartnersMetricasPage = lazyNamed(() => import('@packages/partners/pages/PartnersMetricasPage'), 'PartnersMetricasPage')
+const PartnersLandingPage  = lazyNamed(() => import('@packages/partners/pages/PartnersLandingPage'), 'PartnersLandingPage')
+const SoportePage          = lazyNamed(() => import('@packages/experiencia/pages/SoportePage'), 'SoportePage')
+const FamiliaAdminPage     = lazyNamed(() => import('@packages/experiencia/pages/FamiliaAdminPage'), 'FamiliaAdminPage')
+const RecomendacionesPage  = lazyNamed(() => import('@packages/experiencia/pages/RecomendacionesPage'), 'RecomendacionesPage')
+const MisGananciasPage     = lazyNamed(() => import('@packages/regalias/pages/MisGananciasPage'), 'MisGananciasPage')
+const BibliotecaPage       = lazyNamed(() => import('@packages/catalogo/pages/BibliotecaPage'), 'BibliotecaPage')
 
 const AnalyticaShell = lazyNamed(() => import('@app/layout/AnalyticaShell'), 'AnalyticaShell')
 const DashboardPage           = lazyNamed(() => import('@packages/analitica/pages/DashboardPage'), 'DashboardPage')
@@ -131,13 +150,41 @@ const SesionesActivasPage      = lazyNamed(() => import('@packages/seguridad/pag
 // ver docs/BITACORA_S13.md para por qué es 1 componente y no 30.
 const InformeCompuestoPage     = lazyNamed(() => import('@packages/reportes/pages/InformeCompuestoPage'), 'InformeCompuestoPage')
 
+// Ruta raíz de layout, sin path propio — envuelve TODO el árbol de rutas para
+// que `AuthPromptProvider` (modal de "inicia sesión para continuar", con
+// `<Link>` de react-router-dom en su portal) sea descendiente real del
+// Router. Antes vivía en `app/providers/index.tsx`, envolviendo `<App/>`
+// DESDE AFUERA del `<RouterProvider>` — cualquier `<Link>` en su portal caía
+// fuera del árbol del Router y reventaba con "Cannot destructure property
+// 'basename' of ...useContext(...) as it is null" (bug real, reproducido:
+// un visitante sin sesión que toca "Reproducir" dispara el prompt y la app
+// se cae en blanco — encontrado en el barrido final, S16 prompt 09).
+// `PlayerProvider` también vive acá, no en `app/providers/index.tsx`: llama
+// `useAuthPrompt()` (abre el modal de login al intentar reproducir sin
+// sesión), así que necesita ser descendiente de `AuthPromptProvider`.
+function RootLayout() {
+  return (
+    <AuthPromptProvider>
+      <PlayerProvider>
+        <Outlet />
+      </PlayerProvider>
+    </AuthPromptProvider>
+  )
+}
+
 export const router = createBrowserRouter([
+  {
+    element: <RootLayout />,
+    children: [
+  // `/login` es el único de este bloque que se mantiene eager (es literalmente
+  // el destino que este cambio optimiza) — register/acerca-de/partners son
+  // entradas públicas secundarias, ahora lazy.
   { path: '/login',      element: <LoginPage /> },
-  { path: '/register',   element: <RegisterPage /> },
-  { path: '/acerca-de',  element: <AboutPage /> },
+  { path: '/register',   element: <Suspense fallback={<RouteLoadingFallback />}><RegisterPage /></Suspense> },
+  { path: '/acerca-de',  element: <Suspense fallback={<RouteLoadingFallback />}><AboutPage /></Suspense> },
   // Pública, sin sesión — porte de app/partners/landing.html (legacy) al
   // retirar `app/` (consolidación a React, 2026-07-10).
-  { path: '/partners', element: <PartnersLandingPage /> },
+  { path: '/partners', element: <Suspense fallback={<RouteLoadingFallback />}><PartnersLandingPage /></Suspense> },
   {
     path: '/',
     element: <AppShell />,
@@ -235,7 +282,16 @@ export const router = createBrowserRouter([
     path: '/seguridad',
     // Todo lo que cuelga de este shell es admin-only en el backend
     // (require_admin), un solo guard con `roles` alcanza para todo el árbol.
-    element: <RequireAuth roles={['admin']}><SeguridadShell /></RequireAuth>,
+    // SeguridadShell ahora es lazy también (S16 prompt 09) — este Suspense
+    // cubre su propia carga; el Suspense interno de SeguridadShell.tsx cubre
+    // sus páginas hijas (también lazy), igual que AnalyticaShell.
+    element: (
+      <RequireAuth roles={['admin']}>
+        <Suspense fallback={<RouteLoadingFallback />}>
+          <SeguridadShell />
+        </Suspense>
+      </RequireAuth>
+    ),
     children: [
       { index: true,        element: <PermisosPage /> },
       { path: 'usuarios',   element: <UsuariosAdminPage /> },
@@ -289,7 +345,16 @@ export const router = createBrowserRouter([
     // anidarlos bajo `/seguridad/reportes-compuestos/...` conserva el
     // sidebar/chrome admin sin romper esa convención de ruta pedida.
     path: '/reportes',
-    element: <RequireAuth roles={['admin']}><SeguridadShell /></RequireAuth>,
+    // SeguridadShell ahora es lazy también (S16 prompt 09) — este Suspense
+    // cubre su propia carga; el Suspense interno de SeguridadShell.tsx cubre
+    // sus páginas hijas (también lazy), igual que AnalyticaShell.
+    element: (
+      <RequireAuth roles={['admin']}>
+        <Suspense fallback={<RouteLoadingFallback />}>
+          <SeguridadShell />
+        </Suspense>
+      </RequireAuth>
+    ),
     children: [
       { path: ':departamento/:informe', element: <InformeCompuestoPage /> },
     ],
@@ -297,4 +362,6 @@ export const router = createBrowserRouter([
   // Catch-all: sin esto, cualquier URL sin match (typo, enlace viejo) caía en
   // el error boundary por defecto de react-router-dom en vez de una página real.
   { path: '*', element: <NotFoundPage /> },
+    ],
+  },
 ])

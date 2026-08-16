@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react'
+import { Suspense, useEffect, useState } from 'react'
 import { Outlet, NavLink, useLocation } from 'react-router-dom'
+import { RouteLoadingFallback } from '@shared/components/RouteLoadingFallback'
 import {
   LayoutGrid, Library, CreditCard, Receipt, Mic2, Users, Globe, LifeBuoy,
   BarChart3, ShieldCheck, PanelLeftClose, PanelLeftOpen, Sparkles, Coins, type LucideIcon,
@@ -208,7 +209,15 @@ export function AppShell() {
         <main className={`${styles.main} ${currentTrack ? styles.mainWithPlayer : ''}`}>
           <div className={styles.content}>
             <PageTransition>
-              <Outlet />
+              {/* Suspense único para todo el Outlet (mismo patrón que
+                  AnalyticaShell/SeguridadShell): varias rutas hijas ahora son
+                  lazy (biblioteca, perfil, facturación, creadores, social,
+                  etc. — S16 prompt 09, fuera del camino crítico de landing/
+                  login). Catálogo/login se mantienen eager y no disparan
+                  este fallback. */}
+              <Suspense fallback={<RouteLoadingFallback />}>
+                <Outlet />
+              </Suspense>
             </PageTransition>
           </div>
         </main>
