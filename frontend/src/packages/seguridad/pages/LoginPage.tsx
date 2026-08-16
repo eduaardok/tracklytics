@@ -210,6 +210,8 @@ export function LoginPage() {
             </>
           )}
         </div>
+
+        <p className={styles.formContext}>Explora millones de tracks antes de iniciar sesión.</p>
       </div>
 
       <footer className={styles.pageFooter}>

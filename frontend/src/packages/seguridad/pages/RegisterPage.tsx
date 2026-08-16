@@ -203,6 +203,8 @@ export function RegisterPage() {
             ¿Eres sello, productora o distribuidora? <Link to="/acerca-de">Conoce tus opciones</Link>
           </p>
         </div>
+
+        <p className={styles.formContext}>Explora millones de tracks antes de iniciar sesión.</p>
       </div>
 
       <footer className={styles.pageFooter}>

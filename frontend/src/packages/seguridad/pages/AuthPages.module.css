@@ -51,6 +51,26 @@
   pointer-events: none;
 }
 
+/* Nodos conectados en la esquina inferior izquierda (S15-P07, FASE 6) — antes
+   ese espacio quedaba vacío sin función cuando el contenido no llenaba todo
+   el alto del panel (`.hero` centra verticalmente). Opacidad baja a propósito
+   (0.08 claro / 0.12 oscuro): es ambiente, no debe competir con los módulos
+   de datos reales de `.dashboardGrid`. */
+.heroAmbient {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: min(320px, 40%);
+  height: min(220px, 40%);
+  color: var(--color-primary-light);
+  opacity: 0.08;
+  pointer-events: none;
+}
+
+:root[data-theme='dark'] .heroAmbient {
+  opacity: 0.12;
+}
+
 .heroInner {
   position: relative;
   display: flex;
@@ -129,78 +149,64 @@
   max-width: 20ch;
 }
 
-/* Dato real del catálogo bajo el tagline (ver AuthHero.tsx) — antes era una
-   sola línea de texto plano; ahora una card propia (S15-02) con el mismo
-   tratamiento visual que un KPICard, para que el panel no pase directo del
-   tagline a la lista de features sin ningún elemento con peso propio. */
-.statCard {
-  display: flex;
-  align-items: center;
+/* Grilla de módulos de tamaños distintos (S15-P07, FASE 1) — reemplaza el
+   apilado vertical "Top Tracks ancho completo → stats → features en fila"
+   (S16 Fase 4) por una composición real: Top Tracks es el módulo grande,
+   géneros el módulo pequeño que rompe la verticalidad, features/stats
+   comparten la fila de soporte. `grid-template-areas` en vez de flexbox
+   apilado porque el objetivo es tamaño distinto por módulo, no una lista. */
+.dashboardGrid {
+  display: grid;
+  grid-template-columns: 1.5fr 1fr;
+  grid-template-areas:
+    "toptracks genres"
+    "features  stats";
   gap: var(--space-md);
-  padding: var(--space-md);
+}
+
+/* Caja compartida por los 4 módulos — mismo tratamiento visual que el
+   `.statCard`/`.miniDashboard` que reemplaza (surface + borde + sombra), para
+   que "módulo grande" y "módulo pequeño" se lean como la misma familia
+   visual en tamaños distintos, no como componentes dispares. */
+.module {
+  margin: 0;
+  padding: var(--space-sm) var(--space-md);
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-card);
-  max-width: 34ch;
-}
-
-.statIcon {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 40px;
-  height: 40px;
-  flex-shrink: 0;
-  border-radius: var(--radius-md);
-  background: oklch(0.48 0.15 290 / 0.12);
-  color: var(--color-primary-light);
-}
-
-.statBody {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
+  list-style: none;
   min-width: 0;
 }
 
-.statNumber {
-  font-family: var(--font-mono);
-  font-size: 1.25rem;
-  font-weight: 600;
-  line-height: 1.2;
-  color: var(--color-ink);
-  font-variant-numeric: tabular-nums;
-}
-
-.statCaption {
-  font-family: var(--font-sans);
-  font-size: 0.8125rem;
-  color: var(--color-muted);
-}
-
-/* Mini-dashboard "Top tracks" (S16 Fase 4, P4/P5 — auditoría §5.4): datos
-   reales de `/tracks/top` (público, sin auth), reemplaza el collage
-   puramente decorativo que había antes — portada + nombre + popularidad en
-   un solo elemento hace el trabajo del collage (textura visual real) y del
-   dato (P4) a la vez. `AlbumArt` ya trae su propio fallback de gradiente
-   por género para portadas sin resolver. */
-.miniDashboard {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-sm);
-  padding: var(--space-md);
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-card);
-}
-
-.miniDashboardLabel {
+.moduleLabel {
+  display: block;
   font-family: var(--font-sans);
   font-size: 0.75rem;
   font-weight: 600;
   color: var(--color-muted);
+  margin-bottom: var(--space-sm);
+}
+
+/* Barra corta compartida por "Top tracks" (junto al score ★) y "Popularidad
+   por género" — mismo patrón visual (pista + relleno en gradiente de marca),
+   solo cambia el ancho: fija y angosta junto al score, flexible en la fila
+   de género. */
+.barFill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--color-primary-light), var(--color-accent));
+}
+
+/* ── Módulo grande: Top tracks (S16 Fase 4 P4/P5, extendido S15-P07 FASE 2) ──
+   `/tracks/top` público, sin auth. `AlbumArt` ya trae su propio fallback de
+   gradiente por género para portadas sin resolver. Sin indicador de
+   tendencia: no existe un campo de variación de posición/popularidad en este
+   endpoint (confirmado en `queries.py` antes de diseñar la fila) — mostrar
+   una flecha inventada sería un dato falso, así que se omite por completo. */
+.moduleTopTracks {
+  grid-area: toptracks;
 }
 
 .topTracksList {
@@ -248,8 +254,17 @@
   white-space: nowrap;
 }
 
-.topTrackPop {
+/* Score ★ + barra corta de popularidad apilados (S15-P07 FASE 2) — el número
+   ya existía, la barra es el indicador visual adicional que pide el brief. */
+.topTrackMeta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 3px;
   flex-shrink: 0;
+}
+
+.topTrackPop {
   font-family: var(--font-mono);
   font-size: 0.75rem;
   font-weight: 600;
@@ -257,14 +272,77 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* 2 columnas en vez de lista vertical de 4 (S16 Fase 4, G4 — DESIGN.md:264
-   prohíbe el patrón "identical card grid" repetido; compactar a grilla es
-   la forma más barata de salir de esa repetición sin recortar contenido). */
-.features {
+.miniBarTrack {
+  width: 44px;
+  height: 4px;
+  border-radius: var(--radius-pill);
+  background: var(--color-border);
+  overflow: hidden;
+}
+
+/* ── Módulo pequeño: popularidad por género (S15-P07 FASE 3) — segunda
+   visualización, `/genres` público. Sin sparkline de tendencia: no existe
+   ningún endpoint público de series temporales/crecimiento agregado en este
+   backend (confirmado en FASE 0 revisando `router.py`), así que la segunda
+   visualización es esta (Opción A del prompt), no una inventada. */
+.moduleGenres {
+  grid-area: genres;
+}
+
+.genreBarList {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  list-style: none;
+}
+
+.genreBarRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+}
+
+.genreBarName {
+  flex: 0 0 auto;
+  max-width: 9ch;
+  font-family: var(--font-sans);
+  font-size: 0.6875rem;
+  color: var(--color-ink);
+  text-transform: capitalize;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.genreBarTrack {
+  flex: 1;
+  min-width: 16px;
+  height: 5px;
+  border-radius: var(--radius-pill);
+  background: var(--color-border);
+  overflow: hidden;
+}
+
+.genreBarValue {
+  flex-shrink: 0;
+  width: 2.5ch;
+  text-align: right;
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  color: var(--color-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Soporte visual integrado: features (S15-P07 FASE 5) ── mismo contenido
+   e íconos que antes (S16 Fase 4, G4 — DESIGN.md:264 sigue prohibiendo el
+   "identical card grid"); lo que cambia es que ahora vive dentro de la
+   grilla general como un módulo más, en vez de una fila suelta al final. */
+.moduleFeatures {
+  grid-area: features;
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: var(--space-md);
-  list-style: none;
+  gap: var(--space-sm) var(--space-md);
+  align-content: start;
 }
 
 .feature {
@@ -305,6 +383,60 @@
   color: var(--color-muted);
 }
 
+/* ── Módulo pequeño: estadísticas reales (S15-P07 FASE 4) — 2 stats reales
+   (tracks totales, géneros catalogados) en vez del `.statCard` único de
+   antes. Sin artistas ni crecimiento semanal: no hay endpoint público que
+   devuelva un total real de artistas (`/artists/search` limita a 100, no es
+   un conteo) ni una serie de variación semanal — se omiten en vez de
+   mockearse (preferible 2 stats reales a 4 con datos falsos). */
+.moduleStats {
+  grid-area: stats;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: var(--space-sm);
+}
+
+.statItem {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.statIcon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  border-radius: var(--radius-md);
+  background: oklch(0.48 0.15 290 / 0.12);
+  color: var(--color-primary-light);
+}
+
+.statBody {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.statNumber {
+  font-family: var(--font-mono);
+  font-size: 1rem;
+  font-weight: 600;
+  line-height: 1.2;
+  color: var(--color-ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.statCaption {
+  font-family: var(--font-sans);
+  font-size: 0.6875rem;
+  color: var(--color-muted);
+}
+
 .techs {
   display: flex;
   gap: var(--space-sm);
@@ -321,10 +453,37 @@
 
 /* ── Form panel ── */
 .formPanel {
+  position: relative;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: var(--space-md);
   padding: var(--space-lg);
+  overflow: hidden;
+}
+
+/* Composición sutil detrás del card (S15-P07, FASE 7) — antes el panel
+   derecho era una tarjeta flotando sobre fondo liso; anillos concéntricos +
+   glow muy tenue, mismo criterio de intensidad que `.heroAmbient`, para que
+   deje de sentirse "card flotando en blanco" sin competir con el formulario.
+   `::before` en vez de un nodo propio: pinta antes que `.card`/`.formContext`
+   en el orden normal del documento, así queda detrás sin necesitar z-index. */
+.formPanel::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(380px 380px at 50% 40%, oklch(0.48 0.15 290 / 0.10), transparent 62%),
+    repeating-radial-gradient(
+      circle at 50% 40%,
+      transparent 0 48px,
+      oklch(0.70 0.14 195 / 0.05) 49px 51px,
+      transparent 52px 100px,
+      oklch(0.48 0.15 290 / 0.045) 101px 103px,
+      transparent 104px 152px
+    );
+  pointer-events: none;
 }
 
 /* Antes era un contenedor sin fondo/borde propio (solo layout) — la tarjeta
@@ -357,6 +516,17 @@
   height: 3px;
   border-radius: var(--radius-pill);
   background: linear-gradient(90deg, var(--color-primary), var(--color-accent));
+}
+
+/* Mensaje contextual de una línea debajo del card (S15-P07, FASE 7) — no
+   agranda el card ni duplica el link "Explorar el catálogo sin iniciar
+   sesión" de adentro (ese es una acción, esto es contexto ambiental). */
+.formContext {
+  max-width: 380px;
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+  color: var(--color-muted);
+  text-align: center;
 }
 
 .cardTitle {
@@ -593,7 +763,85 @@
 
   .heroInner { gap: var(--space-sm); }
 
-  .statCard, .miniDashboard, .features, .techs {
+  .dashboardGrid, .techs {
     display: none;
+  }
+}
+
+/* Viewports bajos de escritorio (1366×768 es el caso de referencia real,
+   S15-P07 FASE 7) — con la grilla de 4 módulos nueva, el espaciado por
+   defecto de `.hero` empujaba `.pageFooter` fuera del viewport. Se ajusta
+   el espaciado vertical (no se oculta el footer) para que el conjunto
+   hero + footer quepa sin scroll; `.techs` es el único contenido puramente
+   decorativo (dos pills redundantes con `/acerca-de`), así que es lo primero
+   que cede espacio. Ámbito por altura, no por ancho — el breakpoint de
+   860px de arriba ya resuelve mobile aparte. */
+@media (max-height: 820px) {
+  .hero {
+    padding: var(--space-lg) var(--space-2xl);
+  }
+
+  .heroInner {
+    gap: var(--space-sm);
+  }
+
+  .dashboardGrid {
+    gap: var(--space-sm);
+  }
+
+  .module {
+    padding: var(--space-xs) var(--space-sm);
+  }
+
+  .moduleLabel {
+    margin-bottom: var(--space-xs);
+  }
+
+  .headline {
+    font-size: 1.625rem;
+    max-width: 28ch;
+  }
+
+  .techs {
+    display: none;
+  }
+
+  /* RegisterPage tiene más campos que LoginPage (nombre/email/password/país/
+     tipo de cuenta) — a esta altura de viewport es el panel más alto de los
+     dos, así que el ajuste llega hasta el nivel de campo/botón individual,
+     no solo los gaps del card. */
+  .formPanel {
+    padding: var(--space-md);
+    gap: var(--space-sm);
+  }
+
+  .card {
+    padding: var(--space-sm) var(--space-xl);
+    gap: var(--space-xs);
+  }
+
+  .form {
+    gap: var(--space-xs);
+  }
+
+  .input {
+    height: 38px;
+    padding: 8px var(--space-md);
+  }
+
+  .roleGrid {
+    gap: var(--space-xs);
+  }
+
+  .roleCard {
+    padding: 6px var(--space-sm);
+  }
+
+  .submit {
+    height: 40px;
+  }
+
+  .pageFooter {
+    padding: var(--space-xs) var(--space-md);
   }
 }
