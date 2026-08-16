@@ -28,7 +28,7 @@ function DisponibilidadTooltip({ active, payload, label }: {
       <p className={styles.tooltipLabel}>Semana {label}</p>
       <div className={styles.tooltipRow}>
         <span className={styles.tooltipKey} aria-hidden="true" />
-        <span className={styles.tooltipName}>Disponibilidad</span>
+        <span className={styles.tooltipName}>Uptime</span>
         <span className={styles.tooltipValue}>{payload[0].value.toFixed(2)}%</span>
       </div>
     </div>
@@ -75,7 +75,13 @@ function ComponentePanel({ componente, data }: { componente: string; data: Dispo
 }
 
 export function DisponibilidadInfraPage() {
-  useDocumentTitle('Disponibilidad de infraestructura')
+  // FASE 5 (Prompt 10): renombrado visible de "Disponibilidad" (académica,
+  // uptime de infraestructura simulado) a "Salud del Sistema" — compartía el
+  // mismo nombre en el sidebar que `DisponibilidadPage` (distribución,
+  // licencias de contenido por país, negocio real), causando confusión. Solo
+  // texto visible: archivo/componente/ruta se mantienen sin cambios (ver
+  // comentario de arriba, ya documentaba la distinción con `DisponibilidadPage`).
+  useDocumentTitle('Salud del sistema')
   const reportRef = useRef<HTMLElement>(null)
   const disponibilidad = useQuery({
     queryKey: ['analitica', 'disponibilidad'],
@@ -88,23 +94,23 @@ export function DisponibilidadInfraPage() {
   return (
     <section className={styles.page} ref={reportRef}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--space-md)', flexWrap: 'wrap' }}>
-        <h1 className={styles.heading}>Disponibilidad de infraestructura</h1>
-        <ExportPDFButton targetRef={reportRef} fileName="analitica-disponibilidad-infra" title="Disponibilidad de infraestructura" />
+        <h1 className={styles.heading}>Salud del sistema</h1>
+        <ExportPDFButton targetRef={reportRef} fileName="analitica-salud-sistema" title="Salud del sistema" />
       </div>
       <span className={styles.subtitle}>
-        {componentes.length > 0 ? `// ${componentes.length} componentes` : '// % de disponibilidad por componente y semana'}
+        {componentes.length > 0 ? `// ${componentes.length} componentes` : '// % de uptime por componente y semana'}
       </span>
 
       {disponibilidad.isLoading && <div className={styles.panel} style={{ minHeight: 200 }} />}
 
       {disponibilidad.isError && (
         <div className={styles.panel}>
-          <p className={styles.panelError}>No se pudo cargar la disponibilidad de infraestructura.</p>
+          <p className={styles.panelError}>No se pudo cargar la salud del sistema.</p>
         </div>
       )}
 
       {!disponibilidad.isLoading && !disponibilidad.isError && componentes.length === 0 && (
-        <EmptyState icon="◔" title="Sin datos de disponibilidad todavía" />
+        <EmptyState icon="◔" title="Sin datos de salud del sistema todavía" />
       )}
 
       {componentes.length > 0 && (
