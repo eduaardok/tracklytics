@@ -203,11 +203,22 @@ def _notificar_comentario(tipo: str, autor_id: str, body: ComentarioBody, padre:
     # notifica al autor del comentario padre; un comentario raíz notifica al
     # dueño de la cuenta de artista que subió el track (si es resoluble — ver
     # AUTOR_TRACK_POR_FACT_ID). Nunca se autonotifica el propio autor.
+    #
+    # S16 (auditoría de revisores, "notificación de comentario rota/
+    # inconsistente"): la respuesta usaba `referencia_tipo="comentario"` +
+    # `comentario_padre_id`, pero no existe ninguna vista de "detalle de
+    # comentario" ni el frontend (`NotificationBell.abrir()`) sabía navegar
+    # ahí — el clic no hacía nada. Ambas ramas ahora notifican con
+    # `referencia_tipo="track"` + `fact_id_track` (el track SIEMPRE es
+    # resoluble en las dos, `body.fact_id_track` es un campo obligatorio del
+    # comentario, no solo del padre), igual que ya funcionaba para el
+    # comentario raíz — el hilo completo, incluida la respuesta nueva, es
+    # visible ahí.
     if tipo == "comentario_respuesta":
         destino = (padre or {}).get("usuario_id")
         if destino and destino != autor_id:
             notificaciones.crear(
-                destino, "comentario_en_tu_contenido", "comentario", str(body.comentario_padre_id),
+                destino, "comentario_en_tu_contenido", "track", str(body.fact_id_track),
                 "Alguien respondió tu comentario",
             )
     else:
