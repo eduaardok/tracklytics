@@ -132,6 +132,67 @@ FACT_ID_EXISTS = """
 SELECT 1 FROM FACT_TRACKS WHERE fact_id = {fact_id:UInt64} LIMIT 1
 """
 
+# Like/dislike (RN-ANA-001, S16 prompt 09): estado NETO actual por usuario —
+# igual que COUNT_FAVORITOS, se toma el último evento entre 'like'/'dislike'/
+# 'voto_remove' por usuario (no el conteo crudo de eventos, que es lo que sí
+# usa raw_score en `analitica` a propósito, mismo criterio ya establecido
+# para favorito_add).
+# Desempate por `event_seq` (DateTime64(6)), no `event_timestamp` (DateTime,
+# resolución de 1s): hallazgo real en verificación — like→dislike→like en
+# menos de un segundo (doble click, o el propio guion de pruebas) resolvía
+# al valor incorrecto porque argMax(event_type, event_timestamp) no podía
+# desempatar dos eventos con el mismo segundo. `COUNT_FAVORITOS`/
+# `FAVORITOS_ACTUALES` más abajo comparten el mismo patrón con
+# `event_timestamp` — no se tocan acá (fuera de alcance de este cambio).
+LIKES_DISLIKES_COUNT = """
+SELECT
+    countIf(last_event = 'like')    AS likes,
+    countIf(last_event = 'dislike') AS dislikes
+FROM (
+    SELECT argMax(event_type, event_seq) AS last_event
+    FROM FACT_ENGAGEMENT_USUARIO
+    WHERE fact_id = {fact_id:UInt64} AND event_type IN ('like', 'dislike', 'voto_remove')
+    GROUP BY user_id
+)
+"""
+
+VOTO_USUARIO_ACTUAL = """
+SELECT argMax(event_type, event_seq) AS last_event
+FROM FACT_ENGAGEMENT_USUARIO
+WHERE fact_id = {fact_id:UInt64} AND user_id = {user_id:String}
+  AND event_type IN ('like', 'dislike', 'voto_remove')
+"""
+
+# Versión batch de LIKES_DISLIKES_COUNT/VOTO_USUARIO_ACTUAL — hallazgo real de
+# rendimiento (S16 prompt 09): TrackCard pedía el conteo de likes por track de
+# forma individual, y un listado de catálogo (20+ tracks por página) disparaba
+# 20+ GET simultáneos a este mismo endpoint, saturando el pool de conexiones
+# de ClickHouse (503 real, reproducido con Playwright — no hipotético) además
+# de ser, en sí, la razón concreta de "todo carga lento" que reportó el
+# usuario. El frontend agrupa (`useLikes.ts`) todos los `fact_id` pedidos en
+# la misma vuelta de evento en una sola llamada a este endpoint.
+LIKES_DISLIKES_BATCH = """
+SELECT
+    fact_id,
+    countIf(last_event = 'like')    AS likes,
+    countIf(last_event = 'dislike') AS dislikes
+FROM (
+    SELECT fact_id, argMax(event_type, event_seq) AS last_event
+    FROM FACT_ENGAGEMENT_USUARIO
+    WHERE fact_id IN {fact_ids:Array(UInt64)} AND event_type IN ('like', 'dislike', 'voto_remove')
+    GROUP BY fact_id, user_id
+)
+GROUP BY fact_id
+"""
+
+VOTOS_USUARIO_BATCH = """
+SELECT fact_id, argMax(event_type, event_seq) AS last_event
+FROM FACT_ENGAGEMENT_USUARIO
+WHERE fact_id IN {fact_ids:Array(UInt64)} AND user_id = {user_id:String}
+  AND event_type IN ('like', 'dislike', 'voto_remove')
+GROUP BY fact_id
+"""
+
 # Hidratación en batch para tracks de una playlist (PocketBase solo guarda
 # fact_id/position en `playlist_tracks` — el detalle real vive en ClickHouse).
 # PERF: mismo fix que FAVORITOS_ACTUALES — `ga` filtrada por los track_id de

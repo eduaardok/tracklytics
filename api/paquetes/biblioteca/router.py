@@ -6,11 +6,12 @@ from fastapi import APIRouter, Depends, HTTPException, Path, Query
 from pydantic import BaseModel, EmailStr, Field
 
 from core.database import get_client, query_one, query_rows
-from core.deps import require_b2c_user
+from core.deps import get_current_user_optional, require_b2c_user
 from core.featuring import enriquecer_featuring
 from paquetes.biblioteca import pb_playlists
 from paquetes.biblioteca.queries import (
-    COUNT_FAVORITOS, FACT_ID_EXISTS, FAVORITOS_ACTUALES, HISTORIAL_RECIENTE, TRACKS_BY_FACT_IDS,
+    COUNT_FAVORITOS, FACT_ID_EXISTS, FAVORITOS_ACTUALES, HISTORIAL_RECIENTE, LIKES_DISLIKES_BATCH,
+    LIKES_DISLIKES_COUNT, TRACKS_BY_FACT_IDS, VOTO_USUARIO_ACTUAL, VOTOS_USUARIO_BATCH,
 )
 from paquetes.distribucion.router import registrar_restriccion_reproduccion, resolver_pais_id, restriccion_activa
 from paquetes.experiencia.queries import USUARIO_POR_EMAIL
@@ -90,6 +91,88 @@ async def remove_favorito(fact_id: int = Path(..., ge=1), user: dict = Depends(r
     _assert_fact_exists(fact_id)
     _insert_event(user_id, fact_id, "favorito_remove")
     return {"status": "ok"}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Like/dislike (RN-ANA-001, autorizado por Eduardo en S16 prompt 09): mismo
+# patrón de evento que favoritos (_insert_event), mutuamente excluyentes por
+# usuario+track — insertar 'like' retira un 'dislike' vigente y viceversa
+# porque el estado se resuelve por el ÚLTIMO evento (argMax), sin necesidad
+# de borrar la fila anterior. `voto_remove` no compone raw_score (solo
+# 'like' lo hace) — existe únicamente para que DELETE pueda anular un voto
+# sin inventar un evento con significado de negocio.
+# ─────────────────────────────────────────────────────────────────────────────
+
+@router.post("/tracks/{fact_id}/like")
+async def like_track(fact_id: int = Path(..., ge=1), user: dict = Depends(require_b2c_user)):
+    _assert_fact_exists(fact_id)
+    _insert_event(user["record"]["id"], fact_id, "like")
+    return {"status": "ok"}
+
+
+@router.post("/tracks/{fact_id}/dislike")
+async def dislike_track(fact_id: int = Path(..., ge=1), user: dict = Depends(require_b2c_user)):
+    _assert_fact_exists(fact_id)
+    _insert_event(user["record"]["id"], fact_id, "dislike")
+    return {"status": "ok"}
+
+
+@router.delete("/tracks/{fact_id}/like")
+async def quitar_voto_track(fact_id: int = Path(..., ge=1), user: dict = Depends(require_b2c_user)):
+    _assert_fact_exists(fact_id)
+    _insert_event(user["record"]["id"], fact_id, "voto_remove")
+    return {"status": "ok"}
+
+
+@router.get("/tracks/{fact_id}/likes")
+async def get_likes(fact_id: int = Path(..., ge=1), user: dict | None = Depends(get_current_user_optional)):
+    _assert_fact_exists(fact_id)
+    counts = query_one(LIKES_DISLIKES_COUNT, {"fact_id": fact_id}) or {"likes": 0, "dislikes": 0}
+    voto = None
+    if user is not None:
+        row = query_one(VOTO_USUARIO_ACTUAL, {"fact_id": fact_id, "user_id": user["record"]["id"]})
+        last_event = row["last_event"] if row else None
+        voto = last_event if last_event in ("like", "dislike") else None
+    return {"likes": counts["likes"], "dislikes": counts["dislikes"], "voto": voto}
+
+
+# Batch (hallazgo real de rendimiento, S16 prompt 09): un listado de catálogo
+# renderiza N TrackCard a la vez, y cada uno pedía su propio GET .../likes —
+# un listado de 20 tracks disparaba 20 GET simultáneos, saturando el pool de
+# conexiones de ClickHouse (503 real, reproducido). `useLikes.ts` agrupa esos
+# N pedidos en uno solo contra este endpoint.
+@router.get("/tracks/likes")
+async def get_likes_batch(
+    fact_ids: str = Query(..., description="fact_id separados por coma, máx. 200"),
+    user: dict | None = Depends(get_current_user_optional),
+):
+    try:
+        ids = [int(x) for x in fact_ids.split(",") if x.strip()]
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail="fact_ids debe ser una lista de enteros separados por coma") from exc
+    if not ids:
+        return {"data": {}}
+    if len(ids) > 200:
+        raise HTTPException(status_code=422, detail="Máximo 200 fact_ids por consulta")
+
+    counts_by_fact = {r["fact_id"]: r for r in query_rows(LIKES_DISLIKES_BATCH, {"fact_ids": ids})}
+    votos_by_fact: dict[int, str] = {}
+    if user is not None:
+        votos_by_fact = {
+            r["fact_id"]: r["last_event"]
+            for r in query_rows(VOTOS_USUARIO_BATCH, {"fact_ids": ids, "user_id": user["record"]["id"]})
+        }
+
+    return {
+        "data": {
+            str(fid): {
+                "likes": counts_by_fact.get(fid, {}).get("likes", 0),
+                "dislikes": counts_by_fact.get(fid, {}).get("dislikes", 0),
+                "voto": votos_by_fact.get(fid) if votos_by_fact.get(fid) in ("like", "dislike") else None,
+            }
+            for fid in ids
+        }
+    }
 
 
 @router.get("/historial")

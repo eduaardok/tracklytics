@@ -111,7 +111,10 @@ GROUP BY load_week
 ORDER BY load_week
 """
 
-# raw_score por fact_id: reproduccion x1 + favorito_add x3 (RF-ANA-006).
+# raw_score por fact_id: reproduccion x1 + favorito_add x3 + like x2
+# (RF-ANA-006, RN-ANA-001 modificada — autorizado por Eduardo en S16 prompt
+# 09: like suma puntos, dislike NO resta — se muestra en UI para
+# transparencia social pero no compone el score).
 # No existe un evento de tipo "playlist_add" en FACT_ENGAGEMENT_USUARIO hoy
 # (ver decisiones de diseño), por lo que ese término del raw_score es 0.
 ENGAGEMENT_BY_FACT = f"""
@@ -119,14 +122,14 @@ WITH agg AS (
     SELECT
         countIf(event_type = 'reproduccion') AS reproducciones,
         countIf(event_type = 'favorito_add') AS favoritos,
-        countIf(event_type = 'reproduccion') + countIf(event_type = 'favorito_add') * 3 AS raw_score
+        countIf(event_type = 'reproduccion') + countIf(event_type = 'favorito_add') * 3 + countIf(event_type = 'like') * 2 AS raw_score
     FROM {_DB}.FACT_ENGAGEMENT_USUARIO
     WHERE fact_id = {{fact_id:UInt64}}
 ),
 max_raw AS (
     SELECT max(raw) AS max_raw_score
     FROM (
-        SELECT countIf(event_type = 'reproduccion') + countIf(event_type = 'favorito_add') * 3 AS raw
+        SELECT countIf(event_type = 'reproduccion') + countIf(event_type = 'favorito_add') * 3 + countIf(event_type = 'like') * 2 AS raw
         FROM {_DB}.FACT_ENGAGEMENT_USUARIO
         GROUP BY fact_id
     )
@@ -149,14 +152,14 @@ agg AS (
     SELECT
         countIf(event_type = 'reproduccion') AS reproducciones,
         countIf(event_type = 'favorito_add') AS favoritos,
-        countIf(event_type = 'reproduccion') + countIf(event_type = 'favorito_add') * 3 AS raw_score
+        countIf(event_type = 'reproduccion') + countIf(event_type = 'favorito_add') * 3 + countIf(event_type = 'like') * 2 AS raw_score
     FROM {_DB}.FACT_ENGAGEMENT_USUARIO
     WHERE fact_id IN (SELECT fact_id FROM artist_facts)
 ),
 max_raw AS (
     SELECT max(raw) AS max_raw_score
     FROM (
-        SELECT countIf(event_type = 'reproduccion') + countIf(event_type = 'favorito_add') * 3 AS raw
+        SELECT countIf(event_type = 'reproduccion') + countIf(event_type = 'favorito_add') * 3 + countIf(event_type = 'like') * 2 AS raw
         FROM {_DB}.FACT_ENGAGEMENT_USUARIO
         GROUP BY fact_id
     )
@@ -383,13 +386,13 @@ ORDER BY dia
 """
 
 # Top géneros por engagement real — mismo raw_score que ENGAGEMENT_BY_FACT/
-# ENGAGEMENT_BY_ARTIST (reproduccion x1 + favorito_add x3), agregado por
-# género en vez de por track/artista, para no inventar una fórmula de
+# ENGAGEMENT_BY_ARTIST (reproduccion x1 + favorito_add x3 + like x2), agregado
+# por género en vez de por track/artista, para no inventar una fórmula de
 # scoring distinta a la ya usada en el resto de `analitica`.
 DASHBOARD_ENGAGEMENT_POR_GENERO = """
 SELECT
     g.name                                                                        AS name,
-    countIf(e.event_type = 'reproduccion') + countIf(e.event_type = 'favorito_add') * 3 AS value
+    countIf(e.event_type = 'reproduccion') + countIf(e.event_type = 'favorito_add') * 3 + countIf(e.event_type = 'like') * 2 AS value
 FROM FACT_ENGAGEMENT_USUARIO e
 JOIN FACT_TRACKS ft ON e.fact_id = ft.fact_id
 JOIN DIM_GENRES g ON ft.genre_id = g.genre_id

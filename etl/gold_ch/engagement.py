@@ -19,6 +19,16 @@ semana calendario anterior cuando la granularidad es 'mes'/'trimestre'/
 `etl/gold/backfill_negocio.py` genera reproducciones/favoritos reales para
 los 24 meses de historia — un período o género sin actividad real no tiene
 fila.
+
+Like/dislike (S16 prompt 09, RN-ANA-001) NO se incorpora a
+`engagement_score_promedio`: esta fórmula (reproducciones + favoritos×2 +
+playlist_adds×3) es una métrica de negocio propia para el rollup de
+período/género, independiente del `raw_score` de RF-ANA-006
+(`api/paquetes/analitica/queries.py`, reproduccion×1 + favorito_add×3 +
+like×2) que sí se actualizó. Ya eran fórmulas distintas antes de este
+cambio (pesos distintos, incluye playlist_adds que RF-ANA-006 no tiene) —
+sumar like aquí requeriría decidir su peso en un contexto de negocio
+distinto, fuera del alcance autorizado (solo RN-ANA-001/raw_score).
 """
 
 import time

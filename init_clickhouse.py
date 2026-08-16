@@ -276,10 +276,25 @@ DDL_STATEMENTS = [
         engagement_id   UUID DEFAULT generateUUIDv4(),
         user_id         String,
         fact_id         UInt64,
-        event_type      Enum8('favorito_add'=1, 'favorito_remove'=2, 'reproduccion'=3),
+        event_type      Enum8(
+            'favorito_add'=1, 'favorito_remove'=2, 'reproduccion'=3,
+            'like'=4, 'dislike'=5, 'voto_remove'=6
+        ),
         event_timestamp DateTime DEFAULT now(),
         is_synthetic    Bool,
-        source          Enum8('app'=1, 'referencia'=2)
+        source          Enum8('app'=1, 'referencia'=2),
+        -- Desempate de microsegundos para resolver "último evento" cuando dos
+        -- toggles caen en el mismo segundo (`event_timestamp` es DateTime, no
+        -- DateTime64) — hallazgo real en verificación de like/dislike (S16
+        -- prompt 09): like→dislike→like en <1s resolvía al valor incorrecto
+        -- porque argMax(event_type, event_timestamp) no podía desempatar.
+        -- Fuera del sort key (ORDER BY) a propósito: agregarla no reescribe
+        -- el índice disperso de la tabla existente. El mismo patrón de
+        -- argMax(event_type, event_timestamp) existe también en
+        -- `experiencia/queries.py` y `seguridad/exportacion.py` — no se toca
+        -- acá (fuera de alcance de este prompt), documentado como hallazgo
+        -- pendiente.
+        event_seq       DateTime64(6) DEFAULT now64(6)
     ) ENGINE = MergeTree()
     ORDER BY (user_id, event_timestamp)
     """,
