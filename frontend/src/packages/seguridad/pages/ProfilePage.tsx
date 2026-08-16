@@ -17,6 +17,8 @@ import { experienciaApi } from '@packages/experiencia/api/experiencia.api'
 // ModeracionSocialPage con Recharts al bundle principal — ver router.tsx).
 import { socialApi } from '@packages/social/api/social.api'
 import type { MiFamilia } from '@packages/experiencia/types'
+import { Users } from 'lucide-react'
+import { EmptyState } from '@shared/components/EmptyState'
 import { authApi } from '../api/auth.api'
 import styles from './ProfilePage.module.css'
 
@@ -158,6 +160,16 @@ export function ProfilePage() {
       toast.success('Sesión cerrada')
     },
     onError: (err) => toast.error(apiErrorMessage(err, 'No se pudo cerrar la sesión.')),
+  })
+
+  // FASE 2 (Prompt 10): cierre masivo, preserva la sesión actual.
+  const cerrarOtrasSesiones = useMutation({
+    mutationFn: () => authApi.cerrarOtrasSesiones(),
+    onSuccess:  (res) => {
+      queryClient.invalidateQueries({ queryKey: SESIONES_QUERY_KEY })
+      toast.success(res.sesiones_cerradas > 0 ? `${res.sesiones_cerradas} sesión(es) cerrada(s)` : 'No había otras sesiones abiertas')
+    },
+    onError: (err) => toast.error(apiErrorMessage(err, 'No se pudieron cerrar las demás sesiones.')),
   })
 
   // Perfiles públicos/privados (S10 ronda 2): `perfil_publico` no vive en
@@ -379,6 +391,23 @@ export function ProfilePage() {
         <h2 className={styles.sectionTitle}>Mis sesiones</h2>
         <p className={styles.note}>Dispositivos donde tienes una sesión abierta ahora mismo.</p>
 
+        {(sesionesQuery.data?.data ?? []).length > 1 && (
+          <button
+            type="button"
+            className={styles.btnGhost}
+            disabled={cerrarOtrasSesiones.isPending}
+            onClick={async () => {
+              const ok = await confirm(
+                'Se cerrarán todas tus sesiones abiertas en otros dispositivos. Este dispositivo no se verá afectado.',
+                { confirmLabel: 'Cerrar todas las demás' },
+              )
+              if (ok) cerrarOtrasSesiones.mutate()
+            }}
+          >
+            Cerrar todas las demás sesiones
+          </button>
+        )}
+
         {sesionesQuery.isLoading ? (
           <p className={styles.kvValue}>Cargando…</p>
         ) : sesionesQuery.isError ? (
@@ -391,7 +420,7 @@ export function ProfilePage() {
                 <div key={s.sesion_id} className={styles.familiaMiembroRow}>
                   <span>
                     {s.tipo ?? 'Dispositivo'} · {s.os ?? 'SO desconocido'} · {fmtDateTime(s.fecha_inicio)}
-                    {esActual && <span className={styles.note}> (este dispositivo)</span>}
+                    {esActual && <span className={styles.badgeEsteDispositivo}>Este dispositivo</span>}
                   </span>
                   {!esActual && (
                     <button
@@ -442,15 +471,13 @@ export function ProfilePage() {
             <p className={styles.kvValue}>Cargando…</p>
           ) : !familia?.suscripcion_id ? (
             <>
-              <p className={styles.note}>Comparte tu plan Premium con hasta 5 personas.</p>
-              <button
-                type="button"
-                className={styles.btnPrimary}
-                disabled={crearFamilia.isPending}
-                onClick={() => crearFamilia.mutate()}
-              >
-                {crearFamilia.isPending ? 'Creando…' : 'Crear plan familiar'}
-              </button>
+              <EmptyState
+                icon={<Users size={28} />}
+                title="Todavía no tienes un plan familiar"
+                body="Comparte tu plan Premium con hasta 5 personas y todas disfrutan de la experiencia sin anuncios."
+                actionLabel={crearFamilia.isPending ? 'Creando…' : 'Crear plan familiar'}
+                onAction={() => { if (!crearFamilia.isPending) crearFamilia.mutate() }}
+              />
               {crearFamilia.isError && <p className={styles.formError}>No se pudo crear el plan familiar.</p>}
             </>
           ) : (

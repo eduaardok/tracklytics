@@ -110,6 +110,16 @@ export const authApi = {
   cerrarSesionRemota: (sesionId: string) =>
     apiClient.delete<{ status: string }>(`/seguridad/sesiones/${sesionId}`),
 
+  // FASE 2 (Prompt 10): cierre masivo self-service — cierra todas las
+  // sesiones abiertas EXCEPTO la del dispositivo actual (identificado por
+  // `getDeviceId()`, mismo mecanismo que login/logout). No rota el
+  // `tokenKey` de PocketBase (a diferencia del cierre de un tercero por un
+  // admin) para no desconectar también la sesión actual.
+  cerrarOtrasSesiones: () =>
+    apiClient.post<{ status: string; sesiones_cerradas: number }>(
+      '/seguridad/sesiones/cerrar-otras', { dispositivo_id: getDeviceId() },
+    ),
+
   // Recuperación de contraseña simulada (change roles-gestion-usuarios): el
   // backend responde siempre genérico, sin revelar si el correo existe. Sin
   // proveedor de correo real, `token_recuperacion` viaja en la respuesta

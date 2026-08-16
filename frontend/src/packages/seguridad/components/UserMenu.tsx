@@ -1,7 +1,10 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { MonitorX } from 'lucide-react'
 import { getUser, isAuthenticated } from '@shared/lib/session'
 import { usePlayer } from '@shared/context/PlayerContext'
+import { useToast } from '@shared/context/ToastContext'
+import { apiErrorMessage } from '@shared/lib/api-client'
 import { RoleBadge } from '@shared/components/RoleBadge'
 import { authApi } from '../api/auth.api'
 import styles from './UserMenu.module.css'
@@ -11,7 +14,9 @@ import styles from './UserMenu.module.css'
 export function UserMenu() {
   const navigate = useNavigate()
   const { stop } = usePlayer()
+  const toast = useToast()
   const [loggingOut, setLoggingOut] = useState(false)
+  const [cerrandoOtras, setCerrandoOtras] = useState(false)
   const user = getUser()
 
   if (!isAuthenticated() || !user) {
@@ -34,12 +39,37 @@ export function UserMenu() {
     navigate('/login', { replace: true })
   }
 
+  // FASE 2 (Prompt 10): acceso rápido, sin pasar por Perfil — confirmación
+  // simple (window.confirm) en vez de un modal, mismo criterio que pide el
+  // prompt para esta acción puntual.
+  async function handleCerrarOtras() {
+    if (!window.confirm('¿Cerrar tu sesión en todos los demás dispositivos? Este dispositivo no se verá afectado.')) return
+    setCerrandoOtras(true)
+    try {
+      const res = await authApi.cerrarOtrasSesiones()
+      toast.success(res.sesiones_cerradas > 0 ? `${res.sesiones_cerradas} sesión(es) cerrada(s)` : 'No había otras sesiones abiertas')
+    } catch (err) {
+      toast.error(apiErrorMessage(err, 'No se pudieron cerrar las demás sesiones.'))
+    } finally {
+      setCerrandoOtras(false)
+    }
+  }
+
   return (
     <div className={styles.wrap}>
       <Link to="/perfil" className={styles.identity}>
         <span className={styles.email}>{user.email}</span>
         <RoleBadge user={user} />
       </Link>
+      <button
+        type="button"
+        className={styles.logoutBtn}
+        onClick={handleCerrarOtras}
+        disabled={cerrandoOtras}
+        title="Cerrar sesión en otros dispositivos"
+      >
+        <MonitorX size={14} aria-hidden="true" />
+      </button>
       <button type="button" className={styles.logoutBtn} onClick={handleLogout} disabled={loggingOut}>
         {loggingOut ? 'Saliendo…' : 'Salir'}
       </button>

@@ -332,6 +332,32 @@ def mis_sesiones(user: dict = Depends(get_current_user)):
     return {"data": query_rows(MIS_SESIONES_ABIERTAS, {"usuario_id": user["record"]["id"]})}
 
 
+# FASE 2 (Prompt 10): cierre masivo self-service, preservando la sesión
+# actual — identificada por `dispositivo_id` (mismo mecanismo que login/
+# logout, no hay `sesion_id` embebido en el JWT de PocketBase). Reusa
+# `_cerrar_sesion` en un loop, igual que el cierre de terceros de abajo.
+# A diferencia de ese caso, NO rota el `tokenKey` de PocketBase — esa
+# rotación invalida TODOS los tokens del usuario a la vez (ver comentario en
+# `cerrar_sesion_remota`), lo que también desconectaría la sesión actual que
+# este endpoint debe preservar.
+@router.post("/sesiones/cerrar-otras")
+async def cerrar_otras_sesiones(body: LogoutBody, user: dict = Depends(get_current_user)):
+    usuario_id = user["record"]["id"]
+    abiertas = query_rows(MIS_SESIONES_ABIERTAS, {"usuario_id": usuario_id})
+    cerradas = 0
+    for s in abiertas:
+        if s["dispositivo_id"] == body.dispositivo_id:
+            continue
+        _cerrar_sesion(s["sesion_id"], usuario_id, s["dispositivo_id"], s["fecha_inicio"])
+        cerradas += 1
+    audit.record(
+        usuario_id=usuario_id, accion="cerrar_otras_sesiones",
+        tabla_afectada="FACT_SESION",
+        antes={"dispositivo_actual": body.dispositivo_id, "sesiones_cerradas": cerradas}, despues=None,
+    )
+    return {"status": "ok", "sesiones_cerradas": cerradas}
+
+
 @router.delete("/sesiones/{sesion_id}")
 async def cerrar_sesion_remota(sesion_id: str, user: dict = Depends(get_current_user)):
     sesion = query_one(SESION_POR_ID, {"sesion_id": sesion_id})

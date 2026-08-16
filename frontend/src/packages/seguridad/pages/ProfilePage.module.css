@@ -24,8 +24,8 @@
   grid-template-columns: 160px 1fr;
   row-gap: var(--space-md);
   column-gap: var(--space-lg);
-  max-width: 480px;
-  padding: var(--space-lg);
+  max-width: 640px;
+  padding: var(--space-xl);
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
@@ -58,19 +58,34 @@
   margin-top: var(--space-md);
 }
 
+/* FASE 2 (Prompt 10): marca la sesión del dispositivo actual en "Mis
+   sesiones" — mismo violeta primary-light usado como acento por otros
+   badges de rol del proyecto (ver `roles.ts::ROL_COLORS`). */
+.badgeEsteDispositivo {
+  display: inline-block;
+  margin-left: var(--space-xs);
+  padding: 0.125rem 0.5rem;
+  border-radius: 999px;
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  color: var(--color-primary);
+  background: color-mix(in oklch, var(--color-primary) 15%, transparent);
+}
+
 .sectionTitle {
   font-family: var(--font-sans);
-  font-size: 1.0625rem;
+  font-size: 1.125rem;
   font-weight: 600;
   color: var(--color-ink);
-  margin-bottom: var(--space-sm);
+  letter-spacing: -0.01em;
+  margin-bottom: var(--space-md);
 }
 
 .editForm,
 .familiaSection {
-  max-width: 420px;
+  max-width: 640px;
   margin-top: var(--space-xl);
-  padding: var(--space-lg);
+  padding: var(--space-xl);
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
@@ -167,8 +182,9 @@
    delimitada en rojo para separar visualmente la acción irreversible del
    resto de la configuración de perfil. */
 .dangerZone {
+  max-width: 640px;
   margin-top: var(--space-xl);
-  padding: var(--space-lg);
+  padding: var(--space-xl);
   border: 1px solid oklch(0.65 0.22 25 / 0.3);
   border-radius: var(--radius-lg);
   background: oklch(0.65 0.22 25 / 0.04);
