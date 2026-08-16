@@ -4,6 +4,7 @@ import { ThemeProvider } from '@shared/context/ThemeContext'
 import { PlayerProvider } from '@shared/context/PlayerContext'
 import { ToastProvider } from '@shared/context/ToastContext'
 import { ConfirmProvider } from '@shared/context/ConfirmContext'
+import { AuthPromptProvider } from '@shared/context/AuthPromptContext'
 import { AdProvider } from '@packages/publicidad'
 
 const queryClient = new QueryClient({
@@ -21,11 +22,13 @@ export function Providers({ children }: { children: ReactNode }) {
       <ThemeProvider>
         <ToastProvider>
           <ConfirmProvider>
-            <PlayerProvider>
-              <AdProvider>
-                {children}
-              </AdProvider>
-            </PlayerProvider>
+            <AuthPromptProvider>
+              <PlayerProvider>
+                <AdProvider>
+                  {children}
+                </AdProvider>
+              </PlayerProvider>
+            </AuthPromptProvider>
           </ConfirmProvider>
         </ToastProvider>
       </ThemeProvider>

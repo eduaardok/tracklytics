@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
 import { experienciaApi } from '@packages/experiencia/api/experiencia.api'
 import { isAuthenticated } from '@shared/lib/session'
-import { useToast } from '@shared/context/ToastContext'
+import { useAuthPrompt } from '@shared/context/AuthPromptContext'
 
 export type PlayableTrack = {
   fact_id:     number
@@ -198,7 +198,7 @@ type SimulatedNodes = { osc: OscillatorNode; gain: GainNode }
 // localStorage) — se resetea en un full reload, a diferencia del legacy
 // (tl_player en localStorage).
 export function PlayerProvider({ children }: { children: ReactNode }) {
-  const toast = useToast()
+  const authPrompt = useAuthPrompt()
   const [currentTrack, setCurrentTrack]             = useState<PlayableTrack | null>(null)
   const [isPlaying, setIsPlaying]                   = useState(false)
   const [progressMs, setProgressMs]                 = useState(0)
@@ -355,7 +355,11 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     // un player con progreso avanzando para alguien sin cuenta. El corte
     // ahora es explícito y antes de cualquier llamada de red.
     if (!isAuthenticated()) {
-      toast.error('Inicia sesión gratis para escuchar — regístrate o inicia sesión para reproducir música.')
+      // Modal en vez de toast (S16 — auditoría de revisores): un toast se
+      // desvanece solo sin dar ninguna acción; esto es lo primero que un
+      // visitante anónimo intenta en el catálogo público, así que merece un
+      // CTA real a login/registro en vez de un aviso transitorio.
+      authPrompt('Regístrate gratis o inicia sesión para reproducir música.')
       return
     }
     // Snapshot de sesión para `repeat-all` (ver `sessionQueueRef`): un
@@ -479,7 +483,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       // `loadYouTubeApi()` (script bloqueado/timeout, ver arriba).
       startSimulatedPlayback(track, token)
     })
-  }, [clearTimer, destroyYtPlayer, stopSimulated, startSimulatedPlayback, toast, currentTrack])
+  }, [clearTimer, destroyYtPlayer, stopSimulated, startSimulatedPlayback, authPrompt, currentTrack])
 
   const stop = useCallback(() => {
     // Invalida cualquier `play()` en vuelo (ej. la promesa de

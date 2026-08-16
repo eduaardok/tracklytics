@@ -99,7 +99,11 @@ _TIPO_MAX_LEN = 30
 _NOMBRE_TITULAR_MAX_LEN = 200
 _DIRECCION_MAX_LEN = 300
 _CIUDAD_MAX_LEN = 150
-_CODIGO_POSTAL_MAX_LEN = 20
+# 12 (no 20 como antes): cubre con margen los formatos reales más largos
+# (ej. "12345-6789" EE.UU. ZIP+4 = 10, "SW1A 1AA" Reino Unido = 8) — el tope
+# anterior fue señalado por revisores (S16) como excesivo para un código
+# postal real.
+_CODIGO_POSTAL_MAX_LEN = 12
 _PAIS_MAX_LEN = 10
 
 
@@ -140,6 +144,16 @@ class MetodoPagoBody(BaseModel):
     @classmethod
     def _limpiar_opcionales(cls, v: str) -> str:
         return v.strip()
+
+    @field_validator("codigo_postal")
+    @classmethod
+    def _validar_codigo_postal(cls, v: str) -> str:
+        # Solo se rechaza lo demasiado corto para ser un código postal real
+        # (ej. "1" o "AB") — el máximo ya lo acota `_CODIGO_POSTAL_MAX_LEN`.
+        # Campo opcional: vacío sigue siendo válido.
+        if v and len(v) < 3:
+            raise ValueError("El código postal debe tener al menos 3 caracteres")
+        return v
 
     @field_validator("numero_tarjeta")
     @classmethod

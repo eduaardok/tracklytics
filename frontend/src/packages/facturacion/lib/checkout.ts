@@ -49,3 +49,33 @@ export function expiracionValida(mmYy: string): boolean {
   const finMes = new Date(anio, mes, 0, 23, 59, 59)
   return finMes >= ahora
 }
+
+/** Inserta el `/` automáticamente mientras se escribe MM/AA — antes el campo
+ * era texto libre sin ninguna ayuda de formato, el usuario tenía que teclear
+ * el `/` él mismo. Se recalcula solo a partir de los dígitos del valor
+ * actual (nunca del anterior), así que borrar hacia atrás sobre "12/" primero
+ * borra el `/` insertado automáticamente y no queda atascado. */
+export function formatearExpiracion(valor: string): string {
+  const digits = valor.replace(/\D/g, '').slice(0, 4)
+  if (digits.length <= 2) return digits
+  return `${digits.slice(0, 2)}/${digits.slice(2)}`
+}
+
+/** true si el mes ya quedó completo (2 dígitos) pero fuera de 01-12 — permite
+ * mostrar el error apenas se completa el mes, sin esperar al año ni al submit. */
+export function mesExpiracionFueraDeRango(mmYy: string): boolean {
+  const soloDigitos = mmYy.replace(/\D/g, '')
+  if (soloDigitos.length < 2) return false
+  const mes = Number(soloDigitos.slice(0, 2))
+  return mes < 1 || mes > 12
+}
+
+/** Rango real de códigos postales (S16: el máximo de 20 caracteres del
+ * backend fue señalado por revisores como excesivo — un código postal real
+ * no pasa de ~10-12 caracteres, ej. "12345-6789" EE.UU. ZIP+4). Campo
+ * opcional: vacío es válido, no se exige en el cliente. */
+export function codigoPostalValido(valor: string): boolean {
+  const v = valor.trim()
+  if (!v) return true
+  return v.length >= 3 && v.length <= 12
+}

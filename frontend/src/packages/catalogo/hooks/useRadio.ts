@@ -2,6 +2,7 @@ import { useState } from 'react'
 
 import { experienciaApi } from '@packages/experiencia/api/experiencia.api'
 import { useToast } from '@shared/context/ToastContext'
+import { useAuthPrompt } from '@shared/context/AuthPromptContext'
 import { usePlayer, type PlayableTrack } from '@shared/context/PlayerContext'
 import { apiErrorMessage } from '@shared/lib/api-client'
 import { isAuthenticated } from '@shared/lib/session'
@@ -18,13 +19,15 @@ export function useRadio() {
   const [iniciando, setIniciando] = useState(false)
   const { playList } = usePlayer()
   const toast = useToast()
+  const authPrompt = useAuthPrompt()
 
   async function iniciarRadio(factId: number) {
     // GET /experiencia/radio/track/{fact_id} ahora exige sesión (backend) —
-    // este chequeo evita el roundtrip y muestra el mismo aviso de
-    // `PlayerContext.play` en vez de un genérico "No se pudo iniciar la radio".
+    // este chequeo evita el roundtrip. Modal en vez de toast (S16, mismo
+    // criterio que `PlayerContext.play`): un CTA real a login/registro en
+    // vez de un aviso que se desvanece solo.
     if (!isAuthenticated()) {
-      toast.error('Inicia sesión gratis para escuchar radio — regístrate o inicia sesión.')
+      authPrompt('Regístrate gratis o inicia sesión para escuchar radio.')
       return
     }
     setIniciando(true)

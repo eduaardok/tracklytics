@@ -12,7 +12,10 @@ import { distribucionApi } from '@packages/distribucion/api/distribucion.api'
 import type { Pais } from '@packages/distribucion/types'
 import { facturacionApi } from '../api/facturacion.api'
 import type { MetodoPago } from '../types'
-import { expiracionValida, formatearNumeroTarjeta, inferirMarcaTarjeta, luhnValido } from '../lib/checkout'
+import {
+  codigoPostalValido, expiracionValida, formatearExpiracion, formatearNumeroTarjeta,
+  inferirMarcaTarjeta, luhnValido, mesExpiracionFueraDeRango,
+} from '../lib/checkout'
 import styles from './FacturacionPages.module.css'
 
 function fmt(monto: number, moneda = 'EUR') {
@@ -342,6 +345,10 @@ export function FacturacionPage() {
               toast.error('Selecciona el país de facturación.')
               return
             }
+            if (!codigoPostalValido(codigoPostal)) {
+              toast.error('El código postal debe tener entre 3 y 12 caracteres.')
+              return
+            }
             registrarMetodo.mutate()
           }}
           noValidate
@@ -381,13 +388,23 @@ export function FacturacionPage() {
               id="expiracion"
               className={styles.input}
               type="text"
+              inputMode="numeric"
               autoComplete="cc-exp"
               value={expiracion}
-              onChange={(e) => setExpiracion(e.target.value)}
+              onChange={(e) => setExpiracion(formatearExpiracion(e.target.value))}
               maxLength={5}
               placeholder="12/29"
               required
             />
+            {/* Feedback inline (no solo al submit) — apenas el mes queda
+                completo con 2 dígitos, antes de que el usuario termine de
+                escribir el año. */}
+            {mesExpiracionFueraDeRango(expiracion) && (
+              <span className={styles.fieldHint}>El mes debe estar entre 01 y 12.</span>
+            )}
+            {!mesExpiracionFueraDeRango(expiracion) && expiracion.length === 5 && !expiracionValida(expiracion) && (
+              <span className={styles.fieldHint}>Esa fecha ya venció.</span>
+            )}
           </div>
           <div className={styles.field}>
             <label className={styles.fieldLabel} htmlFor="cvv">CVV</label>
@@ -456,8 +473,14 @@ export function FacturacionPage() {
               value={codigoPostal}
               onChange={(e) => setCodigoPostal(e.target.value)}
               placeholder="28001"
-              maxLength={20}
+              maxLength={12}
             />
+            {/* 12 caracteres, no 20 (S16): cubre con margen los formatos
+                reales más largos (ej. ZIP+4 de EE.UU. = 10) sin bloquear
+                ningún código postal legítimo. */}
+            {!codigoPostalValido(codigoPostal) && (
+              <span className={styles.fieldHint}>Debe tener entre 3 y 12 caracteres.</span>
+            )}
           </div>
           <button
             className={styles.btnPrimary}
@@ -519,9 +542,18 @@ export function FacturacionPage() {
 
           {pagar.isSuccess && pagar.data && (
             <div className={pagar.data.estado === 'exitosa' ? styles.bannerOk : styles.bannerError}>
-              {pagar.data.estado === 'exitosa'
-                ? `Pago exitoso${pagar.data.invoice_id ? ` — invoice ${pagar.data.invoice_id.slice(0, 8)}…` : ''}`
-                : 'El pago fue rechazado. Intenta de nuevo o usa otro método.'}
+              {pagar.data.estado === 'exitosa' ? (
+                <>
+                  Pago procesado correctamente.
+                  {/* Factura visible de inmediato (S16) — antes solo quedaba
+                      accesible buscándola en la tabla de invoices de abajo. */}
+                  {pagar.data.invoice_id && (
+                    <> <Link to={`/facturacion/${pagar.data.invoice_id}`}>Ver factura</Link></>
+                  )}
+                </>
+              ) : (
+                'El pago fue rechazado. Intenta de nuevo o usa otro método.'
+              )}
             </div>
           )}
           {pagar.isError && (
