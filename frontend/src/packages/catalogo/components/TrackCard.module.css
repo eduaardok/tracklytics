@@ -126,6 +126,22 @@
 }
 
 .actionBtn:hover { color: var(--color-ink); background: var(--color-surface-raised); }
+
+/* El resto de .actionBtn son cuadrados (26x26, un solo ícono) — este es el
+   único que puede llevar además el conteo de likes, así que necesita ancho
+   flexible en vez del width fijo. */
+.likeBtn {
+  width: auto;
+  min-width: 26px;
+  padding: 0 6px;
+  gap: 3px;
+}
+
+.likeCount {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  font-variant-numeric: tabular-nums;
+}
 /* Violeta, no rojo — --color-error queda reservado a errores/destructivo
    (DESIGN.md). Teal (--color-accent) tampoco aplica: "Signal Rule" lo
    reserva a datos, nunca a UI chrome. --color-primary-light es la misma

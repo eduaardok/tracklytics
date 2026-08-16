@@ -1,6 +1,6 @@
 import type { KeyboardEvent, MouseEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Heart, ListPlus, Play, Radio } from 'lucide-react'
+import { Heart, ListPlus, Play, Radio, ThumbsDown, ThumbsUp } from 'lucide-react'
 import { usePlayer } from '@shared/context/PlayerContext'
 import { AlbumArt } from '@shared/components/AlbumArt'
 import { TrackName, FeaturingCaption } from '@shared/components/TrackName'
@@ -8,6 +8,7 @@ import { ErrorState } from '@shared/components/ErrorState'
 import { ApiError, apiErrorMessage } from '@shared/lib/api-client'
 import { useAd } from '@packages/publicidad'
 import { useFavoritos } from '../hooks/useFavoritos'
+import { useLikes } from '../hooks/useLikes'
 import { useRadio } from '../hooks/useRadio'
 import { AddToPlaylistMenu } from './AddToPlaylistMenu'
 import { bibliotecaApi } from '../api/biblioteca.api'
@@ -38,6 +39,7 @@ export function TrackCard({ track, position, queue }: Props) {
   const { play, playList, reportPlaybackIssue, enqueue } = usePlayer()
   const { pedirImpresion } = useAd()
   const { isAuthenticated, isFavorite, toggle, toggleError } = useFavoritos()
+  const { likes, voto, like, dislike } = useLikes(track.fact_id)
   const { iniciarRadio, iniciando } = useRadio()
   const favorite = isFavorite(track.fact_id)
 
@@ -69,6 +71,16 @@ export function TrackCard({ track, position, queue }: Props) {
   function handleFavorite(e: MouseEvent) {
     e.stopPropagation()
     toggle(track.fact_id)
+  }
+
+  function handleLike(e: MouseEvent) {
+    e.stopPropagation()
+    like()
+  }
+
+  function handleDislike(e: MouseEvent) {
+    e.stopPropagation()
+    dislike()
   }
 
   function handleEnqueue(e: MouseEvent) {
@@ -159,6 +171,25 @@ export function TrackCard({ track, position, queue }: Props) {
                 aria-label={favorite ? 'Quitar de favoritos' : 'Añadir a favoritos'}
               >
                 <Heart size={16} aria-hidden="true" fill={favorite ? 'currentColor' : 'none'} />
+              </button>
+              <button
+                type="button"
+                className={`${styles.actionBtn} ${styles.likeBtn} ${voto === 'like' ? styles.actionBtnActive : ''}`}
+                onClick={handleLike}
+                title={voto === 'like' ? 'Quitar like' : 'Me gusta'}
+                aria-label={voto === 'like' ? 'Quitar like' : 'Me gusta'}
+              >
+                <ThumbsUp size={16} aria-hidden="true" fill={voto === 'like' ? 'currentColor' : 'none'} />
+                {likes > 0 && <span className={styles.likeCount}>{likes}</span>}
+              </button>
+              <button
+                type="button"
+                className={`${styles.actionBtn} ${voto === 'dislike' ? styles.actionBtnActive : ''}`}
+                onClick={handleDislike}
+                title={voto === 'dislike' ? 'Quitar dislike' : 'No me gusta'}
+                aria-label={voto === 'dislike' ? 'Quitar dislike' : 'No me gusta'}
+              >
+                <ThumbsDown size={16} aria-hidden="true" fill={voto === 'dislike' ? 'currentColor' : 'none'} />
               </button>
               <AddToPlaylistMenu factId={track.fact_id} />
             </>

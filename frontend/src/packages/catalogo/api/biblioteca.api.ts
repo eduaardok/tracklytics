@@ -1,6 +1,6 @@
 import { apiClient } from '@shared/lib/api-client'
 import { getDeviceId } from '@shared/lib/session'
-import type { Favoritos, Historial, Playlist, PlaylistDetail } from '../types'
+import type { Favoritos, Historial, LikesResultado, Playlist, PlaylistDetail } from '../types'
 
 export const bibliotecaApi = {
   // ── Favoritos ────────────────────────────────────────────────────────────────
@@ -12,6 +12,27 @@ export const bibliotecaApi = {
 
   quitarFavorito: (factId: number) =>
     apiClient.delete<{ status: string }>(`/biblioteca/favoritos/${factId}`),
+
+  // ── Like/dislike ─────────────────────────────────────────────────────────────
+  likes: (factId: number) =>
+    apiClient.get<LikesResultado>(`/biblioteca/tracks/${factId}/likes`),
+
+  // Batch (useLikes.ts agrupa N tracks visibles en una sola llamada — evita
+  // que un listado de catálogo dispare un GET por TrackCard, hallazgo real
+  // de rendimiento con 503 reproducido bajo carga, S16 prompt 09).
+  likesBatch: (factIds: number[]) =>
+    apiClient.get<{ data: Record<string, LikesResultado> }>(
+      `/biblioteca/tracks/likes?fact_ids=${factIds.join(',')}`,
+    ),
+
+  likeTrack: (factId: number) =>
+    apiClient.post<{ status: string }>(`/biblioteca/tracks/${factId}/like`, {}),
+
+  dislikeTrack: (factId: number) =>
+    apiClient.post<{ status: string }>(`/biblioteca/tracks/${factId}/dislike`, {}),
+
+  quitarVoto: (factId: number) =>
+    apiClient.delete<{ status: string }>(`/biblioteca/tracks/${factId}/like`),
 
   // ── Historial ────────────────────────────────────────────────────────────────
   historial: (limit = 50) =>

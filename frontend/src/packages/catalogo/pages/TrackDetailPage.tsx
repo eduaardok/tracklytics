@@ -1,6 +1,6 @@
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { ArrowLeft, Heart, ListPlus, Lock, Play } from 'lucide-react'
+import { ArrowLeft, Heart, ListPlus, Lock, Play, ThumbsDown, ThumbsUp } from 'lucide-react'
 import { catalogoApi } from '../api/catalogo.api'
 import { usePlayer } from '@shared/context/PlayerContext'
 import { AlbumArt } from '@shared/components/AlbumArt'
@@ -9,6 +9,7 @@ import { ErrorState } from '@shared/components/ErrorState'
 import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { ApiError, apiErrorMessage } from '@shared/lib/api-client'
 import { useFavoritos } from '../hooks/useFavoritos'
+import { useLikes } from '../hooks/useLikes'
 import { AddToPlaylistMenu } from '../components/AddToPlaylistMenu'
 import { bibliotecaApi } from '../api/biblioteca.api'
 import { usePlanActivo } from '@packages/suscripciones'
@@ -46,6 +47,7 @@ export function TrackDetailPage() {
   const { esPremium, isLoading: planLoading } = usePlanActivo()
 
   const id = Number(factId)
+  const { likes, voto, like, dislike } = useLikes(id)
 
   const { data: track, isLoading, isError, error } = useQuery({
     queryKey: ['catalogo', 'track-detail', id],
@@ -147,6 +149,22 @@ export function TrackDetailPage() {
                 >
                   <Heart size={16} aria-hidden="true" fill={favorite ? 'currentColor' : 'none'} style={{ verticalAlign: '-3px', marginRight: 4 }} />
                   {favorite ? 'Quitar de favoritos' : 'Añadir a favoritos'}
+                </button>
+                <button
+                  type="button"
+                  className={`${styles.btnGhost} ${voto === 'like' ? styles.btnGhostActive : ''}`}
+                  onClick={like}
+                >
+                  <ThumbsUp size={16} aria-hidden="true" fill={voto === 'like' ? 'currentColor' : 'none'} style={{ verticalAlign: '-3px', marginRight: 4 }} />
+                  Me gusta{likes > 0 ? ` (${likes})` : ''}
+                </button>
+                <button
+                  type="button"
+                  className={`${styles.btnGhost} ${voto === 'dislike' ? styles.btnGhostActive : ''}`}
+                  onClick={dislike}
+                >
+                  <ThumbsDown size={16} aria-hidden="true" fill={voto === 'dislike' ? 'currentColor' : 'none'} style={{ verticalAlign: '-3px', marginRight: 4 }} />
+                  No me gusta
                 </button>
                 <AddToPlaylistMenu factId={track.fact_id} />
               </>

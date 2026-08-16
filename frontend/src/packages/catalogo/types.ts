@@ -132,6 +132,16 @@ export type Favoritos = {
   plan_limit: number | null
 }
 
+// Like/dislike (S16 prompt 09, RN-ANA-001): conteo NETO actual (no eventos
+// acumulados) + el voto propio del usuario autenticado (`null` si no votó o
+// no hay sesión). Dislikes se cuentan pero, a criterio de diseño (mismo
+// patrón que Spotify/YouTube), no se muestran como número público en la UI.
+export type LikesResultado = {
+  likes:    number
+  dislikes: number
+  voto:     'like' | 'dislike' | null
+}
+
 export type HistorialEntry = LibraryTrack & { event_timestamp: string }
 
 export type Historial = {
