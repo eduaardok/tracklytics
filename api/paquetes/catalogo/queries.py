@@ -27,7 +27,8 @@ SELECT
     any(ft.duration_ms)                               AS duration_ms,
     any(ft.danceability)                              AS danceability,
     any(ft.energy)                                    AS energy,
-    any(ft.valence)                                   AS valence
+    any(ft.valence)                                   AS valence,
+    any(ft.explicit_id)                               AS explicit_id
 FROM FACT_TRACKS ft
 JOIN DIM_ARTISTS a ON ft.artist_id = a.artist_id
 JOIN DIM_ALBUMS  al ON ft.album_id = al.album_id
@@ -60,7 +61,8 @@ SELECT
     -- S13-P6: marcador visual de catálogo (frontend-only, nunca escribe a
     -- FACT_TRACKS) — un track es N filas (una por género), `any()` alcanza
     -- porque source_type no varía entre las filas de un mismo track_id.
-    any(ft.source_type)                               AS source_type
+    any(ft.source_type)                               AS source_type,
+    any(ft.explicit_id)                               AS explicit_id
 FROM FACT_TRACKS ft
 JOIN DIM_ARTISTS a ON ft.artist_id = a.artist_id
 JOIN DIM_ALBUMS  al ON ft.album_id = al.album_id
@@ -85,7 +87,8 @@ SELECT
     a.name                                       AS artist_name,
     coalesce(any(ft.imagen_url), al.imagen_url, a.imagen_url) AS imagen_url,
     arrayStringConcat(groupUniqArray(g.name), ' / ') AS genre_name,
-    any(ft.source_type)                          AS source_type
+    any(ft.source_type)                          AS source_type,
+    any(ft.explicit_id)                          AS explicit_id
 FROM FACT_TRACKS ft
 JOIN DIM_ARTISTS a ON ft.artist_id = a.artist_id
 JOIN DIM_ALBUMS  al ON ft.album_id = al.album_id
@@ -100,7 +103,7 @@ SETTINGS use_query_cache = 1, query_cache_ttl = 120, query_cache_share_between_u
 TRACKS_BY_GENRE = """
 SELECT
     ft.fact_id, ft.track_id, ft.track_name, ft.popularity, ft.duration_ms,
-    ft.danceability, ft.energy, ft.valence, ft.source_type,
+    ft.danceability, ft.energy, ft.valence, ft.source_type, ft.explicit_id,
     a.name AS artist_name,
     coalesce(ft.imagen_url, al.imagen_url, a.imagen_url) AS imagen_url,
     g.name AS genre_name
@@ -129,6 +132,7 @@ SELECT
     any(ft.valence)                                   AS valence,
     any(ft.tempo)                                     AS tempo,
     any(ft.source_type)                               AS source_type,
+    any(ft.explicit_id)                               AS explicit_id,
     a.name                                            AS artist_name,
     ft.artist_id                                      AS artist_id,
     al.name                                           AS album_name,
@@ -292,6 +296,7 @@ SELECT
     any(ft.valence)                                   AS valence,
     any(ft.tempo)                                     AS tempo,
     any(ft.source_type)                               AS source_type,
+    any(ft.explicit_id)                               AS explicit_id,
     a.name                                            AS artist_name,
     ft.artist_id                                      AS artist_id,
     al.name                                           AS album_name,
@@ -339,11 +344,30 @@ LIMIT {limit:UInt32}
 # PERF: mismo fix de dos pasos que TRACKS_TOP (ver comentario ahí) -- la
 # sub-consulta interna reutiliza el mismo `{where}` (referencia a ft/a/g,
 # scope propio de la sub-consulta, sin conflicto con los alias de la
+# Relevancia textual (S16 — auditoría de revisores): antes `/tracks/search`
+# ordenaba SOLO por `popularity DESC`, así que una coincidencia exacta poco
+# popular podía aparecer después de una coincidencia parcial muy popular.
+# `multiIf` asigna un score de relevancia por fila (3 = coincidencia exacta
+# de nombre de track o artista, 2 = coincidencia de prefijo, 1 = coincidencia
+# parcial, el patrón `LIKE '%...%'` de siempre) — se usa como criterio
+# PRIMARIO de orden, con popularidad como desempate dentro del mismo nivel
+# (nunca reemplaza a popularidad, la complementa). `{q_exacto}`/`{q_prefijo}`
+# solo se bindean cuando `q` viene en la búsqueda (router.py); esta expresión
+# solo se referencia en el `order_clause` en ese caso.
+RELEVANCIA_TEXTO_EXPR = """multiIf(
+    lower(ft.track_name) = lower({q_exacto:String}) OR lower(a.name) = lower({q_exacto:String}), 3,
+    lower(ft.track_name) LIKE lower({q_prefijo:String}) OR lower(a.name) LIKE lower({q_prefijo:String}), 2,
+    1
+)"""
+
+# PERF: mismo fix de dos pasos que TRACKS_TOP (ver comentario ahí) -- la
+# sub-consulta interna reutiliza el mismo `{where}` (referencia a ft/a/g,
+# scope propio de la sub-consulta, sin conflicto con los alias de la
 # externa) pero SOLO junta DIM_ARTISTS/DIM_GENRES (las 2 tablas que el
 # `where` puede necesitar para los filtros de texto/género) -- nunca
 # DIM_ALBUMS ni groupUniqArray, que solo hacen falta para enriquecer los
 # ganadores en la consulta externa. Medido: 2.9-17s -> 0.1-0.6s según filtro.
-def tracks_search_sql(where: str) -> str:
+def tracks_search_sql(where: str, order_clause: str = "max(ft.popularity) DESC") -> str:
     return f"""
 SELECT
     min(ft.fact_id)                                   AS fact_id,
@@ -357,7 +381,8 @@ SELECT
     any(ft.danceability)                              AS danceability,
     any(ft.energy)                                    AS energy,
     any(ft.valence)                                   AS valence,
-    any(ft.source_type)                               AS source_type
+    any(ft.source_type)                               AS source_type,
+    any(ft.explicit_id)                               AS explicit_id
 FROM FACT_TRACKS ft
 JOIN DIM_ARTISTS a ON ft.artist_id = a.artist_id
 JOIN DIM_ALBUMS  al ON ft.album_id = al.album_id
@@ -369,11 +394,11 @@ WHERE ft.track_id IN (
     JOIN DIM_GENRES  g ON ft.genre_id  = g.genre_id
     {where}
     GROUP BY ft.track_id
-    ORDER BY max(ft.popularity) DESC
+    ORDER BY {order_clause}
     LIMIT {{limit:UInt32}} OFFSET {{offset:UInt32}}
 )
 GROUP BY ft.track_id, ft.track_name, ft.artist_id, a.name, a.imagen_url
-ORDER BY any(ft.popularity) DESC
+ORDER BY {order_clause}
 SETTINGS use_query_cache = 1, query_cache_ttl = 120, query_cache_share_between_users = 1
 """
 
@@ -410,7 +435,8 @@ SELECT
     arrayStringConcat(groupUniqArray(g.name), ' / ')  AS genre_name,
     any(ft.popularity)                                AS popularity,
     any(ft.duration_ms)                               AS duration_ms,
-    any(ft.source_type)                               AS source_type
+    any(ft.source_type)                               AS source_type,
+    any(ft.explicit_id)                               AS explicit_id
 FROM FACT_TRACKS ft
 JOIN DIM_ARTISTS a  ON ft.artist_id = a.artist_id
 JOIN DIM_ALBUMS  al ON ft.album_id  = al.album_id

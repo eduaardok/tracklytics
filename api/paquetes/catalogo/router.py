@@ -16,6 +16,7 @@ from paquetes.catalogo.queries import (
     TRACK_DISPONIBILIDAD_POR_FACT,
     TRACKS_OCULTOS,
     TRACKS_BY_ALBUM, TRACKS_BY_ARTIST, TRACKS_BY_GENRE, TRACKS_TOP,
+    RELEVANCIA_TEXTO_EXPR,
     tracks_search_count_sql, tracks_search_sql,
 )
 from paquetes.seguridad import audit
@@ -137,12 +138,24 @@ def tracks_search(
     conditions: list[str] = []
     params: dict = {"limit": limit, "offset": offset}
 
+    # Relevancia textual (S16 — auditoría de revisores): antes el único
+    # criterio de orden era `popularity DESC`, así que una coincidencia
+    # exacta poco popular podía aparecer después de una coincidencia parcial
+    # muy popular. `order_clause` complementa la popularidad, no la
+    # reemplaza — sigue siendo el desempate dentro de cada nivel de
+    # relevancia. Sin `q`, no hay texto contra el que medir relevancia:
+    # el orden sigue siendo solo por popularidad, como antes.
+    order_clause = "max(ft.popularity) DESC"
     if q.strip():
-        params["q"] = f"%{q.strip()}%"
+        texto = q.strip()
+        params["q"] = f"%{texto}%"
+        params["q_exacto"] = texto
+        params["q_prefijo"] = f"{texto}%"
         conditions.append(
             "(lower(ft.track_name) LIKE lower({q:String})"
             " OR lower(a.name) LIKE lower({q:String}))"
         )
+        order_clause = f"max({RELEVANCIA_TEXTO_EXPR}) DESC, max(ft.popularity) DESC"
 
     if genre.strip():
         params["genre"] = genre.strip()
@@ -165,7 +178,7 @@ def tracks_search(
         conditions.append("ft.energy >= {energy_min:Float32}")
 
     where = f"WHERE {' AND '.join(conditions)}" if conditions else ""
-    rows = enriquecer_featuring(query_rows(tracks_search_sql(where), params))
+    rows = enriquecer_featuring(query_rows(tracks_search_sql(where, order_clause), params))
     total = query_one(tracks_search_count_sql(where), params)["total"]
     return {"data": rows, "total": total, "limit": limit, "offset": offset}
 
