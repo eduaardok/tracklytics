@@ -1,6 +1,6 @@
 import { useParams } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
-import { Music2 } from 'lucide-react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { Music2, UserCheck, UserPlus } from 'lucide-react'
 import { catalogoApi } from '../api/catalogo.api'
 import { TrackCard } from '../components/TrackCard'
 import { AlbumArt } from '@shared/components/AlbumArt'
@@ -8,18 +8,53 @@ import { ErrorState } from '@shared/components/ErrorState'
 import { EmptyState } from '@shared/components/EmptyState'
 import { SkeletonLoader } from '@shared/components/SkeletonLoader'
 import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
-import { ApiError } from '@shared/lib/api-client'
+import { apiErrorMessage, ApiError } from '@shared/lib/api-client'
+import { isAuthenticated } from '@shared/lib/session'
+import { useToast } from '@shared/context/ToastContext'
+import { socialApi } from '@packages/social'
 import type { Track } from '../types'
 import styles from './DetailPages.module.css'
 
 export function ArtistDetailPage() {
   const { artistaId } = useParams<{ artistaId: string }>()
   const id = Number(artistaId)
+  const authed = isAuthenticated()
+  const queryClient = useQueryClient()
+  const toast = useToast()
 
   const { data: artist, isLoading: loadingArtist, isError: errorArtist, error: artistError } = useQuery({
     queryKey: ['catalogo', 'artist-detail', id],
     queryFn:  () => catalogoApi.artistDetail(id),
     enabled:  Number.isFinite(id),
+  })
+
+  // Seguir artista (S16 prompt 09): antes solo se podía seguir navegando a
+  // mano a `/social/artista/:id` — sin ningún enlace visible desde el perfil
+  // real del catálogo (`SeguidosSocialPage` se limitaba a describir la ruta
+  // en texto). Este botón es el punto de entrada real.
+  const seguidos = useQuery({
+    queryKey: ['social', 'seguimiento'],
+    queryFn:  () => socialApi.misSeguidos(),
+    enabled:  authed,
+  })
+  const siguiendo = (seguidos.data?.data ?? []).some((a) => a.artista_id === id)
+
+  const seguir = useMutation({
+    mutationFn: () => socialApi.seguirArtista(id),
+    onSuccess:  () => {
+      queryClient.invalidateQueries({ queryKey: ['social', 'seguimiento'] })
+      toast.success('Ahora sigues a este artista')
+    },
+    onError: (err) => toast.error(apiErrorMessage(err, 'No se pudo seguir al artista.')),
+  })
+
+  const dejarDeSeguir = useMutation({
+    mutationFn: () => socialApi.dejarDeSeguir(id),
+    onSuccess:  () => {
+      queryClient.invalidateQueries({ queryKey: ['social', 'seguimiento'] })
+      toast.success('Dejaste de seguir al artista')
+    },
+    onError: (err) => toast.error(apiErrorMessage(err, 'No se pudo dejar de seguir al artista.')),
   })
 
   const { data: tracksRes, isLoading: loadingTracks } = useQuery({
@@ -71,6 +106,23 @@ export function ArtistDetailPage() {
             {artist.country && <span>· {artist.country}</span>}
             {artist.record_label && <span>· {artist.record_label}</span>}
           </div>
+          {authed && (
+            <div className={styles.heroActions}>
+              <button
+                type="button"
+                className={`${styles.btnGhost} ${siguiendo ? styles.btnGhostActive : ''}`}
+                disabled={seguir.isPending || dejarDeSeguir.isPending}
+                onClick={() => (siguiendo ? dejarDeSeguir.mutate() : seguir.mutate())}
+              >
+                {siguiendo ? (
+                  <UserCheck size={16} aria-hidden="true" style={{ verticalAlign: '-3px', marginRight: 4 }} />
+                ) : (
+                  <UserPlus size={16} aria-hidden="true" style={{ verticalAlign: '-3px', marginRight: 4 }} />
+                )}
+                {siguiendo ? 'Siguiendo' : 'Seguir'}
+              </button>
+            </div>
+          )}
         </div>
       </div>
 

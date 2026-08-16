@@ -334,6 +334,12 @@
   max-width: 40ch;
 }
 
+.emptyBody a {
+  color: var(--color-primary-light);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
 /* ── Lista de artistas seguidos (hub) ── */
 .followedList {
   list-style: none;

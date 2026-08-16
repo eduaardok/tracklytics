@@ -16,10 +16,17 @@ function fmtDateTime(iso: string) {
   return isNaN(d.getTime()) ? iso : d.toLocaleString('es-ES', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
 }
 
+// El backend (`FEED_ACTIVIDAD_SEGUIDOS`) ya devuelve como máximo 30 filas
+// (LIMIT fijo, sin offset/page — no hay verdadera paginación de servidor).
+// Paginación en el cliente sobre esas ≤30 filas, mismo patrón visual
+// (Anterior/Siguiente + "Página X / Y") que `ModeracionSocialPage`.
+const FEED_PAGE_SIZE = 5
+
 export function SeguidosSocialPage() {
   useDocumentTitle('Social')
   const navigate = useNavigate()
   const [selectedTrack, setSelectedTrack] = useState<TrackSearchResult | null>(null)
+  const [feedPage, setFeedPage] = useState(1)
 
   const seguidos = useQuery({
     queryKey: ['social', 'seguimiento'],
@@ -33,6 +40,8 @@ export function SeguidosSocialPage() {
 
   const data = seguidos.data?.data ?? []
   const feedData = feed.data?.data ?? []
+  const totalFeedPages = Math.max(1, Math.ceil(feedData.length / FEED_PAGE_SIZE))
+  const pagedFeed = feedData.slice((feedPage - 1) * FEED_PAGE_SIZE, feedPage * FEED_PAGE_SIZE)
 
   return (
     <section className={styles.page}>
@@ -53,20 +62,33 @@ export function SeguidosSocialPage() {
           </span>
         </div>
       ) : (
-        <ul className={styles.followedList}>
-          {feedData.map((item) => (
-            <li key={`${item.tipo}-${item.id}`} className={styles.followedRow} style={{ flexDirection: 'column', alignItems: 'flex-start', gap: 2 }}>
-              <span className={styles.followedName}>
-                {item.usuario_nombre || 'Alguien'}{' '}
-                {item.tipo === 'comentario' ? 'comentó' : 'compartió'} un track de {item.artista_nombre}
-              </span>
-              {item.tipo === 'comentario' && item.contenido && (
-                <span className={styles.followedMeta}>&ldquo;{item.contenido}&rdquo;</span>
-              )}
-              <span className={styles.followedMeta}>{item.track_name} · {fmtDateTime(item.fecha)}</span>
-            </li>
-          ))}
-        </ul>
+        <>
+          <ul className={styles.followedList}>
+            {pagedFeed.map((item) => (
+              <li key={`${item.tipo}-${item.id}`} className={styles.followedRow} style={{ flexDirection: 'column', alignItems: 'flex-start', gap: 2 }}>
+                <span className={styles.followedName}>
+                  {item.usuario_nombre || 'Alguien'}{' '}
+                  {item.tipo === 'comentario' ? 'comentó' : 'compartió'} un track de {item.artista_nombre}
+                </span>
+                {item.tipo === 'comentario' && item.contenido && (
+                  <span className={styles.followedMeta}>&ldquo;{item.contenido}&rdquo;</span>
+                )}
+                <span className={styles.followedMeta}>{item.track_name} · {fmtDateTime(item.fecha)}</span>
+              </li>
+            ))}
+          </ul>
+          {totalFeedPages > 1 && (
+            <div className={styles.queueHeader}>
+              <button className={styles.btnGhost} type="button" disabled={feedPage <= 1} onClick={() => setFeedPage((p) => p - 1)}>
+                ← Anterior
+              </button>
+              <span className={styles.queueRowMeta}>Página {feedPage} / {totalFeedPages}</span>
+              <button className={styles.btnGhost} type="button" disabled={feedPage >= totalFeedPages} onClick={() => setFeedPage((p) => p + 1)}>
+                Siguiente →
+              </button>
+            </div>
+          )}
+        </>
       )}
 
       <p className={styles.sectionLabel} style={{ marginTop: 'var(--space-xl)' }}>Artistas seguidos</p>
@@ -81,7 +103,7 @@ export function SeguidosSocialPage() {
         <div className={styles.emptyState}>
           <span className={styles.emptyTitle}>Todavía no sigues a ningún artista</span>
           <span className={styles.emptyBody}>
-            Visita <code>/social/artista/&lt;id&gt;</code> con el id de un artista del catálogo para seguirlo.
+            Entra al perfil de un artista desde el <Link to="/catalogo">catálogo</Link> y usa el botón "Seguir".
           </span>
         </div>
       ) : (
