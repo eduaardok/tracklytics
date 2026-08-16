@@ -10,10 +10,10 @@ import type { FilaInforme } from '@packages/reportes/types'
 // EN CLIENTE, sin volver a pegarle al backend por cada cambio de selector
 // — ambos extremos (`periodoInicio`/`periodoFin`) son strings ISO
 // 'YYYY-WNN', que ordenan correctamente por comparación lexicográfica.
-export function useCompoundReport(departamento: string, informe: string) {
+export function useCompoundReport(departamento: string, informe: string, granularidadDefault = 'mes') {
   const [periodoInicio, setPeriodoInicio] = useState<string | null>(null)
   const [periodoFin, setPeriodoFin] = useState<string | null>(null)
-  const [granularidad, setGranularidad] = useState('mes')
+  const [granularidad, setGranularidad] = useState(granularidadDefault)
 
   const query = useQuery({
     queryKey: ['reportes', 'compuesto', departamento, informe, granularidad],

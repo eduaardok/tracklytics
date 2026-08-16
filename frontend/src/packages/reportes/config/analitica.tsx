@@ -134,6 +134,12 @@ export const ANALITICA_INFORMES: InformeConfig[] = [
   },
   {
     departamento: 'analitica', informe: 'proyeccion', codigo: 'C17', labelCorto: 'Proyecciones (4 sem.)',
+    // `prediccion_4sem` (GOLD_CONSUMO_GENERO_PERIODO) solo se calcula a
+    // granularidad semanal - con el default global 'mes' este informe
+    // devolvía 0 filas siempre (confirmado: 0 en mes/trimestre, 15 en
+    // semana), mostrando "Sin datos" sin ninguna pista de que alcanzaba con
+    // cambiar el selector de granularidad.
+    granularidadDefault: 'semana',
     render: (datos) => <PrediccionesGenero datos={datos} />,
   },
   {
