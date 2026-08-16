@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
+import { ChevronRight } from 'lucide-react'
 import { isAuthenticated } from '@shared/lib/session'
 import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { apiErrorMessage } from '@shared/lib/api-client'
@@ -154,12 +155,10 @@ export function LoginPage() {
               <p className={styles.footer}>
                 ¿No tienes cuenta? <Link to="/register">Regístrate</Link>
               </p>
-              <p className={styles.footer}>
-                <Link to="/">Explorar el catálogo sin iniciar sesión</Link>
-              </p>
-              <p className={styles.footer}>
-                <Link to="/acerca-de">Acerca de Tracklytics</Link>
-              </p>
+              <Link to="/" className={styles.exploreLink}>
+                Explorar el catálogo sin iniciar sesión
+                <ChevronRight size={16} aria-hidden="true" />
+              </Link>
             </>
           )}
 
@@ -212,6 +211,10 @@ export function LoginPage() {
           )}
         </div>
       </div>
+
+      <footer className={styles.pageFooter}>
+        <Link to="/acerca-de">Acerca de Tracklytics</Link>
+      </footer>
     </div>
   )
 }

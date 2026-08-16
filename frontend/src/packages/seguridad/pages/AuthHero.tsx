@@ -8,10 +8,10 @@ import { AlbumArt } from '@shared/components/AlbumArt'
 import styles from './AuthPages.module.css'
 
 const FEATURES = [
-  { icon: LayoutGrid, title: 'Catálogo completo',    desc: 'Miles de canciones, artistas y géneros para explorar' },
-  { icon: BarChart3,  title: 'Analítica avanzada',   desc: 'Tendencias, popularidad y comparativa de artistas' },
-  { icon: Library,    title: 'Biblioteca personal',  desc: 'Favoritos, historial y playlists propias, siempre a mano' },
-  { icon: ListMusic,  title: 'Reproducción continua', desc: 'Cola de canciones y navegación fluida entre pistas' },
+  { icon: LayoutGrid, title: 'Catálogo completo',    desc: 'Miles de canciones, artistas y géneros' },
+  { icon: BarChart3,  title: 'Analítica avanzada',   desc: 'Tendencias y comparativa de artistas' },
+  { icon: Library,    title: 'Biblioteca personal',  desc: 'Favoritos, historial y playlists propias' },
+  { icon: ListMusic,  title: 'Reproducción continua', desc: 'Cola y navegación fluida entre pistas' },
 ] as const
 
 // Barras de ecualizador puramente decorativas (mismo motivo visual que
@@ -30,11 +30,14 @@ function MiniEqualizer() {
   )
 }
 
+function fmtPop(n: number): string {
+  return n.toLocaleString('es-ES', { maximumFractionDigits: 0 })
+}
+
 export function AuthHero() {
   // Total real del catálogo, no un número fijo en el copy — mismo patrón
   // que AboutPage.tsx (`tracks/search` sin filtros es público, ya devuelve
-  // `total`). Sin esto el panel de marca era solo logo + tagline + lista de
-  // features, con mucho espacio vacío alrededor en viewports altos.
+  // `total`).
   const tracksQuery = useQuery({
     queryKey: ['catalogo', 'tracks-total'],
     queryFn:  () => catalogoApi.tracksSearch({ limit: 1 }),
@@ -42,49 +45,62 @@ export function AuthHero() {
   })
   const totalTracks = tracksQuery.data?.total
 
-  // Collage de portadas reales (S15-02): antes el panel terminaba en la
-  // lista de features, con un tercio inferior vacío en viewports altos/
-  // anchos — mismo endpoint que ya usa PlaylistsSection del catálogo, sin
-  // inventar datos. AlbumArt ya trae su propio fallback de gradiente por
-  // género cuando `imagen_url` todavía no está resuelta, así que el collage
-  // se ve intencional incluso mientras el backfill de portadas avanza.
-  const albumsQuery = useQuery({
-    queryKey: ['catalogo', 'albums-collage'],
-    queryFn:  () => catalogoApi.albumsSearch('', 4),
+  // Mini-dashboard de datos reales (S16 Fase 4, auditoría §5.4 P4 — la
+  // mejora de mayor impacto): reemplaza el collage puramente decorativo por
+  // "Top tracks" con portada + nombre + popularidad real, mismo endpoint
+  // público que ya usa el catálogo (`/tracks/top`, sin auth — el login es
+  // público). Si la API falla, esta sección se omite por completo en vez de
+  // inventar filas — el resto del hero (marca, headline, features) es
+  // contenido estático que nunca depende de la red, así que el panel nunca
+  // queda vacío aunque este bloque puntual no cargue.
+  const topTracksQuery = useQuery({
+    queryKey: ['catalogo', 'tracks-top-hero'],
+    queryFn:  () => catalogoApi.tracksTop(5),
     staleTime: 5 * 60_000,
+    retry: 1,
   })
-  const collageAlbums = albumsQuery.data?.data ?? []
+  const topTracks = topTracksQuery.data?.data ?? []
 
   return (
     <div className={styles.hero}>
       <div className={styles.heroGlow} aria-hidden="true" />
       <div className={styles.heroInner}>
         <div className={styles.brand}>
-          <img src="/logo.png" alt="" className={styles.brandLogo} width={40} height={40} />
+          <img src="/logo.png" alt="" className={styles.brandLogo} width={48} height={48} />
           <span className={styles.brandName}>Tracklytics</span>
           <MiniEqualizer />
         </div>
-        <p className={styles.tagline}>// analiza. descubre. escucha.</p>
 
-        <div className={styles.statCard}>
-          <span className={styles.statIcon} aria-hidden="true"><Disc3 size={22} /></span>
-          <span className={styles.statBody}>
-            {totalTracks != null ? (
-              <>
-                <span className={styles.statNumber}>{totalTracks.toLocaleString('es')}</span>
-                <span className={styles.statCaption}>tracks reales, analizados en tiempo real</span>
-              </>
-            ) : (
-              <span className={styles.statCaption}>Un catálogo en expansión constante, analizado en tiempo real.</span>
-            )}
-          </span>
+        <div>
+          <p className={styles.tagline}>// analiza. descubre. escucha.</p>
+          <h1 className={styles.headline}>Entiende la música detrás de los números</h1>
         </div>
 
-        {collageAlbums.length > 0 && (
-          <div className={styles.collage} aria-hidden="true">
-            {collageAlbums.map((a) => (
-              <AlbumArt key={a.album_id} src={a.imagen_url} alt="" size={56} genreSeed={a.name} className={styles.collageArt} />
-            ))}
+        {topTracks.length > 0 && (
+          <div className={styles.miniDashboard}>
+            <span className={styles.miniDashboardLabel}>Top tracks del catálogo</span>
+            <ul className={styles.topTracksList}>
+              {topTracks.map((t) => (
+                <li key={t.fact_id} className={styles.topTrackRow}>
+                  <AlbumArt src={t.imagen_url} alt="" size={36} genreSeed={t.genre_name} className={styles.topTrackArt} />
+                  <span className={styles.topTrackInfo}>
+                    <span className={styles.topTrackName}>{t.track_name}</span>
+                    <span className={styles.topTrackArtist}>{t.artist_name}</span>
+                  </span>
+                  <span className={styles.topTrackPop}>★ {fmtPop(t.popularity)}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {totalTracks != null && (
+          <div className={styles.statCard}>
+            <span className={styles.statIcon} aria-hidden="true"><Disc3 size={22} /></span>
+            <span className={styles.statBody}>
+              <span className={styles.statNumber}>{totalTracks.toLocaleString('es')}</span>
+              <span className={styles.statCaption}>tracks reales, analizados en tiempo real</span>
+            </span>
           </div>
         )}
 

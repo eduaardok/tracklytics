@@ -204,6 +204,10 @@ export function RegisterPage() {
           </p>
         </div>
       </div>
+
+      <footer className={styles.pageFooter}>
+        <Link to="/acerca-de">Acerca de Tracklytics</Link>
+      </footer>
     </div>
   )
 }
