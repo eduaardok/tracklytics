@@ -7,7 +7,7 @@ demo ya existentes del proyecto. La contraseña sale de la variable de entorno
 `SUPERADMIN_DEMO_PASSWORD` (default `Demo12345!` — ver `docker-compose.yml`), nunca está
 en texto plano en el código (S14-P4, Fase 1).
 
-**Desde S14-P4 estas 7 cuentas se siembran solas**: el servicio `seed-cuentas-demo` de
+**Desde S14-P4 estas 8 cuentas se siembran solas**: el servicio `seed-cuentas-demo` de
 `docker-compose.yml` (`seed_cuentas_demo.py`) corre automáticamente en cada
 `docker compose up`, después de que `api` esté saludable (`depends_on` + `healthcheck`, sin
 `sleep`). Es idempotente — si una cuenta ya existe, no la duplica ni falla. Antes de S14-P4
@@ -37,6 +37,7 @@ automáticamente.
 | `admin_datos@demo.tracklytics.com` | `admin_datos` | `Demo12345!` | Tecnología (C04–C06) + Ingeniería de Datos (C12–C13) + Analítica y BI (C14–C18) |
 | `admin_comercial@demo.tracklytics.com` | `admin_comercial` | `Demo12345!` | Comercial y Marketing (C01–C03) |
 | `analyst@demo.tracklytics.com` | — (cliente B2B, sin rol administrativo) | `Demo12345!` | Ninguno de los 30 informes internos — ve el panel de analítica B2B de su propio plan (`analitica`), no la capa `reportes` |
+| `usuario@demo.tracklytics.com` | — (Cliente B2C simple, sin rol administrativo) | `Demo12345!` | Ninguno — catálogo, biblioteca, social, creadores, like/dislike, como cualquier usuario B2C (S16 prompt 09, para el acceso rápido de demo en `/login`) |
 
 `superadmin` es la única cuenta que ve **Seguridad** (C26–C27) — ese departamento no tiene
 rol administrativo propio en `DIM_ROL_ADMINISTRATIVO` (ver `api/paquetes/reportes/deps.py`),

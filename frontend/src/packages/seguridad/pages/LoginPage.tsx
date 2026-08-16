@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
-import { ChevronRight } from 'lucide-react'
+import { ChevronDown, ChevronRight, Zap } from 'lucide-react'
 import { isAuthenticated } from '@shared/lib/session'
 import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { apiErrorMessage } from '@shared/lib/api-client'
@@ -12,6 +12,24 @@ import { AuthHero } from './AuthHero'
 import styles from './AuthPages.module.css'
 
 type Modo = 'login' | 'recuperar' | 'restablecer'
+
+// Acceso rápido de demo (S16 prompt 09) — SOLO para agilizar la grabación de
+// los videos, no es un patrón de producción: la contraseña de las 8 cuentas
+// demo es pública (`docs/CUENTAS_DEMO.md`, `seed_cuentas_demo.py`,
+// `SUPERADMIN_DEMO_PASSWORD` con default `Demo12345!`), así que exponerla acá
+// no agrega ningún riesgo nuevo — ya es de conocimiento público en el repo.
+// Colapsado por defecto (oculto hasta que alguien lo abre a propósito).
+const DEMO_PASSWORD = 'Demo12345!'
+const CUENTAS_DEMO: { email: string; label: string }[] = [
+  { email: 'usuario@demo.tracklytics.com',         label: 'Usuario (B2C)' },
+  { email: 'analyst@demo.tracklytics.com',         label: 'Cliente B2B' },
+  { email: 'superadmin@demo.tracklytics.com',      label: 'Superadmin' },
+  { email: 'admin_finanzas@demo.tracklytics.com',  label: 'Admin Finanzas' },
+  { email: 'admin_contenido@demo.tracklytics.com', label: 'Admin Contenido' },
+  { email: 'admin_comunidad@demo.tracklytics.com', label: 'Admin Comunidad' },
+  { email: 'admin_datos@demo.tracklytics.com',     label: 'Admin Datos' },
+  { email: 'admin_comercial@demo.tracklytics.com', label: 'Admin Comercial' },
+]
 
 export function LoginPage() {
   useDocumentTitle('Iniciar sesión')
@@ -25,19 +43,15 @@ export function LoginPage() {
   const [error, setError]       = useState<string | null>(null)
   const [info, setInfo]         = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
+  const [quickLoginOpen, setQuickLoginOpen] = useState(false)
 
   if (isAuthenticated()) return <Navigate to="/" replace />
 
-  async function handleSubmit(e: FormEvent) {
-    e.preventDefault()
-    if (!email.trim() || !password) {
-      setError('Completa correo y contraseña.')
-      return
-    }
+  async function performLogin(emailValue: string, passwordValue: string) {
     setError(null)
     setSubmitting(true)
     try {
-      const usuario = await authApi.login(email, password)
+      const usuario = await authApi.login(emailValue, passwordValue)
       const destino = await resolverDestinoPostAuth(usuario.role)
       if (destino.onboarding) {
         // B2B sin plan activo: onboarding manda siempre, sin importar a dónde
@@ -62,6 +76,21 @@ export function LoginPage() {
       setError(apiErrorMessage(err, 'Correo o contraseña incorrectos'))
       setSubmitting(false)
     }
+  }
+
+  async function handleSubmit(e: FormEvent) {
+    e.preventDefault()
+    if (!email.trim() || !password) {
+      setError('Completa correo y contraseña.')
+      return
+    }
+    await performLogin(email, password)
+  }
+
+  function handleQuickLogin(demoEmail: string) {
+    setEmail(demoEmail)
+    setPassword(DEMO_PASSWORD)
+    void performLogin(demoEmail, DEMO_PASSWORD)
   }
 
   async function handleRecuperar(e: FormEvent) {
@@ -159,6 +188,35 @@ export function LoginPage() {
                 Explorar el catálogo sin iniciar sesión
                 <ChevronRight size={16} aria-hidden="true" />
               </Link>
+
+              {/* Acceso rápido de demo — SOLO para agilizar la grabación de
+                  los videos (operativo/táctico/estratégico), nunca un patrón
+                  de producción. Colapsado por defecto. */}
+              <button
+                type="button"
+                className={styles.quickLoginToggle}
+                onClick={() => setQuickLoginOpen((v) => !v)}
+                aria-expanded={quickLoginOpen}
+              >
+                <Zap size={13} aria-hidden="true" />
+                Acceso rápido (demo)
+                <ChevronDown size={13} aria-hidden="true" className={quickLoginOpen ? styles.quickLoginChevronOpen : ''} />
+              </button>
+              {quickLoginOpen && (
+                <div className={styles.quickLoginPanel}>
+                  {CUENTAS_DEMO.map((c) => (
+                    <button
+                      key={c.email}
+                      type="button"
+                      className={styles.quickLoginBtn}
+                      disabled={submitting}
+                      onClick={() => handleQuickLogin(c.email)}
+                    >
+                      {c.label}
+                    </button>
+                  ))}
+                </div>
+              )}
             </>
           )}
 

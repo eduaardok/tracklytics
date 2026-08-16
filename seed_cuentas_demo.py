@@ -56,6 +56,10 @@ CUENTAS = [
     ("admin_datos",     "user",    "admin_datos"),
     ("admin_comercial", "user",    "admin_comercial"),
     ("analyst",         "analyst", None),
+    # Cliente B2C simple, sin rol administrativo (igual que `analyst`, `rol_admin=None`
+    # -> se omite la asignación) — para el acceso rápido de demo en LoginPage.tsx
+    # (S16 prompt 09), que necesitaba una cuenta B2C estable además de las 6 admin/1 B2B.
+    ("usuario",         "user",    None),
 ]
 
 MAX_INTENTOS_API = 30

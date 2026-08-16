@@ -702,6 +702,62 @@
   color: var(--color-primary-light);
 }
 
+/* Acceso rápido de demo (S16 prompt 09) — SOLO para agilizar la grabación de
+   los videos, nunca un patrón de producción. Borde punteado + tono apagado
+   a propósito, para que se lea como una herramienta de desarrollo y no como
+   parte del flujo de login real (que ya termina en `.exploreLink` arriba). */
+.quickLoginToggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  width: 100%;
+  margin-top: var(--space-sm);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--color-muted);
+  background: transparent;
+  border: none;
+  padding: 6px;
+  cursor: pointer;
+  transition: color var(--duration-fast) var(--ease-standard);
+}
+
+.quickLoginToggle:hover { color: var(--color-ink); }
+
+.quickLoginChevronOpen { transform: rotate(180deg); }
+
+.quickLoginPanel {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin-top: var(--space-xs);
+  padding: var(--space-sm);
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+}
+
+.quickLoginBtn {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--color-muted);
+  background: var(--color-surface-raised);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 6px 8px;
+  cursor: pointer;
+  text-align: left;
+  transition: border-color var(--duration-fast) var(--ease-standard), color var(--duration-fast) var(--ease-standard);
+}
+
+.quickLoginBtn:hover:not(:disabled) {
+  border-color: var(--color-primary);
+  color: var(--color-primary-light);
+}
+
+.quickLoginBtn:disabled { opacity: 0.5; cursor: not-allowed; }
+
 /* Footer de página (S16 Fase 4, P6): "Acerca de Tracklytics" ya no vive
    dentro del card de login — es un link institucional, no parte del flujo
    de autenticación. */
