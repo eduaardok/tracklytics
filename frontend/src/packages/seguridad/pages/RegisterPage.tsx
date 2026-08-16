@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom'
 import { isAuthenticated } from '@shared/lib/session'
 import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
+import { apiErrorMessage, fieldErrorsFromApiError } from '@shared/lib/api-client'
 import { resolverDestinoPostAuth } from '@packages/suscripciones'
 // Import directo, no vía el barrel `@packages/distribucion` (arrastraría
 // DistribucionAdminPage —con Recharts— al bundle principal, RegisterPage es
@@ -35,6 +36,12 @@ export function RegisterPage() {
     searchParams.get('tipo') === 'artista' ? 'artista' : 'user',
   )
   const [error, setError]       = useState<string | null>(null)
+  // Errores por campo (S16 — auditoría de revisores): antes cualquier
+  // problema de validación, propio o del backend, caía a un único banner
+  // genérico arriba del formulario. Ahora cada campo muestra su propio
+  // mensaje, junto al input — `error` queda solo para fallas que no atan a
+  // un campo puntual (ej. de red).
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [submitting, setSubmitting] = useState(false)
 
   // Catálogo público (sin sesión) — antes el país se guardaba como texto
@@ -47,14 +54,16 @@ export function RegisterPage() {
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
-    if (!nombre.trim() || !email.trim() || !password) {
-      setError('Completa nombre, correo y contraseña.')
+    const erroresCampo: Record<string, string> = {}
+    if (!nombre.trim()) erroresCampo.nombre = 'Ingresa tu nombre.'
+    if (!email.trim()) erroresCampo.email = 'Ingresa tu correo electrónico.'
+    if (password.length < 8) erroresCampo.password = 'Debe tener al menos 8 caracteres.'
+    if (Object.keys(erroresCampo).length > 0) {
+      setFieldErrors(erroresCampo)
+      setError(null)
       return
     }
-    if (password.length < 8) {
-      setError('La contraseña debe tener al menos 8 caracteres.')
-      return
-    }
+    setFieldErrors({})
     setError(null)
     setSubmitting(true)
     try {
@@ -67,7 +76,21 @@ export function RegisterPage() {
       const destino = await resolverDestinoPostAuth(usuario.role)
       navigate(destino.onboarding ? `${destino.path}?onboarding=1` : destino.path, { replace: true })
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'No se pudo crear la cuenta')
+      // Antes: `err.message` crudo (ej. "API 422: Unprocessable Entity" o
+      // "API 400: Bad Request") — mostraba el código HTTP en vez del mensaje
+      // real del backend (ver auditoría S16). `fieldErrorsFromApiError` cubre
+      // el caso de validación por campo (422); el correo ya registrado llega
+      // como un 400 de texto plano (`pb_client.py`), sin `loc`, así que se
+      // ata al campo email con una heurística de texto en vez de perderse en
+      // un banner genérico.
+      const porCampo = fieldErrorsFromApiError(err)
+      if (porCampo) {
+        setFieldErrors(porCampo)
+      } else {
+        const msg = apiErrorMessage(err, 'No se pudo crear la cuenta.')
+        if (/correo|email/i.test(msg)) setFieldErrors({ email: msg })
+        else setError(msg)
+      }
       setSubmitting(false)
     }
   }
@@ -93,8 +116,10 @@ export function RegisterPage() {
                 required
                 maxLength={150}
                 value={nombre}
-                onChange={(e) => setNombre(e.target.value)}
+                onChange={(e) => { setNombre(e.target.value); setFieldErrors((f) => ({ ...f, nombre: '' })) }}
+                aria-invalid={Boolean(fieldErrors.nombre)}
               />
+              {fieldErrors.nombre && <span className={styles.fieldHint}>{fieldErrors.nombre}</span>}
             </div>
 
             <div className={styles.field}>
@@ -107,8 +132,10 @@ export function RegisterPage() {
                 autoComplete="email"
                 required
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(e) => { setEmail(e.target.value); setFieldErrors((f) => ({ ...f, email: '' })) }}
+                aria-invalid={Boolean(fieldErrors.email)}
               />
+              {fieldErrors.email && <span className={styles.fieldHint}>{fieldErrors.email}</span>}
             </div>
 
             <div className={styles.field}>
@@ -123,8 +150,10 @@ export function RegisterPage() {
                 maxLength={128}
                 required
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={(e) => { setPassword(e.target.value); setFieldErrors((f) => ({ ...f, password: '' })) }}
+                aria-invalid={Boolean(fieldErrors.password)}
               />
+              {fieldErrors.password && <span className={styles.fieldHint}>{fieldErrors.password}</span>}
             </div>
 
             <div className={styles.field}>

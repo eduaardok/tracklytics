@@ -51,6 +51,15 @@
   margin-top: var(--space-lg);
 }
 
+/* Error de la mutación (S16) — dentro del modal, no solo en el toast global
+   que ya no se nota si el usuario sigue mirando el formulario abierto. */
+.errorText {
+  margin-top: var(--space-md);
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+  color: var(--color-error);
+}
+
 .btnGhost {
   font-family: var(--font-sans);
   font-size: 0.875rem;

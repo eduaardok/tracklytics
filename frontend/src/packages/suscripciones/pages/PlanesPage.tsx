@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { AlertTriangle } from 'lucide-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { getRole } from '@shared/lib/session'
@@ -116,8 +116,12 @@ export function PlanesPage() {
       toast.success('Método de pago agregado')
     },
     onError: (err: unknown) => {
-      setFormError(err instanceof Error ? err.message : 'No se pudo agregar el método de pago')
-      toast.error(apiErrorMessage(err, 'No se pudo agregar el método de pago.'))
+      // Antes: `err.message` crudo (ej. "API 422: Unprocessable Entity") en
+      // el banner del formulario, mientras el toast sí mostraba el mensaje
+      // real — dos textos distintos para el mismo error (auditoría S16).
+      const msg = apiErrorMessage(err, 'No se pudo agregar el método de pago.')
+      setFormError(msg)
+      toast.error(msg)
     },
   })
 
@@ -138,8 +142,9 @@ export function PlanesPage() {
       if (onboarding) navigate('/', { replace: true })
     },
     onError: (err: unknown) => {
-      setFormError(err instanceof Error ? err.message : 'No se pudo confirmar la suscripción')
-      toast.error(apiErrorMessage(err, 'No se pudo confirmar la suscripción.'))
+      const msg = apiErrorMessage(err, 'No se pudo confirmar la suscripción.')
+      setFormError(msg)
+      toast.error(msg)
     },
   })
 
@@ -182,6 +187,18 @@ export function PlanesPage() {
   async function handleCambiarPlan(nuevoPlan: Plan, activaActual: NonNullable<typeof activa>) {
     const ajusteEstimado = estimarAjuste(activaActual, nuevoPlan.precio)
     const metodoPagoId = activaActual.metodo_pago_id || metodos[0]?.metodo_pago_id || null
+    // Aviso de método de pago ANTES de iniciar el flujo de cobro (S16 —
+    // antes este chequeo vivía después del modal de confirmación del ajuste,
+    // como un toast al que ya no se podía reaccionar: el usuario ya había
+    // "aceptado" cobrar un ajuste que después no se podía procesar).
+    if (ajusteEstimado > 0 && !metodoPagoId) {
+      const irAFacturacion = await confirm(
+        'Necesitas un método de pago registrado para este upgrade. ¿Ir a Facturación para agregarlo?',
+        { title: 'Sin método de pago', confirmLabel: 'Ir a Facturación' },
+      )
+      if (irAFacturacion) navigate('/facturacion')
+      return
+    }
     const mensaje = ajusteEstimado > 0
       ? `Cambiar a ${nuevoPlan.nombre} — se cobrará un ajuste estimado de ${ajusteEstimado.toFixed(2)} ${activaActual.moneda} por los días restantes de tu ciclo actual.`
       : ajusteEstimado < 0
@@ -189,11 +206,22 @@ export function PlanesPage() {
       : `¿Cambiar a ${nuevoPlan.nombre}?`
     const ok = await confirm(mensaje, { confirmLabel: 'Cambiar de plan' })
     if (!ok) return
-    if (ajusteEstimado > 0 && !metodoPagoId) {
-      toast.error('Necesitas un método de pago registrado para este upgrade — agrégalo en Facturación.')
-      return
-    }
     cambiarPlan.mutate({ suscripcionId: activaActual.id, nuevoPlanId: nuevoPlan.id, metodoPagoId })
+  }
+
+  // Mismo aviso previo para quien todavía no tiene ninguna suscripción
+  // (primer plan pagado) — antes el formulario de confirmación se abría
+  // directo y el aviso de "sin método de pago" solo aparecía como texto
+  // dentro de ese mismo formulario, ya iniciado el flujo.
+  async function handleSelectClick(plan: Plan) {
+    if (plan.precio > 0 && !metodosQuery.isLoading && metodos.length === 0) {
+      const continuar = await confirm(
+        'Todavía no tienes un método de pago guardado. Vas a poder agregarlo en el siguiente paso, antes de confirmar.',
+        { title: 'Sin método de pago', confirmLabel: 'Continuar', cancelLabel: 'Volver' },
+      )
+      if (!continuar) return
+    }
+    handleSelect(plan)
   }
 
   const planes = planesQuery.data?.data ?? []
@@ -468,6 +496,11 @@ export function PlanesPage() {
             : confirmar.data?.data?.en_prueba
             ? 'Suscripción confirmada — período de prueba de 7 días, sin cobro por ahora.'
             : 'Suscripción confirmada' + (confirmar.data?.pago ? ' y cobro procesado.' : '.')}
+          {/* Factura visible de inmediato (S16), no solo buscándola después
+              en Facturación. */}
+          {confirmar.data?.pago?.estado === 'exitosa' && confirmar.data.pago.invoice_id && (
+            <> <Link to={`/facturacion/${confirmar.data.pago.invoice_id}`}>Ver factura</Link></>
+          )}
         </div>
       )}
     </section>

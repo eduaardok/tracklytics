@@ -172,6 +172,7 @@ export function AdminPartnersPage() {
       {modal?.mode === 'create' && (
         <CreatePartnerModal
           pending={crear.isPending}
+          error={crear.isError ? apiErrorMessage(crear.error, 'No se pudo crear el partner.') : null}
           onClose={() => setModal(null)}
           onSave={(vals) => crear.mutate(vals)}
         />
@@ -181,6 +182,7 @@ export function AdminPartnersPage() {
         <EditPartnerModal
           partner={modal.partner}
           pending={editar.isPending}
+          error={editar.isError ? apiErrorMessage(editar.error, 'No se pudo editar el partner.') : null}
           onClose={() => setModal(null)}
           onSave={(body) => editar.mutate({ id: modal.partner.id, body })}
         />
@@ -197,6 +199,7 @@ export function AdminPartnersPage() {
           title="Desactivar partner"
           confirmLabel="Desactivar"
           loading={desactivar.isPending}
+          error={desactivar.isError ? apiErrorMessage(desactivar.error, 'No se pudo desactivar el partner.') : null}
           onClose={() => setModal(null)}
           onConfirm={() => desactivar.mutate(modal.partner)}
         >
@@ -210,8 +213,9 @@ export function AdminPartnersPage() {
   )
 }
 
-function CreatePartnerModal({ pending, onClose, onSave }: {
+function CreatePartnerModal({ pending, error, onClose, onSave }: {
   pending: boolean
+  error?: string | null
   onClose: () => void
   onSave: (vals: { nombre: string; tier: PartnerTier; email: string }) => void
 }) {
@@ -227,6 +231,7 @@ function CreatePartnerModal({ pending, onClose, onSave }: {
       title="Nuevo partner"
       confirmLabel="Crear partner"
       loading={pending}
+      error={error}
       onClose={onClose}
       onConfirm={() => valido && onSave({ nombre, tier, email })}
     >
@@ -248,9 +253,10 @@ function CreatePartnerModal({ pending, onClose, onSave }: {
   )
 }
 
-function EditPartnerModal({ partner, pending, onClose, onSave }: {
+function EditPartnerModal({ partner, pending, error, onClose, onSave }: {
   partner: Partner
   pending: boolean
+  error?: string | null
   onClose: () => void
   onSave: (body: EditarPartnerBody) => void
 }) {
@@ -266,6 +272,7 @@ function EditPartnerModal({ partner, pending, onClose, onSave }: {
       mode="edit"
       title={`Editar partner — ${partner.nombre}`}
       loading={pending}
+      error={error}
       onClose={onClose}
       onConfirm={() => valido && onSave({ nombre: nombre.trim(), tier, email_contacto: email.trim(), estado })}
     >

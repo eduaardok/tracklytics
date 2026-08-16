@@ -12,6 +12,13 @@ type Props = {
   confirmLabel?: string
   cancelLabel?:  string
   loading?:      boolean
+  // Mensaje de error de la mutación en curso (S16 — auditoría de revisores):
+  // antes `CrudModal` no sabía nada de errores, así que un 422/401 de crear/
+  // editar solo se veía en el toast global — el modal se quedaba abierto sin
+  // ninguna señal visual de qué falló. Opcional: los llamadores que ya pasan
+  // `apiErrorMessage(mutation.error, fallback)` acá lo mejoran gratis, el
+  // resto sigue funcionando igual que antes.
+  error?:        string | null
   children:      ReactNode
 }
 
@@ -24,7 +31,7 @@ type Props = {
 // readonly (`view`), el tono del botón de confirmar (`delete` → rojo) y qué
 // botones mostrar.
 export function CrudModal({
-  isOpen, onClose, title, mode, onConfirm, confirmLabel, cancelLabel = 'Cancelar', loading = false, children,
+  isOpen, onClose, title, mode, onConfirm, confirmLabel, cancelLabel = 'Cancelar', loading = false, error, children,
 }: Props) {
   const modalRef = useRef<HTMLDivElement>(null)
 
@@ -90,6 +97,8 @@ export function CrudModal({
         <fieldset className={styles.body} disabled={isView} aria-disabled={isView}>
           {children}
         </fieldset>
+
+        {error && <p className={styles.errorText} role="alert">{error}</p>}
 
         <div className={styles.actions}>
           <button type="button" className={styles.btnGhost} onClick={onClose}>

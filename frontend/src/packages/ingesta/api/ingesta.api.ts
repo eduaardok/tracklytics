@@ -1,5 +1,6 @@
 import { apiClient } from '@shared/lib/api-client'
 import { getAuthHeaders } from '@shared/lib/session'
+import { resumirErroresValidacion, type ValidationErrorItem } from '@shared/lib/validationErrors'
 import type {
   EjecucionIngestaRequest, EjecucionTrigger, EjecucionEstado,
   CargasHistorial, DataQuality, DimListResponse, DimRow, FactsListResponse,
@@ -31,8 +32,18 @@ async function rawRequest<T>(path: string, init?: RequestInit): Promise<T> {
     ...init,
   })
   if (!res.ok) {
-    const body: { detail?: string } | null = await res.json().catch(() => null)
-    throw new IngestaApiError(res.status, body?.detail ?? `API ${res.status}: ${res.statusText}`)
+    // Antes: `body?.detail ?? fallback` sin chequear el tipo — un 422 de
+    // Pydantic manda `detail` como array de `{loc, msg, type}` (truthy, así
+    // que el `??` nunca caía al fallback), y `super(detail)` de `Error`
+    // coacciona ese array a texto tipo "[object Object],[object Object]"
+    // (auditoría S16, el peor caso encontrado). Mismo mapeo a español que
+    // `api-client.ts` usa para el resto del proyecto.
+    const body: { detail?: string | ValidationErrorItem[] } | null = await res.json().catch(() => null)
+    let detail: string
+    if (typeof body?.detail === 'string') detail = body.detail
+    else if (Array.isArray(body?.detail)) detail = resumirErroresValidacion(body.detail)
+    else detail = `API ${res.status}: ${res.statusText}`
+    throw new IngestaApiError(res.status, detail)
   }
   if (res.status === 204) return undefined as T
   return res.json() as Promise<T>

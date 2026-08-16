@@ -556,6 +556,14 @@
   color: var(--color-muted);
 }
 
+/* Error por campo (S16) — junto al input, no un banner genérico arriba del
+   formulario; ver RegisterPage.tsx `fieldErrors`. */
+.fieldHint {
+  font-family: var(--font-sans);
+  font-size: 0.75rem;
+  color: var(--color-error);
+}
+
 .input {
   background: var(--color-bg);
   color: var(--color-ink);
