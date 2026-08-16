@@ -3,7 +3,7 @@ import { getAuthHeaders } from '@shared/lib/session'
 import type { Genre } from '@packages/catalogo'
 import type {
   ArtistSearchResult, TrackSearchResult,
-  EngagementByArtist, EngagementByFact, DesempenoRelativo,
+  EngagementByArtist, EngagementByFact, EngagementRankingResponse, DesempenoRelativo,
   DashboardData,
   GenreAudioProfile, ArtistasComparacion, ArtistaBenchmark,
   TendenciaSemana, ReporteDiario,
@@ -59,6 +59,10 @@ export const analiticaApi = {
   engagementByFact: (factId: number) =>
     apiClient.get<EngagementByFact>(`/analitica/engagement?fact_id=${factId}`),
 
+  // FASE 4 (Prompt 10): ranking paginado por defecto, sin búsqueda activa.
+  engagementRanking: (page = 1, limit = 20) =>
+    apiClient.get<EngagementRankingResponse>(`/analitica/engagement/ranking?page=${page}&limit=${limit}`),
+
   desempenoRelativo: (factId: number) =>
     apiClient.get<DesempenoRelativo>(`/analitica/desempeno-relativo?fact_id=${factId}`),
 
@@ -100,8 +104,18 @@ export const analiticaApi = {
     apiClient.get<ReporteDiario>(`/analitica/reporte-diario${fecha ? `?fecha=${fecha}` : ''}`),
 
   // ── Adquisición de usuarios por canal (CU-O54) ──────────────────────────────
-  adquisicion: () =>
-    apiClient.get<{ data: AdquisicionCanal[] }>('/analitica/adquisicion'),
+  // FASE 6 (Prompt 10): filtros opcionales de rango de fechas y canal.
+  adquisicion: (filtros?: { fechaDesde?: string; fechaHasta?: string; canales?: string[] }) => {
+    const qs = new URLSearchParams()
+    if (filtros?.fechaDesde) qs.set('fecha_desde', filtros.fechaDesde)
+    if (filtros?.fechaHasta) qs.set('fecha_hasta', filtros.fechaHasta)
+    if (filtros?.canales && filtros.canales.length > 0) qs.set('canales', filtros.canales.join(','))
+    const query = qs.toString()
+    return apiClient.get<{ data: AdquisicionCanal[] }>(`/analitica/adquisicion${query ? `?${query}` : ''}`)
+  },
+
+  adquisicionCanales: () =>
+    apiClient.get<{ data: string[] }>('/analitica/adquisicion/canales'),
 
   // ── Disponibilidad de infraestructura por componente (CU-O55) ──────────────
   disponibilidad: () =>

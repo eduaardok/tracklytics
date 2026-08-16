@@ -174,6 +174,52 @@ SELECT
 FROM agg, max_raw
 """
 
+# FASE 4 (Prompt 10): listado paginado por defecto de EngagementPage cuando
+# no hay búsqueda activa — mismo patrón de 2 pasos que el resto de rankings
+# de `analitica` sobre FACT_TRACKS (S13-P7): rankea barato por `raw_score`
+# agregado sobre FACT_ENGAGEMENT_USUARIO (sin joins todavía) y solo enriquece
+# con nombre de track/artista los `fact_id` que sobrevivieron el LIMIT/OFFSET
+# — evita un GROUP BY con joins sobre la tabla completa de eventos.
+ENGAGEMENT_RANKING = f"""
+WITH scores AS (
+    SELECT
+        fact_id,
+        countIf(event_type = 'reproduccion') AS reproducciones,
+        countIf(event_type = 'favorito_add') AS favoritos,
+        countIf(event_type = 'reproduccion') + countIf(event_type = 'favorito_add') * 3 + countIf(event_type = 'like') * 2 AS raw_score
+    FROM {_DB}.FACT_ENGAGEMENT_USUARIO
+    GROUP BY fact_id
+),
+max_raw AS (
+    SELECT max(raw_score) AS max_raw_score FROM scores
+),
+paged AS (
+    SELECT
+        s.fact_id                                                                     AS fact_id,
+        s.reproducciones                                                              AS reproducciones,
+        s.favoritos                                                                   AS favoritos,
+        s.raw_score                                                                   AS raw_score,
+        m.max_raw_score                                                               AS max_raw_score,
+        if(s.raw_score > 0 AND m.max_raw_score > 0,
+           least(100, round(s.raw_score / m.max_raw_score * 100)), 0)                 AS engagement_score
+    FROM scores s, max_raw m
+    ORDER BY engagement_score DESC, s.fact_id
+    LIMIT {{limit:UInt32}} OFFSET {{offset:UInt32}}
+)
+SELECT
+    p.fact_id AS fact_id, ft.track_name AS track_name, a.name AS artist_name,
+    p.reproducciones AS reproducciones, p.favoritos AS favoritos,
+    p.raw_score AS raw_score, p.max_raw_score AS max_raw_score, p.engagement_score AS engagement_score
+FROM paged p
+JOIN {_DB}.FACT_TRACKS ft ON p.fact_id = ft.fact_id
+JOIN {_DB}.DIM_ARTISTS a  ON ft.artist_id = a.artist_id
+ORDER BY p.engagement_score DESC, p.fact_id
+"""
+
+ENGAGEMENT_RANKING_TOTAL = f"""
+SELECT count() AS n FROM (SELECT fact_id FROM {_DB}.FACT_ENGAGEMENT_USUARIO GROUP BY fact_id)
+"""
+
 TRACK_POPULARITY = f"""
 SELECT ft.fact_id, ft.track_id, ft.track_name, ft.popularity, a.name AS artist_name
 FROM {_DB}.FACT_TRACKS ft
@@ -405,6 +451,9 @@ LIMIT 10
 # infraestructura (CU-O54/CU-O55). `semana` es el lunes de la semana de
 # `fecha` (toMonday), no `load_week` de FACT_TRACKS — estas tablas son un
 # dominio de negocio independiente del catálogo (ver design.md).
+# FASE 6 (Prompt 10): `{where}` opcional (fecha_desde/fecha_hasta, canales) —
+# mismo patrón condicional que TENDENCIAS_LOAD_WEEK, sin duplicar la query
+# base cuando no hay filtro activo.
 ADQUISICION_POR_CANAL = f"""
 SELECT
     toMonday(fa.fecha)  AS semana,
@@ -412,8 +461,15 @@ SELECT
     count()             AS usuarios_nuevos
 FROM {_DB}.FACT_ADQUISICION fa
 JOIN {_DB}.DIM_CANAL_MARKETING dcm ON fa.canal_id = dcm.canal_id
+{{where}}
 GROUP BY semana, canal
 ORDER BY semana, canal
+"""
+
+ADQUISICION_CANALES_DISPONIBLES = f"""
+SELECT DISTINCT dcm.nombre AS canal
+FROM {_DB}.DIM_CANAL_MARKETING dcm
+ORDER BY canal
 """
 
 DISPONIBILIDAD_POR_COMPONENTE = f"""

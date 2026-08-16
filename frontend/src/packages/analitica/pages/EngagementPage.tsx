@@ -5,7 +5,7 @@ import { SkeletonLoader } from '@shared/components/SkeletonLoader'
 import { analiticaApi } from '../api/analitica.api'
 import { TierUpsell } from '../components/TierUpsell'
 import { tierInsuficienteInfo } from '../lib/tierError'
-import type { ArtistSearchResult, TrackSearchResult, EngagementData, DesempenoRelativo } from '../types'
+import type { ArtistSearchResult, TrackSearchResult, EngagementData, EngagementByArtist, EngagementByFact, DesempenoRelativo } from '../types'
 import styles from './EngagementPage.module.css'
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -167,12 +167,26 @@ export function EngagementPage() {
 
   const { data: engagement, isLoading: engLoading, isError: engError } = useQuery({
     queryKey: ['engagement', selection?.type, selection?.id],
-    queryFn: () =>
+    // Anotado explícito (no inferido del ternario): sin esto TS intenta
+    // unificar `Promise<EngagementByArtist> | Promise<EngagementByFact>` en
+    // un único tipo de retorno y falla — bug preexistente encontrado al
+    // tocar este archivo para FASE 4.
+    queryFn: (): Promise<EngagementByArtist | EngagementByFact> =>
       selection!.type === 'artista'
         ? analiticaApi.engagementByArtist(selection!.id)
         : analiticaApi.engagementByFact(selection!.id),
     enabled: !!selection,
   })
+
+  // FASE 4 (Prompt 10): ranking paginado por defecto — visible solo cuando no
+  // hay una selección activa (la búsqueda puntual sigue funcionando igual).
+  const [rankingPage, setRankingPage] = useState(1)
+  const ranking = useQuery({
+    queryKey: ['engagement-ranking', rankingPage],
+    queryFn:  () => analiticaApi.engagementRanking(rankingPage, 20),
+    enabled:  !selection,
+  })
+  const rankingTotalPages = ranking.data ? Math.max(1, Math.ceil(ranking.data.total / ranking.data.limit)) : 1
 
   const { data: desempeno, isLoading: desLoading, error: desError } = useQuery({
     queryKey: ['desempeno', selection?.id],
@@ -332,9 +346,67 @@ export function EngagementPage() {
       {!selection && !searchQuery.isError && (
         <div className={styles.prompt}>
           <p className={styles.promptText}>
-            Busca un artista o track para ver su actividad en la plataforma.
+            Busca un artista o track para ver su actividad en la plataforma, o elige uno del ranking de abajo.
           </p>
         </div>
+      )}
+
+      {/* FASE 4 (Prompt 10): ranking paginado por defecto, sin búsqueda activa. */}
+      {!selection && (
+        ranking.isLoading ? (
+          <PanelSkeleton rows={6} />
+        ) : ranking.isError ? (
+          <div className={styles.panel}>
+            <p className={styles.panelError}>No se pudo cargar el ranking de engagement.</p>
+          </div>
+        ) : ranking.data && ranking.data.data.length > 0 ? (
+          <div className={styles.panel}>
+            <div className={styles.panelHead}>
+              <div className={styles.panelTitle}>Ranking por engagement</div>
+              <div className={styles.panelSub}>Top tracks, de mayor a menor engagement score</div>
+            </div>
+            <table className={styles.rankingTable}>
+              <thead>
+                <tr>
+                  <th></th>
+                  <th>Track</th>
+                  <th style={{ textAlign: 'right' }}>Score</th>
+                </tr>
+              </thead>
+              <tbody>
+                {ranking.data.data.map((row, i) => (
+                  <tr
+                    key={row.fact_id}
+                    onClick={() => {
+                      setEntityType('track')
+                      selectTrack({ fact_id: row.fact_id, track_id: '', track_name: row.track_name, artist_name: row.artist_name, genre_name: '', popularity: 0 })
+                    }}
+                    style={{ cursor: 'pointer' }}
+                  >
+                    <td className={styles.rankingRank}>{(rankingPage - 1) * ranking.data!.limit + i + 1}</td>
+                    <td>
+                      {row.track_name}
+                      <span className={styles.rankingArtist}> — {row.artist_name}</span>
+                    </td>
+                    <td className={styles.rankingScoreCell}>{row.engagement_score} / 100</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+
+            {rankingTotalPages > 1 && (
+              <div className={styles.pagination}>
+                <button className={styles.retryBtn} disabled={rankingPage <= 1} onClick={() => setRankingPage((p) => p - 1)}>
+                  ← Anterior
+                </button>
+                <span className={styles.pageInfo}>Página {rankingPage} / {rankingTotalPages}</span>
+                <button className={styles.retryBtn} disabled={rankingPage >= rankingTotalPages} onClick={() => setRankingPage((p) => p + 1)}>
+                  Siguiente →
+                </button>
+              </div>
+            )}
+          </div>
+        ) : null
       )}
 
       {selection && engLoading && <PanelSkeleton />}

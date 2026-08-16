@@ -10,7 +10,7 @@ from paquetes.analitica.bsc import bsc_analisis_inteligente, bsc_resumen
 from paquetes.analitica.deps import require_b2b_panel_access, require_cualquier_admin, require_staff, require_tier
 from paquetes.analitica.proyeccion import clasificar_trayectoria, proyectar_serie
 from paquetes.analitica.queries import (
-    ADQUISICION_POR_CANAL,
+    ADQUISICION_CANALES_DISPONIBLES, ADQUISICION_POR_CANAL,
     ARTIST_AUDIO_STATS_V1, ARTIST_PREDOMINANT_GENRE, ARTIST_STATS,
     ARTIST_WEEKLY_POPULARITY,
     ARTISTAS_SEARCH_V1, ARTISTS_SEARCH, ARTISTS_SEARCH_TOTAL,
@@ -22,7 +22,7 @@ from paquetes.analitica.queries import (
     DASHBOARD_TOP_ARTISTS, DASHBOARD_TOP_GENRES,
     DASHBOARD_TOTAL_ARTISTS, DASHBOARD_TOTAL_GENRES, DASHBOARD_TOTAL_TRACKS,
     DISPONIBILIDAD_POR_COMPONENTE,
-    ENGAGEMENT_BY_ARTIST, ENGAGEMENT_BY_FACT,
+    ENGAGEMENT_BY_ARTIST, ENGAGEMENT_BY_FACT, ENGAGEMENT_RANKING, ENGAGEMENT_RANKING_TOTAL,
     GENRE_AUDIO_PROFILE, GENRE_AUDIO_PROFILE_V1, GENRE_WEEKLY_POPULARITY,
     GENRES_TOTAL, GENRES_TRENDS,
     INGRESO_MENSUAL_RECURRENTE_HISTORICO, INGRESO_PUBLICITARIO_EN_RANGO, INGRESO_SUSCRIPCIONES_EN_RANGO,
@@ -322,9 +322,42 @@ def v1_tendencias(
 
 
 @v1_router.get("/adquisicion", dependencies=[Depends(require_tier("pro"))])
-def v1_adquisicion():
-    """CU-O54: usuarios nuevos por canal de marketing y semana. Tier Pro (b2b-tier-access-analitica)."""
-    return {"data": query_rows(ADQUISICION_POR_CANAL)}
+def v1_adquisicion(
+    fecha_desde: date | None = Query(None),
+    fecha_hasta: date | None = Query(None),
+    # FASE 6 (Prompt 10): nombres de canal separados por coma (ej.
+    # "Redes sociales,Email") — se filtran contra DIM_CANAL_MARKETING.nombre,
+    # no un id, para que el frontend no necesite resolver ids primero.
+    canales: str | None = Query(None),
+):
+    """CU-O54: usuarios nuevos por canal de marketing y semana. Tier Pro
+    (b2b-tier-access-analitica). FASE 6 (Prompt 10): filtro opcional de rango
+    de fechas y de canal — la tabla pivotada seguía siendo plana sin forma de
+    acotarla."""
+    if fecha_desde is not None and fecha_hasta is not None and fecha_desde > fecha_hasta:
+        raise HTTPException(status_code=422, detail="fecha_desde no puede ser mayor que fecha_hasta")
+
+    condiciones: list[str] = []
+    params: dict = {}
+    if fecha_desde is not None and fecha_hasta is not None:
+        condiciones.append("fa.fecha BETWEEN {fecha_desde:Date} AND {fecha_hasta:Date}")
+        params.update({"fecha_desde": fecha_desde, "fecha_hasta": fecha_hasta})
+
+    lista_canales = [c.strip() for c in canales.split(",") if c.strip()] if canales else []
+    if lista_canales:
+        condiciones.append("dcm.nombre IN {canales:Array(String)}")
+        params["canales"] = lista_canales
+
+    where = ("WHERE " + " AND ".join(condiciones)) if condiciones else ""
+    rows = query_rows(ADQUISICION_POR_CANAL.format(where=where), params)
+    return {"data": rows}
+
+
+@v1_router.get("/adquisicion/canales", dependencies=[Depends(require_tier("pro"))])
+def v1_adquisicion_canales():
+    """FASE 6 (Prompt 10): lista de canales para poblar el filtro — barata,
+    sin fecha ni agregación de FACT_ADQUISICION."""
+    return {"data": [r["canal"] for r in query_rows(ADQUISICION_CANALES_DISPONIBLES)]}
 
 
 @v1_router.get("/engagement")
@@ -345,6 +378,22 @@ def v1_engagement(
 
     row = query_one(ENGAGEMENT_BY_ARTIST, {"artist_id": artist_id})
     return {"artist_id": artist_id, **row}
+
+
+@v1_router.get("/engagement/ranking")
+def v1_engagement_ranking(
+    limit: int = Query(20, ge=1, le=100),
+    page:  int = Query(1,  ge=1),
+):
+    """FASE 4 (Prompt 10): ranking paginado de tracks por `engagement_score`
+    descendente — estado por defecto de `EngagementPage.tsx` cuando no hay
+    búsqueda activa (antes la página no mostraba nada sin buscar). Mismo
+    scoring que `/engagement` (ENGAGEMENT_BY_FACT/ENGAGEMENT_BY_ARTIST), no
+    una fórmula nueva."""
+    offset = (page - 1) * limit
+    rows   = query_rows(ENGAGEMENT_RANKING, {"limit": limit, "offset": offset})
+    total  = query_one(ENGAGEMENT_RANKING_TOTAL)["n"]
+    return {"data": rows, "total": total, "page": page, "limit": limit}
 
 
 @v1_router.get("/desempeno-relativo", dependencies=[Depends(require_tier("pro"))])

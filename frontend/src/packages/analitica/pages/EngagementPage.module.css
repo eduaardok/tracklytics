@@ -391,3 +391,62 @@
   border-color: var(--color-muted);
   background-color: var(--color-surface-raised);
 }
+
+/* ── FASE 4 (Prompt 10): ranking paginado por defecto (sin búsqueda) ── */
+.rankingTable {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.rankingTable th {
+  text-align: left;
+  font-family: var(--font-sans);
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--color-muted);
+  padding: var(--space-xs) var(--space-sm);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.rankingTable td {
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  color: var(--color-ink);
+  padding: var(--space-sm);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.rankingTable tbody tr:last-child td { border-bottom: none; }
+.rankingTable tbody tr:hover { background: var(--color-surface-raised); }
+
+.rankingRank {
+  font-family: var(--font-mono);
+  color: var(--color-muted);
+  width: 2.5rem;
+}
+
+.rankingArtist {
+  color: var(--color-muted);
+  font-size: 0.8125rem;
+}
+
+.rankingScoreCell {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-md);
+  margin-top: var(--space-md);
+}
+
+.pageInfo {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--color-muted);
+}

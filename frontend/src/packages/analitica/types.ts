@@ -25,6 +25,23 @@ export type EngagementData = {
 export type EngagementByArtist = EngagementData & { artist_id: number }
 export type EngagementByFact   = EngagementData & { fact_id: number }
 
+// FASE 4 (Prompt 10): ranking paginado por defecto de EngagementPage
+// (GET /analitica/engagement/ranking) — mismo scoring que EngagementData,
+// enriquecido con el nombre de track/artista para listar sin necesidad de
+// buscar primero.
+export type EngagementRankingRow = EngagementData & {
+  fact_id: number
+  track_name: string
+  artist_name: string
+}
+
+export type EngagementRankingResponse = {
+  data:  EngagementRankingRow[]
+  total: number
+  page:  number
+  limit: number
+}
+
 export type DesempenoRelativo =
   | { fact_id: number; suficiente: false; mensaje: string }
   | {
