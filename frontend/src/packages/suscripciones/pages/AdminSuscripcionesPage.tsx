@@ -100,7 +100,7 @@ export function AdminSuscripcionesPage() {
               return (
                 <Fragment key={s.id}>
                   <tr>
-                    <td className={styles.mono}>{s.usuario_o_cliente.slice(0, 10)}…</td>
+                    <td>{s.usuario_nombre || s.usuario_email || <span className={styles.mono}>{s.usuario_o_cliente.slice(0, 10)}…</span>}</td>
                     <td style={{ textTransform: 'capitalize' }}>{s.tipo_plan}</td>
                     <td>{fmtMoney(s.monto, s.moneda)}</td>
                     <td><span className={`${styles.badge} ${activa ? styles.badgeOk : styles.badgeOff}`}>{s.estado}</span></td>
@@ -184,7 +184,7 @@ function CancelarDialog({ sus, onClose, onDone, onError, onSuccess }: {
     <div className={styles.modalBackdrop} onMouseDown={onClose}>
       <div className={styles.modal} role="dialog" aria-modal="true" aria-label="Cancelar suscripción" onMouseDown={(e) => e.stopPropagation()}>
         <p className={styles.modalTitle}>Cancelar suscripción</p>
-        <p className={styles.modalBody}>Se cancelará la suscripción del usuario <span className={styles.mono}>{sus.usuario_o_cliente.slice(0, 10)}…</span> (plan {sus.tipo_plan}). Indica el motivo:</p>
+        <p className={styles.modalBody}>Se cancelará la suscripción del usuario <strong>{sus.usuario_nombre || sus.usuario_email || sus.usuario_o_cliente.slice(0, 10) + '…'}</strong> (plan {sus.tipo_plan}). Indica el motivo:</p>
         <form className={styles.modalForm} onSubmit={(e) => { e.preventDefault(); if (motivo.trim()) m.mutate() }}>
           <textarea className={styles.textarea} rows={3} value={motivo} onChange={(e) => setMotivo(e.target.value)} placeholder="Ej.: fraude, solicitud del usuario…" autoFocus />
           <div className={styles.modalActions}>
@@ -211,7 +211,7 @@ function ExtenderDialog({ sus, onClose, onDone, onError, onSuccess }: {
     <div className={styles.modalBackdrop} onMouseDown={onClose}>
       <div className={styles.modal} role="dialog" aria-modal="true" aria-label="Extender suscripción" onMouseDown={(e) => e.stopPropagation()}>
         <p className={styles.modalTitle}>Extender suscripción</p>
-        <p className={styles.modalBody}>Cortesía por incidente — desplaza la fecha de vencimiento del usuario <span className={styles.mono}>{sus.usuario_o_cliente.slice(0, 10)}…</span>.</p>
+        <p className={styles.modalBody}>Cortesía por incidente — desplaza la fecha de vencimiento del usuario <strong>{sus.usuario_nombre || sus.usuario_email || sus.usuario_o_cliente.slice(0, 10) + '…'}</strong>.</p>
         <form className={styles.modalForm} onSubmit={(e) => { e.preventDefault(); if (Number(dias) > 0) m.mutate() }}>
           <label className={styles.field}><span className={styles.fieldLabel}>Días</span>
             <input className={styles.select} type="number" min="1" max="365" value={dias} onChange={(e) => setDias(e.target.value)} />

@@ -15,6 +15,8 @@ export type Comentario = {
   fact_id:              number
   usuario_id:           string
   fact_id_track:        number
+  track_name:           string | null
+  artist_name:          string | null
   tipo_interaccion_id:  number
   comentario_padre_id:  number | null
   contenido:            string

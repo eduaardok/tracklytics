@@ -16,7 +16,7 @@ from paquetes.seguridad.deps import require_email_verificado, require_rol_admin
 # siempre pasa.
 require_admin = require_rol_admin("admin_comercial")
 from paquetes.suscripciones import pb_client
-from paquetes.suscripciones.queries import PLAN_PRECIO_ACTUAL, PLANES_PRECIOS_TODOS
+from paquetes.suscripciones.queries import PLAN_PRECIO_ACTUAL, PLANES_PRECIOS_TODOS, USUARIOS_POR_IDS
 from paquetes.suscripciones.planes import (
     PLANES, PlanId, email_institucional_valido, plan_valido_para_rol, planes_para_rol,
 )
@@ -507,7 +507,19 @@ async def listar_suscripciones_admin(
         clauses.append(f'created <= "{_pb_escape(fecha_hasta)}"')
     filtro = " && ".join(clauses)
     res = await pb_client.list_admin(filtro, page, limit)
-    return {"data": res["items"], "total": res["total"], "total_pages": res["total_pages"], "page": page, "limit": limit}
+    items = res["items"]
+    # Enriquecer con nombre/email del usuario desde DIM_USUARIO
+    usuario_ids = list({s.get("usuario_o_cliente", "") for s in items if s.get("usuario_o_cliente")})
+    if usuario_ids:
+        usuarios = query_rows(USUARIOS_POR_IDS, {"ids": usuario_ids})
+        lookup = {u["usuario_id"]: u for u in usuarios}
+        for s in items:
+            uid = s.get("usuario_o_cliente", "")
+            u = lookup.get(uid)
+            if u:
+                s["usuario_nombre"] = u.get("nombre") or ""
+                s["usuario_email"] = u.get("email") or ""
+    return {"data": items, "total": res["total"], "total_pages": res["total_pages"], "page": page, "limit": limit}
 
 
 @router.get("/admin/suscripciones/{suscripcion_id}")

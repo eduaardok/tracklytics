@@ -107,6 +107,8 @@ _COMENTARIO_COLS = """
     c.fact_id             AS fact_id,
     c.usuario_id          AS usuario_id,
     c.fact_id_track       AS fact_id_track,
+    ft.track_name         AS track_name,
+    a.name                AS artist_name,
     c.tipo_interaccion_id AS tipo_interaccion_id,
     c.comentario_padre_id AS comentario_padre_id,
     c.contenido           AS contenido,
@@ -131,6 +133,8 @@ COMENTARIOS_VISIBLES_DE_TRACK = f"""
 SELECT {_COMENTARIO_COLS}
 FROM FACT_COMENTARIO c
 LEFT JOIN FACT_COMENTARIO p ON c.comentario_padre_id = p.fact_id
+LEFT JOIN FACT_TRACKS ft ON c.fact_id_track = ft.fact_id
+LEFT JOIN DIM_ARTISTS a ON ft.artist_id = a.artist_id
 WHERE c.fact_id_track = {{fact_id_track:UInt64}}
   AND c.estado_moderacion != 'eliminado'
   AND (c.comentario_padre_id IS NULL OR p.estado_moderacion != 'eliminado')
@@ -193,6 +197,8 @@ def comentarios_admin_sql(where: str) -> str:
     return f"""
     SELECT {_COMENTARIO_COLS}
     FROM FACT_COMENTARIO c
+    LEFT JOIN FACT_TRACKS ft ON c.fact_id_track = ft.fact_id
+    LEFT JOIN DIM_ARTISTS a ON ft.artist_id = a.artist_id
     {where}
     ORDER BY c.fecha_creacion DESC
     LIMIT {{limit:UInt32}} OFFSET {{offset:UInt32}}

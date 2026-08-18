@@ -8,3 +8,7 @@ SELECT precio_usd FROM DIM_PLAN FINAL WHERE plan_id = {plan_id:String} AND activ
 PLANES_PRECIOS_TODOS = """
 SELECT plan_id, precio_usd, activo, actualizado_en FROM DIM_PLAN FINAL ORDER BY plan_id
 """
+
+USUARIOS_POR_IDS = """
+SELECT usuario_id, nombre, email FROM DIM_USUARIO WHERE usuario_id IN {ids:Array(String)}
+"""

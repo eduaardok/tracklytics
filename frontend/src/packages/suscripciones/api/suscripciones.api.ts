@@ -68,6 +68,8 @@ export const suscripcionesApi = {
 export type SuscripcionAdminRecord = {
   id:                 string
   usuario_o_cliente:  string
+  usuario_nombre?:    string
+  usuario_email?:     string
   tipo_plan:          string
   monto:              number
   moneda:             string

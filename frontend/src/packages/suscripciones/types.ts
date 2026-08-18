@@ -36,6 +36,8 @@ export const DIAS_TRIAL_PREMIUM = 7
 export type SuscripcionActiva = {
   id:                string
   usuario_o_cliente: string
+  usuario_nombre?:   string
+  usuario_email?:    string
   tipo_plan:         string
   monto:             number
   moneda:            string
