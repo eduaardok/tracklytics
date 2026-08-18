@@ -64,7 +64,8 @@ TABLAS_PERIODO = [
     "GOLD_ADQUISICION_PERIODO", "GOLD_API_CONSUMO_PERIODO", "GOLD_INFRAESTRUCTURA_PERIODO",
     "GOLD_FINANCIERO_PERIODO", "GOLD_REGALIAS_PERIODO", "GOLD_PIPELINE_PERIODO",
     "GOLD_ENGAGEMENT_PERIODO", "GOLD_CONSUMO_GENERO_PERIODO", "GOLD_CONTENIDO_PERIODO",
-    "GOLD_COMUNIDAD_PERIODO", "GOLD_SEGURIDAD_PERIODO", "GOLD_PRODUCTO_PERIODO", "GOLD_ETL_LOG",
+    "GOLD_COMUNIDAD_PERIODO", "GOLD_SEGURIDAD_PERIODO", "GOLD_PRODUCTO_PERIODO",
+    "GOLD_CREADORES_PERIODO", "GOLD_ETL_LOG",
 ]
 
 DDL_STATEMENTS = [
@@ -331,6 +332,28 @@ DDL_STATEMENTS = [
         updated_at                       DateTime DEFAULT now()
     ) ENGINE = MergeTree()
     ORDER BY (granularidad, fecha_inicio, categoria, dimension)
+    """,
+
+    # OE5 (S16, BSC "Retención de creadores activos") — grano por creador
+    # (cuenta_artista_id), no agregado a un solo número por período: mismo
+    # patrón que GOLD_API_CONSUMO_PERIODO (partner_id) porque el KPI de
+    # retención necesita el CONJUNTO de creadores activos de cada período
+    # para calcular el overlap contra el período anterior (`groupUniqArray`
+    # en `bsc._kpi_retencion_creadores`, no un COUNT ya reducido). "Creador
+    # activo" en un período = al menos una fila en FACT_SUBIDA_TRACK con
+    # `fecha_subida` dentro de la ventana — no exige que la subida haya sido
+    # aprobada (ver `etl/gold_ch/creadores.py`).
+    f"""
+    CREATE TABLE IF NOT EXISTS {DB}.GOLD_CREADORES_PERIODO (
+        granularidad       LowCardinality(String),
+        fecha_inicio       Date,
+        periodo            String,
+        cuenta_artista_id  String,
+        subidas_total      UInt32 DEFAULT 0,
+        es_estimado        UInt8 DEFAULT 0,
+        updated_at         DateTime DEFAULT now()
+    ) ENGINE = MergeTree()
+    ORDER BY (granularidad, fecha_inicio, cuenta_artista_id)
     """,
 
     # Control de corridas del DAG de agregaciones — no tiene `periodo` como

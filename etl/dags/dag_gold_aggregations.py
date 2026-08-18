@@ -1,10 +1,12 @@
-"""DAG dag_gold_aggregations — calcula las 12 tablas GOLD_* (capa de
-agregaciones para los 30 informes compuestos) leyendo del ClickHouse de
-catálogo (8123, solo lectura) y escribiendo en ClickHouse Gold (8124).
+"""DAG dag_gold_aggregations — calcula las 13 tablas GOLD_* (capa de
+agregaciones para los 30 informes compuestos, más el KPI de retención de
+creadores del BSC) leyendo del ClickHouse de catálogo (8123, solo lectura) y
+escribiendo en ClickHouse Gold (8124).
 
 S13-P3a: grano fijo semanal, 12 tareas (una por dominio). S14-P2: grano
 temporal configurable — cada dominio ahora corre una vez por cada una de las
-5 granularidades (`gold_ch.base.GRANULARIDADES`), 12×5 = 60 tareas en total,
+5 granularidades (`gold_ch.base.GRANULARIDADES`). S16 agrega el dominio
+`creadores` (OE5, ver `gold_ch/creadores.py`) — 13×5 = 65 tareas en total,
 usando `op_kwargs={'granularidad': g}` (no closures de Python, que en un
 `for` capturan la variable por referencia y todas las tareas terminarían
 corriendo con el último valor de `g` — `op_kwargs` es la forma nativa de
@@ -44,6 +46,7 @@ from gold_ch.base import GRANULARIDADES, get_catalog_client, get_gold_client
 from gold_ch.comunidad import run_gold_comunidad
 from gold_ch.consumo_genero import run_gold_consumo_genero
 from gold_ch.contenido import run_gold_contenido
+from gold_ch.creadores import run_gold_creadores
 from gold_ch.engagement import run_gold_engagement
 from gold_ch.financiero import run_gold_financiero
 from gold_ch.infraestructura import run_gold_infraestructura
@@ -68,6 +71,7 @@ DOMINIOS = [
     ("comunidad",        run_gold_comunidad),
     ("seguridad",        run_gold_seguridad),
     ("producto",         run_gold_producto),
+    ("creadores",        run_gold_creadores),
 ]
 
 
@@ -95,7 +99,7 @@ def hay_batch_nuevo() -> bool:
 
 with DAG(
     dag_id="dag_gold_aggregations",
-    description="Agrega el ClickHouse de catálogo (8123, solo lectura) en las 12 tablas "
+    description="Agrega el ClickHouse de catálogo (8123, solo lectura) en las 13 tablas "
                 "GOLD_* de ClickHouse Gold (8124) para los 30 informes compuestos, "
                 "una vez por cada una de las 5 granularidades soportadas (S14-P2)",
     default_args={
