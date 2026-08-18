@@ -226,3 +226,150 @@ con evidencia real (curl antes/después de cada fix) en `docs/VERIFICACION_UX_RO
 `feat(ui): SkeletonLoader en la pantalla nueva de benchmark SQL vs Gold`,
 `docs(validacion): verificación UX por rol + 2 huecos de permisos corregidos`, más este cierre
 de bitácora.
+
+---
+
+## S16-P3 — Auditoría de Open Code + cierre de huecos + GOLD_CREADORES_PERIODO (18 ago 2026)
+
+Un prompt anterior corrió con Open Code (no Claude Code) sobre el mismo working directory, sin
+commitear: paginación real en 4 endpoints admin (tickets, transacciones recientes, anunciantes,
+campañas, strikes), resolución de IDs a nombre/email real en comentarios (`social`) y
+suscripciones admin, y fix del doble encabezado en exportación PDF. Este bloque audita ese
+trabajo campo por campo contra el diff real (no contra el resumen de texto de Open Code), cierra
+los huecos que quedaron sin tocar, y agrega el único ítem de diseño nuevo del prompt: la 14ª
+tabla Gold y el KPI de retención de creadores del BSC.
+
+### Auditoría del trabajo de Open Code
+
+Los 5 cambios de paginación (tickets, transacciones-recientes, anunciantes, campañas, strikes) y
+los 2 de resolución de IDs (comentarios con JOIN a `FACT_TRACKS`/`DIM_ARTISTS`, suscripciones con
+batch a `DIM_USUARIO`) estaban implementados correctamente — verificados con `curl` real
+comparando `page=1` vs `page=2` en los 5 endpoints (`data` cambia, `total` es coherente) y
+confirmando nombres/emails reales (no vacíos) en comentarios y suscripciones.
+
+**Un bug real encontrado y corregido en la auditoría**: `seguridad/router.py` llamaba
+`strikes.activos_global_sql()`, pero la función que Open Code definió en `strikes.py` se llama
+`strikes_activos_global_sql` — `AttributeError` en cada request a
+`GET /seguridad/admin/strikes` (500 real, no un hallazgo cosmético). El fix del doble encabezado
+PDF (`data-pdf-export-ignore="true"` en el `<header>` de `ReportLayout.tsx`) sí estaba aplicado
+correctamente.
+
+### Huecos cerrados (Fase 0.4 del prompt)
+
+- **(a) `historial_transacciones` sin paginar**: el prompt original pedía paginar DOS endpoints
+  de facturación (`transacciones_recientes` Y `historial_transacciones`/
+  `TRANSACCIONES_POR_USUARIO`) — Open Code solo hizo el primero. Se completó con el mismo patrón
+  (`LIMIT`/`OFFSET` + `TRANSACCIONES_POR_USUARIO_COUNT`), incluyendo footer de paginación nuevo
+  en `AuditoriaFacturacionPage.tsx` para el historial de un usuario buscado. Verificado con curl:
+  `usuario_id=test-user` tiene 64 transacciones reales, `page=1` y `page=2` devuelven filas
+  distintas.
+- **(b) Diagnóstico de márgenes de PDF y lentitud del dashboard táctico** (sin Playwright, por
+  instrucción explícita del prompt — solo lectura de código + curl):
+  - **Márgenes**: `ExportPDFButton.tsx` fuerza `imgWidthMm = contentWidthMm` siempre (la imagen
+    capturada se reescala completa al ancho de página menos márgenes), así que un desborde
+    horizontal literal más allá del margen es estructuralmente imposible desde ese código. El
+    vector real de "contenido que se pierde" es otro: `RankingTable.module.css` envuelve la
+    tabla en `.wrap { overflow-x: auto }` con celdas `white-space: nowrap` — cuando la tabla
+    real es más ancha que el contenedor visible, `html2canvas-pro` captura solo la caja visible
+    recortada (comportamiento documentado de la librería con `overflow:auto`), no el
+    `scrollWidth` completo, así que las columnas que quedan detrás del scroll horizontal
+    simplemente no aparecen en el PDF. Afecta a informes con tablas de ranking anchas (muchas
+    columnas numéricas); no es un crash, es contenido faltante en el export.
+  - **Lentitud**: `GET /dashboard/executive` tardó 6.8s en frío y 0.1s en la segunda llamada —
+    tiene `@cached(ttl=60)`. No depende de ningún endpoint de paginación de este prompt: la
+    lentitud es el costo de varias agregaciones `COUNT`/`avg` secuenciales sobre ClickHouse en
+    la primera llamada de cada ventana de 60s, ya mitigado por el cache existente. Cosmético,
+    fuera de alcance de este prompt.
+  - **(c) `GET /experiencia/playlists/top-tracks?limit=20`**: verificado con curl real (no solo
+    repetir el resumen de Open Code) — 200 OK, `data` con 7 filas reales (Daddy Yankee, Alkaline,
+    Paul Kalkbrenner, etc.), no vacío.
+
+### GOLD_CREADORES_PERIODO + KPI "Retención de creadores activos"
+
+Único ítem de diseño nuevo del prompt (el resto del BSC no se tocó — "Respuesta a decisiones
+estratégicas" sigue `sin_datos` a propósito, métrica de gobernanza no medible por ningún
+pipeline, documentado así desde que existe el BSC de S16-Prompt-05).
+
+Pre-inspección confirmó el esquema real de `FACT_SUBIDA_TRACK` (`cuenta_artista_id`,
+`fecha_subida`, `ReplacingMergeTree`) y el patrón compartido de las 13 tablas `GOLD_*_PERIODO`
+existentes (`granularidad`/`fecha_inicio`/`periodo`/`es_estimado`/`updated_at`,
+`MergeTree ORDER BY (granularidad, fecha_inicio, <dimensión>)`).
+
+**Diseño**: `GOLD_CREADORES_PERIODO` — grano por creador (`cuenta_artista_id`), no un `COUNT` ya
+reducido, porque el KPI de retención necesita el CONJUNTO de creadores activos de cada período
+para calcular el overlap contra el período anterior (mismo criterio que
+`GOLD_API_CONSUMO_PERIODO` con `partner_id`, que ya usa `_kpi_retencion_b2b`). Columnas:
+`granularidad`, `fecha_inicio`, `periodo`, `cuenta_artista_id`, `subidas_total` (conteo de
+subidas del creador en el período), `es_estimado`, `updated_at`. "Creador activo" = al menos una
+fila en `FACT_SUBIDA_TRACK` con `fecha_subida` dentro de la ventana, sin exigir aprobación de la
+subida (mide actividad de subida, no throughput de moderación — eso ya lo cubre
+`GOLD_CONTENIDO_PERIODO`).
+
+Job de agregación: `etl/gold_ch/creadores.py` (`run_gold_creadores`), mismo patrón que
+`api_consumo.py` — se agregó como 13er dominio de `dag_gold_aggregations.py` (65 tareas en
+total, 13 dominios × 5 granularidades). `_kpi_retencion_creadores()` en `bsc.py` reemplaza el
+`_kpi_sin_datos(...)` anterior: overlap de `groupUniqArray(cuenta_artista_id)` entre trimestre
+actual y anterior, sobre el total del trimestre anterior — mismo esquema de semáforo (80/50) y
+misma estructura de retorno que `_kpi_retencion_b2b()`.
+
+Corrida real contra el stack (`create_gold_tables.py` vía el contenedor de Airflow, que ya tiene
+`etl/` montado en vivo) y verificación directa a `GOLD_CREADORES_PERIODO` (puerto 8124,
+granularidad `trimestre`):
+
+| periodo | creadores | subidas |
+|---|---|---|
+| 2024-Q3 | 8 | 14 |
+| 2024-Q4 | 10 | 29 |
+| 2025-Q1 | 10 | 27 |
+| 2025-Q2 | 9 | 20 |
+| 2025-Q3 | 10 | 25 |
+| 2025-Q4 | 10 | 18 |
+| 2026-Q1 | 9 | 19 |
+| 2026-Q2 | 10 | 19 |
+| 2026-Q3 | 14 | 47 |
+
+`GET /analitica/bsc/resumen` verificado con curl real: "Retención de creadores activos" ahora
+trae `valor_actual: 90.0`, `semaforo: "verde"`, `tendencia: [80.0, 88.9, 90.0, 80.0, 88.9, 90.0]`
+— ya no `sin_datos`. "Respuesta a decisiones estratégicas" se mantuvo `sin_datos` sin tocar,
+como pedía el prompt explícitamente.
+
+### Verificación
+
+- `npx tsc --noEmit` limpio en el frontend tras los cambios de paginación de `historial_transacciones`.
+- Los 5 endpoints paginados de Open Code + el 6º (`historial_transacciones`) verificados con curl
+  real, `page=1` vs `page=2` con datos distintos y `total` coherente.
+- `strikes.strikes_activos_global_sql()` (bug de Open Code) verificado corregido: `GET
+  /seguridad/admin/strikes` devuelve 200 con datos reales tras el fix.
+- `GOLD_CREADORES_PERIODO` poblado en las 5 granularidades (`dia`/`semana`/`mes`/`trimestre`/
+  `anio`) y verificado con query directa a ClickHouse Gold.
+- `GET /analitica/bsc/resumen` verificado con curl: KPI de retención de creadores con datos
+  reales, resto del BSC sin regresión (13 KPIs, 1 solo `sin_datos` — el intencional).
+
+### Hallazgos pendientes (fuera de alcance de este prompt)
+
+- **Cosmético**: tablas de ranking anchas (`RankingTable`) pueden perder columnas al exportar a
+  PDF por el recorte de `overflow-x:auto` de html2canvas — no es el prompt de esta sesión, pero
+  queda documentado para un fix futuro (opciones: capturar `el.scrollWidth` real en vez del
+  `clientWidth` visible, o forzar `overflow: visible` temporalmente antes de capturar, como ya
+  hace `aplicarTemaClaro` con el tema).
+- **Ignorable**: la primera carga de `GET /dashboard/executive` cada 60s tarda ~6.8s (agregaciones
+  secuenciales sobre ClickHouse) — ya mitigado por el cache existente, impacto real bajo.
+- **Filtros client-side sobre datos paginados**: `PublicidadAdminPage.tsx` filtra
+  `campanasFiltradas` (estado/tipo/búsqueda) solo sobre la página actual de `campanasData` — con
+  paginación real, los filtros ya no ven las campañas de otras páginas. Preexistente al alcance
+  de este prompt (Open Code no lo introdujo, lo hizo más visible), no se tocó.
+
+### Archivos nuevos o modificados
+
+- `api/paquetes/seguridad/router.py` — fix del `AttributeError` en `strikes_activos_global_sql`.
+- `api/paquetes/facturacion/queries.py`, `router.py` — paginación de `historial_transacciones`.
+- `frontend/src/packages/facturacion/api/facturacion.api.ts`,
+  `pages/AuditoriaFacturacionPage.tsx` — paginación del historial de transacciones por usuario.
+- `create_gold_tables.py` — DDL de `GOLD_CREADORES_PERIODO` (14ª tabla).
+- `etl/gold_ch/creadores.py` — nuevo, job de agregación.
+- `etl/dags/dag_gold_aggregations.py` — 13er dominio (`creadores`).
+- `api/paquetes/analitica/bsc.py` — `_kpi_retencion_creadores()`, reemplaza el `sin_datos`.
+- `docs/BITACORA_S16.md`, `README.md` — este cierre.
+
+Commits atómicos a `main` (paginación de Open Code, fixes de IDs, PDF, huecos cerrados,
+`GOLD_CREADORES_PERIODO` + KPI) — ver historial de `git log` para los hashes.
