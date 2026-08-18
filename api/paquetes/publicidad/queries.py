@@ -18,15 +18,21 @@ CAMPANA_ID_MAX = "SELECT max(campana_id) AS n FROM DIM_CAMPANA_PUBLICITARIA"
 # elegibilidad por presupuesto (`activa`).
 CAMPANA_ESTADO = "SELECT campana_id, nombre, estado_manual FROM DIM_CAMPANA_PUBLICITARIA WHERE campana_id = {campana_id:UInt32} LIMIT 1"
 
-def campanas_list_sql() -> str:
-    return """
+def campanas_list_sql(where: str) -> str:
+    return f"""
     SELECT campana_id, anunciante_id, nombre, cpm, presupuesto_total, fecha_inicio, fecha_fin, activa,
            tipo_anuncio, formato, estado_manual, url_destino
-    FROM DIM_CAMPANA_PUBLICITARIA ORDER BY fecha_inicio DESC
-    LIMIT {limit:UInt32} OFFSET {offset:UInt32}
+    FROM DIM_CAMPANA_PUBLICITARIA
+    {where}
+    ORDER BY fecha_inicio DESC
+    LIMIT {{limit:UInt32}} OFFSET {{offset:UInt32}}
     """
 
-CAMPANAS_COUNT = "SELECT count() AS n FROM DIM_CAMPANA_PUBLICITARIA"
+def campanas_count_sql(where: str) -> str:
+    return f"""
+    SELECT count() AS n FROM DIM_CAMPANA_PUBLICITARIA
+    {where}
+    """
 
 # Elegible = activa, del tipo de anuncio pedido, y hoy cae dentro de
 # [fecha_inicio, fecha_fin] (fecha_fin nula = indefinida). `today()` en vez de

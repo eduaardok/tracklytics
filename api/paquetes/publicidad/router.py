@@ -16,11 +16,11 @@ from paquetes.publicidad.queries import (
     CAMPANA_ESTADO,
     CAMPANA_ID_MAX,
     CAMPANA_POR_ID,
-    CAMPANAS_COUNT,
     CAMPANAS_ELEGIBLES_POR_TIPO,
     IMPRESION_POR_ID,
     INGRESO_YA_RECONOCIDO,
     anunciantes_list_sql,
+    campanas_count_sql,
     campanas_list_sql,
     ingresos_por_campana_sql,
 )
@@ -176,11 +176,31 @@ def crear_campana(body: CampanaBody, admin: dict = Depends(require_admin)):
 def listar_campanas(
     limit: int = Query(20, ge=1, le=200),
     page:  int = Query(1, ge=1),
+    estado: str | None = Query(None),
+    tipo_anuncio: str | None = Query(None),
+    q: str | None = Query(None),
     admin: dict = Depends(require_admin),
 ):
+    clauses, params = [], {}
+    if estado:
+        if estado == "Activa":
+            clauses.append("estado_manual = '' AND activa = 1")
+        elif estado == "Pausada":
+            clauses.append("estado_manual = 'pausada'")
+        elif estado == "Finalizada":
+            clauses.append("estado_manual = 'finalizada'")
+        elif estado == "Sin presupuesto":
+            clauses.append("estado_manual = '' AND activa = 0")
+    if tipo_anuncio:
+        clauses.append("tipo_anuncio = {tipo_anuncio:String}")
+        params["tipo_anuncio"] = tipo_anuncio
+    if q:
+        clauses.append("positionCaseInsensitive(nombre, {q:String}) > 0")
+        params["q"] = q
+    where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
     offset = (page - 1) * limit
-    rows   = query_rows(campanas_list_sql(), {"limit": limit, "offset": offset})
-    total  = query_one(CAMPANAS_COUNT)["n"]
+    rows   = query_rows(campanas_list_sql(where), {**params, "limit": limit, "offset": offset})
+    total  = query_one(campanas_count_sql(where), params)["n"]
     return {"data": rows, "total": total, "page": page, "limit": limit}
 
 

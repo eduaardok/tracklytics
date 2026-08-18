@@ -96,7 +96,7 @@ export function PublicidadAdminPage() {
   const [anunciantePage, setAnunciantePage]   = useState(1)
 
   const anunciantes = useQuery({ queryKey: ['publicidad', 'anunciantes', anunciantePage], queryFn: () => publicidadApi.anunciantes(anunciantePage, PAGE_SIZE) })
-  const campanas    = useQuery({ queryKey: ['publicidad', 'campanas', campanaPage],       queryFn: () => publicidadApi.campanas(campanaPage, PAGE_SIZE) })
+  const campanas    = useQuery({ queryKey: ['publicidad', 'campanas', campanaPage, filtroEstadoCampana, filtroTipoCampana, busquedaCampana],       queryFn: () => publicidadApi.campanas({ page: campanaPage, limit: PAGE_SIZE, estado: filtroEstadoCampana || undefined, tipo_anuncio: filtroTipoCampana || undefined, q: busquedaCampana || undefined }) })
   const ingresos    = useQuery({ queryKey: ['publicidad', 'ingresos'],                    queryFn: () => publicidadApi.ingresos() })
 
   const crearAnunciante = useMutation({
@@ -173,15 +173,6 @@ export function PublicidadAdminPage() {
   const anunciantesTotal = anunciantes.data?.total ?? 0
   const campanasTotalPages = Math.max(1, Math.ceil(campanasTotal / PAGE_SIZE))
   const anunciantesTotalPages = Math.max(1, Math.ceil(anunciantesTotal / PAGE_SIZE))
-
-  const campanasFiltradas = useMemo(() => campanasData.filter((c) => {
-    const est = estadoCampana(c)
-    const q = busquedaCampana.trim().toLowerCase()
-    const coincideEstado   = !filtroEstadoCampana || est.label === filtroEstadoCampana
-    const coincideTipo     = !filtroTipoCampana || c.tipo_anuncio === filtroTipoCampana
-    const coincideBusqueda = !q || c.nombre.toLowerCase().includes(q)
-    return coincideEstado && coincideTipo && coincideBusqueda
-  }), [campanasData, filtroEstadoCampana, filtroTipoCampana, busquedaCampana])
 
   const kpisCampanas = useMemo(() => ({
     total:      campanasTotal,
@@ -269,14 +260,14 @@ export function PublicidadAdminPage() {
           <div className={styles.form} data-pdf-export-ignore="true">
             <div className={styles.field}>
               <label className={styles.fieldLabel} htmlFor="f-estado">Estado</label>
-              <select id="f-estado" className={styles.select} value={filtroEstadoCampana} onChange={(e) => setFiltroEstadoCampana(e.target.value)}>
+              <select id="f-estado" className={styles.select} value={filtroEstadoCampana} onChange={(e) => { setFiltroEstadoCampana(e.target.value); setCampanaPage(1) }}>
                 <option value="">Todos</option>
                 {ESTADOS_FILTRO.map((e) => <option key={e} value={e}>{e}</option>)}
               </select>
             </div>
             <div className={styles.field}>
               <label className={styles.fieldLabel} htmlFor="f-tipo">Tipo de anuncio</label>
-              <select id="f-tipo" className={styles.select} value={filtroTipoCampana} onChange={(e) => setFiltroTipoCampana(e.target.value)}>
+              <select id="f-tipo" className={styles.select} value={filtroTipoCampana} onChange={(e) => { setFiltroTipoCampana(e.target.value); setCampanaPage(1) }}>
                 <option value="">Todos</option>
                 <option value="audio">Audio</option>
                 <option value="display">Display</option>
@@ -284,7 +275,7 @@ export function PublicidadAdminPage() {
             </div>
             <div className={styles.field}>
               <label className={styles.fieldLabel} htmlFor="f-busqueda">Buscar</label>
-              <input id="f-busqueda" className={styles.input} type="text" placeholder="Nombre de campaña…" value={busquedaCampana} onChange={(e) => setBusquedaCampana(e.target.value)} />
+              <input id="f-busqueda" className={styles.input} type="text" placeholder="Nombre de campaña…" value={busquedaCampana} onChange={(e) => { setBusquedaCampana(e.target.value); setCampanaPage(1) }} />
             </div>
             <button type="button" className={styles.btnPrimary} onClick={() => setCampanaModal({ mode: 'create' })}>
               + Nueva campaña
@@ -302,9 +293,9 @@ export function PublicidadAdminPage() {
               <tbody>
                 {campanas.isLoading ? (
                   <SkeletonTableRows columns={7} />
-                ) : campanasFiltradas.length === 0 ? (
+                ) : campanasData.length === 0 ? (
                   <tr><td colSpan={7}><EmptyState icon={<Megaphone size={22} aria-hidden="true" />} title="Sin campañas" body={campanasData.length === 0 ? 'Todavía no hay campañas publicitarias registradas.' : 'Prueba con otro filtro.'} /></td></tr>
-                ) : campanasFiltradas.map((c) => {
+                ) : campanasData.map((c) => {
                   const est = estadoCampana(c)
                   const finalizada = c.estado_manual === 'finalizada'
                   const pausada = c.estado_manual === 'pausada'

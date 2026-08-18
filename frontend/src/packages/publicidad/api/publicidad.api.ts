@@ -22,10 +22,13 @@ export const publicidadApi = {
   desactivarAnunciante: (anuncianteId: number) =>
     apiClient.post<{ status: string; anunciante_id: number; activo: number }>(`/publicidad/admin/anunciantes/${anuncianteId}/desactivar`, undefined),
 
-  campanas: (page = 1, limit = 20) => {
+  campanas: (params: { page?: number; limit?: number; estado?: string; tipo_anuncio?: string; q?: string } = {}) => {
     const p = new URLSearchParams()
-    if (page > 1) p.set('page', String(page))
-    if (limit !== 20) p.set('limit', String(limit))
+    if ((params.page ?? 1) > 1) p.set('page', String(params.page))
+    if (params.limit && params.limit !== 20) p.set('limit', String(params.limit))
+    if (params.estado) p.set('estado', params.estado)
+    if (params.tipo_anuncio) p.set('tipo_anuncio', params.tipo_anuncio)
+    if (params.q) p.set('q', params.q)
     const qs = p.toString()
     return apiClient.get<ApiResponse<Campana>>(`/publicidad/admin/campanas${qs ? `?${qs}` : ''}`)
   },
