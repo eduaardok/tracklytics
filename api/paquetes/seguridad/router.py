@@ -1088,8 +1088,15 @@ async def usuarios_reporte(admin: dict = Depends(require_admin)):
 
 
 @router.get("/admin/strikes")
-def strikes_activos_global(admin: dict = Depends(require_comunidad_admin)):
-    return {"strikes": query_rows(strikes.STRIKES_ACTIVOS_GLOBAL)}
+def strikes_activos_global(
+    limit: int = Query(50, ge=1, le=500),
+    page:  int = Query(1, ge=1),
+    admin: dict = Depends(require_comunidad_admin),
+):
+    offset = (page - 1) * limit
+    rows   = query_rows(strikes.strikes_activos_global_sql(), {"limit": limit, "offset": offset})
+    total  = query_one(strikes.STRIKES_ACTIVOS_GLOBAL_COUNT)["n"]
+    return {"data": rows, "total": total, "page": page, "limit": limit}
 
 
 # Obj 30 / OT-30 (S13-P2): listado global de sesiones abiertas — la única

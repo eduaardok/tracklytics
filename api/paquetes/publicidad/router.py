@@ -12,14 +12,16 @@ from paquetes.creadores.queries import CUENTA_ACTUAL_POR_USUARIO
 from paquetes.publicidad.queries import (
     ANUNCIANTE_EXISTE,
     ANUNCIANTE_ID_MAX,
-    ANUNCIANTES_LIST,
+    ANUNCIANTES_COUNT,
     CAMPANA_ESTADO,
     CAMPANA_ID_MAX,
     CAMPANA_POR_ID,
+    CAMPANAS_COUNT,
     CAMPANAS_ELEGIBLES_POR_TIPO,
-    CAMPANAS_LIST,
     IMPRESION_POR_ID,
     INGRESO_YA_RECONOCIDO,
+    anunciantes_list_sql,
+    campanas_list_sql,
     ingresos_por_campana_sql,
 )
 from paquetes.seguridad import audit
@@ -71,8 +73,15 @@ def crear_anunciante(body: AnuncianteBody, admin: dict = Depends(require_admin))
 
 
 @router.get("/admin/anunciantes")
-def listar_anunciantes(admin: dict = Depends(require_admin)):
-    return {"data": query_rows(ANUNCIANTES_LIST)}
+def listar_anunciantes(
+    limit: int = Query(20, ge=1, le=200),
+    page:  int = Query(1, ge=1),
+    admin: dict = Depends(require_admin),
+):
+    offset = (page - 1) * limit
+    rows   = query_rows(anunciantes_list_sql(), {"limit": limit, "offset": offset})
+    total  = query_one(ANUNCIANTES_COUNT)["n"]
+    return {"data": rows, "total": total, "page": page, "limit": limit}
 
 
 class AnuncianteEditBody(BaseModel):
@@ -164,8 +173,15 @@ def crear_campana(body: CampanaBody, admin: dict = Depends(require_admin)):
 
 
 @router.get("/admin/campanas")
-def listar_campanas(admin: dict = Depends(require_admin)):
-    return {"data": query_rows(CAMPANAS_LIST)}
+def listar_campanas(
+    limit: int = Query(20, ge=1, le=200),
+    page:  int = Query(1, ge=1),
+    admin: dict = Depends(require_admin),
+):
+    offset = (page - 1) * limit
+    rows   = query_rows(campanas_list_sql(), {"limit": limit, "offset": offset})
+    total  = query_one(CAMPANAS_COUNT)["n"]
+    return {"data": rows, "total": total, "page": page, "limit": limit}
 
 
 # ── Ciclo de vida de una campaña (change p1-ciclos-vida) ──────────────────────

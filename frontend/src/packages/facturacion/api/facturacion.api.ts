@@ -20,10 +20,14 @@ export const facturacionApi = {
   pagarSuscripcion: (body: PagarSuscripcionBody) =>
     apiClient.post<PagoResultado>('/facturacion/transacciones', body),
 
-  transacciones: (usuarioId?: string) =>
-    apiClient.get<ApiResponse<Transaccion>>(
-      `/facturacion/transacciones${usuarioId ? `?usuario_id=${usuarioId}` : ''}`,
-    ),
+  transacciones: (usuarioId?: string, page = 1, limit = 50) => {
+    const p = new URLSearchParams()
+    if (usuarioId) p.set('usuario_id', usuarioId)
+    if (page > 1) p.set('page', String(page))
+    if (limit !== 50) p.set('limit', String(limit))
+    const qs = p.toString()
+    return apiClient.get<ApiResponse<Transaccion>>(`/facturacion/transacciones${qs ? `?${qs}` : ''}`)
+  },
 
   invoices: (usuarioId?: string) =>
     apiClient.get<ApiResponse<Invoice>>(
@@ -38,8 +42,15 @@ export const facturacionApi = {
   dashboard: () =>
     apiClient.get<DashboardFacturacion>('/facturacion/admin/dashboard'),
 
-  transaccionesRecientes: () =>
-    apiClient.get<ApiResponse<TransaccionReciente>>('/facturacion/admin/transacciones-recientes'),
+  transaccionesRecientes: (page = 1, limit = 50) => {
+    const p = new URLSearchParams()
+    if (page > 1) p.set('page', String(page))
+    if (limit !== 50) p.set('limit', String(limit))
+    const qs = p.toString()
+    return apiClient.get<ApiResponse<TransaccionReciente>>(
+      `/facturacion/admin/transacciones-recientes${qs ? `?${qs}` : ''}`,
+    )
+  },
 
   empresa: () =>
     apiClient.get<EmpresaInfo>('/facturacion/empresa'),

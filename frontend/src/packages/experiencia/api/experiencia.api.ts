@@ -32,8 +32,14 @@ export const experienciaApi = {
   misTickets: () =>
     apiClient.get<ApiResponse<Ticket>>('/experiencia/tickets'),
 
-  ticketsAdmin: (estado?: string) =>
-    apiClient.get<ApiResponse<Ticket>>(`/experiencia/tickets${estado ? `?estado=${estado}` : ''}`),
+  ticketsAdmin: (estado?: string, page = 1, limit = 20) => {
+    const p = new URLSearchParams()
+    if (estado) p.set('estado', estado)
+    if (page > 1) p.set('page', String(page))
+    if (limit !== 20) p.set('limit', String(limit))
+    const qs = p.toString()
+    return apiClient.get<ApiResponse<Ticket>>(`/experiencia/tickets${qs ? `?${qs}` : ''}`)
+  },
 
   // Ver detalle (S13-P2).
   ticketPorId: (factId: number) =>

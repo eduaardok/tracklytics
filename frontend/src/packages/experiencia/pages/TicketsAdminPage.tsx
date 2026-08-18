@@ -39,6 +39,8 @@ const FILTROS: { value: string; label: string }[] = [
   ...ESTADOS.map((e) => ({ value: e, label: e.replace('_', ' ') })),
 ]
 
+const PAGE_SIZE = 20
+
 type ModalState =
   | { mode: 'create' }
   | { mode: 'edit'; ticket: Ticket }
@@ -62,11 +64,12 @@ export function TicketsAdminPage() {
   const toast = useToast()
   const reportRef = useRef<HTMLElement>(null)
   const [estado, setEstado] = useState('')
+  const [page, setPage]     = useState(1)
   const [modal, setModal]   = useState<ModalState>(null)
 
   const tickets = useQuery({
-    queryKey: ['experiencia', 'admin', 'tickets', estado],
-    queryFn:  () => experienciaApi.ticketsAdmin(estado || undefined),
+    queryKey: ['experiencia', 'admin', 'tickets', estado, page],
+    queryFn:  () => experienciaApi.ticketsAdmin(estado || undefined, page, PAGE_SIZE),
   })
 
   const dashboard = useQuery({
@@ -95,6 +98,8 @@ export function TicketsAdminPage() {
   })
 
   const data: Ticket[] = tickets.data?.data ?? []
+  const total = tickets.data?.total ?? 0
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
 
   return (
     <section className={styles.page} ref={reportRef}>
@@ -128,13 +133,13 @@ export function TicketsAdminPage() {
 
       <div className={styles.queuePanel}>
         <div className={styles.queueHeader}>
-          <span className={styles.queueTitle}>Tickets ({data.length})</span>
+          <span className={styles.queueTitle}>Tickets ({total})</span>
           <div className={styles.queueFilters} data-pdf-export-ignore="true">
             {FILTROS.map((f) => (
               <button
                 key={f.value}
                 className={`${styles.filterChip} ${estado === f.value ? styles['filterChip--active'] : ''}`}
-                onClick={() => setEstado(f.value)}
+                onClick={() => { setEstado(f.value); setPage(1) }}
               >
                 {f.label}
               </button>
@@ -172,6 +177,18 @@ export function TicketsAdminPage() {
               </li>
             ))}
           </ul>
+        )}
+
+        {totalPages > 1 && data.length > 0 && (
+          <div className={styles.queueFilters} style={{ marginTop: 'var(--space-sm)' }} data-pdf-export-ignore="true">
+            <button className={styles.btnGhost} type="button" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
+              ← Anterior
+            </button>
+            <span className={styles.subtitle} style={{ margin: 0 }}>Página {page} / {totalPages}</span>
+            <button className={styles.btnGhost} type="button" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>
+              Siguiente →
+            </button>
+          </div>
         )}
       </div>
 

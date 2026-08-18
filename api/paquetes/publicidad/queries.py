@@ -2,7 +2,15 @@
 
 ANUNCIANTE_ID_MAX = "SELECT max(anunciante_id) AS n FROM DIM_ANUNCIANTE"
 ANUNCIANTE_EXISTE = "SELECT count() AS n FROM DIM_ANUNCIANTE WHERE anunciante_id = {anunciante_id:UInt32}"
-ANUNCIANTES_LIST = "SELECT anunciante_id, nombre, sector, activo, fecha_registro FROM DIM_ANUNCIANTE ORDER BY nombre"
+
+def anunciantes_list_sql() -> str:
+    return """
+    SELECT anunciante_id, nombre, sector, activo, fecha_registro
+    FROM DIM_ANUNCIANTE ORDER BY nombre
+    LIMIT {limit:UInt32} OFFSET {offset:UInt32}
+    """
+
+ANUNCIANTES_COUNT = "SELECT count() AS n FROM DIM_ANUNCIANTE"
 
 CAMPANA_ID_MAX = "SELECT max(campana_id) AS n FROM DIM_CAMPANA_PUBLICITARIA"
 # Estado vigente de una campaña para las validaciones de ciclo de vida
@@ -10,11 +18,15 @@ CAMPANA_ID_MAX = "SELECT max(campana_id) AS n FROM DIM_CAMPANA_PUBLICITARIA"
 # elegibilidad por presupuesto (`activa`).
 CAMPANA_ESTADO = "SELECT campana_id, nombre, estado_manual FROM DIM_CAMPANA_PUBLICITARIA WHERE campana_id = {campana_id:UInt32} LIMIT 1"
 
-CAMPANAS_LIST = """
-SELECT campana_id, anunciante_id, nombre, cpm, presupuesto_total, fecha_inicio, fecha_fin, activa,
-       tipo_anuncio, formato, estado_manual, url_destino
-FROM DIM_CAMPANA_PUBLICITARIA ORDER BY fecha_inicio DESC
-"""
+def campanas_list_sql() -> str:
+    return """
+    SELECT campana_id, anunciante_id, nombre, cpm, presupuesto_total, fecha_inicio, fecha_fin, activa,
+           tipo_anuncio, formato, estado_manual, url_destino
+    FROM DIM_CAMPANA_PUBLICITARIA ORDER BY fecha_inicio DESC
+    LIMIT {limit:UInt32} OFFSET {offset:UInt32}
+    """
+
+CAMPANAS_COUNT = "SELECT count() AS n FROM DIM_CAMPANA_PUBLICITARIA"
 
 # Elegible = activa, del tipo de anuncio pedido, y hoy cae dentro de
 # [fecha_inicio, fecha_fin] (fecha_fin nula = indefinida). `today()` en vez de

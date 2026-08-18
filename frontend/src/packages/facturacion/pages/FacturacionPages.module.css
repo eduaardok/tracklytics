@@ -347,6 +347,19 @@
 .btnGhost:hover { color: var(--color-ink); border-color: oklch(0.38 0.012 285); }
 .btnGhost:disabled { opacity: 0.38; cursor: not-allowed; }
 
+.tableFooter {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  margin-top: var(--space-sm);
+  padding: var(--space-sm) 0;
+}
+.tableFooterText {
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  color: var(--color-muted);
+}
+
 /* ── Inline result banners ── */
 .bannerOk {
   padding: 10px var(--space-md);

@@ -269,3 +269,32 @@
 .btnIconDanger:hover:not(:disabled) { background: oklch(0.65 0.22 25 / 0.1); }
 .btnIconDanger:disabled { opacity: 0.5; cursor: not-allowed; }
 
+.ghostBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-xs);
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--color-ink);
+  background: transparent;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 6px 12px;
+  height: 32px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: border-color var(--duration-fast) var(--ease-standard), background-color var(--duration-fast) var(--ease-standard);
+}
+.ghostBtn:hover:not(:disabled) { background: var(--color-surface-raised); border-color: var(--color-primary); }
+.ghostBtn:disabled { opacity: 0.38; cursor: not-allowed; }
+
+.tableFooter {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  margin-top: var(--space-sm);
+  padding: var(--space-sm) 0;
+}
+

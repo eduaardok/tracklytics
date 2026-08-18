@@ -36,13 +36,17 @@ export function StrikesGlobalPage() {
   useDocumentTitle('Strikes activos')
   const reportRef = useRef<HTMLElement>(null)
   const [origen, setOrigen] = useState('')
+  const [page, setPage] = useState(1)
+  const PAGE_SIZE = 50
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: ['seguridad', 'strikes-global'],
-    queryFn:  () => seguridadApi.strikesGlobal(),
+    queryKey: ['seguridad', 'strikes-global', page],
+    queryFn:  () => seguridadApi.strikesGlobal(page, PAGE_SIZE),
   })
 
-  const strikes = data?.strikes ?? []
+  const strikes = data?.data ?? []
+  const total = data?.total ?? 0
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
   const origenes = useMemo(() => opcionesUnicas(strikes.map((s) => s.origen_tipo)), [strikes])
 
   const filtrados = strikes.filter((s) => !origen || s.origen_tipo === origen)
@@ -54,8 +58,8 @@ export function StrikesGlobalPage() {
     for (const s of filtrados) porUsuario[s.usuario_id] = (porUsuario[s.usuario_id] ?? 0) + 1
     const usuariosAfectados = Object.keys(porUsuario).length
     const enRiesgo = Object.values(porUsuario).filter((n) => n >= UMBRAL_RIESGO).length
-    return { total: filtrados.length, usuariosAfectados, enRiesgo }
-  }, [filtrados])
+    return { total, usuariosAfectados, enRiesgo }
+  }, [filtrados, total])
 
   return (
     <section className={shell.page} ref={reportRef}>
@@ -138,6 +142,17 @@ export function StrikesGlobalPage() {
               )}
             </tbody>
           </table>
+          {totalPages > 1 && !isLoading && (
+            <div className={shell.tableFooter} data-pdf-export-ignore="true">
+              <button className={shell.ghostBtn} type="button" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
+                ← Anterior
+              </button>
+              <span className={shell.subtitle} style={{ margin: 0 }}>Página {page} / {totalPages} · {total} strikes</span>
+              <button className={shell.ghostBtn} type="button" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>
+                Siguiente →
+              </button>
+            </div>
+          )}
         </div>
       )}
     </section>

@@ -41,6 +41,12 @@ SELECT transaccion_id, usuario_id, metodo_pago_id, suscripcion_id, monto, moneda
 FROM FACT_TRANSACCION_PAGO
 WHERE usuario_id = {usuario_id:String}
 ORDER BY fecha DESC
+LIMIT {limit:UInt32}
+OFFSET {offset:UInt32}
+"""
+
+TRANSACCIONES_POR_USUARIO_COUNT = """
+SELECT count() AS n FROM FACT_TRANSACCION_PAGO WHERE usuario_id = {usuario_id:String}
 """
 
 # Panel admin (S12): últimas transacciones GLOBALES, sin buscar un usuario —
@@ -65,7 +71,12 @@ FROM FACT_TRANSACCION_PAGO t
 LEFT JOIN DIM_USUARIO u      ON u.usuario_id = t.usuario_id
 LEFT JOIN DIM_METODO_PAGO m  ON m.metodo_pago_id = t.metodo_pago_id
 ORDER BY t.fecha DESC
-LIMIT 20
+LIMIT {limit:UInt32}
+OFFSET {offset:UInt32}
+"""
+
+TRANSACCIONES_RECIENTES_COUNT = """
+SELECT count() AS n FROM FACT_TRANSACCION_PAGO
 """
 
 EMPRESA_ACTUAL = (

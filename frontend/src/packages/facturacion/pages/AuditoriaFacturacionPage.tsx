@@ -51,10 +51,14 @@ function SkelRows({ cols, n = 4 }: { cols: number; n?: number }) {
   )
 }
 
+const PAGE_SIZE = 50
+
 export function AuditoriaFacturacionPage() {
   useDocumentTitle('Auditoría de facturación')
   const reportRef = useRef<HTMLElement>(null)
   const [selectedUser, setSelectedUser] = useState<UserSearchResult | null>(null)
+  const [page, setPage] = useState(1)
+  const [userPage, setUserPage] = useState(1)
   const buscado = selectedUser?.usuario_id ?? ''
 
   const dashboard = useQuery({
@@ -66,14 +70,16 @@ export function AuditoriaFacturacionPage() {
   // depender de la búsqueda de usuario de abajo — antes la página no tenía
   // ningún contenido de transacciones hasta buscar a alguien.
   const recientes = useQuery({
-    queryKey: ['facturacion', 'admin', 'transacciones-recientes'],
-    queryFn:  () => facturacionApi.transaccionesRecientes(),
+    queryKey: ['facturacion', 'admin', 'transacciones-recientes', page],
+    queryFn:  () => facturacionApi.transaccionesRecientes(page, PAGE_SIZE),
   })
   const recientesData = recientes.data?.data ?? []
+  const recientesTotal = recientes.data?.total ?? 0
+  const recientesTotalPages = Math.max(1, Math.ceil(recientesTotal / PAGE_SIZE))
 
   const transacciones = useQuery({
-    queryKey: ['facturacion', 'auditoria', 'transacciones', buscado],
-    queryFn:  () => facturacionApi.transacciones(buscado),
+    queryKey: ['facturacion', 'auditoria', 'transacciones', buscado, userPage],
+    queryFn:  () => facturacionApi.transacciones(buscado, userPage, PAGE_SIZE),
     enabled:  buscado.length > 0,
   })
 
@@ -84,6 +90,8 @@ export function AuditoriaFacturacionPage() {
   })
 
   const transaccionesData = transacciones.data?.data ?? []
+  const transaccionesTotal = transacciones.data?.total ?? 0
+  const transaccionesTotalPages = Math.max(1, Math.ceil(transaccionesTotal / PAGE_SIZE))
   const invoicesData      = invoices.data?.data ?? []
   const isLoading         = transacciones.isLoading || invoices.isLoading
   const isError           = transacciones.isError   || invoices.isError
@@ -122,8 +130,8 @@ export function AuditoriaFacturacionPage() {
         <UserPicker
           label="Usuario"
           selected={selectedUser}
-          onSelect={setSelectedUser}
-          onClear={() => setSelectedUser(null)}
+          onSelect={(u) => { setSelectedUser(u); setUserPage(1) }}
+          onClear={() => { setSelectedUser(null); setUserPage(1) }}
         />
       </div>
 
@@ -169,6 +177,17 @@ export function AuditoriaFacturacionPage() {
             )}
           </tbody>
         </table>
+        {recientesTotalPages > 1 && !recientes.isLoading && (
+          <div className={styles.tableFooter} data-pdf-export-ignore="true">
+            <button className={styles.btnGhost} type="button" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
+              ← Anterior
+            </button>
+            <span className={styles.tableFooterText}>Página {page} / {recientesTotalPages} · {recientesTotal} transacciones</span>
+            <button className={styles.btnGhost} type="button" disabled={page >= recientesTotalPages} onClick={() => setPage((p) => p + 1)}>
+              Siguiente →
+            </button>
+          </div>
+        )}
       </div>
 
       {!buscado && (
@@ -218,13 +237,24 @@ export function AuditoriaFacturacionPage() {
                           color: 'var(--color-muted)',
                         }}
                       >
-                        {t.suscripcion_id.slice(0, 8)}…
+                        {t.suscripcion_id?.slice(0, 12)}…
                       </td>
                     </tr>
                   ))
                 )}
               </tbody>
             </table>
+            {transaccionesTotalPages > 1 && !isLoading && (
+              <div className={styles.tableFooter} data-pdf-export-ignore="true">
+                <button className={styles.btnGhost} type="button" disabled={userPage <= 1} onClick={() => setUserPage((p) => p - 1)}>
+                  ← Anterior
+                </button>
+                <span className={styles.tableFooterText}>Página {userPage} / {transaccionesTotalPages} · {transaccionesTotal} transacciones</span>
+                <button className={styles.btnGhost} type="button" disabled={userPage >= transaccionesTotalPages} onClick={() => setUserPage((p) => p + 1)}>
+                  Siguiente →
+                </button>
+              </div>
+            )}
           </div>
 
           <div className={styles.auditBlock}>

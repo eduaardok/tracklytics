@@ -26,7 +26,9 @@ from paquetes.facturacion.queries import (
     NOTIFICACIONES_EMAIL_POR_USUARIO,
     TASA_EXITO_DEFAULT,
     TRANSACCIONES_POR_USUARIO,
+    TRANSACCIONES_POR_USUARIO_COUNT,
     TRANSACCIONES_RECIENTES,
+    TRANSACCIONES_RECIENTES_COUNT,
     TRANSACCIONES_ULTIMAS_24H,
     ULTIMA_TRANSACCION_SUSCRIPCION_VIGENTE,
     USUARIO_PAIS,
@@ -444,9 +446,17 @@ def _resolver_usuario_objetivo(usuario_id: str | None, user: dict) -> str:
 
 
 @router.get("/transacciones")
-def historial_transacciones(usuario_id: str | None = Query(None), user: dict = Depends(get_current_user)):
+def historial_transacciones(
+    usuario_id: str | None = Query(None),
+    limit: int = Query(50, ge=1, le=500),
+    page:  int = Query(1, ge=1),
+    user: dict = Depends(get_current_user),
+):
     objetivo = _resolver_usuario_objetivo(usuario_id, user)
-    return {"data": query_rows(TRANSACCIONES_POR_USUARIO, {"usuario_id": objetivo})}
+    offset = (page - 1) * limit
+    rows   = query_rows(TRANSACCIONES_POR_USUARIO, {"usuario_id": objetivo, "limit": limit, "offset": offset})
+    total  = query_one(TRANSACCIONES_POR_USUARIO_COUNT, {"usuario_id": objetivo})["n"]
+    return {"data": rows, "total": total, "page": page, "limit": limit}
 
 
 @router.get("/invoices")
@@ -489,8 +499,15 @@ def dashboard_facturacion(admin: dict = Depends(require_admin)):
 
 
 @router.get("/admin/transacciones-recientes")
-def transacciones_recientes(admin: dict = Depends(require_admin)):
-    return {"data": query_rows(TRANSACCIONES_RECIENTES)}
+def transacciones_recientes(
+    limit: int = Query(50, ge=1, le=500),
+    page:  int = Query(1, ge=1),
+    admin: dict = Depends(require_admin),
+):
+    offset = (page - 1) * limit
+    rows   = query_rows(TRANSACCIONES_RECIENTES, {"limit": limit, "offset": offset})
+    total  = query_one(TRANSACCIONES_RECIENTES_COUNT)["n"]
+    return {"data": rows, "total": total, "page": page, "limit": limit}
 
 
 # ─────────────────────────────────────────────────────────────────────────────

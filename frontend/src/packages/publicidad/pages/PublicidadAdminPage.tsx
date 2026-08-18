@@ -64,6 +64,8 @@ type CampanaModalState =
 
 type AnuncianteModalState = { mode: 'create' } | null
 
+const PAGE_SIZE = 20
+
 // CU-O66/CU-O68: admin registra anunciantes y campañas con CPM real, y
 // consulta el ingreso publicitario real ya reconocido por impresión
 // completada (no un valor simulado — ver capability `publicidad`, spec.md).
@@ -90,9 +92,12 @@ export function PublicidadAdminPage() {
   const [filtroTipoCampana, setFiltroTipoCampana]     = useState('')
   const [busquedaCampana, setBusquedaCampana]         = useState('')
 
-  const anunciantes = useQuery({ queryKey: ['publicidad', 'anunciantes'], queryFn: () => publicidadApi.anunciantes() })
-  const campanas    = useQuery({ queryKey: ['publicidad', 'campanas'],    queryFn: () => publicidadApi.campanas() })
-  const ingresos    = useQuery({ queryKey: ['publicidad', 'ingresos'],    queryFn: () => publicidadApi.ingresos() })
+  const [campanaPage, setCampanaPage]         = useState(1)
+  const [anunciantePage, setAnunciantePage]   = useState(1)
+
+  const anunciantes = useQuery({ queryKey: ['publicidad', 'anunciantes', anunciantePage], queryFn: () => publicidadApi.anunciantes(anunciantePage, PAGE_SIZE) })
+  const campanas    = useQuery({ queryKey: ['publicidad', 'campanas', campanaPage],       queryFn: () => publicidadApi.campanas(campanaPage, PAGE_SIZE) })
+  const ingresos    = useQuery({ queryKey: ['publicidad', 'ingresos'],                    queryFn: () => publicidadApi.ingresos() })
 
   const crearAnunciante = useMutation({
     mutationFn: (vals: { nombre: string; sector: string }) => publicidadApi.crearAnunciante(vals),
@@ -164,6 +169,10 @@ export function PublicidadAdminPage() {
   const anunciantesData: Anunciante[] = anunciantes.data?.data ?? []
   const campanasData: Campana[]       = campanas.data?.data ?? []
   const ingresosData: IngresoCampana[] = ingresos.data?.data ?? []
+  const campanasTotal = campanas.data?.total ?? 0
+  const anunciantesTotal = anunciantes.data?.total ?? 0
+  const campanasTotalPages = Math.max(1, Math.ceil(campanasTotal / PAGE_SIZE))
+  const anunciantesTotalPages = Math.max(1, Math.ceil(anunciantesTotal / PAGE_SIZE))
 
   const campanasFiltradas = useMemo(() => campanasData.filter((c) => {
     const est = estadoCampana(c)
@@ -175,11 +184,11 @@ export function PublicidadAdminPage() {
   }), [campanasData, filtroEstadoCampana, filtroTipoCampana, busquedaCampana])
 
   const kpisCampanas = useMemo(() => ({
-    total:      campanasData.length,
+    total:      campanasTotal,
     activas:    campanasData.filter((c) => estadoCampana(c).label === 'Activa').length,
     presupuesto: campanasData.reduce((sum, c) => sum + c.presupuesto_total, 0),
     ingreso:     ingresosData.reduce((sum, i) => sum + i.ingreso_total, 0),
-  }), [campanasData, ingresosData])
+  }), [campanasTotal, campanasData, ingresosData])
 
   const donutCampanas = useMemo(() => {
     const conteo: Record<string, number> = {}
@@ -191,9 +200,9 @@ export function PublicidadAdminPage() {
   }, [campanasData])
 
   const kpisAnunciantes = useMemo(() => ({
-    total:   anunciantesData.length,
+    total:   anunciantesTotal,
     activos: anunciantesData.filter((a) => a.activo).length,
-  }), [anunciantesData])
+  }), [anunciantesTotal, anunciantesData])
 
   const campanasPorAnunciante = useMemo(() => {
     const conteo: Record<number, number> = {}
@@ -350,6 +359,17 @@ export function PublicidadAdminPage() {
               </tbody>
             </table>
           </div>
+          {campanasTotalPages > 1 && !campanas.isLoading && (
+            <div className={styles.tableFooter} data-pdf-export-ignore="true">
+              <button className={styles.btnGhost} type="button" disabled={campanaPage <= 1} onClick={() => setCampanaPage((p) => p - 1)}>
+                ← Anterior
+              </button>
+              <span className={styles.tableFooterText}>Página {campanaPage} / {campanasTotalPages} · {campanasTotal} campañas</span>
+              <button className={styles.btnGhost} type="button" disabled={campanaPage >= campanasTotalPages} onClick={() => setCampanaPage((p) => p + 1)}>
+                Siguiente →
+              </button>
+            </div>
+          )}
         </>
       ) : (
         <>
@@ -397,6 +417,17 @@ export function PublicidadAdminPage() {
               </tbody>
             </table>
           </div>
+          {anunciantesTotalPages > 1 && !anunciantes.isLoading && (
+            <div className={styles.tableFooter} data-pdf-export-ignore="true">
+              <button className={styles.btnGhost} type="button" disabled={anunciantePage <= 1} onClick={() => setAnunciantePage((p) => p - 1)}>
+                ← Anterior
+              </button>
+              <span className={styles.tableFooterText}>Página {anunciantePage} / {anunciantesTotalPages} · {anunciantesTotal} anunciantes</span>
+              <button className={styles.btnGhost} type="button" disabled={anunciantePage >= anunciantesTotalPages} onClick={() => setAnunciantePage((p) => p + 1)}>
+                Siguiente →
+              </button>
+            </div>
+          )}
         </>
       )}
 

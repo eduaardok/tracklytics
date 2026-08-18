@@ -59,33 +59,44 @@ ORDER BY created_at DESC
 # revocado si la parte aún no fusionó. El LEFT JOIN a DIM_USUARIO va sin
 # resolver (mismo patrón que AUDIT_LOG_RECIENTES/ERRORES_RECIENTES en
 # queries.py): es solo para mostrar nombre/email, no gobierna ninguna regla.
-STRIKES_ACTIVOS_GLOBAL = """
-SELECT
-    s.strike_id   AS strike_id,
-    s.usuario_id  AS usuario_id,
-    u.nombre      AS usuario_nombre,
-    u.email       AS usuario_email,
-    s.motivo      AS motivo,
-    s.origen_tipo AS origen_tipo,
-    s.origen_id   AS origen_id,
-    s.emitido_por AS emitido_por,
-    s.created_at  AS created_at
-FROM (
+def strikes_activos_global_sql() -> str:
+    return """
     SELECT
-        strike_id,
-        argMax(usuario_id, actualizado_en)  AS usuario_id,
-        argMax(motivo, actualizado_en)      AS motivo,
-        argMax(origen_tipo, actualizado_en) AS origen_tipo,
-        argMax(origen_id, actualizado_en)   AS origen_id,
-        argMax(emitido_por, actualizado_en) AS emitido_por,
-        argMax(activo, actualizado_en)      AS activo,
-        min(created_at)                     AS created_at
+        s.strike_id   AS strike_id,
+        s.usuario_id  AS usuario_id,
+        u.nombre      AS usuario_nombre,
+        u.email       AS usuario_email,
+        s.motivo      AS motivo,
+        s.origen_tipo AS origen_tipo,
+        s.origen_id   AS origen_id,
+        s.emitido_por AS emitido_por,
+        s.created_at  AS created_at
+    FROM (
+        SELECT
+            strike_id,
+            argMax(usuario_id, actualizado_en)  AS usuario_id,
+            argMax(motivo, actualizado_en)      AS motivo,
+            argMax(origen_tipo, actualizado_en) AS origen_tipo,
+            argMax(origen_id, actualizado_en)   AS origen_id,
+            argMax(emitido_por, actualizado_en) AS emitido_por,
+            argMax(activo, actualizado_en)      AS activo,
+            min(created_at)                     AS created_at
+        FROM FACT_STRIKE_USUARIO
+        GROUP BY strike_id
+    ) s
+    LEFT JOIN DIM_USUARIO u ON u.usuario_id = s.usuario_id
+    WHERE s.activo = 1
+    ORDER BY s.created_at DESC
+    LIMIT {limit:UInt32}
+    OFFSET {offset:UInt32}
+    """
+
+STRIKES_ACTIVOS_GLOBAL_COUNT = """
+SELECT count() AS n FROM (
+    SELECT argMax(activo, actualizado_en) AS activo
     FROM FACT_STRIKE_USUARIO
     GROUP BY strike_id
-) s
-LEFT JOIN DIM_USUARIO u ON u.usuario_id = s.usuario_id
-WHERE s.activo = 1
-ORDER BY s.created_at DESC
+) WHERE activo = 1
 """
 
 

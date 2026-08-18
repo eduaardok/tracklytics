@@ -257,6 +257,19 @@
 .btnGhostDanger:hover { border-color: var(--color-error); background: color-mix(in srgb, var(--color-error) 10%, transparent); }
 .btnGhostDanger:disabled { opacity: 0.4; cursor: not-allowed; }
 
+.tableFooter {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  margin-top: var(--space-sm);
+  padding: var(--space-sm) 0;
+}
+.tableFooterText {
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  color: var(--color-muted);
+}
+
 /* Pausar/Reanudar (tabla de campañas) — ícono compacto 28×28, mismo tamaño
    que `.btn` de CrudActionButtons.module.css (no importado entre paquetes,
    mismo criterio de duplicación local que el resto de esta hoja) — antes

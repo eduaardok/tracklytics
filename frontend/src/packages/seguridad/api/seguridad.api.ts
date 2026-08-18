@@ -82,8 +82,13 @@ export const seguridadApi = {
   usuariosReporte: () =>
     apiClient.get<{ usuarios: UsuarioReporte[] }>('/seguridad/admin/usuarios-reporte'),
 
-  strikesGlobal: () =>
-    apiClient.get<{ strikes: StrikeGlobal[] }>('/seguridad/admin/strikes'),
+  strikesGlobal: (page = 1, limit = 50) => {
+    const p = new URLSearchParams()
+    if (page > 1) p.set('page', String(page))
+    if (limit !== 50) p.set('limit', String(limit))
+    const qs = p.toString()
+    return apiClient.get<ApiResponse<StrikeGlobal>>(`/seguridad/admin/strikes${qs ? `?${qs}` : ''}`)
+  },
 
   // Obj 30 / OT-30 (S13-P2). `total` es el conteo real (sin el LIMIT de
   // `sesiones`) — necesario para no mostrar un KPI capado a la página.

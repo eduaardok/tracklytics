@@ -5,8 +5,13 @@ import type {
 } from '../types'
 
 export const publicidadApi = {
-  anunciantes: () =>
-    apiClient.get<ApiResponse<Anunciante>>('/publicidad/admin/anunciantes'),
+  anunciantes: (page = 1, limit = 20) => {
+    const p = new URLSearchParams()
+    if (page > 1) p.set('page', String(page))
+    if (limit !== 20) p.set('limit', String(limit))
+    const qs = p.toString()
+    return apiClient.get<ApiResponse<Anunciante>>(`/publicidad/admin/anunciantes${qs ? `?${qs}` : ''}`)
+  },
 
   crearAnunciante: (body: { nombre: string; sector?: string }) =>
     apiClient.post<{ status: string; anunciante_id: number }>('/publicidad/admin/anunciantes', body),
@@ -17,8 +22,13 @@ export const publicidadApi = {
   desactivarAnunciante: (anuncianteId: number) =>
     apiClient.post<{ status: string; anunciante_id: number; activo: number }>(`/publicidad/admin/anunciantes/${anuncianteId}/desactivar`, undefined),
 
-  campanas: () =>
-    apiClient.get<ApiResponse<Campana>>('/publicidad/admin/campanas'),
+  campanas: (page = 1, limit = 20) => {
+    const p = new URLSearchParams()
+    if (page > 1) p.set('page', String(page))
+    if (limit !== 20) p.set('limit', String(limit))
+    const qs = p.toString()
+    return apiClient.get<ApiResponse<Campana>>(`/publicidad/admin/campanas${qs ? `?${qs}` : ''}`)
+  },
 
   crearCampana: (body: CampanaBody) =>
     apiClient.post<{ status: string; campana_id: number }>('/publicidad/admin/campanas', body),

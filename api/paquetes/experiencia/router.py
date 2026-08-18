@@ -43,6 +43,7 @@ from paquetes.experiencia.queries import (
     TOP_TRACKS_PLAYLIST,
     USUARIO_POR_EMAIL,
     USUARIO_YA_EN_PLAN_FAMILIAR,
+    tickets_admin_count_sql,
     tickets_admin_sql,
 )
 from paquetes.seguridad import audit
@@ -434,7 +435,12 @@ def crear_ticket(body: TicketBody, user: dict = Depends(get_current_user)):
 
 
 @router.get("/tickets")
-def listar_tickets(estado: str | None = Query(None), user: dict = Depends(get_current_user)):
+def listar_tickets(
+    limit: int = Query(20, ge=1, le=200),
+    page:  int = Query(1, ge=1),
+    estado: str | None = Query(None),
+    user: dict = Depends(get_current_user),
+):
     role = user.get("record", {}).get("role", "")
     if role == "admin":
         clauses, params = [], {}
@@ -442,7 +448,10 @@ def listar_tickets(estado: str | None = Query(None), user: dict = Depends(get_cu
             clauses.append("estado = {estado:String}")
             params["estado"] = estado
         where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
-        return {"data": query_rows(tickets_admin_sql(where), params)}
+        offset = (page - 1) * limit
+        rows   = query_rows(tickets_admin_sql(where), {**params, "limit": limit, "offset": offset})
+        total  = query_one(tickets_admin_count_sql(where), params)["n"]
+        return {"data": rows, "total": total, "page": page, "limit": limit}
     if role != "user":
         raise HTTPException(status_code=403, detail="Los tickets de soporte son exclusivos de Usuario B2C o admin")
     return {"data": query_rows(MIS_TICKETS, {"usuario_id": user["record"]["id"]})}

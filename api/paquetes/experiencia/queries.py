@@ -454,6 +454,15 @@ def tickets_admin_sql(where: str) -> str:
     FROM FACT_TICKET_SOPORTE
     {where}
     ORDER BY fecha_creacion DESC
+    LIMIT {{limit:UInt32}}
+    OFFSET {{offset:UInt32}}
+    """
+
+
+def tickets_admin_count_sql(where: str) -> str:
+    return f"""
+    SELECT count() AS n FROM FACT_TICKET_SOPORTE
+    {where}
     """
 
 
