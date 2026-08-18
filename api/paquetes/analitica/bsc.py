@@ -9,16 +9,18 @@ sintético: cada KPI sale de una agregación real sobre Gold
 (tracklytics_gold, ClickHouse 8124, vía `paquetes.reportes.queries.fetch_gold`
 / `query_rows_gold` — se reusa el mismo acceso que los informes compuestos).
 
-De los 13 KPIs, 2 no tienen ninguna tabla Gold que los respalde — no es
-"histórico insuficiente", es la ausencia total de la métrica en el modelo
-de datos actual. Se documentan explícitamente en vez de inventar una
-columna que no existe (ver `_kpi_sin_datos` y su uso abajo):
-  - Retención de creadores activos (OE5): no existe GOLD_CREADORES_PERIODO
-    ni columna equivalente en ninguna tabla Gold (GOLD_CONTENIDO_PERIODO
-    trackea licencias/territorio, no actividad de creadores).
-  - Respuesta a decisiones estratégicas <24h (OE4): es una métrica de
-    proceso/gobernanza (qué tan rápido reacciona el liderazgo a un
-    hallazgo del dashboard) — ningún pipeline de datos puede medirla.
+De los 13 KPIs, 1 no tiene ninguna tabla Gold posible que lo respalde — no es
+"histórico insuficiente", es una métrica de proceso/gobernanza que ningún
+pipeline de datos puede medir. Se documenta explícitamente en vez de
+inventar una columna que no existe (ver `_kpi_sin_datos` y su uso abajo):
+  - Respuesta a decisiones estratégicas <24h (OE4): qué tan rápido reacciona
+    el liderazgo a un hallazgo del dashboard — no hay tabla Gold posible
+    para esto, es intencional (ver también RT-06 y la nota metodológica de
+    disponibilidad).
+
+Retención de creadores activos (OE5) SÍ tiene tabla Gold desde S16:
+GOLD_CREADORES_PERIODO (grano por `cuenta_artista_id` — "activo" = al menos
+una subida en FACT_SUBIDA_TRACK en el período) — ver `_kpi_retencion_creadores`.
 
 Otros 4 KPIs no tienen una columna 1:1 para el concepto exacto del
 documento — se calculan con una fórmula derivada de columnas reales, cada
@@ -448,6 +450,45 @@ def _kpi_ab_tests_concluidos() -> dict:
     }
 
 
+def _kpi_retencion_creadores() -> dict:
+    """Retención de creadores activos (meta >80% trimestral, S14 §13.3,
+    perspectiva Cliente/OE5). GOLD_CREADORES_PERIODO (S16) trae un grano por
+    creador (`cuenta_artista_id`) y período — "creador activo" en un período
+    es al menos una subida en FACT_SUBIDA_TRACK dentro de esa ventana (ver
+    `etl/gold_ch/creadores.py`). Retención = overlap de creadores activos
+    entre el trimestre actual y el anterior, sobre el total de activos del
+    trimestre anterior — mismo cálculo que `_kpi_retencion_b2b` (overlap
+    mes-a-mes de partners), acá literal al ciclo trimestral que pide el
+    documento fuente."""
+    filas = query_rows_gold(
+        "SELECT periodo, groupUniqArray(cuenta_artista_id) AS creadores "
+        "FROM GOLD_CREADORES_PERIODO WHERE granularidad = {g:String} AND subidas_total > 0 "
+        "GROUP BY periodo ORDER BY periodo",
+        {"g": GRANULARIDAD_TRIMESTRE},
+    )
+    tendencia = []
+    for i in range(1, len(filas)):
+        anteriores = set(filas[i - 1]["creadores"])
+        actuales = set(filas[i]["creadores"])
+        if not anteriores:
+            continue
+        retenidos = len(anteriores & actuales)
+        tendencia.append(round(retenidos / len(anteriores) * 100, 1))
+    tendencia = tendencia[-PUNTOS_TENDENCIA:]
+    valor_actual = tendencia[-1] if tendencia else 0.0
+    meta = 80.0
+    pct_meta = _pct_meta(valor_actual, meta, invertido=False)
+
+    return {
+        "indicador": "Retención de creadores activos", "valor_actual": valor_actual, "unidad": "%",
+        "meta": f">{meta:g}% trimestral", "meta_valor": meta, "invertido": False,
+        "porcentaje_meta": round(pct_meta, 1), "semaforo": _semaforo(pct_meta),
+        "tendencia": tendencia, "es_estimado": False,
+        "nota": "overlap de creadores con al menos una subida entre el trimestre actual y "
+                "el anterior (GOLD_CREADORES_PERIODO), sobre el total de activos del trimestre anterior",
+    }
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # `GET /analitica/bsc/resumen`
 # ─────────────────────────────────────────────────────────────────────────────
@@ -467,11 +508,7 @@ def bsc_resumen() -> dict:
             "kpis": [
                 _kpi_cac_por_region(),
                 _kpi_crecimiento_usuarios(),
-                _kpi_sin_datos(
-                    "Retención de creadores activos", ">80% trimestral",
-                    "sin tabla Gold de respaldo: no existe GOLD_CREADORES_PERIODO ni "
-                    "columna equivalente en ninguna tabla Gold actual",
-                ),
+                _kpi_retencion_creadores(),
             ],
         },
         {
