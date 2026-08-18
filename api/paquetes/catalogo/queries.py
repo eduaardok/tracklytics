@@ -187,7 +187,7 @@ SELECT
     a.country    AS country,
     a.imagen_url AS imagen_url,
     s.nombre     AS record_label,
-    count()                          AS track_count,
+    count(DISTINCT ft.track_id)      AS track_count,
     round(avg(ft.popularity),    2)  AS avg_popularity,
     round(avg(ft.energy),        4)  AS avg_energy,
     round(avg(ft.danceability),  4)  AS avg_danceability,
