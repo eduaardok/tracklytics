@@ -55,7 +55,7 @@ export function ReportLayout({
 
   return (
     <section className={styles.page} ref={reportRef}>
-      <header className={styles.head}>
+      <header className={styles.head} data-pdf-export-ignore="true">
         <div className={styles.headTop}>
           <span className={styles.badgeDepto} style={{ color: colorDepto, borderColor: colorDepto }}>
             {departamento}
