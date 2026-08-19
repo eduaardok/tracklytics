@@ -2,11 +2,14 @@
   position: relative;
   min-height: 100vh;
   display: grid;
-  /* 55/45 en vez de 50/50 (S16 Fase 4, auditoría externa §5.4) — el hero
-     ahora carga un mini-dashboard real (ver .miniDashboard) que aprovecha
-     mejor una columna algo más ancha; el form panel (card de 380px) no
-     necesita la mitad completa del viewport. */
-  grid-template-columns: 1.3fr 1fr;
+  /* S16 Fase 5: 1.3fr/1fr era del hero con mini-dashboard (4 módulos,
+     retirado). Con el hero ahora liviano (marca + headline + un solo dato
+     real) ya no necesita esa ventaja de ancho — 1.1fr/1fr le da al form
+     panel un poco más de espacio relativo (el card sigue capado a 380px,
+     pero RegisterPage es el más denso de los dos y se beneficia del aire
+     extra), sin llegar a 50/50 (el hero sigue siendo el lado con más
+     identidad visual: glows, ambient SVG, marca). */
+  grid-template-columns: 1.1fr 1fr;
   /* Fila 1 (hero + form) ocupa todo el alto disponible; fila 2 (.pageFooter,
      "Acerca de Tracklytics") solo lo que necesita — sin esto, el `stretch`
      por defecto de `align-content` en grid repartía el alto extra de
@@ -54,8 +57,8 @@
 /* Nodos conectados en la esquina inferior izquierda (S15-P07, FASE 6) — antes
    ese espacio quedaba vacío sin función cuando el contenido no llenaba todo
    el alto del panel (`.hero` centra verticalmente). Opacidad baja a propósito
-   (0.08 claro / 0.12 oscuro): es ambiente, no debe competir con los módulos
-   de datos reales de `.dashboardGrid`. */
+   (0.08 claro / 0.12 oscuro): es ambiente, no debe competir con la marca ni
+   con el dato real de `.heroStat` (S16 Fase 5). */
 .heroAmbient {
   position: absolute;
   left: 0;
@@ -78,19 +81,35 @@
   gap: var(--space-lg);
 }
 
+/* S16 Fase 5 (fix real de alineación): antes `align-items: baseline` con
+   `.brandLogo`/`.miniEq` forzando `align-self: center` por separado — el
+   texto "Tracklytics" quedaba anclado a su línea base mientras el logo y el
+   ecualizador se centraban en la fila completa, dos puntos de referencia
+   vertical distintos que no coinciden (la altura de línea del texto es muy
+   menor que los 56px del logo), causando el descuadre real. `align-items:
+   center` en el padre unifica el criterio para los 3 hijos de una sola vez,
+   sin necesitar overrides por hijo. */
 .brand {
   display: flex;
-  align-items: baseline;
-  gap: var(--space-sm);
+  align-items: center;
+  gap: var(--space-md);
 }
 
-/* Ecualizador ambiente junto a la marca (ver AuthHero.tsx MiniEqualizer) —
-   `align-self: center` porque `.brand` alinea sus hijos por baseline (correcto
-   para logo+texto), pero estas barras no tienen línea base propia. */
+/* Anillo con el gradiente de marca (S16 Fase 5) alrededor del logo — usa
+   `--gradient-primary` como pide el brief de refuerzo de identidad, en vez
+   de agregar un elemento decorativo nuevo. El padding entre el gradiente y
+   la imagen deja ver el anillo como borde, no como fondo detrás del logo. */
+.brandLogoRing {
+  display: flex;
+  padding: 2.5px;
+  border-radius: 50%;
+  background: var(--gradient-primary);
+  flex-shrink: 0;
+}
+
 .miniEq {
   display: flex;
   align-items: flex-end;
-  align-self: center;
   gap: 2px;
   height: 12px;
   margin-left: 2px;
@@ -119,14 +138,16 @@
 }
 
 .brandLogo {
-  align-self: center;
+  display: block;
   border-radius: 50%;
-  flex-shrink: 0;
 }
 
+/* Más grande que antes (1.25rem → 1.75rem) — con el mini-dashboard fuera,
+   la marca es uno de los focos principales del hero (brief de refuerzo de
+   identidad, S16 Fase 5), no un encabezado más compitiendo con el resto. */
 .brandName {
   font-family: var(--font-sans);
-  font-size: 1.25rem;
+  font-size: 1.75rem;
   font-weight: 700;
   color: var(--color-ink);
   letter-spacing: -0.02em;
@@ -149,294 +170,6 @@
   max-width: 20ch;
 }
 
-/* Grilla de módulos de tamaños distintos (S15-P07, FASE 1) — reemplaza el
-   apilado vertical "Top Tracks ancho completo → stats → features en fila"
-   (S16 Fase 4) por una composición real: Top Tracks es el módulo grande,
-   géneros el módulo pequeño que rompe la verticalidad, features/stats
-   comparten la fila de soporte. `grid-template-areas` en vez de flexbox
-   apilado porque el objetivo es tamaño distinto por módulo, no una lista. */
-.dashboardGrid {
-  display: grid;
-  grid-template-columns: 1.5fr 1fr;
-  grid-template-areas:
-    "toptracks genres"
-    "features  stats";
-  gap: var(--space-md);
-}
-
-/* Caja compartida por los 4 módulos — mismo tratamiento visual que el
-   `.statCard`/`.miniDashboard` que reemplaza (surface + borde + sombra), para
-   que "módulo grande" y "módulo pequeño" se lean como la misma familia
-   visual en tamaños distintos, no como componentes dispares. */
-.module {
-  margin: 0;
-  padding: var(--space-sm) var(--space-md);
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-card);
-  list-style: none;
-  min-width: 0;
-}
-
-.moduleLabel {
-  display: block;
-  font-family: var(--font-sans);
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: var(--color-muted);
-  margin-bottom: var(--space-sm);
-}
-
-/* Barra corta compartida por "Top tracks" (junto al score ★) y "Popularidad
-   por género" — mismo patrón visual (pista + relleno en gradiente de marca),
-   solo cambia el ancho: fija y angosta junto al score, flexible en la fila
-   de género. */
-.barFill {
-  display: block;
-  height: 100%;
-  border-radius: inherit;
-  background: linear-gradient(90deg, var(--color-primary-light), var(--color-accent));
-}
-
-/* ── Módulo grande: Top tracks (S16 Fase 4 P4/P5, extendido S15-P07 FASE 2) ──
-   `/tracks/top` público, sin auth. `AlbumArt` ya trae su propio fallback de
-   gradiente por género para portadas sin resolver. Sin indicador de
-   tendencia: no existe un campo de variación de posición/popularidad en este
-   endpoint (confirmado en `queries.py` antes de diseñar la fila) — mostrar
-   una flecha inventada sería un dato falso, así que se omite por completo. */
-.moduleTopTracks {
-  grid-area: toptracks;
-}
-
-.topTracksList {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-xs);
-  list-style: none;
-}
-
-.topTrackRow {
-  display: flex;
-  align-items: center;
-  gap: var(--space-sm);
-}
-
-.topTrackArt {
-  border-radius: var(--radius-sm);
-  flex-shrink: 0;
-}
-
-.topTrackInfo {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  min-width: 0;
-  flex: 1;
-}
-
-.topTrackName {
-  font-family: var(--font-sans);
-  font-size: 0.8125rem;
-  font-weight: 600;
-  color: var(--color-ink);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.topTrackArtist {
-  font-family: var(--font-sans);
-  font-size: 0.75rem;
-  color: var(--color-muted);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-/* Score ★ + barra corta de popularidad apilados (S15-P07 FASE 2) — el número
-   ya existía, la barra es el indicador visual adicional que pide el brief. */
-.topTrackMeta {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 3px;
-  flex-shrink: 0;
-}
-
-.topTrackPop {
-  font-family: var(--font-mono);
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: var(--color-accent);
-  font-variant-numeric: tabular-nums;
-}
-
-.miniBarTrack {
-  width: 44px;
-  height: 4px;
-  border-radius: var(--radius-pill);
-  background: var(--color-border);
-  overflow: hidden;
-}
-
-/* ── Módulo pequeño: popularidad por género (S15-P07 FASE 3) — segunda
-   visualización, `/genres` público. Sin sparkline de tendencia: no existe
-   ningún endpoint público de series temporales/crecimiento agregado en este
-   backend (confirmado en FASE 0 revisando `router.py`), así que la segunda
-   visualización es esta (Opción A del prompt), no una inventada. */
-.moduleGenres {
-  grid-area: genres;
-}
-
-.genreBarList {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  list-style: none;
-}
-
-.genreBarRow {
-  display: flex;
-  align-items: center;
-  gap: var(--space-xs);
-}
-
-.genreBarName {
-  flex: 0 0 auto;
-  max-width: 9ch;
-  font-family: var(--font-sans);
-  font-size: 0.6875rem;
-  color: var(--color-ink);
-  text-transform: capitalize;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.genreBarTrack {
-  flex: 1;
-  min-width: 16px;
-  height: 5px;
-  border-radius: var(--radius-pill);
-  background: var(--color-border);
-  overflow: hidden;
-}
-
-.genreBarValue {
-  flex-shrink: 0;
-  width: 2.5ch;
-  text-align: right;
-  font-family: var(--font-mono);
-  font-size: 0.6875rem;
-  color: var(--color-muted);
-  font-variant-numeric: tabular-nums;
-}
-
-/* ── Soporte visual integrado: features (S15-P07 FASE 5) ── mismo contenido
-   e íconos que antes (S16 Fase 4, G4 — DESIGN.md:264 sigue prohibiendo el
-   "identical card grid"); lo que cambia es que ahora vive dentro de la
-   grilla general como un módulo más, en vez de una fila suelta al final. */
-.moduleFeatures {
-  grid-area: features;
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: var(--space-sm) var(--space-md);
-  align-content: start;
-}
-
-.feature {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--space-sm);
-}
-
-.featureIcon {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 34px;
-  height: 34px;
-  flex-shrink: 0;
-  border-radius: var(--radius-md);
-  background: oklch(0.48 0.15 290 / 0.16);
-  color: var(--color-primary-light);
-}
-
-.featureText {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding-top: 2px;
-}
-
-.featureTitle {
-  font-family: var(--font-sans);
-  font-size: 0.875rem;
-  font-weight: 600;
-  color: var(--color-ink);
-}
-
-.featureDesc {
-  font-family: var(--font-sans);
-  font-size: 0.8125rem;
-  color: var(--color-muted);
-}
-
-/* ── Módulo pequeño: estadísticas reales (S15-P07 FASE 4) — 2 stats reales
-   (tracks totales, géneros catalogados) en vez del `.statCard` único de
-   antes. Sin artistas ni crecimiento semanal: no hay endpoint público que
-   devuelva un total real de artistas (`/artists/search` limita a 100, no es
-   un conteo) ni una serie de variación semanal — se omiten en vez de
-   mockearse (preferible 2 stats reales a 4 con datos falsos). */
-.moduleStats {
-  grid-area: stats;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: var(--space-sm);
-}
-
-.statItem {
-  display: flex;
-  align-items: center;
-  gap: var(--space-sm);
-}
-
-.statIcon {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  flex-shrink: 0;
-  border-radius: var(--radius-md);
-  background: oklch(0.48 0.15 290 / 0.12);
-  color: var(--color-primary-light);
-}
-
-.statBody {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  min-width: 0;
-}
-
-.statNumber {
-  font-family: var(--font-mono);
-  font-size: 1rem;
-  font-weight: 600;
-  line-height: 1.2;
-  color: var(--color-ink);
-  font-variant-numeric: tabular-nums;
-}
-
-.statCaption {
-  font-family: var(--font-sans);
-  font-size: 0.6875rem;
-  color: var(--color-muted);
-}
-
 .techs {
   display: flex;
   gap: var(--space-sm);
@@ -449,6 +182,32 @@
   border: 1px solid var(--color-border);
   border-radius: var(--radius-pill);
   padding: 4px 10px;
+}
+
+/* ── Dato real único (S16 Fase 5 — reemplaza el mini-dashboard de 4 módulos
+   anterior) protagonista, no un ícono+caption compartiendo peso con otros 3
+   stats: número grande en la escala mono de datos, sin card/borde propio
+   (el hero ya tiene su propio fondo violeta pálido vía `.hero`, envolverlo
+   en otra superficie habría sido una card dentro de otra card). */
+.heroStat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.heroStatNumber {
+  font-family: var(--font-mono);
+  font-size: 2.5rem;
+  font-weight: 700;
+  line-height: 1.05;
+  color: var(--color-ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.heroStatCaption {
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+  color: var(--color-muted);
 }
 
 /* ── Form panel ── */
@@ -827,19 +586,19 @@
 
   .heroInner { gap: var(--space-sm); }
 
-  .dashboardGrid, .techs {
+  .techs {
     display: none;
   }
 }
 
 /* Viewports bajos de escritorio (1366×768 es el caso de referencia real,
-   S15-P07 FASE 7) — con la grilla de 4 módulos nueva, el espaciado por
-   defecto de `.hero` empujaba `.pageFooter` fuera del viewport. Se ajusta
-   el espaciado vertical (no se oculta el footer) para que el conjunto
-   hero + footer quepa sin scroll; `.techs` es el único contenido puramente
-   decorativo (dos pills redundantes con `/acerca-de`), así que es lo primero
-   que cede espacio. Ámbito por altura, no por ancho — el breakpoint de
-   860px de arriba ya resuelve mobile aparte. */
+   S15-P07 FASE 7) — el hero ya es liviano desde S16 Fase 5 (un solo dato
+   real, sin mini-dashboard), pero se conserva el ajuste vertical para que
+   el conjunto hero + footer siga cabiendo sin scroll en viewports bajos;
+   `.techs` es el único contenido puramente decorativo (dos pills redundantes
+   con `/acerca-de`), así que es lo primero que cede espacio. Ámbito por
+   altura, no por ancho — el breakpoint de 860px de arriba ya resuelve
+   mobile aparte. */
 @media (max-height: 820px) {
   .hero {
     padding: var(--space-lg) var(--space-2xl);
@@ -847,18 +606,6 @@
 
   .heroInner {
     gap: var(--space-sm);
-  }
-
-  .dashboardGrid {
-    gap: var(--space-sm);
-  }
-
-  .module {
-    padding: var(--space-xs) var(--space-sm);
-  }
-
-  .moduleLabel {
-    margin-bottom: var(--space-xs);
   }
 
   .headline {
