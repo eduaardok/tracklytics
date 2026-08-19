@@ -13,13 +13,22 @@
   to   { opacity: 1; transform: translateY(0); }
 }
 
-/* ── Hero ── */
+/* ── Hero ──
+   `min-height` es un piso, no una altura fija: `.hero` y el bloque
+   "Escucha ahora" (retirado en S16 Fase 6) eran hermanos dentro de `.wrap`,
+   nunca estuvieron anidados, así que este valor nunca existió para darle
+   espacio a ese bloque — gobierna solo la altura mínima del propio banner
+   (headline + sub + cta + kpiRow ya la superan en la práctica; el piso
+   existe para que el mosaico de portadas de fondo no se vea aplastado en
+   pantallas con poco contenido). Se ajusta de 300px a 260px de todos modos,
+   ahora que el hero es el único bloque del conjunto: un poco más compacto,
+   sin arriesgar que el collage se vea recortado. */
 .hero {
   position: relative;
   display: grid;
   grid-template-columns: 1.15fr 1fr;
   align-items: center;
-  min-height: 300px;
+  min-height: 260px;
   overflow: hidden;
   border-radius: var(--radius-lg);
   background: var(--gradient-primary);
@@ -133,11 +142,16 @@
    Las cards de KPICard usan `card-glass` (fondo translúcido + blur) — sobre
    el gradiente violeta del hero leen como un panel de vidrio real, no como
    una card blanca fuera de lugar. */
+/* S16 Fase 6: max-width sube de 420px a 560px (el mismo ancho que `.content`)
+   ahora que .kpiRow es el último bloque del hero — antes 420px lo mantenía
+   más angosto que "Escucha ahora" a propósito, para no competir con ese
+   bloque; sin él, las 3 KPICard pueden respirar hasta el ancho real
+   disponible en vez de quedar apretadas en un tercio de la columna. */
 .kpiRow {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: var(--space-sm);
-  max-width: 420px;
+  gap: var(--space-md);
+  max-width: 560px;
   margin-top: var(--space-lg);
   opacity: 0;
   transform: translateY(10px);
@@ -156,37 +170,4 @@
 
 @media (prefers-reduced-motion: reduce) {
   .kpiRow { opacity: 1; transform: none; transition: none; }
-}
-
-/* ── Escucha ahora ── */
-.featured {
-  margin-top: var(--space-lg);
-  opacity: 0;
-  transform: translateY(10px);
-  transition: opacity var(--duration-deliberate) var(--ease-standard) 220ms,
-              transform var(--duration-deliberate) var(--ease-standard) 220ms;
-}
-
-.featuredIn {
-  opacity: 1;
-  transform: translateY(0);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .featured { opacity: 1; transform: none; transition: none; }
-}
-
-.featuredLabel {
-  display: block;
-  font-family: var(--font-sans);
-  font-size: 0.8125rem;
-  font-weight: 600;
-  color: var(--color-muted);
-  margin-bottom: var(--space-sm);
-}
-
-.featuredGrid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-  gap: var(--space-md);
 }

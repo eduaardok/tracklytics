@@ -3,23 +3,22 @@ import { Disc3, Mic2, Tags } from 'lucide-react'
 import { KPICard } from '@shared/components/KPICard'
 import { useInView } from '@shared/hooks/useInView'
 import { catalogoApi } from '../api/catalogo.api'
-import { TrackGridCard } from './TrackGridCard'
 import styles from './CatalogHero.module.css'
 
-const COVERS_COUNT   = 10
-const FEATURED_COUNT = 4
+const COVERS_COUNT = 10
 
 // Hero de bienvenida de CatalogPage (S16 Fase 3, feria) — lo primero que ve
 // cualquier visitante en `/`. Los números y las portadas son reales: KPIs
-// desde `GET /catalog/stats` (nuevo, S16 — no existía un endpoint público
-// con conteos globales del catálogo hasta ahora) y las portadas/tracks
-// destacados desde `tracksTop`, el mismo endpoint que ya usa la pestaña
-// Canciones. No se agregó framer-motion (el prompt asumía que ya era
-// dependencia del proyecto por `PageTransition.tsx` — falso: ese archivo
-// documenta que framer-motion se probó y se REVIRTIÓ por costar +43kB gzip
-// en el bundle principal, y `CatalogPage` es import eager, no lazy, así que
-// pagaría exactamente ese mismo costo). La entrada usa CSS puro
-// (`@keyframes` + `prefers-reduced-motion` ya global en index.css).
+// desde `GET /catalog/stats` (S16 Fase 3 — endpoint público con conteos
+// globales del catálogo) y el collage de portadas desde `tracksTop`, el
+// mismo endpoint que ya usa la pestaña Canciones. No se agregó framer-motion
+// (ver AuthHero.tsx para el mismo hallazgo en el hero de login): la entrada
+// usa CSS puro (`@keyframes` + `prefers-reduced-motion` ya global en
+// index.css). S16 Fase 6 (recorte de feria): se retiró el bloque inferior
+// "Escucha ahora" (4 TrackGridCard reproducibles) — quedaba redundante con
+// la propia pestaña Canciones justo debajo del hero, y competía con los
+// KPIs por atención. El collage de fondo NO se toca: sigue viniendo de la
+// misma query `covers`.
 export function CatalogHero({ onExplore }: { onExplore: () => void }) {
   const { ref, inView } = useInView<HTMLDivElement>()
 
@@ -35,9 +34,8 @@ export function CatalogHero({ onExplore }: { onExplore: () => void }) {
     staleTime: 5 * 60_000,
   })
 
-  const tracks       = covers.data?.data ?? []
+  const tracks        = covers.data?.data ?? []
   const collageTracks = tracks.filter((t) => !!t.imagen_url).slice(0, COVERS_COUNT)
-  const featured       = tracks.slice(0, FEATURED_COUNT)
 
   return (
     <div ref={ref} className={styles.wrap}>
@@ -87,17 +85,6 @@ export function CatalogHero({ onExplore }: { onExplore: () => void }) {
           </div>
         </div>
       </section>
-
-      {featured.length > 0 && (
-        <div className={`${styles.featured} ${inView ? styles.featuredIn : ''}`}>
-          <span className={styles.featuredLabel}>Escucha ahora</span>
-          <div className={styles.featuredGrid}>
-            {featured.map((t, i) => (
-              <TrackGridCard key={`${t.fact_id}-${t.track_id}`} track={t} queue={featured} index={i} />
-            ))}
-          </div>
-        </div>
-      )}
     </div>
   )
 }
