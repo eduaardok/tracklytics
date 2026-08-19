@@ -10,6 +10,7 @@ from paquetes.biblioteca import pb_playlists
 from paquetes.catalogo.queries import (
     ALBUM_DETAIL, ALBUMS_SEARCH,
     ARTIST_DETAIL, ARTISTS_SEARCH, ARTISTS_TOP,
+    CATALOG_STATS,
     GENRE_DETAIL, GENRES_LIST,
     SEARCH_ALBUMES_GRUPO, SEARCH_ARTISTAS_GRUPO, SEARCH_TRACKS_GRUPO,
     TRACK_DETAIL, TRACK_DETAIL_BY_FACT_ID,
@@ -111,6 +112,13 @@ async def search_all(
         "albumes": albumes,
         "playlists": playlists,
     }
+
+
+# Contadores reales del catálogo (S16 Fase 3, hero de CatalogPage) — público,
+# sin auth: son cifras de marketing del propio catálogo, no datos operativos.
+@router.get("/catalog/stats")
+def catalog_stats():
+    return query_one(CATALOG_STATS)
 
 
 # ── Tracks ────────────────────────────────────────────────────────────────────

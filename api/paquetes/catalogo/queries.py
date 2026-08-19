@@ -149,6 +149,19 @@ LIMIT 1
 SETTINGS use_query_cache = 1, query_cache_ttl = 120, query_cache_share_between_users = 1
 """
 
+# KPIs reales del hero de CatalogPage (S16 Fase 3, feria) — 3 counts baratos
+# sobre tablas dimension/fact ya indexadas por su llave, cacheados igual que
+# el resto de queries públicas de este archivo. `tracks` usa el mismo
+# count(DISTINCT track_id) que ya usa tracks_search_count_sql (evita la
+# inflación por multi-género, mismo bug que se corrigió en ARTIST_DETAIL).
+CATALOG_STATS = """
+SELECT
+    (SELECT count(DISTINCT track_id) FROM FACT_TRACKS WHERE disponible = 1) AS tracks,
+    (SELECT count() FROM DIM_ARTISTS)                                       AS artists,
+    (SELECT count() FROM DIM_GENRES)                                        AS genres
+SETTINGS use_query_cache = 1, query_cache_ttl = 120, query_cache_share_between_users = 1
+"""
+
 ARTISTS_TOP = """
 SELECT
     a.artist_id                  AS artist_id,

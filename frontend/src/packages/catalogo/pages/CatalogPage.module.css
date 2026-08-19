@@ -2,17 +2,6 @@
   /* fills the AppShell content container */
 }
 
-/* ── Page header ── */
-.pageHead {
-  margin-bottom: var(--space-lg);
-}
-
-.heading {
-  composes: text-display from global;
-  color: var(--color-ink);
-  margin-bottom: var(--space-xs);
-}
-
 .subtitle {
   display: block;
   font-family: var(--font-mono);
@@ -201,8 +190,14 @@
   box-shadow: 0 0 0 2px oklch(0.48 0.15 290 / 0.5);
 }
 
+/* Peso 600 (vs 500 en reposo) además del color/borde ya existentes — con el
+   hero nuevo justo arriba (S16 Fase 3), la pestaña activa necesitaba más
+   peso visual para no leerse plana en comparación. Mismo grosor de borde
+   (2px) que `.tab` en reposo — cambiar el grosor solo en activo desalinea
+   la línea base 1px al cambiar de pestaña (jitter visual). */
 .tabActive {
   color: var(--color-ink);
+  font-weight: 600;
   border-bottom-color: var(--color-primary);
 }
 

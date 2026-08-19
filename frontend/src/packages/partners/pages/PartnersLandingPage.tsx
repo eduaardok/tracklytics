@@ -1,7 +1,19 @@
 import { useState } from 'react'
-import { AlertTriangle } from 'lucide-react'
+import { AlertTriangle, Building2, Check, Sparkles, Zap } from 'lucide-react'
 import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
+import { useInView } from '@shared/hooks/useInView'
 import styles from './PartnersLandingPage.module.css'
+
+// Envoltorio de conveniencia sobre useInView (S16 Fase 3.4): agrega la clase
+// de revelado solo cuando el elemento entra en viewport, sin repetir el
+// `${inView ? styles.revealIn : ''}` en cada sección. `useInView` tiene un
+// fallback de 1.5s que fuerza `inView=true` pase lo que pase, así que el
+// contenido nunca queda invisible de forma permanente (pestaña oculta,
+// render headless) — ver el comentario en useInView.ts.
+function useReveal() {
+  const { ref, inView } = useInView<HTMLElement>(0.15)
+  return { ref, className: inView ? `${styles.reveal} ${styles.revealIn}` : styles.reveal }
+}
 
 // Landing pública (sin sesión) para integradores externos — porte de
 // app/partners/landing.html (legacy) al retirar `app/` (consolidación a
@@ -31,6 +43,10 @@ export function PartnersLandingPage() {
     }
   }
 
+  const tiersReveal = useReveal()
+  const authReveal   = useReveal()
+  const tryReveal    = useReveal()
+
   return (
     <div className={styles.page}>
       <div className={styles.banner}>
@@ -55,38 +71,42 @@ export function PartnersLandingPage() {
         </p>
       </div>
 
-      <section className={styles.section}>
+      <section ref={tiersReveal.ref} className={`${styles.section} ${tiersReveal.className}`}>
         <h2>Tiers de acceso</h2>
         <div className={styles.tierGrid}>
           <div className={styles.tierCard}>
+            <div className={styles.tierIcon}><Zap size={18} aria-hidden="true" /></div>
             <h3>Básico</h3>
             <p className={styles.tierDesc}>Catálogo esencial para integraciones simples.</p>
             <ul>
-              <li>Tracks, artistas, álbumes y géneros (lista + detalle)</li>
-              <li>Campos: nombre, artista, género, popularidad</li>
+              <li><Check size={14} className={styles.tierCheck} aria-hidden="true" /> Tracks, artistas, álbumes y géneros (lista + detalle)</li>
+              <li><Check size={14} className={styles.tierCheck} aria-hidden="true" /> Campos: nombre, artista, género, popularidad</li>
             </ul>
           </div>
           <div className={`${styles.tierCard} ${styles.tierFeatured}`}>
+            <span className={styles.tierBadge}>Más popular</span>
+            <div className={styles.tierIcon}><Sparkles size={18} aria-hidden="true" /></div>
             <h3>Pro</h3>
             <p className={styles.tierDesc}>Perfil de audio para recomendación y análisis.</p>
             <ul>
-              <li>Todo lo de Básico</li>
-              <li>+ duración, danceability, energy, valence, tempo</li>
+              <li><Check size={14} className={styles.tierCheck} aria-hidden="true" /> Todo lo de Básico</li>
+              <li><Check size={14} className={styles.tierCheck} aria-hidden="true" /> + duración, danceability, energy, valence, tempo</li>
             </ul>
           </div>
           <div className={styles.tierCard}>
+            <div className={styles.tierIcon}><Building2 size={18} aria-hidden="true" /></div>
             <h3>Enterprise</h3>
             <p className={styles.tierDesc}>Acceso completo y exportación masiva.</p>
             <ul>
-              <li>Todo lo de Pro</li>
-              <li>+ loudness, speechiness, acousticness, instrumentalness, liveness</li>
-              <li>Endpoint de exportación masiva (<code>/tracks/export</code>)</li>
+              <li><Check size={14} className={styles.tierCheck} aria-hidden="true" /> Todo lo de Pro</li>
+              <li><Check size={14} className={styles.tierCheck} aria-hidden="true" /> + loudness, speechiness, acousticness, instrumentalness, liveness</li>
+              <li><Check size={14} className={styles.tierCheck} aria-hidden="true" /> Endpoint de exportación masiva (<code>/tracks/export</code>)</li>
             </ul>
           </div>
         </div>
       </section>
 
-      <section className={styles.section}>
+      <section ref={authReveal.ref} className={`${styles.section} ${authReveal.className}`}>
         <h2>Autenticación</h2>
         <p className={styles.sectionNote}>
           Cada solicitud se autentica con una API key enviada por header — nunca por query string.
@@ -94,7 +114,7 @@ export function PartnersLandingPage() {
         <pre className={styles.codeBlock}>{'curl https://api.tracklytics.dev/partners/v1/tracks?limit=10 \\\n  -H "X-API-Key: TU_API_KEY"'}</pre>
       </section>
 
-      <section className={styles.section}>
+      <section ref={tryReveal.ref} className={`${styles.section} ${tryReveal.className}`}>
         <h2>Pruébalo ahora</h2>
         <p className={styles.sectionNote}>
           Usa una API key de demo para ver una respuesta real del catálogo (solo lectura, tier básico).

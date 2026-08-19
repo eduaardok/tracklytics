@@ -14,6 +14,21 @@
     ),
     var(--color-surface);
   box-shadow: var(--shadow-card);
+  /* S16 Fase 3.5 (auditoría de consistencia): era la única card interactiva
+     del catálogo sin ningún feedback de hover — el botón interno ya
+     reacciona solo, pero la card entera (con su propio borde/gradiente) se
+     leía estática al lado de TrackGridCard/ExploreGridCard, que sí elevan. */
+  transition: border-color var(--duration-standard) var(--ease-standard),
+              box-shadow var(--duration-standard) var(--ease-standard);
+}
+
+.card:hover {
+  border-color: oklch(0.62 0.19 300 / 0.45);
+  box-shadow: var(--shadow-card-lg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card { transition: none; }
 }
 
 .art {

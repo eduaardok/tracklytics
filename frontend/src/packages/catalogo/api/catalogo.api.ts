@@ -9,6 +9,10 @@ export const catalogoApi = {
       `/search?q=${encodeURIComponent(q)}&limit=${limit}`,
     ),
 
+  // Contadores reales del catálogo (S16 Fase 3) — hero de CatalogPage.
+  catalogStats: () =>
+    apiClient.get<{ tracks: number; artists: number; genres: number }>('/catalog/stats'),
+
   // ── Tracks ──────────────────────────────────────────────────────────────────
   tracksTop: (limit = 20) =>
     apiClient.get<ApiResponse<Track>>(`/tracks/top?limit=${limit}`),

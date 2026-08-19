@@ -11,6 +11,7 @@ import { TrackGridCard } from '../components/TrackGridCard'
 import { ExploreGridCard } from '../components/ExploreGridCard'
 import { ExploreRow } from '../components/ExploreRow'
 import { MixDiarioCard } from '../components/MixDiarioCard'
+import { CatalogHero } from '../components/CatalogHero'
 import { ErrorState } from '@shared/components/ErrorState'
 import { EmptyState } from '@shared/components/EmptyState'
 import type { Track, Album, Artist, Genre } from '../types'
@@ -634,6 +635,7 @@ const TABS: { id: Tab; label: string }[] = [
 export function CatalogPage() {
   const [activeTab, setActiveTab] = useState<Tab>('canciones')
   const [genre, setGenre] = useState('')
+  const tabBarRef = useRef<HTMLDivElement>(null)
 
   useDocumentTitle(activeTab === 'canciones' ? 'Catálogo' : `Catálogo · ${TABS.find((t) => t.id === activeTab)?.label}`)
 
@@ -646,13 +648,15 @@ export function CatalogPage() {
     setActiveTab('canciones')
   }
 
+  function scrollToTabs() {
+    tabBarRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
+
   return (
     <section className={styles.page}>
-      <header className={styles.pageHead}>
-        <h1 className={styles.heading}>Catálogo</h1>
-      </header>
+      <CatalogHero onExplore={scrollToTabs} />
 
-      <div className={styles.tabBar} role="tablist" aria-label="Secciones del catálogo">
+      <div ref={tabBarRef} className={styles.tabBar} role="tablist" aria-label="Secciones del catálogo">
         {TABS.map((tab) => (
           <button
             key={tab.id}

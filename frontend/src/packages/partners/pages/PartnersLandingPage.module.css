@@ -52,9 +52,37 @@
   text-decoration: none;
 }
 
-.hero { padding: 3.5rem var(--space-2xl, 3rem) 2rem; max-width: 900px; }
-.hero h1 { font-size: 2.1rem; font-weight: 800; margin-bottom: var(--space-md); line-height: 1.2; }
-.hero p { color: var(--color-muted); font-size: 1.0625rem; max-width: 640px; }
+/* Gradiente de marca (S16 Fase 3.3) — mismo fill que el hero de CatalogPage,
+   consistencia entre los dos landings. El texto usa `--color-on-primary` (no
+   `--color-ink`/`--color-muted`, que cambian de claro a oscuro según tema):
+   ese fill violeta es CONSTANTE entre temas, así que su texto también debe
+   serlo — mismo bug de S15-01 documentado en index.css, corregido acá antes
+   de que apareciera en este archivo. */
+.hero {
+  padding: 3.5rem var(--space-2xl, 3rem);
+  border-radius: var(--radius-lg);
+  margin: var(--space-lg) var(--space-2xl, 3rem) 0;
+  background: var(--gradient-primary);
+}
+
+.hero h1 {
+  font-size: clamp(1.65rem, 1.1rem + 2vw, 2.1rem);
+  font-weight: 800;
+  color: var(--color-on-primary);
+  margin-bottom: var(--space-md);
+  line-height: 1.2;
+  text-wrap: balance;
+}
+
+.hero p {
+  color: oklch(0.98 0.006 285 / 0.86);
+  font-size: 1.0625rem;
+  max-width: 640px;
+}
+
+@media (max-width: 760px) {
+  .hero { margin: var(--space-md) var(--space-md) 0; padding: 2.25rem var(--space-lg); }
+}
 
 .section { padding: var(--space-xl) var(--space-2xl, 3rem); max-width: 1100px; }
 .section h2 { font-size: 1.25rem; font-weight: 700; margin-bottom: var(--space-md); }
@@ -67,6 +95,7 @@
 }
 
 .tierCard {
+  position: relative;
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
@@ -74,15 +103,66 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-xs);
+  transition: transform var(--duration-standard) var(--ease-standard),
+              box-shadow var(--duration-standard) var(--ease-standard),
+              border-color var(--duration-standard) var(--ease-standard);
 }
 
-.tierFeatured { border-color: var(--color-primary); background: var(--color-surface-raised); }
+.tierCard:hover {
+  transform: scale(1.02);
+  border-color: var(--color-border-strong);
+  box-shadow: var(--shadow-card);
+}
+
+/* Jerarquía real del tier destacado (S16 Fase 3.3, feria) — no solo el
+   borde violeta que ya tenía: badge + elevación + sombra grande propia
+   (`--shadow-card-lg`, definida en index.css pero sin uso en este archivo
+   hasta ahora). `translateY(-4px)` es la posición EN REPOSO de esta card
+   (no un efecto de hover) — por eso se combina con el propio hover de
+   `.tierCard` en vez de reemplazarlo. */
+.tierFeatured {
+  border-color: var(--color-primary);
+  background: var(--color-surface-raised);
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-card-lg);
+}
+
+.tierFeatured:hover {
+  transform: translateY(-4px) scale(1.02);
+}
+
+.tierBadge {
+  position: absolute;
+  top: -11px;
+  left: var(--space-lg);
+  font-family: var(--font-sans);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--color-on-primary);
+  background: var(--gradient-primary);
+  border-radius: var(--radius-pill);
+  padding: 3px 10px;
+}
+
+.tierIcon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  margin-bottom: 2px;
+  border-radius: var(--radius-md);
+  color: var(--color-primary-light);
+  background: var(--color-bg-accent-subtle);
+}
+
 .tierCard h3 { font-size: 1.0625rem; font-weight: 800; }
 .tierDesc { color: var(--color-muted); font-size: 0.8125rem; }
 
 .tierCard ul { list-style: none; margin-top: var(--space-xs); display: flex; flex-direction: column; gap: 6px; padding: 0; }
-.tierCard li { font-size: 0.8125rem; color: var(--color-muted); padding-left: 1.1rem; position: relative; }
-.tierCard li::before { content: '✓'; position: absolute; left: 0; color: var(--color-accent); font-weight: 700; }
+.tierCard li { display: flex; align-items: flex-start; gap: 6px; font-size: 0.8125rem; color: var(--color-muted); }
+.tierCheck { flex-shrink: 0; margin-top: 2px; color: var(--color-accent-fill); }
 
 .codeBlock {
   background: oklch(0.12 0.01 285);
@@ -119,13 +199,18 @@
   align-items: center;
   font-size: 0.875rem;
   font-weight: 600;
-  color: var(--color-ink);
+  /* `--color-on-primary`, no `--color-ink` (bug real de S15-01, ver
+     comentario del .hero arriba): el fill violeta no cambia por tema, así
+     que su texto tampoco puede — `--color-ink` es casi negro en claro,
+     texto oscuro sobre relleno violeta oscuro. */
+  color: var(--color-on-primary);
   background: var(--gradient-primary);
   border: none;
   border-radius: var(--radius-md);
   padding: 9px var(--space-md);
   height: 36px;
   cursor: pointer;
+  transition: transform var(--duration-fast) var(--ease-standard), filter var(--duration-fast) var(--ease-standard);
 }
 .btnPrimary:hover:not(:disabled) { filter: brightness(1.1); }
 .btnPrimary:active:not(:disabled) { transform: scale(0.98); }
@@ -148,5 +233,22 @@
 
 @media (max-width: 760px) {
   .tryNow { grid-template-columns: 1fr; }
-  .header, .hero, .section { padding-left: var(--space-md); padding-right: var(--space-md); }
+  .header, .section { padding-left: var(--space-md); padding-right: var(--space-md); }
+}
+
+/* ── Revelado al scroll (S16 Fase 3.4) — ver useReveal() arriba ── */
+.reveal {
+  opacity: 0;
+  transform: translateY(16px);
+  transition: opacity var(--duration-deliberate) var(--ease-standard),
+              transform var(--duration-deliberate) var(--ease-standard);
+}
+
+.revealIn {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reveal { opacity: 1; transform: none; transition: none; }
 }

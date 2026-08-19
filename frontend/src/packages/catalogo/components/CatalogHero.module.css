@@ -1,0 +1,192 @@
+.wrap {
+  margin-bottom: var(--space-xl);
+  /* Entrada del bloque completo (S16 Fase 3): fade + slide sutil, una sola
+     vez al montar — no depende de scroll, el hero ya está sobre el fold.
+     `@media (prefers-reduced-motion: reduce)` global (index.css) ya anula
+     `animation-duration` en todo el árbol, así que no hace falta repetirlo
+     acá. */
+  animation: heroEnter var(--duration-deliberate) var(--ease-standard) both;
+}
+
+@keyframes heroEnter {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Hero ── */
+.hero {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1.15fr 1fr;
+  align-items: center;
+  min-height: 300px;
+  overflow: hidden;
+  border-radius: var(--radius-lg);
+  background: var(--gradient-primary);
+  isolation: isolate;
+}
+
+@media (max-width: 900px) {
+  .hero { grid-template-columns: 1fr; min-height: 0; }
+}
+
+/* Portadas reales del catálogo (tracksTop) como mosaico decorativo — nunca
+   imágenes inventadas. Vive detrás del scrim, nunca compite con el texto. */
+.collage {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  grid-template-rows: repeat(2, 1fr);
+  gap: 2px;
+}
+
+.collageImg {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0.4;
+  filter: saturate(1.1);
+}
+
+/* Tinte oscuro independiente del tema (no usa --color-bg, que cambia entre
+   claro/oscuro) — garantiza ≥4.5:1 para el texto de cuerpo encima del
+   gradiente violeta, que por sí solo (DESIGN.md, Twilight Violet) solo
+   alcanza el umbral de 3:1 de texto grande, insuficiente para el subtítulo.
+   Más oscuro a la izquierda (donde vive el texto), se abre hacia la
+   derecha para dejar asomar el mosaico de portadas. */
+.scrim {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: linear-gradient(
+    100deg,
+    oklch(0.08 0.01 285 / 0.82) 0%,
+    oklch(0.08 0.01 285 / 0.72) 42%,
+    oklch(0.08 0.01 285 / 0.30) 100%
+  );
+}
+
+@media (max-width: 900px) {
+  .scrim {
+    background: linear-gradient(
+      180deg,
+      oklch(0.08 0.01 285 / 0.85) 0%,
+      oklch(0.08 0.01 285 / 0.78) 70%,
+      oklch(0.08 0.01 285 / 0.55) 100%
+    );
+  }
+}
+
+.content {
+  position: relative;
+  z-index: 2;
+  padding: var(--space-2xl) var(--space-xl);
+  max-width: 560px;
+}
+
+@media (max-width: 900px) {
+  .content { padding: var(--space-xl) var(--space-lg); max-width: none; }
+}
+
+.headline {
+  composes: text-display from global;
+  font-size: clamp(1.75rem, 1.1rem + 2.4vw, 2.75rem);
+  color: var(--color-on-primary);
+  margin-bottom: var(--space-sm);
+}
+
+.sub {
+  font-family: var(--font-sans);
+  font-size: 1rem;
+  line-height: 1.5;
+  color: oklch(0.98 0.006 285 / 0.86);
+  max-width: 46ch;
+  margin-bottom: var(--space-lg);
+}
+
+.cta {
+  font-family: var(--font-sans);
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--color-primary);
+  background: var(--color-on-primary);
+  border: none;
+  border-radius: var(--radius-md);
+  padding: 12px 22px;
+  cursor: pointer;
+  transition: transform var(--duration-fast) var(--ease-standard),
+              box-shadow var(--duration-standard) var(--ease-standard);
+  box-shadow: 0 8px 20px oklch(0.08 0.01 285 / 0.25);
+}
+
+.cta:hover { transform: translateY(-1px); box-shadow: 0 10px 24px oklch(0.08 0.01 285 / 0.32); }
+.cta:active { transform: scale(0.98) translateY(0); }
+
+.cta:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--color-on-primary), 0 0 0 4px oklch(0.08 0.01 285 / 0.4);
+}
+
+/* ── KPIs ──
+   Las cards de KPICard usan `card-glass` (fondo translúcido + blur) — sobre
+   el gradiente violeta del hero leen como un panel de vidrio real, no como
+   una card blanca fuera de lugar. */
+.kpiRow {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-sm);
+  max-width: 420px;
+  margin-top: var(--space-lg);
+  opacity: 0;
+  transform: translateY(10px);
+  transition: opacity var(--duration-deliberate) var(--ease-standard) 120ms,
+              transform var(--duration-deliberate) var(--ease-standard) 120ms;
+}
+
+.kpiRowIn {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+@media (max-width: 480px) {
+  .kpiRow { grid-template-columns: 1fr; max-width: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .kpiRow { opacity: 1; transform: none; transition: none; }
+}
+
+/* ── Escucha ahora ── */
+.featured {
+  margin-top: var(--space-lg);
+  opacity: 0;
+  transform: translateY(10px);
+  transition: opacity var(--duration-deliberate) var(--ease-standard) 220ms,
+              transform var(--duration-deliberate) var(--ease-standard) 220ms;
+}
+
+.featuredIn {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .featured { opacity: 1; transform: none; transition: none; }
+}
+
+.featuredLabel {
+  display: block;
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--color-muted);
+  margin-bottom: var(--space-sm);
+}
+
+.featuredGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: var(--space-md);
+}
