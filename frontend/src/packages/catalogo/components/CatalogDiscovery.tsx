@@ -2,15 +2,20 @@ import { useQuery } from '@tanstack/react-query'
 import { ChevronRight } from 'lucide-react'
 import { genreAccent } from '@shared/lib/genre-colors'
 import { catalogoApi } from '../api/catalogo.api'
-import { TrackCard } from './TrackCard'
+import { TrackGridCard } from './TrackGridCard'
 import { ExploreGridCard } from './ExploreGridCard'
 import { MixDiarioCard } from './MixDiarioCard'
 import type { Tab } from '../pages/CatalogPage.tabs'
 import styles from './CatalogDiscovery.module.css'
-import pageStyles from '../pages/CatalogPage.module.css'
 
-const PREVIEW_LIMIT = 8
+const PREVIEW_LIMIT = 12
 const GENRE_CHIPS_LIMIT = 12
+// Artistas circulares más chicos que las portadas cuadradas de canciones
+// (feedback visual: "los covers de artistas se ven muy grandes en
+// comparación a los de canciones") — playlists conserva el cuadrado pero
+// también se achica, mismo motivo.
+const ARTIST_SIZE   = 96
+const PLAYLIST_SIZE = 130
 
 type Props = {
   // Navega a la vista completa de una categoría (mismo mecanismo que "Ver
@@ -72,31 +77,36 @@ export function CatalogDiscovery({ onVerTodo }: Props) {
       <MixDiarioCard />
 
       {/* Categoría omitida si no hay datos reales que mostrar (sin loading
-          aún ni error) — nunca contenido inventado (regla 10). */}
+          aún ni error) — nunca contenido inventado (regla 10). Fila
+          horizontal desplazable (feedback visual) en vez de lista vertical
+          — covers grandes, orden de popularidad (mismo endpoint `tracksTop`,
+          ya viene ordenado), badge ★ visible en cada card. */}
       {trackList.length > 0 && (
         <section className={styles.section}>
           <SectionHeader title="Canciones populares" ctaLabel="Ver todas" onClick={() => onVerTodo('canciones')} />
-          <ol className={pageStyles.list} aria-label="Canciones populares">
+          <div className={styles.hRow} aria-label="Canciones populares">
             {trackList.map((track, i) => (
-              <li key={`${track.fact_id}-${track.track_id}`}>
-                <TrackCard track={track} position={i + 1} queue={trackList} />
-              </li>
+              <div key={`${track.fact_id}-${track.track_id}`} className={styles.trackItem}>
+                <TrackGridCard track={track} queue={trackList} index={i} />
+              </div>
             ))}
-          </ol>
+          </div>
         </section>
       )}
 
       {artistList.length > 0 && (
         <section className={styles.section}>
           <SectionHeader title="Artistas destacados" ctaLabel="Ver todos" onClick={() => onVerTodo('artistas')} />
-          <div className={pageStyles.exploreGridCards} aria-label="Artistas destacados">
+          <div className={styles.hRow} aria-label="Artistas destacados">
             {artistList.map((a) => (
               <ExploreGridCard
                 key={a.artist_id}
                 kind="artista"
+                shape="circle"
+                size={ARTIST_SIZE}
                 name={a.name}
                 imagenUrl={a.imagen_url}
-                metric={`${a.track_count.toLocaleString('es')} tracks${a.avg_popularity != null ? ` · ★ ${a.avg_popularity}` : ''}`}
+                metric={`${a.track_count.toLocaleString('es')} tracks`}
                 onClick={() => onVerTodo('artistas')}
               />
             ))}
@@ -129,11 +139,12 @@ export function CatalogDiscovery({ onVerTodo }: Props) {
       {playlistList.length > 0 && (
         <section className={styles.section}>
           <SectionHeader title="Playlists" ctaLabel="Ver todas" onClick={() => onVerTodo('playlists')} />
-          <div className={pageStyles.exploreGridCards} aria-label="Playlists">
+          <div className={styles.hRow} aria-label="Playlists">
             {playlistList.map((p) => (
               <ExploreGridCard
                 key={p.album_id}
                 kind="playlist"
+                size={PLAYLIST_SIZE}
                 name={p.name}
                 imagenUrl={p.imagen_url}
                 metric={`${(p.track_count ?? 0).toLocaleString('es')} canciones${p.release_year ? ` · ${p.release_year}` : ''}`}

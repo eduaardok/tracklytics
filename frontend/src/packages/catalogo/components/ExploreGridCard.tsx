@@ -9,6 +9,15 @@ type Props = {
   metric: string
   imagenUrl?: string | null
   onClick: () => void
+  // Lado de la portada en px (CatalogDiscovery — filas horizontales más
+  // compactas que la vista completa) — default 160, el tamaño histórico de
+  // esta card en las 3 vistas completas (Artistas/Playlists/Géneros), que
+  // no cambian.
+  size?: number
+  // 'circle' = avatar redondo (artistas en CatalogDiscovery, mismo patrón
+  // que cualquier UI de música: personas en círculo, álbumes en cuadrado).
+  // Las vistas completas siguen usando 'square' (default), sin cambios.
+  shape?: 'square' | 'circle'
 }
 
 // Vista de grid de artistas/playlists(álbumes)/géneros (S13-P6) — portada
@@ -16,15 +25,23 @@ type Props = {
 // TrackGridCard (catálogo de canciones). Antes Artistas/Playlists/Géneros
 // solo tenían la card compacta de `ExploreRow` (icono de 44px + texto) sin
 // alternativa de grid — la auditoría la calificó de "presentación inferior".
-export function ExploreGridCard({ kind, name, metric, imagenUrl, onClick }: Props) {
+export function ExploreGridCard({ kind, name, metric, imagenUrl, onClick, size, shape = 'square' }: Props) {
+  const circular = shape === 'circle'
   return (
-    <div className={styles.card} onClick={onClick} onKeyDown={(e) => e.key === 'Enter' && onClick()} role="button" tabIndex={0}>
-      <div className={styles.artWrap}>
+    <div
+      className={`${styles.card} ${circular ? styles.cardCentered : ''}`}
+      style={size ? { width: size } : undefined}
+      onClick={onClick}
+      onKeyDown={(e) => e.key === 'Enter' && onClick()}
+      role="button"
+      tabIndex={0}
+    >
+      <div className={styles.artWrap} style={size ? { minHeight: size } : undefined}>
         {kind !== 'genero' ? (
-          <AlbumArt src={imagenUrl} alt="" size={160} className={styles.art} />
+          <AlbumArt src={imagenUrl} alt="" size={size ?? 160} className={`${styles.art} ${circular ? styles.circular : ''}`} />
         ) : (
           <span
-            className={styles.genreArt}
+            className={`${styles.genreArt} ${circular ? styles.circular : ''}`}
             aria-hidden="true"
             style={{
               backgroundImage: imagenUrl

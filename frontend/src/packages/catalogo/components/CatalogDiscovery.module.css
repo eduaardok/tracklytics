@@ -50,6 +50,37 @@
   border-radius: var(--radius-sm);
 }
 
+/* ── Fila horizontal desplazable (canciones/artistas/playlists) ──
+   Reemplaza la lista vertical/grid con wrap: covers grandes se leen mejor
+   en una sola fila que el usuario desliza, no en un bloque que empuja todo
+   lo demás hacia abajo. `> *` fuerza que cada card mantenga su tamaño
+   intrínseco en vez de encogerse para caber (comportamiento flex default),
+   que es justo lo que se necesita para poder desplazar. */
+.hRow {
+  display: flex;
+  gap: var(--space-md);
+  overflow-x: auto;
+  scroll-snap-type: x proximity;
+  padding-bottom: 4px;
+  scrollbar-width: none;
+}
+
+.hRow::-webkit-scrollbar { display: none; }
+
+.hRow > * {
+  flex: 0 0 auto;
+  scroll-snap-align: start;
+}
+
+/* TrackGridCard no tiene prop de tamaño propio (se reusa intacto, sin
+   tocarlo, en su vista completa) — el ancho fijo se lo da este wrapper,
+   contenedor con ancho definido real (no relativo) para que el `width:100%`
+   interno de TrackGridCard resuelva de forma predecible dentro de un flex
+   row. */
+.trackItem {
+  width: 150px;
+}
+
 /* ── Géneros: fila de chips compacta (regla 8 — nunca bloques grandes) ── */
 .genreChips {
   display: flex;

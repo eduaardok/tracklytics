@@ -64,6 +64,19 @@
   transition: box-shadow var(--duration-standard) var(--ease-standard);
 }
 
+/* Avatar circular (CatalogDiscovery, artistas) — vs. el cuadrado default
+   de esta card en las 3 vistas completas, que no cambian. */
+.circular,
+.circular :global(.img) {
+  border-radius: 50% !important;
+}
+
+/* Nombre/métrica centrados debajo de un avatar circular — un avatar
+   redondo con texto alineado a la izquierda se lee descuadrado. */
+.cardCentered .info {
+  text-align: center;
+}
+
 .info {
   margin-top: var(--space-sm);
   min-width: 0;
