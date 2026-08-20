@@ -57,6 +57,11 @@
 .viewBtnActive:hover { color: oklch(0.98 0 0); }
 
 /* ── Search ──
+   Filtro local de la vista completa de una categoría (nunca la búsqueda
+   principal — esa vive en el header, `GlobalSearch`) — tamaño y peso
+   deliberadamente menores que un buscador de primer nivel, para que la
+   jerarquía "búsqueda global vs. filtro local" sea evidente sin necesitar
+   texto explicativo (rediseño "centro de descubrimiento musical", regla 11).
    `flex-wrap`: sin esto, el `<select>` de género + el botón "limpiar" no
    pueden encogerse más allá de su contenido y comprimían el input de
    búsqueda a un ancho inutilizable en <375px. */
@@ -64,20 +69,23 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-sm);
-  margin-bottom: var(--space-xl);
+  gap: var(--space-xs);
+  margin-bottom: var(--space-lg);
+  max-width: 360px;
 }
 
 .searchWrap {
   position: relative;
-  flex: 1 1 200px;
+  flex: 1 1 180px;
 }
 
 .searchIcon {
   position: absolute;
-  left: 13px;
+  left: 11px;
   top: 50%;
   transform: translateY(-50%);
+  width: 14px;
+  height: 14px;
   color: var(--color-muted);
   pointer-events: none;
   display: flex;
@@ -89,9 +97,10 @@
   background: var(--color-surface);
   color: var(--color-ink);
   font-family: var(--font-sans);
-  font-size: 0.9375rem;
+  font-size: 0.8125rem;
   font-weight: 400;
-  padding: 10px 14px 10px 38px;
+  padding: 7px 12px 7px 32px;
+  height: 34px;
   border-radius: var(--radius-md);
   border: 1px solid var(--color-border);
   outline: none;
@@ -124,8 +133,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 38px;
-  height: 38px;
+  width: 34px;
+  height: 34px;
   flex-shrink: 0;
   background: transparent;
   border: 1px solid var(--color-border);
@@ -159,46 +168,47 @@
   padding: 0;
 }
 
-/* ── Tabs (Canciones / Playlists / Artistas / Géneros) ── */
-.tabBar {
+/* ── Vista completa de una categoría (rediseño "centro de descubrimiento") ──
+   Reemplaza la barra de pestañas: entrar a una categoría vía "Ver todas/os"
+   ya no es cambiar de pestaña dentro de un conjunto fijo — es navegar a una
+   vista dedicada, con una sola forma clara de volver. */
+.viewHeader {
   display: flex;
-  gap: var(--space-xs);
+  align-items: baseline;
+  gap: var(--space-md);
   margin-bottom: var(--space-md);
-  border-bottom: 1px solid var(--color-border);
 }
 
-.tab {
+.backLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   font-family: var(--font-sans);
-  font-size: 0.875rem;
+  font-size: 0.8125rem;
   font-weight: 500;
   color: var(--color-muted);
   background: transparent;
   border: none;
-  border-bottom: 2px solid transparent;
-  padding: var(--space-sm) var(--space-xs);
-  margin-bottom: -1px;
+  padding: 4px 2px;
   cursor: pointer;
-  transition: color var(--duration-fast) var(--ease-standard), border-color var(--duration-fast) var(--ease-standard);
+  transition: color var(--duration-fast) var(--ease-standard);
 }
 
-.tab:hover {
-  color: var(--color-ink);
-}
+.backLink:hover { color: var(--color-ink); }
 
-.tab:focus-visible {
+.backLink:focus-visible {
   outline: none;
   box-shadow: 0 0 0 2px oklch(0.48 0.15 290 / 0.5);
+  border-radius: var(--radius-sm);
 }
 
-/* Peso 600 (vs 500 en reposo) además del color/borde ya existentes — con el
-   hero nuevo justo arriba (S16 Fase 3), la pestaña activa necesitaba más
-   peso visual para no leerse plana en comparación. Mismo grosor de borde
-   (2px) que `.tab` en reposo — cambiar el grosor solo en activo desalinea
-   la línea base 1px al cambiar de pestaña (jitter visual). */
-.tabActive {
+.viewTitle {
+  font-family: var(--font-sans);
+  font-size: 1.125rem;
+  font-weight: 700;
   color: var(--color-ink);
-  font-weight: 600;
-  border-bottom-color: var(--color-primary);
+  letter-spacing: -0.01em;
+  margin: 0;
 }
 
 /* ── Vista dual de descubrimiento (playlists/artistas/géneros, S13-P6) ──

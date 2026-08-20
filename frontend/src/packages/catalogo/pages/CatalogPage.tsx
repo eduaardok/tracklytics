@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { LayoutGrid, List, SearchX } from 'lucide-react'
+import { ChevronLeft, LayoutGrid, List, SearchX } from 'lucide-react'
 import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { getCatalogViewMode, setCatalogViewMode, type CatalogViewMode } from '@shared/lib/ui-prefs'
 import { genreAccent } from '@shared/lib/genre-colors'
@@ -10,11 +10,12 @@ import { TrackCard } from '../components/TrackCard'
 import { TrackGridCard } from '../components/TrackGridCard'
 import { ExploreGridCard } from '../components/ExploreGridCard'
 import { ExploreRow } from '../components/ExploreRow'
-import { MixDiarioCard } from '../components/MixDiarioCard'
 import { CatalogHero } from '../components/CatalogHero'
+import { CatalogDiscovery } from '../components/CatalogDiscovery'
 import { ErrorState } from '@shared/components/ErrorState'
 import { EmptyState } from '@shared/components/EmptyState'
 import type { Track, Album, Artist, Genre } from '../types'
+import { TAB_LABEL, type Tab } from './CatalogPage.tabs'
 import styles from './CatalogPage.module.css'
 
 const SKELETON_WIDTHS = [
@@ -223,12 +224,6 @@ function CancionesSection({ genre, onToggleGenre }: CancionesProps) {
         <span className={styles.subtitle}>{subtitle()}</span>
         <ViewToggle mode={viewMode} onChange={changeViewMode} />
       </div>
-
-      {/* Mix diario (change p2-descubrimiento-comunidad): encabeza la pestaña
-          de canciones porque es el punto de entrada personalizado al catálogo.
-          Se oculta solo cuando hay búsqueda o filtro activo, donde el usuario
-          ya declaró una intención concreta. */}
-      {!filtered && <MixDiarioCard />}
 
       {genres.length > 0 && (
         <div className={styles.genreChipsSection} aria-label="Explorar por género">
@@ -623,58 +618,75 @@ function GenerosSection({ onSelectGenre }: GenerosProps) {
 
 // ── Página ───────────────────────────────────────────────────────────────────
 
-type Tab = 'canciones' | 'playlists' | 'artistas' | 'generos'
-
-const TABS: { id: Tab; label: string }[] = [
-  { id: 'canciones', label: 'Canciones' },
-  { id: 'playlists', label: 'Playlists' },
-  { id: 'artistas',  label: 'Artistas' },
-  { id: 'generos',   label: 'Géneros' },
-]
+// Catálogo unificado (rediseño "centro de descubrimiento musical"): antes
+// `/catalogo` ERA cuatro pestañas (Canciones/Playlists/Artistas/Géneros) —
+// el usuario tenía que elegir una categoría antes de ver ningún contenido.
+// Ahora la ruta principal (sin `?ver=`) muestra `CatalogDiscovery`, varias
+// categorías a la vez; `?ver=<tab>` (mismo `/catalogo`, sin ruta nueva)
+// muestra la vista completa de esa categoría — los 4 componentes de sección
+// de abajo (CancionesSection/PlaylistsSection/ArtistasSection/
+// GenerosSection) son exactamente los mismos que antes vivían detrás de las
+// pestañas, con toda su lógica de búsqueda/filtros/paginación intacta.
+function esTab(v: string | null): v is Tab {
+  return v === 'canciones' || v === 'playlists' || v === 'artistas' || v === 'generos'
+}
 
 export function CatalogPage() {
-  const [activeTab, setActiveTab] = useState<Tab>('canciones')
-  const [genre, setGenre] = useState('')
-  const tabBarRef = useRef<HTMLDivElement>(null)
+  const [searchParams, setSearchParams] = useSearchParams()
+  const rawVer = searchParams.get('ver')
+  const ver: Tab | null = esTab(rawVer) ? rawVer : null
+  const genre = searchParams.get('genre') ?? ''
+  const sectionsRef = useRef<HTMLDivElement>(null)
 
-  useDocumentTitle(activeTab === 'canciones' ? 'Catálogo' : `Catálogo · ${TABS.find((t) => t.id === activeTab)?.label}`)
+  useDocumentTitle(ver ? `Catálogo · ${TAB_LABEL[ver]}` : 'Catálogo')
+
+  function abrirVista(tab: Tab, genreName?: string) {
+    const next = new URLSearchParams()
+    next.set('ver', tab)
+    if (genreName) next.set('genre', genreName)
+    setSearchParams(next)
+    sectionsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
+
+  function volverInicio() {
+    setSearchParams({})
+  }
 
   function toggleGenre(name: string) {
-    setGenre((current) => (current === name ? '' : name))
+    const next = new URLSearchParams(searchParams)
+    if (genre === name) next.delete('genre')
+    else next.set('genre', name)
+    setSearchParams(next)
   }
 
-  function selectGenreAndBrowse(name: string) {
-    setGenre(name)
-    setActiveTab('canciones')
-  }
-
-  function scrollToTabs() {
-    tabBarRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  function scrollToSections() {
+    sectionsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }
 
   return (
     <section className={styles.page}>
-      <CatalogHero onExplore={scrollToTabs} />
+      <CatalogHero onExplore={scrollToSections} />
 
-      <div ref={tabBarRef} className={styles.tabBar} role="tablist" aria-label="Secciones del catálogo">
-        {TABS.map((tab) => (
-          <button
-            key={tab.id}
-            type="button"
-            role="tab"
-            aria-selected={activeTab === tab.id}
-            className={activeTab === tab.id ? `${styles.tab} ${styles.tabActive}` : styles.tab}
-            onClick={() => setActiveTab(tab.id)}
-          >
-            {tab.label}
-          </button>
-        ))}
+      <div ref={sectionsRef}>
+        {!ver ? (
+          <CatalogDiscovery onVerTodo={abrirVista} />
+        ) : (
+          <>
+            <div className={styles.viewHeader}>
+              <button type="button" className={styles.backLink} onClick={volverInicio}>
+                <ChevronLeft size={16} aria-hidden="true" />
+                Catálogo
+              </button>
+              <h1 className={styles.viewTitle}>{TAB_LABEL[ver]}</h1>
+            </div>
+
+            {ver === 'canciones' && <CancionesSection genre={genre} onToggleGenre={toggleGenre} />}
+            {ver === 'playlists' && <PlaylistsSection />}
+            {ver === 'artistas'  && <ArtistasSection />}
+            {ver === 'generos'   && <GenerosSection onSelectGenre={(name) => abrirVista('canciones', name)} />}
+          </>
+        )}
       </div>
-
-      {activeTab === 'canciones' && <CancionesSection genre={genre} onToggleGenre={toggleGenre} />}
-      {activeTab === 'playlists' && <PlaylistsSection />}
-      {activeTab === 'artistas'  && <ArtistasSection />}
-      {activeTab === 'generos'   && <GenerosSection onSelectGenre={selectGenreAndBrowse} />}
     </section>
   )
 }
