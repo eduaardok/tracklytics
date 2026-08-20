@@ -162,6 +162,14 @@ SELECT
 SETTINGS use_query_cache = 1, query_cache_ttl = 120, query_cache_share_between_users = 1
 """
 
+# PERF (rediseño de /catalogo, CatalogDiscovery): esta query — GROUP BY sin
+# WHERE sobre las ~1.5M filas de FACT_TRACKS × ~30K artistas — antes solo se
+# pedía al entrar manualmente a la pestaña "Artistas". El rediseño la llama
+# en CADA carga de /catalogo (home de descubrimiento). `query_cache_ttl`
+# sube de 120s a 1800s: un ranking de "artistas más publicados" no necesita
+# refrescarse cada 2 minutos, y con `query_cache_share_between_users = 1` ya
+# activo, esto vuelve prácticamente gratis cualquier carga que no sea la
+# primera de la ventana de 30 min (medido: ~1.4s en frío, <5ms con cache).
 ARTISTS_TOP = """
 SELECT
     a.artist_id                  AS artist_id,
@@ -174,7 +182,7 @@ JOIN DIM_ARTISTS a ON ft.artist_id = a.artist_id
 GROUP BY a.artist_id, a.name, a.imagen_url
 ORDER BY track_count DESC
 LIMIT {limit:UInt32}
-SETTINGS use_query_cache = 1, query_cache_ttl = 120, query_cache_share_between_users = 1
+SETTINGS use_query_cache = 1, query_cache_ttl = 1800, query_cache_share_between_users = 1
 """
 
 ARTISTS_SEARCH = """
@@ -213,6 +221,12 @@ GROUP BY a.artist_id, a.name, a.country, a.imagen_url, s.nombre
 SETTINGS use_query_cache = 1, query_cache_ttl = 120, query_cache_share_between_users = 1
 """
 
+# PERF: mismo motivo que ARTISTS_TOP — `pattern=''` (playlists destacadas de
+# CatalogDiscovery) es un GROUP BY sin filtro real sobre las ~1.5M filas de
+# FACT_TRACKS, ahora en cada carga de /catalogo. `query_cache_ttl` sube a
+# 1800s por el mismo motivo (una búsqueda de texto real cachea aparte, el
+# cache está keyed por el pattern completo — esto no afecta su frescura de
+# forma perceptible, playlists no cambian segundo a segundo).
 ALBUMS_SEARCH = """
 SELECT
     al.album_id                  AS album_id,
@@ -227,7 +241,7 @@ WHERE lower(al.name) LIKE lower({pattern:String})
 GROUP BY al.album_id, al.name, al.release_year, al.imagen_url
 ORDER BY track_count DESC
 LIMIT {limit:UInt32}
-SETTINGS use_query_cache = 1, query_cache_ttl = 120, query_cache_share_between_users = 1
+SETTINGS use_query_cache = 1, query_cache_ttl = 1800, query_cache_share_between_users = 1
 """
 
 ALBUM_DETAIL = """

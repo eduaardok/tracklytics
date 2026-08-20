@@ -43,23 +43,35 @@ function SectionHeader({ title, ctaLabel, onClick }: { title: string; ctaLabel: 
 // "Ver todas/os →" hacia la vista completa existente (mismo componente de
 // sección, misma ruta `/`, sin endpoints nuevos) — la elección de
 // categoría deja de ser un prerrequisito para descubrir música.
+// PERF (hallazgo real post-deploy): `artistsTop`/`albumsSearch('')` son GROUP
+// BY sin filtro sobre ~1.5M filas de FACT_TRACKS — antes solo se pedían al
+// entrar a la pestaña correspondiente; este rediseño las dispara en CADA
+// carga de /catalogo. `staleTime` evita refetch en cada visita dentro de la
+// sesión (mismo criterio que `genres`, que ya lo tenía) — el TTL real del
+// dato vive en el `query_cache_ttl` del backend (ver queries.py), esto solo
+// evita el round-trip HTTP redundante cuando el usuario vuelve al home.
+const PREVIEW_STALE_TIME = 5 * 60_000
+
 export function CatalogDiscovery({ onVerTodo }: Props) {
   const tracks = useQuery({
     queryKey: ['tracks', 'top', PREVIEW_LIMIT],
     queryFn:  () => catalogoApi.tracksTop(PREVIEW_LIMIT),
+    staleTime: PREVIEW_STALE_TIME,
   })
   const artists = useQuery({
     queryKey: ['artists', 'top', PREVIEW_LIMIT],
     queryFn:  () => catalogoApi.artistsTop(PREVIEW_LIMIT),
+    staleTime: PREVIEW_STALE_TIME,
   })
   const genres = useQuery({
     queryKey: ['genres', 'list'],
     queryFn:  () => catalogoApi.genresList(),
-    staleTime: 5 * 60_000,
+    staleTime: PREVIEW_STALE_TIME,
   })
   const playlists = useQuery({
     queryKey: ['albums', ''],
     queryFn:  () => catalogoApi.albumsSearch('', PREVIEW_LIMIT),
+    staleTime: PREVIEW_STALE_TIME,
   })
 
   const trackList    = tracks.data?.data ?? []
