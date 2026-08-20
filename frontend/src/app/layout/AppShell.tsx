@@ -16,6 +16,7 @@ import { GlobalSearch } from '@packages/catalogo/components/GlobalSearch'
 // con Recharts) en su barrel — import directo del componente.
 import { NotificationBell } from '@packages/social/components/NotificationBell'
 import { ThemeToggle } from '@shared/components/ThemeToggle'
+import { ZoneSwitcher } from '@shared/components/ZoneSwitcher'
 import { PlayerBarActions } from '@packages/catalogo'
 // Import directo (no vía el barrel `@packages/publicidad`): ese barrel
 // también exporta PublicidadAdminPage, que no debe entrar al bundle
@@ -167,11 +168,9 @@ export function AppShell() {
         >
           <span /><span /><span />
         </button>
-        <a href="/" className={styles.wordmark}>
-          <img src="/logo.png" alt="" className={styles.logo} width={24} height={24} />
-          <span className={styles.brand}>Tracklytics</span>
-          <span className={styles.badge}>beta</span>
-        </a>
+        <div className={styles.wordmark}>
+          <ZoneSwitcher currentZone="catalogo" badge="beta" />
+        </div>
         <GlobalSearch />
         <div className={styles.headerActions}>
           <ThemeToggle />

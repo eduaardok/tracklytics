@@ -44,3 +44,16 @@ export function setAdminSectionOpen(label: string, open: boolean): void {
   current[label] = open
   localStorage.setItem(ADMIN_SECTIONS_KEY, JSON.stringify(current))
 }
+
+// Grupo abierto del acordeón exclusivo del nivel 2 de navegación
+// (AnalyticaShell/SeguridadShell, rediseño de navegación de dos niveles) —
+// una key por shell (`shellKey`, ej. "analitica-sidebar-open-group") porque
+// cada shell tiene su propio set de grupos y no deben pisarse entre sí.
+export function getSidebarOpenGroup(shellKey: string): string | null {
+  return localStorage.getItem(`ui_${shellKey}`)
+}
+
+export function setSidebarOpenGroup(shellKey: string, group: string | null): void {
+  if (group) localStorage.setItem(`ui_${shellKey}`, group)
+  else localStorage.removeItem(`ui_${shellKey}`)
+}

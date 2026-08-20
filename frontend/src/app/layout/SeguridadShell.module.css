@@ -20,37 +20,6 @@
   border-bottom: 1px solid var(--color-border);
 }
 
-.wordmark {
-  display: flex;
-  align-items: baseline;
-  gap: var(--space-sm);
-  text-decoration: none;
-  flex-shrink: 0;
-}
-
-.logo {
-  align-self: center;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-
-.brand {
-  font-family: var(--font-sans);
-  font-size: 1rem;
-  font-weight: 700;
-  color: var(--color-ink);
-  letter-spacing: -0.02em;
-  line-height: 1;
-}
-
-.panelBadge {
-  font-family: var(--font-mono);
-  font-size: 0.625rem;
-  font-weight: 400;
-  color: var(--color-muted);
-  letter-spacing: 0.04em;
-}
-
 .body {
   display: flex;
   align-items: flex-start;
@@ -153,42 +122,10 @@
   box-shadow: inset 3px 0 0 var(--color-primary-light), inset 0 0 0 2px oklch(0.48 0.15 290 / 0.4);
 }
 
-/* Secciones colapsables del sidebar (S12) — el label de cada sección (ej.
-   "Comercial") hace de toggle; sus enlaces viven dentro de .sectionLinks,
-   colapsados vía max-height (mismo criterio de animación simple que el
-   resto del proyecto, sin librería de transición). */
-.sectionHeader {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  cursor: pointer;
-  padding: var(--space-sm) var(--space-md);
-  font-family: var(--font-sans);
-  font-size: 0.7rem;
-  font-weight: 600;
-  color: var(--color-muted);
-  margin-top: var(--space-xs);
-  border-top: 1px solid var(--color-border);
-  user-select: none;
-}
-
-.sectionHeader:hover {
-  color: var(--color-ink);
-}
-
-/* Ícono de sección (S13-P8) — mismo tamaño/tratamiento en las 6 secciones,
-   antes del label uppercase. */
-.sectionHeaderLabel {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.sectionIcon {
-  flex-shrink: 0;
-  opacity: 0.85;
-}
-
+/* Chevron de las cabeceras anidadas ("Informes Compuestos" y cada
+   departamento) — las secciones de nivel superior usan la versión
+   compartida en `@shared/components/SidebarSection.module.css` desde el
+   rediseño de navegación de dos niveles. */
 .chevron {
   transition: transform var(--duration-fast) var(--ease-standard);
   font-size: 0.6rem;
@@ -196,18 +133,6 @@
 
 .chevronOpen {
   transform: rotate(90deg);
-}
-
-.sectionLinks {
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  max-height: 0;
-  transition: max-height 0.2s ease;
-}
-
-.sectionLinksOpen {
-  max-height: 500px;
 }
 
 /* Submenú anidado "Informes Compuestos" (S13-P3b, 9 departamentos × ~3

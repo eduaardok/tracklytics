@@ -15,7 +15,9 @@ import { UserMenu } from '@packages/seguridad/components/UserMenu'
 import { RouteLoadingFallback } from '@shared/components/RouteLoadingFallback'
 import { PageTransition } from '@shared/components/PageTransition'
 import { ZoneSwitcher } from '@shared/components/ZoneSwitcher'
-import { getAdminSectionsOpen, setAdminSectionOpen, getSidebarCollapsed, setSidebarCollapsed } from '@shared/lib/ui-prefs'
+import { SidebarSection } from '@shared/components/SidebarSection'
+import { useExclusiveAccordion } from '@shared/hooks/useExclusiveAccordion'
+import { setAdminSectionOpen, getSidebarCollapsed, setSidebarCollapsed } from '@shared/lib/ui-prefs'
 // SOLO metadata de navegación (sin `render`/plantillas/Recharts) — importar
 // `@packages/reportes/config` (el registro completo) desde acá arrastraría
 // Recharts al bundle principal, porque `SeguridadShell` se importa eager en
@@ -176,67 +178,6 @@ function useToggle(clave: string, defaultOpen: boolean) {
   return { open, toggle }
 }
 
-// `collapsed` (sidebar entero reducido a solo iconos, S13-P8) hace bypass del
-// plegado por sección: no hay espacio para chevron+label de sección en 64px,
-// así que en ese modo se listan los links de TODAS las secciones directo,
-// como un único riel de iconos (mismo criterio que AppShell, que no tiene
-// niveles de sección) — el estado abierto/cerrado de cada sección se conserva
-// en localStorage y vuelve a aplicarse tal cual al expandir de nuevo.
-function SidebarSection({ seccion, defaultOpen, extra, collapsed }: { seccion: Seccion; defaultOpen: boolean; extra?: React.ReactNode; collapsed: boolean }) {
-  const { open, toggle } = useToggle(seccion.label, defaultOpen)
-  const Icon = seccion.icon
-  const mostrarLinks = collapsed || open
-
-  return (
-    <div>
-      {!collapsed && (
-        <div
-          className={styles.sectionHeader}
-          onClick={toggle}
-          role="button"
-          tabIndex={0}
-          aria-expanded={open}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' || e.key === ' ') {
-              e.preventDefault()
-              toggle()
-            }
-          }}
-        >
-          <span className={styles.sectionHeaderLabel}>
-            <Icon size={14} className={styles.sectionIcon} aria-hidden="true" />
-            <span>{seccion.label}</span>
-          </span>
-          <span className={`${styles.chevron} ${open ? styles.chevronOpen : ''}`} aria-hidden="true">▸</span>
-        </div>
-      )}
-      {/* `informesComposuestosLinks` (max-height más alto, para caber los 30
-          informes anidados) reemplaza a `sectionLinksOpen`, no se suma aparte
-          de `mostrarLinks` — antes se aplicaba con solo comprobar `extra`,
-          sin mirar el estado abierto/cerrado, así que "Reportes" (la única
-          sección con `extra`) quedaba SIEMPRE con max-height:2000px sin
-          importar el toggle: el chevron rotaba pero el contenido nunca se
-          ocultaba. Bug real, heredado de S13-P3b (no introducido en S13-P8),
-          reportado por el usuario ("lo despliego y no pasa nada"). */}
-      <div className={`${styles.sectionLinks} ${mostrarLinks ? (extra && !collapsed ? styles.informesComposuestosLinks : styles.sectionLinksOpen) : ''}`}>
-        {seccion.links.map((link) => (
-          <NavLink
-            key={link.to}
-            to={link.to}
-            end={link.end}
-            title={collapsed ? link.label : undefined}
-            className={({ isActive }) => isActive ? ACTIVE_CLS : INACTIVE_CLS}
-          >
-            <link.icon size={16} className={styles.navIcon} aria-hidden="true" />
-            <span className={styles.navText}>{link.label}</span>
-          </NavLink>
-        ))}
-        {!collapsed && extra}
-      </div>
-    </div>
-  )
-}
-
 // Submenú anidado "Informes Compuestos" (S13-P3b) — 9 departamentos, cada
 // uno colapsable por separado, dentro de la sección "Reportes" ya existente.
 // No se renderiza en modo `collapsed` (S13-P8): 30 rutas hoja no caben como
@@ -335,6 +276,19 @@ export function SeguridadShell() {
     [userRoles],
   )
 
+  // Acordeón exclusivo del nivel 2 (rediseño de navegación de dos niveles) —
+  // antes cada una de las 6-7 secciones se abría/cerraba de forma
+  // independiente (`useToggle` local por sección, sin exclusividad ni
+  // persistencia real: `getAdminSectionsOpen` se importaba pero nunca se
+  // leía). Ahora solo una sección está abierta a la vez, se persiste en
+  // localStorage vía `useExclusiveAccordion`, y la sección con la ruta
+  // activa se abre sola al navegar.
+  const activeSeccionLabel = seccionesVisibles.find((s) =>
+    s.paths.some((p) => location.pathname.startsWith(p))
+    || (s.label === 'Reportes' && location.pathname.startsWith('/reportes')),
+  )?.label ?? null
+  const { openGroup, toggle } = useExclusiveAccordion('seguridad-sidebar-open-group', activeSeccionLabel)
+
   function toggleCollapsed() {
     setCollapsed((prev) => {
       const next = !prev
@@ -346,12 +300,7 @@ export function SeguridadShell() {
   return (
     <div className={styles.shell}>
       <header className={styles.brandBar}>
-        <span className={styles.wordmark}>
-          <img src="/logo.png" alt="" className={styles.logo} width={24} height={24} />
-          <span className={styles.brand}>Tracklytics</span>
-          <span className={styles.panelBadge}>admin</span>
-        </span>
-        <ZoneSwitcher zone="administracion" />
+        <ZoneSwitcher currentZone="administracion" badge="admin" />
         <UserMenu />
       </header>
 
@@ -361,14 +310,27 @@ export function SeguridadShell() {
             {seccionesVisibles.map((seccion) => (
               <SidebarSection
                 key={seccion.label}
-                seccion={seccion}
+                label={seccion.label}
+                icon={seccion.icon}
+                open={openGroup === seccion.label}
                 collapsed={collapsed}
-                defaultOpen={
-                  seccion.paths.some((p) => location.pathname.startsWith(p))
-                  || (seccion.label === 'Reportes' && location.pathname.startsWith('/reportes'))
-                }
+                onToggle={() => toggle(seccion.label)}
+                tall={seccion.label === 'Reportes'}
                 extra={seccion.label === 'Reportes' ? <InformesCompuestosMenu departamentos={departamentosVisibles} /> : undefined}
-              />
+              >
+                {seccion.links.map((link) => (
+                  <NavLink
+                    key={link.to}
+                    to={link.to}
+                    end={link.end}
+                    title={collapsed ? link.label : undefined}
+                    className={({ isActive }) => isActive ? ACTIVE_CLS : INACTIVE_CLS}
+                  >
+                    <link.icon size={16} className={styles.navIcon} aria-hidden="true" />
+                    <span className={styles.navText}>{link.label}</span>
+                  </NavLink>
+                ))}
+              </SidebarSection>
             ))}
           </div>
 
