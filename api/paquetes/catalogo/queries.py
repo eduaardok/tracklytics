@@ -167,7 +167,7 @@ SELECT
     a.artist_id                  AS artist_id,
     a.name                       AS name,
     a.imagen_url                 AS imagen_url,
-    count()                      AS track_count,
+    count(DISTINCT ft.track_id)  AS track_count,
     round(avg(ft.popularity), 2) AS avg_popularity
 FROM FACT_TRACKS ft
 JOIN DIM_ARTISTS a ON ft.artist_id = a.artist_id
@@ -182,7 +182,7 @@ SELECT
     a.artist_id                  AS artist_id,
     a.name                       AS name,
     a.imagen_url                 AS imagen_url,
-    count()                      AS track_count,
+    count(DISTINCT ft.track_id)  AS track_count,
     round(avg(ft.popularity), 2) AS avg_popularity
 FROM FACT_TRACKS ft
 JOIN DIM_ARTISTS a ON ft.artist_id = a.artist_id
@@ -219,7 +219,7 @@ SELECT
     al.name                      AS name,
     al.release_year              AS release_year,
     al.imagen_url                AS imagen_url,
-    count()                      AS track_count,
+    count(DISTINCT ft.track_id)  AS track_count,
     round(avg(ft.popularity), 2) AS avg_popularity
 FROM FACT_TRACKS ft
 JOIN DIM_ALBUMS al ON ft.album_id = al.album_id
@@ -261,7 +261,7 @@ SELECT
     g.genre_id                   AS genre_id,
     g.name                       AS name,
     g.mood                       AS mood,
-    count()                      AS track_count,
+    count(DISTINCT ft.track_id)  AS track_count,
     round(avg(ft.popularity), 2) AS avg_popularity,
     -- S14-P1: portada representativa = la del track más popular del género
     -- que YA tenga imagen_url resuelta (sin requests nuevos, reusa lo que
@@ -283,7 +283,7 @@ SELECT
     g.parent_genre AS parent_genre,
     g.mood         AS mood,
     g.origin_decade AS origin_decade,
-    count()                      AS track_count,
+    count(DISTINCT ft.track_id)  AS track_count,
     round(avg(ft.popularity), 2) AS avg_popularity
 FROM FACT_TRACKS ft
 JOIN DIM_GENRES g ON ft.genre_id = g.genre_id
