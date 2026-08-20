@@ -7,8 +7,9 @@ import { apiErrorMessage } from '@shared/lib/api-client'
 import { landingPostLogin } from '@shared/lib/roles'
 import { resolverDestinoPostAuth } from '@packages/suscripciones'
 import { ThemeToggle } from '@shared/components/ThemeToggle'
+import { usePlayer, type PlayableTrack } from '@shared/context/PlayerContext'
 import { authApi } from '../api/auth.api'
-import { AuthHero } from './AuthHero'
+import { AuthHero, AuthBrand } from './AuthHero'
 import styles from './AuthPages.module.css'
 
 type Modo = 'login' | 'recuperar' | 'restablecer'
@@ -31,10 +32,14 @@ const CUENTAS_DEMO: { email: string; label: string }[] = [
   { email: 'admin_comercial@demo.tracklytics.com', label: 'Admin Comercial' },
 ]
 
+type LoginState = { from?: { pathname: string; search: string }; playIntent?: PlayableTrack }
+
 export function LoginPage() {
-  useDocumentTitle('Iniciar sesión')
   const navigate = useNavigate()
   const location = useLocation()
+  const { play } = usePlayer()
+  const { from, playIntent } = (location.state as LoginState | null) ?? {}
+  useDocumentTitle(playIntent ? 'Inicia sesión para reproducir' : 'Iniciar sesión')
   const [modo, setModo]         = useState<Modo>('login')
   const [email, setEmail]       = useState('')
   const [password, setPassword] = useState('')
@@ -52,6 +57,14 @@ export function LoginPage() {
     setSubmitting(true)
     try {
       const usuario = await authApi.login(emailValue, passwordValue)
+      // Retoma la reproducción que se interrumpió por falta de sesión
+      // (rediseño de login contextual) — el `playIntent` viaja desde el
+      // modal de `AuthPromptContext`, ver PlayerContext.tsx `play()`. Se
+      // dispara antes de navegar, sesión ya establecida por `authApi.login`
+      // (`setSession` corre de forma síncrona antes de que la promesa
+      // resuelva), así que `play()` no vuelve a chocar con el gate de
+      // autenticación.
+      if (playIntent) play(playIntent)
       const destino = await resolverDestinoPostAuth(usuario.role)
       if (destino.onboarding) {
         // B2B sin plan activo: onboarding manda siempre, sin importar a dónde
@@ -66,7 +79,6 @@ export function LoginPage() {
         // del catálogo B2C genérico que devuelve `resolverDestinoPostAuth`
         // por defecto para cualquier rol staff.
         const landingRol = landingPostLogin(usuario)
-        const from = (location.state as { from?: { pathname: string; search: string } } | null)?.from
         navigate(from ? `${from.pathname}${from.search}` : (landingRol ?? destino.path), { replace: true })
       }
     } catch (err) {
@@ -140,19 +152,27 @@ export function LoginPage() {
   }
 
   return (
-    <div className={styles.split}>
+    <div className={styles.page}>
       <div className={styles.themeToggleSlot}>
         <ThemeToggle />
       </div>
       <AuthHero />
 
-      <div className={styles.formPanel}>
+      <div className={styles.centerCol}>
+        <AuthBrand />
+
         <div className={styles.card}>
           <h1 className={styles.cardTitle}>
-            {modo === 'login' ? 'Iniciar sesión'
-              : modo === 'recuperar' ? 'Recuperar contraseña'
-              : 'Restablecer contraseña'}
+            {modo === 'recuperar' ? 'Recuperar contraseña'
+              : modo === 'restablecer' ? 'Restablecer contraseña'
+              // Título contextual (rediseño de login): con intención de
+              // reproducción se nombra la acción real que trajo al usuario
+              // acá en vez del genérico "Iniciar sesión".
+              : playIntent ? 'Inicia sesión para reproducir' : 'Iniciar sesión'}
           </h1>
+          {modo === 'login' && playIntent && (
+            <p className={styles.cardSubtitle}>Guarda tus favoritos, crea playlists y sigue a tus artistas.</p>
+          )}
 
           {error && <div className={styles.bannerError} role="alert">{error}</div>}
           {info && <div className={styles.bannerInfo} role="status">{info}</div>}

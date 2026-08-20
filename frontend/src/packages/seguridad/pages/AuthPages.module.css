@@ -1,21 +1,20 @@
-.split {
+/* Login/register centrado y contextual (rediseño de navegación) — antes un
+   grid de 2 columnas (branding + formulario), pensado como landing. Ahora es
+   una sola columna centrada: la mayoría de las veces que alguien llega acá
+   es en mitad de una tarea (reproducir sin sesión, entrar directo a /login),
+   no explorando la marca — autenticación rápida + contexto claro, sin
+   competir por atención con un panel de branding. */
+.page {
   position: relative;
   min-height: 100vh;
-  display: grid;
-  /* S16 Fase 5: 1.3fr/1fr era del hero con mini-dashboard (4 módulos,
-     retirado). Con el hero ahora liviano (marca + headline + un solo dato
-     real) ya no necesita esa ventaja de ancho — 1.1fr/1fr le da al form
-     panel un poco más de espacio relativo (el card sigue capado a 380px,
-     pero RegisterPage es el más denso de los dos y se beneficia del aire
-     extra), sin llegar a 50/50 (el hero sigue siendo el lado con más
-     identidad visual: glows, ambient SVG, marca). */
-  grid-template-columns: 1.1fr 1fr;
-  /* Fila 1 (hero + form) ocupa todo el alto disponible; fila 2 (.pageFooter,
-     "Acerca de Tracklytics") solo lo que necesita — sin esto, el `stretch`
-     por defecto de `align-content` en grid repartía el alto extra de
-     `min-height: 100vh` entre ambas filas, inflando el footer. */
-  grid-template-rows: 1fr auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-lg);
+  padding: var(--space-2xl) var(--space-lg);
   background: var(--color-bg);
+  overflow: hidden;
 }
 
 .themeToggleSlot {
@@ -25,86 +24,60 @@
   z-index: var(--z-sticky);
 }
 
-/* ── Hero panel ──
-   Identidad propia (antes era una caja plana sin ningún elemento gráfico):
-   dos glows radiales en --color-primary/--color-accent (Signal Teal, casi
-   sin uso real en el resto de esta vista) detrás del contenido, que vive en
-   `.heroInner` por encima. */
-.hero {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  padding: var(--space-2xl);
-  /* Zona de acento puntual (S15-02) — violeta pálido plano, uno de los 1-2
-     usos por página; el formPanel de al lado se queda en --color-bg (piso
-     gris-violeta neutro) para que el contraste hero/form sea intencional,
-     no aleatorio. */
-  background: var(--color-bg-accent-subtle);
-  border-right: 1px solid var(--color-border);
-  position: relative;
-  overflow: hidden;
-}
-
-.heroGlow {
-  position: absolute;
-  inset: 0;
-  background:
-    radial-gradient(480px 480px at 15% 12%, oklch(0.48 0.15 290 / 0.22), transparent 65%),
-    radial-gradient(420px 420px at 90% 88%, oklch(0.70 0.14 195 / 0.16), transparent 65%);
-  pointer-events: none;
-}
-
-/* Nodos conectados en la esquina inferior izquierda (S15-P07, FASE 6) — antes
-   ese espacio quedaba vacío sin función cuando el contenido no llenaba todo
-   el alto del panel (`.hero` centra verticalmente). Opacidad baja a propósito
-   (0.08 claro / 0.12 oscuro): es ambiente, no debe competir con la marca ni
-   con el dato real de `.heroStat` (S16 Fase 5). */
+/* Ambiente de marca (antes protagonista de un panel lateral propio) — capa
+   de fondo muy sutil detrás de toda la pantalla centrada, nunca compite con
+   el card. */
 .heroAmbient {
   position: absolute;
-  left: 0;
-  bottom: 0;
-  width: min(320px, 40%);
-  height: min(220px, 40%);
+  inset: 0;
+  width: 100%;
+  height: 100%;
   color: var(--color-primary-light);
-  opacity: 0.08;
+  opacity: 0.05;
   pointer-events: none;
+  z-index: 0;
 }
 
 :root[data-theme='dark'] .heroAmbient {
-  opacity: 0.12;
+  opacity: 0.08;
 }
 
-.heroInner {
+.centerCol {
   position: relative;
+  z-index: 1;
   display: flex;
   flex-direction: column;
-  gap: var(--space-lg);
-}
-
-/* S16 Fase 5 (fix real de alineación): antes `align-items: baseline` con
-   `.brandLogo`/`.miniEq` forzando `align-self: center` por separado — el
-   texto "Tracklytics" quedaba anclado a su línea base mientras el logo y el
-   ecualizador se centraban en la fila completa, dos puntos de referencia
-   vertical distintos que no coinciden (la altura de línea del texto es muy
-   menor que los 56px del logo), causando el descuadre real. `align-items:
-   center` en el padre unifica el criterio para los 3 hijos de una sola vez,
-   sin necesitar overrides por hijo. */
-.brand {
-  display: flex;
   align-items: center;
   gap: var(--space-md);
+  width: 100%;
+  max-width: 380px;
 }
 
-/* Anillo con el gradiente de marca (S16 Fase 5) alrededor del logo — usa
-   `--gradient-primary` como pide el brief de refuerzo de identidad, en vez
-   de agregar un elemento decorativo nuevo. El padding entre el gradiente y
-   la imagen deja ver el anillo como borde, no como fondo detrás del logo. */
+.brandRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
 .brandLogoRing {
   display: flex;
-  padding: 2.5px;
+  padding: 2px;
   border-radius: 50%;
   background: var(--gradient-primary);
   flex-shrink: 0;
+}
+
+.brandLogo {
+  display: block;
+  border-radius: 50%;
+}
+
+.brandName {
+  font-family: var(--font-sans);
+  font-size: 1.375rem;
+  font-weight: 700;
+  color: var(--color-ink);
+  letter-spacing: -0.02em;
 }
 
 .miniEq {
@@ -137,128 +110,13 @@
   .miniEqBar { animation: none; height: 55%; }
 }
 
-.brandLogo {
-  display: block;
-  border-radius: 50%;
-}
-
-/* Más grande que antes (1.25rem → 1.75rem) — con el mini-dashboard fuera,
-   la marca es uno de los focos principales del hero (brief de refuerzo de
-   identidad, S16 Fase 5), no un encabezado más compitiendo con el resto. */
-.brandName {
-  font-family: var(--font-sans);
-  font-size: 1.75rem;
-  font-weight: 700;
-  color: var(--color-ink);
-  letter-spacing: -0.02em;
-}
-
-.tagline {
-  font-family: var(--font-mono);
-  font-size: 0.9375rem;
-  color: var(--color-accent);
-  margin-bottom: 6px;
-}
-
-/* Headline (S16 Fase 4, P1 — auditoría §5.4): el tagline mono de arriba
-   queda como kicker, este es el único uso de la escala Display fuera de
-   Catálogo — DESIGN.md §3 permite un heading hero B2C por pantalla, y el
-   login/register son la otra pantalla B2C real del sistema. */
-.headline {
-  composes: text-display from global;
-  color: var(--color-ink);
-  max-width: 20ch;
-}
-
-.techs {
-  display: flex;
-  gap: var(--space-sm);
-}
-
-.techTag {
-  font-family: var(--font-mono);
-  font-size: 0.6875rem;
-  color: var(--color-muted);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-pill);
-  padding: 4px 10px;
-}
-
-/* ── Dato real único (S16 Fase 5 — reemplaza el mini-dashboard de 4 módulos
-   anterior) protagonista, no un ícono+caption compartiendo peso con otros 3
-   stats: número grande en la escala mono de datos, sin card/borde propio
-   (el hero ya tiene su propio fondo violeta pálido vía `.hero`, envolverlo
-   en otra superficie habría sido una card dentro de otra card). */
-.heroStat {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.heroStatNumber {
-  font-family: var(--font-mono);
-  font-size: 2.5rem;
-  font-weight: 700;
-  line-height: 1.05;
-  color: var(--color-ink);
-  font-variant-numeric: tabular-nums;
-}
-
-.heroStatCaption {
-  font-family: var(--font-sans);
-  font-size: 0.8125rem;
-  color: var(--color-muted);
-}
-
-/* ── Form panel ── */
-.formPanel {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: var(--space-md);
-  padding: var(--space-lg);
-  overflow: hidden;
-}
-
-/* Composición sutil detrás del card (S15-P07, FASE 7) — antes el panel
-   derecho era una tarjeta flotando sobre fondo liso; anillos concéntricos +
-   glow muy tenue, mismo criterio de intensidad que `.heroAmbient`, para que
-   deje de sentirse "card flotando en blanco" sin competir con el formulario.
-   `::before` en vez de un nodo propio: pinta antes que `.card`/`.formContext`
-   en el orden normal del documento, así queda detrás sin necesitar z-index. */
-.formPanel::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background:
-    radial-gradient(380px 380px at 50% 40%, oklch(0.48 0.15 290 / 0.10), transparent 62%),
-    repeating-radial-gradient(
-      circle at 50% 40%,
-      transparent 0 48px,
-      oklch(0.70 0.14 195 / 0.05) 49px 51px,
-      transparent 52px 100px,
-      oklch(0.48 0.15 290 / 0.045) 101px 103px,
-      transparent 104px 152px
-    );
-  pointer-events: none;
-}
-
-/* Antes era un contenedor sin fondo/borde propio (solo layout) — la tarjeta
-   ahora tiene presencia visual real, con un acento de marca en el borde
-   superior (gradiente violeta → Signal Teal), en vez de flotar como texto
-   suelto sobre el fondo de la página. */
+/* ── Card ── */
 .card {
   position: relative;
   width: 100%;
-  max-width: 380px;
   display: flex;
   flex-direction: column;
   gap: var(--space-md);
-  /* Padding vertical reducido (S16 Fase 4, P6 — auditoría §5.4): el card
-     tenía el mismo padding en las 4 direcciones aunque ya era angosto por
-     `max-width`; el aire sobrante era vertical, no horizontal. */
   padding: var(--space-lg) var(--space-xl);
   background: var(--color-surface);
   border: 1px solid var(--color-border);
@@ -277,9 +135,6 @@
   background: linear-gradient(90deg, var(--color-primary), var(--color-accent));
 }
 
-/* Mensaje contextual de una línea debajo del card (S15-P07, FASE 7) — no
-   agranda el card ni duplica el link "Explorar el catálogo sin iniciar
-   sesión" de adentro (ese es una acción, esto es contexto ambiental). */
 .formContext {
   max-width: 380px;
   font-family: var(--font-sans);
@@ -294,6 +149,16 @@
   font-weight: 600;
   color: var(--color-ink);
   letter-spacing: -0.02em;
+}
+
+/* Subtítulo contextual (login desde una intención de reproducción sin
+   sesión) — solo aparece cuando `LoginPage` llega con `state.playIntent`;
+   con acceso directo a `/login` el título genérico no lo necesita. */
+.cardSubtitle {
+  margin-top: calc(var(--space-xs) * -1);
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+  color: var(--color-muted);
 }
 
 .form {
@@ -315,8 +180,6 @@
   color: var(--color-muted);
 }
 
-/* Error por campo (S16) — junto al input, no un banner genérico arriba del
-   formulario; ver RegisterPage.tsx `fieldErrors`. */
 .fieldHint {
   font-family: var(--font-sans);
   font-size: 0.75rem;
@@ -340,7 +203,7 @@
 .input:hover  { border-color: var(--color-border-strong); }
 .input:focus  { border-color: var(--color-primary); }
 
-/* ── Account type picker ── */
+/* ── Account type picker (RegisterPage) ── */
 .roleGrid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -349,9 +212,6 @@
 
 .roleOption { position: relative; }
 
-/* Tercera tarjeta de tipo de cuenta ("Artista") — ocupa el ancho completo
-   de la grilla de 2 columnas en vez de forzar una tercera columna angosta
-   dentro de la card de 380px. */
 .roleOptionWide { grid-column: 1 / -1; }
 
 .roleInput {
@@ -434,10 +294,6 @@
 
 .footer a:hover { text-decoration: underline; }
 
-/* "Explorar el catálogo sin iniciar sesión" (S16 Fase 4, P6 — auditoría
-   §5.4): la CTA alternativa real tenía el mismo peso visual que "Acerca de
-   Tracklytics" en el pie del card. Estilo btnGhost + chevron para
-   distinguirla del resto de links de puro texto. */
 .exploreLink {
   display: inline-flex;
   align-items: center;
@@ -462,9 +318,8 @@
 }
 
 /* Acceso rápido de demo (S16 prompt 09) — SOLO para agilizar la grabación de
-   los videos, nunca un patrón de producción. Borde punteado + tono apagado
-   a propósito, para que se lea como una herramienta de desarrollo y no como
-   parte del flujo de login real (que ya termina en `.exploreLink` arriba). */
+   los videos, nunca un patrón de producción. Se conserva tal cual del
+   rediseño anterior (no es contenido promocional). */
 .quickLoginToggle {
   display: inline-flex;
   align-items: center;
@@ -517,13 +372,10 @@
 
 .quickLoginBtn:disabled { opacity: 0.5; cursor: not-allowed; }
 
-/* Footer de página (S16 Fase 4, P6): "Acerca de Tracklytics" ya no vive
-   dentro del card de login — es un link institucional, no parte del flujo
-   de autenticación. */
 .pageFooter {
-  grid-column: 1 / -1;
+  position: relative;
+  z-index: 1;
   text-align: center;
-  padding: var(--space-md);
   font-family: var(--font-sans);
   font-size: 0.75rem;
   color: var(--color-muted);
@@ -546,9 +398,6 @@
   font-size: 0.875rem;
 }
 
-/* Recuperación de contraseña (change roles-gestion-usuarios): banner neutro
-   para el mensaje genérico ("si el correo existe…") y la confirmación de
-   restablecimiento — no es un error, no debe pintarse en rojo. */
 .bannerInfo {
   padding: 10px var(--space-md);
   background: oklch(0.62 0.19 300 / 0.08);
@@ -570,64 +419,18 @@
   text-decoration: underline;
 }
 
-/* Mobile: antes el hero desaparecía por completo (`display: none`), dejando
-   un formulario desnudo sin ninguna marca — ahora se colapsa a una franja
-   compacta (wordmark + tagline) arriba del formulario en vez de perderse. */
-@media (max-width: 860px) {
-  .split {
-    grid-template-columns: 1fr;
-  }
-
-  .hero {
-    border-right: none;
-    border-bottom: 1px solid var(--color-border);
-    padding: var(--space-lg) var(--space-lg) var(--space-md);
-  }
-
-  .heroInner { gap: var(--space-sm); }
-
-  .techs {
-    display: none;
-  }
+@media (max-width: 480px) {
+  .page { padding: var(--space-lg) var(--space-md); }
 }
 
 /* Viewports bajos de escritorio (1366×768 es el caso de referencia real,
-   S15-P07 FASE 7) — el hero ya es liviano desde S16 Fase 5 (un solo dato
-   real, sin mini-dashboard), pero se conserva el ajuste vertical para que
-   el conjunto hero + footer siga cabiendo sin scroll en viewports bajos;
-   `.techs` es el único contenido puramente decorativo (dos pills redundantes
-   con `/acerca-de`), así que es lo primero que cede espacio. Ámbito por
-   altura, no por ancho — el breakpoint de 860px de arriba ya resuelve
-   mobile aparte. */
+   heredado de S15-P07 FASE 7) — RegisterPage (más campos) es el panel más
+   alto de los dos, el ajuste llega hasta nivel de campo/botón individual. */
 @media (max-height: 820px) {
-  .hero {
-    padding: var(--space-lg) var(--space-2xl);
-  }
-
-  .heroInner {
-    gap: var(--space-sm);
-  }
-
-  .headline {
-    font-size: 1.625rem;
-    max-width: 28ch;
-  }
-
-  .techs {
-    display: none;
-  }
-
-  /* RegisterPage tiene más campos que LoginPage (nombre/email/password/país/
-     tipo de cuenta) — a esta altura de viewport es el panel más alto de los
-     dos, así que el ajuste llega hasta el nivel de campo/botón individual,
-     no solo los gaps del card. */
-  .formPanel {
-    padding: var(--space-md);
-    gap: var(--space-sm);
-  }
+  .page { padding: var(--space-lg); gap: var(--space-md); }
 
   .card {
-    padding: var(--space-sm) var(--space-xl);
+    padding: var(--space-md) var(--space-xl);
     gap: var(--space-xs);
   }
 
@@ -650,9 +453,5 @@
 
   .submit {
     height: 40px;
-  }
-
-  .pageFooter {
-    padding: var(--space-xs) var(--space-md);
   }
 }

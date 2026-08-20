@@ -1,9 +1,13 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
-import { Link } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
+// Import solo de tipo — `PlayableTrack` vive en PlayerContext, que a su vez
+// importa `useAuthPrompt` de este módulo; al ser `import type` se borra en
+// tiempo de compilación y no crea un ciclo real en el bundle.
+import type { PlayableTrack } from '@shared/context/PlayerContext'
 import styles from './AuthPromptContext.module.css'
 
-type AuthPromptFn = (message?: string) => void
+type AuthPromptFn = (message?: string, track?: PlayableTrack) => void
 
 const AuthPromptContext = createContext<AuthPromptFn | null>(null)
 
@@ -19,11 +23,18 @@ const MENSAJE_DEFAULT = 'Necesitas una cuenta para hacer esto.'
 // hook), pero sin `Promise<boolean>`: no hay una decisión que devolver,
 // solo un modal que se abre y se cierra.
 export function AuthPromptProvider({ children }: { children: ReactNode }) {
+  const location = useLocation()
   const [message, setMessage] = useState<string | null>(null)
+  // Track que se intentaba reproducir cuando se abrió el modal (si lo hay) —
+  // viaja como `state.playIntent` a login/register para poder retomar la
+  // reproducción después de autenticarse, mismo patrón que `state.from` de
+  // `RequireAuth`.
+  const [track, setTrack] = useState<PlayableTrack | null>(null)
   const closeBtnRef = useRef<HTMLButtonElement>(null)
 
-  const prompt = useCallback<AuthPromptFn>((msg) => {
+  const prompt = useCallback<AuthPromptFn>((msg, trackArg) => {
     setMessage(msg ?? MENSAJE_DEFAULT)
+    setTrack(trackArg ?? null)
   }, [])
 
   const close = useCallback(() => setMessage(null), [])
@@ -56,10 +67,20 @@ export function AuthPromptProvider({ children }: { children: ReactNode }) {
               <button ref={closeBtnRef} type="button" className={styles.cancelBtn} onClick={close}>
                 Ahora no
               </button>
-              <Link to="/register" className={styles.registerBtn} onClick={close}>
+              <Link
+                to="/register"
+                className={styles.registerBtn}
+                onClick={close}
+                state={{ from: location, playIntent: track ?? undefined }}
+              >
                 Registrarme
               </Link>
-              <Link to="/login" className={styles.loginBtn} onClick={close}>
+              <Link
+                to="/login"
+                className={styles.loginBtn}
+                onClick={close}
+                state={{ from: location, playIntent: track ?? undefined }}
+              >
                 Iniciar sesión
               </Link>
             </div>

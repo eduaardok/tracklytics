@@ -359,7 +359,11 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       // desvanece solo sin dar ninguna acción; esto es lo primero que un
       // visitante anónimo intenta en el catálogo público, así que merece un
       // CTA real a login/registro en vez de un aviso transitorio.
-      authPrompt('Regístrate gratis o inicia sesión para reproducir música.')
+      // El track viaja junto al mensaje (rediseño de navegación — login
+      // contextual) para que, si el visitante elige "Iniciar sesión" en el
+      // modal, LoginPage pueda retomar esta reproducción justo después de
+      // autenticarse en vez de solo devolverlo a la página de origen.
+      authPrompt('Regístrate gratis o inicia sesión para reproducir música.', track)
       return
     }
     // Snapshot de sesión para `repeat-all` (ver `sessionQueueRef`): un

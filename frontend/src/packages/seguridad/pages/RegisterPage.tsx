@@ -10,7 +10,7 @@ import { resolverDestinoPostAuth } from '@packages/suscripciones'
 import { distribucionApi } from '@packages/distribucion/api/distribucion.api'
 import type { Pais } from '@packages/distribucion/types'
 import { authApi } from '../api/auth.api'
-import { AuthHero } from './AuthHero'
+import { AuthHero, AuthBrand } from './AuthHero'
 import styles from './AuthPages.module.css'
 
 // "Artista" no es un rol de backend propio (`ROLES_AUTO_REGISTRABLES` sigue
@@ -96,10 +96,12 @@ export function RegisterPage() {
   }
 
   return (
-    <div className={styles.split}>
+    <div className={styles.page}>
       <AuthHero />
 
-      <div className={styles.formPanel}>
+      <div className={styles.centerCol}>
+        <AuthBrand />
+
         <div className={styles.card}>
           <h1 className={styles.cardTitle}>Crear cuenta</h1>
 
