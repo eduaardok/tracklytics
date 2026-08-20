@@ -1386,6 +1386,32 @@ DDL_STATEMENTS = [
     f"ALTER TABLE {DB}.FACT_TRANSACCION_PAGO ADD COLUMN IF NOT EXISTS periodo_fin Date DEFAULT toDate(fecha) + 30",
     f"ALTER TABLE {DB}.FACT_INVOICE ADD COLUMN IF NOT EXISTS periodo_inicio Date DEFAULT toDate(fecha_emision)",
     f"ALTER TABLE {DB}.FACT_INVOICE ADD COLUMN IF NOT EXISTS periodo_fin Date DEFAULT toDate(fecha_emision) + 30",
+
+    # CACHE_PORTADA_TRACK: snapshot de `FACT_TRACKS.imagen_url` por `track_id`,
+    # tomado justo antes de `_truncate_fact_tables()` (gestion_datos/router.py)
+    # y restaurado por `etl/gold/loader.py::run_gold` al reconstruir `real_df`.
+    # Bug real: toda carga de semana (incluida una semana nunca cargada antes)
+    # pasa por `_truncate_fact_tables()`, que borra TODO `FACT_TRACKS` con
+    # `source_type != 'user_uploaded'` sin condición — eso vacía también el
+    # guard de idempotencia de `run_gold` (`real_count_existente == 0`), así
+    # que los ~113.550 tracks reales se reinsertan desde `STG_RAW_TRACKS`, y
+    # ese INSERT nunca trajo `imagen_url` (columna añadida después, solo por
+    # `ALTER TABLE ... UPDATE` posterior de `portada.py`). Sin este cache, cada
+    # carga de semana nueva resetea a NULL toda portada de canción ya resuelta.
+    # `track_id` es estable entre corridas (viene fijo del dataset base), así
+    # que el snapshot siempre se puede reaplicar por ese ID. `api` no monta
+    # `./etl` (contenedores separados, `docker-compose.yml`), así que un
+    # archivo JSON local (como `portadas_cache.json`, usado por
+    # `DIM_ARTISTS`/`DIM_ALBUMS`) no es alcanzable desde el router — de ahí
+    # una tabla en vez de archivo.
+    f"""
+    CREATE TABLE IF NOT EXISTS {DB}.CACHE_PORTADA_TRACK (
+        track_id       String,
+        imagen_url     String,
+        actualizado_en DateTime DEFAULT now()
+    ) ENGINE = ReplacingMergeTree(actualizado_en)
+    ORDER BY track_id
+    """,
 ]
 
 # ── Runner ────────────────────────────────────────────────────────────────────

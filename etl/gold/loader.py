@@ -235,6 +235,14 @@ def run_gold(**context):
         artist_map = load_lookup(client, "DIM_ARTISTS", "name", "artist_id")
         date_id_1  = get_date_id(client, 1)
 
+        # Portadas de tracks reales ya resueltas en corridas anteriores
+        # (`portada.py`, ALTER UPDATE por track_id), guardadas en
+        # CACHE_PORTADA_TRACK justo antes del truncado que dispara esta
+        # reconstrucción (`_truncate_fact_tables`, api/paquetes/gestion_datos/
+        # router.py) — sin esto, `real_df` no trae `imagen_url` en absoluto y
+        # cada carga de semana resetea a NULL toda portada ya ganada.
+        imagen_cache = load_lookup(client, "CACHE_PORTADA_TRACK", "track_id", "imagen_url")
+
         stg_df     = client.query_df("SELECT * FROM STG_RAW_TRACKS")
         n_real     = len(stg_df)
         pop_arr    = stg_df["popularity"].to_numpy(dtype=np.int32)
@@ -271,6 +279,7 @@ def run_gold(**context):
             "tempo":               tempo_arr,
             "load_week":           1,
             "source_type":         "real",
+            "imagen_url":          [imagen_cache.get(tid) for tid in stg_df["track_id"].astype(str)],
         })
 
         for start in range(0, n_real, 50_000):

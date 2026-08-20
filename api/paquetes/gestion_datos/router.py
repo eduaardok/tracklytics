@@ -70,6 +70,24 @@ def etl_status():
 
 
 def _truncate_fact_tables() -> None:
+    # Snapshot de portadas de tracks reales ya resueltas (`portada.py` las
+    # llena vía ALTER UPDATE por track_id) antes de que el DELETE de abajo las
+    # borre — sin esto, cada carga de semana (incluida una semana nueva, este
+    # truncado corre sin condición) vacía el guard de idempotencia de
+    # `run_gold` y los ~113.550 tracks reales se reinsertan desde
+    # STG_RAW_TRACKS sin `imagen_url` (ver CACHE_PORTADA_TRACK en
+    # init_clickhouse.py). `track_id` es estable entre corridas, así que el
+    # snapshot restaurado por `run_gold` sigue siendo válido.
+    try:
+        execute(f"""
+            INSERT INTO {CH_DB}.CACHE_PORTADA_TRACK (track_id, imagen_url)
+            SELECT DISTINCT track_id, imagen_url
+            FROM FACT_TRACKS
+            WHERE source_type = 'real' AND imagen_url IS NOT NULL
+        """)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Error guardando snapshot de portadas: {exc}")
+
     # FACT_TRACKS: no se trunca sin condición — preservaría los tracks
     # promovidos por `creadores` (source_type='user_uploaded'), que no tienen
     # otra fuente de la que regenerarse tras un borrado (a diferencia de
