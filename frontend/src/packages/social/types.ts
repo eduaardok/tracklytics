@@ -114,6 +114,11 @@ export type PlaylistPublica = {
   total:       number
 }
 
+export type PerfilPublicoResultado = {
+  usuario_id: string
+  nombre:     string
+}
+
 export type PerfilPublico = {
   usuario_id:      string
   nombre:          string

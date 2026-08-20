@@ -5,7 +5,7 @@ import type {
   ModerarComentarioBody, ModerarComentarioResultado,
   ComparticionBody, ComparticionResultado,
   DashboardSocial, FeedItem,
-  NotificacionesResultado, PerfilPublico,
+  NotificacionesResultado, PerfilPublico, PerfilPublicoResultado,
   Denuncia, DenunciaBody, EstadoDenuncia,
   ActualizarDenunciaResultado, UsuarioBloqueado, NotificacionAdmin,
 } from '../types'
@@ -105,6 +105,11 @@ export const socialApi = {
   // ── Perfiles públicos ────────────────────────────────────────────────────────
   perfilPublico: (usuarioId: string) =>
     apiClient.get<PerfilPublico>(`/social/usuarios/${usuarioId}/perfil`),
+
+  // Descubrimiento de perfiles públicos por nombre (S16) — puerta de entrada
+  // a perfilPublico() para quien no conoce ya el usuario_id.
+  buscarPerfiles: (q: string) =>
+    apiClient.get<ApiResponse<PerfilPublicoResultado>>(`/social/usuarios/buscar?q=${encodeURIComponent(q)}`),
 
   // ── Reportes administrativos (S12) ──────────────────────────────────────────
   notificacionesAdmin: () =>

@@ -25,6 +25,7 @@ from paquetes.social.queries import (
     ARTISTAS_SEGUIDOS_POR_USUARIO,
     AUTOR_TRACK_POR_FACT_ID,
     BLOQUEO_VIGENTE,
+    BUSCAR_PERFILES_PUBLICOS,
     COMENTARIO_PADRE_INFO,
     COMENTARIO_POR_ID,
     COMENTARIOS_VISIBLES_DE_TRACK,
@@ -631,6 +632,25 @@ async def _usuario_opcional(request: Request, authorization: str | None = Header
         return await get_current_user(request, authorization)
     except HTTPException:
         return None
+
+
+@router.get("/usuarios/buscar")
+async def buscar_perfiles_publicos(q: str = Query(""), viewer: dict | None = Depends(_usuario_opcional)):
+    """Descubrimiento de perfiles públicos por nombre (S16) — sin sesión, igual
+    que GET /usuarios/{usuario_id}/perfil: es la puerta de entrada a ese
+    endpoint para quien no conoce ya el usuario_id. `viewer` no se usa para
+    filtrar resultados (BUSCAR_PERFILES_PUBLICOS exige perfil_publico=1 sin
+    excepción, ni para el propio dueño) — solo se acepta la dependencia para
+    mantener el mismo trato "sesión opcional" del resto de esta sección.
+    Umbral de 2 caracteres (igual que el patrón de debounce ya usado en
+    ArtistPicker/TrackPicker/UserPicker del frontend): evita listar el
+    catálogo completo de usuarios públicos con un query vacío o de 1 letra.
+    """
+    termino = q.strip()
+    if len(termino) < 2:
+        return {"data": []}
+    rows = query_rows(BUSCAR_PERFILES_PUBLICOS, {"pattern": f"%{termino}%", "limit": 20})
+    return {"data": rows}
 
 
 @router.get("/usuarios/{usuario_id}/perfil")

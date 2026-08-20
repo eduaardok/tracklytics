@@ -100,6 +100,22 @@ SELECT usuario_id, nombre, perfil_publico
 FROM DIM_USUARIO WHERE usuario_id = {usuario_id:String} LIMIT 1
 """
 
+# Puerta de entrada al descubrimiento de perfiles públicos: sin esta query no
+# hay forma de llegar a GET /usuarios/{usuario_id}/perfil salvo ya conocer el
+# id (S16, "descubrimiento de perfiles públicos"). El filtro perfil_publico=1
+# es incondicional — nunca depende del viewer, a diferencia de perfil_publico
+# (que sí deja ver el propio perfil privado al dueño): un perfil privado no
+# debe aparecer en resultados de búsqueda ni para su propio dueño buscándose
+# a sí mismo. Solo trae usuario_id/nombre — nada de email/rol/facturación,
+# a diferencia de USUARIOS_BUSQUEDA (seguridad/queries.py, admin-only).
+BUSCAR_PERFILES_PUBLICOS = """
+SELECT usuario_id, nombre
+FROM DIM_USUARIO
+WHERE perfil_publico = 1 AND lower(nombre) LIKE lower({pattern:String})
+ORDER BY nombre
+LIMIT {limit:UInt32}
+"""
+
 # Columnas calificadas con AS explícito (mismo motivo ya documentado en
 # `paquetes/creadores/queries.py`): el LEFT JOIN de una tabla contra sí misma
 # (comentario contra su propio padre) duplicaría nombres de columna sin alias.

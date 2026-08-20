@@ -1,10 +1,67 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { TrackPicker, type TrackSearchResult } from '@shared/components/TrackPicker'
 import { socialApi } from '../api/social.api'
 import styles from './SocialPages.module.css'
+
+// Descubrimiento de perfiles públicos por nombre (S16) — antes solo se podía
+// llegar a un perfil ya conociendo su usuario_id (link compartido, comentario).
+// Debounce 300ms, mismo patrón que UserPicker/ArtistPicker/TrackPicker en
+// `shared/components`, pero sin selección persistente: cada resultado navega
+// directo a `/usuarios/:usuarioId` en vez de quedar "elegido" en un formulario.
+function BuscadorPerfiles() {
+  const navigate = useNavigate()
+  const [query, setQuery] = useState('')
+  const [debouncedQ, setDebouncedQ] = useState('')
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedQ(query.trim()), 300)
+    return () => clearTimeout(t)
+  }, [query])
+
+  const resultados = useQuery({
+    queryKey: ['social', 'buscar-perfiles', debouncedQ],
+    queryFn:  () => socialApi.buscarPerfiles(debouncedQ),
+    enabled:  debouncedQ.length >= 2,
+  })
+
+  const items = resultados.data?.data ?? []
+  const mostrarDropdown = debouncedQ.length >= 2
+
+  return (
+    <div className={styles.profileSearchWrap}>
+      <input
+        className={styles.jumpInput}
+        type="search"
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        placeholder="Buscar un perfil público por nombre…"
+        aria-label="Buscar perfiles públicos"
+      />
+      {mostrarDropdown && (
+        <ul className={styles.profileSearchDropdown} role="listbox" aria-label="Resultados de la búsqueda de perfiles">
+          {items.length === 0 && !resultados.isLoading && (
+            <li className={styles.emptyBody} style={{ padding: '10px 12px' }}>Sin perfiles públicos con ese nombre</li>
+          )}
+          {items.map((u) => (
+            <li key={u.usuario_id}>
+              <button
+                type="button"
+                className={styles.shareOption}
+                style={{ width: '100%' }}
+                onClick={() => navigate(`/usuarios/${u.usuario_id}`)}
+              >
+                {u.nombre}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  )
+}
 
 function fmtDate(iso: string) {
   const d = new Date(iso)
@@ -47,7 +104,10 @@ export function SeguidosSocialPage() {
     <section className={styles.page}>
       <h1 className={styles.heading}>Social</h1>
 
-      <p className={styles.sectionLabel}>Actividad reciente de artistas que sigo</p>
+      <p className={styles.sectionLabel}>Buscar perfiles públicos</p>
+      <BuscadorPerfiles />
+
+      <p className={styles.sectionLabel} style={{ marginTop: 'var(--space-xl)' }}>Actividad reciente de artistas que sigo</p>
       {feed.isError ? (
         <div className={styles.bannerError} role="alert">No se pudo cargar el feed de actividad.</div>
       ) : feed.isLoading ? (
