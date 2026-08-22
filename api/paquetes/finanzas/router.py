@@ -143,7 +143,7 @@ def editar_gasto(
         "ALTER TABLE FACT_GASTO_OPERATIVO UPDATE "
         "concepto = {concepto:String}, categoria = {categoria:String}, monto = {monto:Float32}, "
         "fecha = {fecha:Date}, descripcion = {descripcion:String} "
-        "WHERE gasto_id = {gasto_id:String}",
+        "WHERE gasto_id = {gasto_id:String} SETTINGS mutations_sync = 1",
         {
             "gasto_id": gasto_id, "concepto": body.concepto.strip(), "categoria": body.categoria,
             "monto": body.monto, "fecha": body.fecha, "descripcion": body.descripcion,
@@ -166,7 +166,7 @@ def anular_gasto(gasto_id: str = Path(..., min_length=1, max_length=64), admin: 
     if antes["estado"] == "anulado":
         raise HTTPException(status_code=409, detail="Este gasto ya está anulado")
     execute(
-        "ALTER TABLE FACT_GASTO_OPERATIVO UPDATE estado = 'anulado' WHERE gasto_id = {gasto_id:String}",
+        "ALTER TABLE FACT_GASTO_OPERATIVO UPDATE estado = 'anulado' WHERE gasto_id = {gasto_id:String} SETTINGS mutations_sync = 1",
         {"gasto_id": gasto_id},
     )
     audit.record(
@@ -392,7 +392,9 @@ def _pausar_campana_por_presupuesto(campana_id: int, admin_id: str) -> None:
     query que evalúa la alerta, ya trae `activa=1` — así una campaña que ya
     quedó `activa=0` no vuelve a auditarse (tasks.md 6.4/6.5)."""
     execute(
-        "ALTER TABLE DIM_CAMPANA_PUBLICITARIA UPDATE activa = 0 WHERE campana_id = {id:UInt32}",
+        # mutations_sync=1: la pausa debe ser visible para la lectura que
+        # sigue (el test y cualquier listado posterior de presupuesto).
+        "ALTER TABLE DIM_CAMPANA_PUBLICITARIA UPDATE activa = 0 WHERE campana_id = {id:UInt32} SETTINGS mutations_sync = 1",
         {"id": campana_id},
     )
     audit.record(
