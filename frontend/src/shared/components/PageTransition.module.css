@@ -1,10 +1,15 @@
 @keyframes page-enter {
-  from { opacity: 0; transform: translateY(8px); }
+  from { opacity: 0; transform: translateY(10px); }
   to   { opacity: 1; transform: translateY(0); }
 }
 
+/* Entrada de página con presencia real (antes un fade de 250ms casi
+   imperceptible que dejaba la app "estática"): 10px de recorrido + curva
+   ease-out-quart — llega, se asienta, no rebota. Sigue siendo UNA animación
+   de entrada corta (350ms), no una coreografía de carga: el contenido es
+   visible de inmediato para quien navega en tarea (register product). */
 .enter {
-  animation: page-enter var(--duration-deliberate) var(--ease-standard);
+  animation: page-enter var(--duration-entrance) var(--ease-out-quart);
 }
 
 @media (prefers-reduced-motion: reduce) {

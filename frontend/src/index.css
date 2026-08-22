@@ -71,8 +71,8 @@
   --color-error:           oklch(0.52 0.22 25);
   --color-warning:         oklch(0.50 0.14 70);
   --color-success:         oklch(0.48 0.14 150);
-  --color-border:          oklch(0.89 0.014 292);
-  --color-border-strong:   oklch(0.80 0.02 292);
+  --color-border:          oklch(0.855 0.018 292);
+  --color-border-strong:   oklch(0.76 0.025 292);
   --color-hover-row:       oklch(0.94 0.014 290);
   --color-track-bg:        oklch(0.87 0.008 285);
   /* Sombra de card perceptible (blanco puro sobre --color-bg gris-violeta) —
@@ -80,7 +80,7 @@
      vez de leerse como una sombra genérica de framework. No existe en dark:
      ese tema usa elevación tonal pura (ver .card-glass más abajo / DESIGN.md
      "Shadow Prohibition"), los shadows ahí quedan reservados a focus/modal. */
-  --shadow-card: 0 1px 3px oklch(0.48 0.15 290 / 0.07), 0 1px 2px oklch(0.20 0.03 285 / 0.05);
+   --shadow-card: 0 1px 3px oklch(0.48 0.15 290 / 0.10), 0 2px 6px oklch(0.20 0.03 285 / 0.07);
   /* Card "hero" flotante (login) — más sombra que --shadow-card porque
      flota sobre el piso gris-violeta sin borde de por medio; tinte violeta
      en vez del negro puro que usaba antes (se leía pesado/genérico sobre un
@@ -122,9 +122,14 @@
   /* Motion */
   --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
   --ease-exit:     cubic-bezier(0.0, 0, 0.2, 1);
+  /* Curva de entrada para animaciones de aparición (page-enter, cards,
+     menús): desaceleración fuerte al final — "llega y se asienta", sin rebote
+     (DESIGN.md prohíbe bounce/elastic). */
+  --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
   --duration-fast:       100ms;
   --duration-standard:   150ms;
   --duration-deliberate: 250ms;
+  --duration-entrance:   350ms;
 
   /* Z-index scale */
   --z-dropdown: 100;
@@ -142,8 +147,8 @@
      light: replicar el mismo tinte violeta a baja opacidad quedaba casi
      invisible sobre #FAFAFA). */
   --glass-bg:          oklch(1 0 0 / 0.72);
-  --glass-border:      oklch(0.48 0.15 290 / 0.14);
-  --glass-border-hover: oklch(0.48 0.15 290 / 0.30);
+  --glass-border:      oklch(0.48 0.15 290 / 0.22);
+  --glass-border-hover: oklch(0.48 0.15 290 / 0.38);
   --glass-shadow-hover: 0 4px 24px oklch(0.48 0.15 290 / 0.12);
 
   /* Tooltip de charts (Recharts) — Light */
