@@ -293,11 +293,13 @@ LIMIT 5
 # artistas que el usuario sigue, que es la relación de seguimiento real que
 # existe — ver design.md del change de este día para la decisión completa.
 FEED_ACTIVIDAD_SEGUIDOS = """
-SELECT tipo, id, usuario_id, usuario_nombre, contenido, fecha, track_name, artista_id, artista_nombre
+SELECT tipo, id, usuario_id, usuario_nombre, contenido, fecha, track_name, artista_id, artista_nombre,
+       track_fact_id
 FROM (
     SELECT 'comentario' AS tipo, c.fact_id AS id, c.usuario_id AS usuario_id,
            u.nombre AS usuario_nombre, c.contenido AS contenido, c.fecha_creacion AS fecha,
-           t.track_name AS track_name, a.artist_id AS artista_id, a.name AS artista_nombre
+           t.track_name AS track_name, a.artist_id AS artista_id, a.name AS artista_nombre,
+           c.fact_id_track AS track_fact_id
     FROM FACT_COMENTARIO c
     JOIN FACT_TRACKS t ON t.fact_id = c.fact_id_track
     JOIN DIM_ARTISTS a ON a.artist_id = t.artist_id
@@ -309,7 +311,8 @@ FROM (
 
     SELECT 'comparticion' AS tipo, s.fact_id AS id, s.usuario_id AS usuario_id,
            u.nombre AS usuario_nombre, '' AS contenido, s.fecha AS fecha,
-           t.track_name AS track_name, a.artist_id AS artista_id, a.name AS artista_nombre
+           t.track_name AS track_name, a.artist_id AS artista_id, a.name AS artista_nombre,
+           s.fact_id_track AS track_fact_id
     FROM FACT_COMPARTICION s
     JOIN FACT_TRACKS t ON t.fact_id = s.fact_id_track
     JOIN DIM_ARTISTS a ON a.artist_id = t.artist_id

@@ -83,6 +83,9 @@ export type FeedItem = {
   track_name:      string
   artista_id:      number
   artista_nombre:  string
+  // F9 (auditoría de lógica y flujos): fact_id del track comentado/compartido
+  // — sin esto el feed no podía enlazar cada fila a su hilo de comentarios.
+  track_fact_id:   number
 }
 
 export type TipoNotificacion =

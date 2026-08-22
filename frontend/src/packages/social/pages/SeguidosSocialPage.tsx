@@ -125,15 +125,25 @@ export function SeguidosSocialPage() {
         <>
           <ul className={styles.followedList}>
             {pagedFeed.map((item) => (
-              <li key={`${item.tipo}-${item.id}`} className={styles.followedRow} style={{ flexDirection: 'column', alignItems: 'flex-start', gap: 2 }}>
-                <span className={styles.followedName}>
-                  {item.usuario_nombre || 'Alguien'}{' '}
-                  {item.tipo === 'comentario' ? 'comentó' : 'compartió'} un track de {item.artista_nombre}
-                </span>
-                {item.tipo === 'comentario' && item.contenido && (
-                  <span className={styles.followedMeta}>&ldquo;{item.contenido}&rdquo;</span>
-                )}
-                <span className={styles.followedMeta}>{item.track_name} · {fmtDateTime(item.fecha)}</span>
+              /* F9: cada fila de actividad es un enlace a su hilo — antes
+                 eran texto plano, un callejón sin salida. Tanto comentarios
+                 como comparticiones referencian un track, así que el destino
+                 natural es /social/track/:factId en los dos casos. */
+              <li key={`${item.tipo}-${item.id}`}>
+                <Link
+                  to={`/social/track/${item.track_fact_id}`}
+                  className={styles.followedRow}
+                  style={{ flexDirection: 'column', alignItems: 'flex-start', gap: 2 }}
+                >
+                  <span className={styles.followedName}>
+                    {item.usuario_nombre || 'Alguien'}{' '}
+                    {item.tipo === 'comentario' ? 'comentó' : 'compartió'} un track de {item.artista_nombre}
+                  </span>
+                  {item.tipo === 'comentario' && item.contenido && (
+                    <span className={styles.followedMeta}>&ldquo;{item.contenido}&rdquo;</span>
+                  )}
+                  <span className={styles.followedMeta}>{item.track_name} · {fmtDateTime(item.fecha)}</span>
+                </Link>
               </li>
             ))}
           </ul>
