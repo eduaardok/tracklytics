@@ -5,7 +5,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ErrorState } from '@shared/components/ErrorState'
 import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { apiErrorMessage } from '@shared/lib/api-client'
-import { getRole } from '@shared/lib/session'
+import { getUser } from '@shared/lib/session'
 import { useToast } from '@shared/context/ToastContext'
 import { useConfirm } from '@shared/context/ConfirmContext'
 import { distribucionApi } from '@packages/distribucion/api/distribucion.api'
@@ -62,7 +62,14 @@ function SkelRows({ cols, n = 3 }: { cols: number; n?: number }) {
 
 export function FacturacionPage() {
   useDocumentTitle('Facturación')
-  const role = getRole()
+  // `esAdmin` (no el `role` crudo de PocketBase): un admin de área
+  // (admin_finanzas, ...) tiene `role==='user'` en PocketBase — el rol
+  // administrativo vive en BRIDGE_USUARIO_ROL_ADMIN y llega poblado como
+  // `esAdmin` en el login (ver session.ts). Antes esta página solo
+  // reconocía al superadmin bootstrap (`role==='admin'`), así que cualquier
+  // otro admin caía en el flujo de checkout B2C real (bug real, confirmado
+  // navegando como admin_finanzas — ver docs/PLAN_PRUEBAS_EJECUCION_S16.md).
+  const esAdmin = Boolean(getUser()?.esAdmin)
   const [selectedMethodId, setSelectedMethodId] = useState('')
   const [showAddForm, setShowAddForm]           = useState(false)
 
@@ -102,19 +109,19 @@ export function FacturacionPage() {
   const metodos = useQuery({
     queryKey: ['facturacion', 'metodos-pago'],
     queryFn:  () => facturacionApi.metodosPago(),
-    enabled:  role !== 'admin',
+    enabled:  !esAdmin,
   })
 
   const transacciones = useQuery({
     queryKey: ['facturacion', 'transacciones'],
     queryFn:  () => facturacionApi.transacciones(),
-    enabled:  role !== 'admin',
+    enabled:  !esAdmin,
   })
 
   const invoices = useQuery({
     queryKey: ['facturacion', 'invoices'],
     queryFn:  () => facturacionApi.invoices(),
-    enabled:  role !== 'admin',
+    enabled:  !esAdmin,
   })
 
   // Notificaciones simuladas de factura enviada por correo (CU-O99,
@@ -122,7 +129,7 @@ export function FacturacionPage() {
   const notificaciones = useQuery({
     queryKey: ['facturacion', 'notificaciones'],
     queryFn:  () => facturacionApi.notificaciones(),
-    enabled:  role !== 'admin',
+    enabled:  !esAdmin,
   })
 
   const registrarMetodo = useMutation({
@@ -223,7 +230,7 @@ export function FacturacionPage() {
 
   // admin (Lead Data Engineer/CTO) ya tiene acceso completo a la plataforma
   // sin pagar — no le corresponde ningún flujo de facturación.
-  if (role === 'admin') {
+  if (esAdmin) {
     return (
       <section className={styles.page}>
         <h1 className={styles.heading}>Facturación</h1>

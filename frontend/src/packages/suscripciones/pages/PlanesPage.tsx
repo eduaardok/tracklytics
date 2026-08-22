@@ -2,7 +2,7 @@ import { useState, type FormEvent } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { AlertTriangle } from 'lucide-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { getRole } from '@shared/lib/session'
+import { getUser } from '@shared/lib/session'
 import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { apiErrorMessage } from '@shared/lib/api-client'
 import { useToast } from '@shared/context/ToastContext'
@@ -69,7 +69,14 @@ export function PlanesPage() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const onboarding = searchParams.get('onboarding') === '1'
-  const role = getRole()
+  // `esAdmin` (no el `role` crudo de PocketBase): un admin de área
+  // (admin_finanzas, ...) tiene `role==='user'` en PocketBase — el rol
+  // administrativo vive en BRIDGE_USUARIO_ROL_ADMIN y llega poblado como
+  // `esAdmin` en el login (ver session.ts). Antes esta página solo
+  // reconocía al superadmin bootstrap (`role==='admin'`), así que cualquier
+  // otro admin caía en el flujo de checkout B2C real (bug real, confirmado
+  // navegando como admin_finanzas — ver docs/PLAN_PRUEBAS_EJECUCION_S16.md).
+  const esAdmin = Boolean(getUser()?.esAdmin)
 
   const [selectedPlan, setSelectedPlan]   = useState<Plan | null>(null)
   const [metodoElegidoId, setMetodoElegidoId] = useState<string | null>(null)
@@ -88,12 +95,12 @@ export function PlanesPage() {
   const planesQuery = useQuery({
     queryKey: ['suscripciones', 'planes'],
     queryFn:  () => suscripcionesApi.planes(),
-    enabled:  role !== 'admin',
+    enabled:  !esAdmin,
   })
   const activaQuery = useQuery({
     queryKey: PLAN_ACTIVO_QUERY_KEY,
     queryFn:  () => suscripcionesApi.activa(),
-    enabled:  role !== 'admin',
+    enabled:  !esAdmin,
   })
   // Se necesita tanto para confirmar un plan de pago nuevo como para cobrar
   // el ajuste de un cambio de plan (CU-O94) o reintentar un cobro fallido
@@ -102,7 +109,7 @@ export function PlanesPage() {
   const metodosQuery = useQuery({
     queryKey: ['facturacion', 'metodos-pago'],
     queryFn:  () => facturacionApi.metodosPago(),
-    enabled:  role !== 'admin',
+    enabled:  !esAdmin,
   })
   const metodos: MetodoPago[] = metodosQuery.data?.data ?? []
 
@@ -239,7 +246,7 @@ export function PlanesPage() {
   // sin pagar — el backend rechaza confirmar/planear una suscripción para
   // este rol (ver suscripciones/router.py), así que esta ruta no le muestra
   // el flujo de selección de plan aunque llegue acá por URL directa.
-  if (role === 'admin') {
+  if (esAdmin) {
     return (
       <section className={styles.page}>
         <h1 className={styles.heading}>Mi plan</h1>
@@ -280,7 +287,7 @@ export function PlanesPage() {
     <section className={styles.page}>
       <h1 className={styles.heading}>Mi plan</h1>
       <span className={styles.subtitle}>
-        // {role === 'analyst' ? 'planes empresariales' : 'planes personales'}
+        // {getUser()?.role === 'analyst' ? 'planes empresariales' : 'planes personales'}
       </span>
 
       {onboarding && (
