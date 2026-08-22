@@ -3,7 +3,6 @@
 // Nunca importar directamente de components/, pages/, o api/ internos.
 
 export { SeguidosSocialPage }    from './pages/SeguidosSocialPage'
-export { ArtistaSocialPage }     from './pages/ArtistaSocialPage'
 export { TrackSocialPage }       from './pages/TrackSocialPage'
 export { ModeracionSocialPage }  from './pages/ModeracionSocialPage'
 export { PerfilPublicoPage }     from './pages/PerfilPublicoPage'
