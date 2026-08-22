@@ -19,3 +19,6 @@ email-validator==2.2.0  # requerido por pydantic.EmailStr (auditoria_validacion)
 # ── Utilidades ──────────────────────────────────
 numpy==1.26.4
 faker==25.8.0           # generación de track_name sintéticos
+
+# ── Testing ─────────────────────────────────────
+pytest==8.3.4           # suite api/tests/test_finanzas.py (corre contra ClickHouse real)
