@@ -1,6 +1,7 @@
 import { Music2 } from 'lucide-react'
 import { AlbumArt } from '@shared/components/AlbumArt'
 import { genreAccent } from '@shared/lib/genre-colors'
+import { PlaylistCollage } from './PlaylistCollage'
 import styles from './ExploreGridCard.module.css'
 
 type Props = {
@@ -8,6 +9,9 @@ type Props = {
   name:   string
   metric: string
   imagenUrl?: string | null
+  // Solo playlists sin portada propia: habilita el collage 2×2 con covers de
+  // sus tracks (PlaylistCollage) en vez del placeholder vacío ♪.
+  albumId?: number
   onClick: () => void
   // Lado de la portada en px (CatalogDiscovery — filas horizontales más
   // compactas que la vista completa) — default 160, el tamaño histórico de
@@ -25,8 +29,12 @@ type Props = {
 // TrackGridCard (catálogo de canciones). Antes Artistas/Playlists/Géneros
 // solo tenían la card compacta de `ExploreRow` (icono de 44px + texto) sin
 // alternativa de grid — la auditoría la calificó de "presentación inferior".
-export function ExploreGridCard({ kind, name, metric, imagenUrl, onClick, size, shape = 'square' }: Props) {
+export function ExploreGridCard({ kind, name, metric, imagenUrl, albumId, onClick, size, shape = 'square' }: Props) {
   const circular = shape === 'circle'
+  const effectiveSize = size ?? 160
+  // Collage solo para playlists SIN portada propia y con id conocido — el
+  // resto mantiene su render original intacto.
+  const useCollage = kind === 'playlist' && !imagenUrl && albumId != null
   return (
     <div
       className={`${styles.card} ${circular ? styles.cardCentered : ''}`}
@@ -37,7 +45,9 @@ export function ExploreGridCard({ kind, name, metric, imagenUrl, onClick, size, 
       tabIndex={0}
     >
       <div className={styles.artWrap} style={size ? { minHeight: size } : undefined}>
-        {kind !== 'genero' ? (
+        {useCollage ? (
+          <PlaylistCollage albumId={albumId} seed={name} size={effectiveSize} />
+        ) : kind !== 'genero' ? (
           <AlbumArt src={imagenUrl} alt="" size={size ?? 160} className={`${styles.art} ${circular ? styles.circular : ''}`} />
         ) : (
           <span

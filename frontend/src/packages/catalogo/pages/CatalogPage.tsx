@@ -255,7 +255,7 @@ function CancionesSection({ genre, onToggleGenre }: CancionesProps) {
         onCommit={commit}
         onClear={clear}
         active={committed !== ''}
-        placeholder="Track o artista… (Enter para buscar)"
+        placeholder="Canción o artista… (Enter para buscar)"
       />
 
       <div className={styles.advancedFiltersSection}>
@@ -407,6 +407,7 @@ function PlaylistsSection() {
                 kind="playlist"
                 name={p.name}
                 imagenUrl={p.imagen_url}
+                albumId={p.album_id}
                 metric={`${(p.track_count ?? 0).toLocaleString('es')} canciones${p.release_year ? ` · ${p.release_year}` : ''}`}
                 onClick={() => navigate(`/catalogo/album/${p.album_id}`)}
               />
@@ -458,7 +459,7 @@ function ArtistasSection() {
   // como género (confirmado con artistas no-pop en la QA). El dashboard de
   // Analítica ya resuelve la misma ambigüedad con ★, mismo criterio acá.
   function metricDe(a: Artist): string {
-    return `${a.track_count.toLocaleString('es')} tracks${a.avg_popularity != null ? ` · ★ ${a.avg_popularity}` : ''}`
+    return `${a.track_count.toLocaleString('es')} canciones${a.avg_popularity != null ? ` · ★ ${a.avg_popularity}` : ''}`
   }
 
   return (
@@ -547,7 +548,7 @@ function GenerosSection({ onSelectGenre }: GenerosProps) {
   const shown = q ? filtered : [...filtered].sort((a, b) => (b.track_count ?? 0) - (a.track_count ?? 0)).slice(0, 12)
 
   function metricDe(g: Genre): string {
-    return `${g.mood ? `${g.mood} · ` : ''}${(g.track_count ?? 0).toLocaleString('es')} tracks${g.avg_popularity != null ? ` · pop ${g.avg_popularity}` : ''}`
+    return `${g.mood ? `${g.mood} · ` : ''}${(g.track_count ?? 0).toLocaleString('es')} canciones${g.avg_popularity != null ? ` · pop ${g.avg_popularity}` : ''}`
   }
 
   return (
