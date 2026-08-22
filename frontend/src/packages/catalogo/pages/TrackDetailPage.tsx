@@ -1,6 +1,6 @@
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { ArrowLeft, Heart, ListPlus, Lock, Play, ThumbsDown, ThumbsUp } from 'lucide-react'
+import { ArrowLeft, Heart, Info, ListPlus, Lock, Play, ThumbsDown, ThumbsUp } from 'lucide-react'
 import { catalogoApi } from '../api/catalogo.api'
 import { usePlayer } from '@shared/context/PlayerContext'
 import { AlbumArt } from '@shared/components/AlbumArt'
@@ -35,6 +35,17 @@ function FeatureBar({ label, desc, value }: { label: string; desc: string; value
       </div>
       <span className={styles.featureValue}>{pct}%</span>
     </div>
+  )
+}
+
+// Badge "ⓘ" con tooltip al hover/foco — explica la métrica sin ocupar lugar
+// en la card (feedback: Score/Tempo/Loudness no se explicaban solos).
+function InfoHint({ text }: { text: string }) {
+  return (
+    <span className={styles.infoHint} tabIndex={0} aria-label={text}>
+      <Info size={12} aria-hidden="true" />
+      <span className={styles.infoTooltip} role="tooltip">{text}</span>
+    </span>
   )
 }
 
@@ -174,18 +185,30 @@ export function TrackDetailPage() {
         </div>
       </div>
 
-      <h2 className={styles.sectionTitle}>Popularidad</h2>
+      {/* "Métricas" y no "Popularidad": la grilla mezcla el Score (que sí es
+          popularidad) con Tempo/Loudness/Duración, que son atributos del
+          audio sin relación con ella (feedback). */}
+      <h2 className={styles.sectionTitle}>Métricas</h2>
       <div className={styles.attrGrid}>
         <div className={styles.attrCard}>
-          <div className={styles.attrLabel}>Score</div>
+          <div className={styles.attrLabel}>
+            Popularidad (Score)
+            <InfoHint text="Puntaje de 0 a 100 que resume qué tan popular es la canción en el catálogo: reproducciones, «me gusta» y reacciones." />
+          </div>
           <div className={styles.attrValue}>{track.popularity ?? '—'}</div>
         </div>
         <div className={styles.attrCard}>
-          <div className={styles.attrLabel}>Tempo</div>
+          <div className={styles.attrLabel}>
+            Tempo (BPM)
+            <InfoHint text="Pulsos por minuto: la velocidad del ritmo. 60–90 es lento, ~120 moderado, 160+ muy rápido." />
+          </div>
           <div className={styles.attrValue}>{track.tempo ? `${Math.round(track.tempo)} BPM` : '—'}</div>
         </div>
         <div className={styles.attrCard}>
-          <div className={styles.attrLabel}>Loudness</div>
+          <div className={styles.attrLabel}>
+            Sonoridad (Loudness)
+            <InfoHint text="Volumen promedio en decibelios (dB). Valores más cercanos a 0 indican una canción que suena más fuerte." />
+          </div>
           <div className={styles.attrValue}>{track.loudness != null ? `${track.loudness.toFixed(1)} dB` : '—'}</div>
         </div>
         <div className={styles.attrCard}>

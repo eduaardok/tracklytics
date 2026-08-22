@@ -1,6 +1,6 @@
-import { useParams } from 'react-router-dom'
+import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { Disc3 } from 'lucide-react'
+import { ArrowLeft, Disc3 } from 'lucide-react'
 import { catalogoApi } from '../api/catalogo.api'
 import { TrackCard } from '../components/TrackCard'
 import { AlbumArt } from '@shared/components/AlbumArt'
@@ -16,6 +16,7 @@ import styles from './DetailPages.module.css'
 // a "artista/álbum/género" y el endpoint/tipo ya existían en catalogo.api.ts.
 export function AlbumDetailPage() {
   const { albumId } = useParams<{ albumId: string }>()
+  const navigate = useNavigate()
   const id = Number(albumId)
 
   const { data: album, isLoading: loadingAlbum, isError: errorAlbum, error: albumError } = useQuery({
@@ -103,6 +104,13 @@ export function AlbumDetailPage() {
           ))}
         </ul>
       )}
+
+      {/* Mismo "Volver" del detalle de canción — paridad de navegación entre
+          páginas de detalle (feedback: faltaba aquí). */}
+      <button type="button" className={styles.btnBack} style={{ marginTop: 'var(--space-xl)' }} onClick={() => navigate(-1)}>
+        <ArrowLeft size={16} aria-hidden="true" />
+        Volver
+      </button>
     </section>
   )
 }

@@ -1,12 +1,57 @@
-/* ── Hero ── */
+/* ── Hero ──
+   Antes: un linear-gradient plano violeta→teal. Ahora el mismo lenguaje
+   ambiente del resto de la app (login/catálogo): base en gradiente primario,
+   dos glows radiales a la deriva (::before) y grano fotográfico (::after).
+   El contenido va por encima con z-index 1 (.hero > *). */
 .hero {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
   display: flex;
   align-items: flex-end;
   gap: var(--space-lg);
   padding: var(--space-xl);
   border-radius: var(--radius-lg);
   margin-bottom: var(--space-lg);
-  background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-accent) 100%);
+  background:
+    radial-gradient(46rem 30rem at 88% -20%, oklch(0.70 0.14 195 / 0.45), transparent 62%),
+    radial-gradient(40rem 28rem at -8% 115%, oklch(0.62 0.16 320 / 0.35), transparent 58%),
+    linear-gradient(140deg, var(--color-primary) 0%, var(--color-primary-hover) 100%);
+}
+
+.hero::before {
+  content: '';
+  position: absolute;
+  inset: -18%;
+  z-index: -1;
+  background:
+    radial-gradient(24rem 16rem at 78% 22%, oklch(0.85 0.10 85 / 0.28), transparent 60%),
+    radial-gradient(20rem 14rem at 18% 80%, oklch(0.75 0.12 165 / 0.25), transparent 58%);
+  animation: hero-glow-drift 22s var(--ease-standard) infinite alternate;
+}
+
+@keyframes hero-glow-drift {
+  from { transform: translate3d(-2%, -1%, 0) rotate(-1deg); }
+  to   { transform: translate3d(2%, 2%, 0) rotate(1deg); }
+}
+
+.hero::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.06;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+.hero > * {
+  position: relative;
+  z-index: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero::before { animation: none; }
 }
 
 .heroMeta {
@@ -165,10 +210,62 @@
 }
 
 .attrLabel {
+  display: flex;
+  align-items: center;
+  gap: 4px;
   font-family: var(--font-mono);
   font-size: 0.6875rem;
   font-weight: 600;
   color: var(--color-muted);
+}
+
+/* Badge ⓘ con tooltip (InfoHint) — visible al hover o foco por teclado. */
+.infoHint {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  cursor: help;
+  color: var(--color-muted);
+}
+
+.infoHint:hover, .infoHint:focus-visible { color: var(--color-ink); }
+
+.infoHint:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 1px;
+  border-radius: var(--radius-sm);
+}
+
+.infoTooltip {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%) translateY(2px);
+  width: max-content;
+  max-width: 230px;
+  padding: 8px 10px;
+  background: var(--color-surface-raised);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-card);
+  font-family: var(--font-sans);
+  font-size: 0.6875rem;
+  font-weight: 400;
+  line-height: 1.45;
+  text-align: left;
+  text-transform: none;
+  letter-spacing: normal;
+  color: var(--color-ink);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--duration-fast) var(--ease-standard), transform var(--duration-fast) var(--ease-standard);
+  z-index: 10;
+}
+
+.infoHint:hover .infoTooltip,
+.infoHint:focus-visible .infoTooltip {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
 }
 
 .attrValue {
