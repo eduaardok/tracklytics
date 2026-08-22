@@ -68,10 +68,32 @@
       "Bash(python -m py_compile etl/gold/portada.py etl/gold/backfill_portadas.py)",
       "Bash(python -m py_compile etl/gold/portada.py)",
       "Bash(docker top *)",
-      "Bash(docker restart *)"
+      "Bash(docker restart *)",
+      "Bash(curl -s -X POST http://localhost:8000/app/v1/seguridad/auth/login -H \"Content-Type: application/json\" -d '{\"email\":\"test-like-s16@demo.tracklytics.com\",\"password\":\"Demo12345!\",\"dispositivo_id\":\"debug-follow\"}' -o login_debug.json)",
+      "Bash(python -c \"import json; print\\(json.load\\(open\\('login_debug.json'\\)\\)['token']\\)\")",
+      "Bash(curl -s http://localhost:8000/app/v1/social/seguimiento -H 'Authorization: Bearer __TRACKED_VAR__')",
+      "Bash(curl -s -X POST http://localhost:8000/app/v1/social/seguimiento/2530 -H 'Authorization: Bearer __TRACKED_VAR__' -w '\\\\nHTTP:%{http_code}\\\\n')",
+      "Bash(rm -f login_debug.json)",
+      "Bash(curl -s -X POST http://localhost:8000/app/v1/seguridad/auth/login -H \"Content-Type: application/json\" -d '{\"email\":\"test-like-s16@demo.tracklytics.com\",\"password\":\"Demo12345!\",\"dispositivo_id\":\"reset\"}' -o login_reset.json)",
+      "Bash(python -c \"import json; print\\(json.load\\(open\\('login_reset.json'\\)\\)['token']\\)\")",
+      "Bash(curl -s -X DELETE http://localhost:8000/app/v1/social/seguimiento/2530 -H 'Authorization: Bearer __TRACKED_VAR__' -w '\\\\nHTTP:%{http_code}\\\\n')",
+      "Bash(rm -f login_reset.json)",
+      "Bash(curl -s -X POST http://localhost:8000/app/v1/seguridad/auth/login -H \"Content-Type: application/json\" -d '{\"email\":\"test-like-s16@demo.tracklytics.com\",\"password\":\"Demo12345!\",\"dispositivo_id\":\"reset2\"}' -o login_reset.json)",
+      "Bash(curl -s -X DELETE http://localhost:8000/app/v1/social/seguimiento/2530 -H 'Authorization: Bearer __TRACKED_VAR__' -w ' HTTP:%{http_code}\\\\n')",
+      "Bash(curl -s -X POST http://localhost:8000/app/v1/seguridad/auth/login -H \"Content-Type: application/json\" -d '{\"email\":\"test-like-s16@demo.tracklytics.com\",\"password\":\"Demo12345!\",\"dispositivo_id\":\"batch-test\"}' -o login_batch.json)",
+      "Bash(python -c \"import json; print\\(json.load\\(open\\('login_batch.json'\\)\\)['token']\\)\")",
+      "Bash(curl -s http://localhost:8000/app/v1/biblioteca/tracks/likes?fact_ids=11398178,11496070,12133963,99999999 -H 'Authorization: Bearer __TRACKED_VAR__')",
+      "Bash(curl -s \"http://localhost:8000/app/v1/biblioteca/tracks/likes?fact_ids=11398178,11496070\")",
+      "Bash(rm -f login_batch.json)",
+      "Bash(cd \"c:\\\\Users\\\\Lenovo.User\\\\Desktop\\\\EDUARDO\\\\tracklytics\" && mkdir -p openspec/changes/archive && mv \"openspec/changes/2026-08-16-s16-like-dislike-tracks\" \"openspec/changes/archive/2026-08-16-s16-like-dislike-tracks\" && ls openspec/changes/archive/ | tail -5)",
+      "Bash(cd \"c:\\\\Users\\\\Lenovo.User\\\\Desktop\\\\EDUARDO\\\\tracklytics\" && rm -rf verificacion-light-theme && git status --short && echo \"---remote---\" && git remote -v && git status -sb | head -3)",
+      "Bash(cp ../verificacion-light-theme/_capture_perfil_fase3.mjs ./_capture_perfil_fase3.mjs)",
+      "Bash(node _capture_perfil_fase3.mjs)"
     ],
     "additionalDirectories": [
-      "c:\\Users\\Lenovo.User\\Desktop\\EDUARDO\\tracklytics\\app"
+      "c:\\Users\\Lenovo.User\\Desktop\\EDUARDO\\tracklytics\\app",
+      "c:\\Users\\Lenovo.User\\Desktop\\EDUARDO\\tracklytics\\openspec\\changes\\2026-08-16-s16-like-dislike-tracks",
+      "c:\\Users\\Lenovo.User\\Desktop\\EDUARDO\\tracklytics\\verificacion-light-theme"
     ]
   },
   "hooks": {

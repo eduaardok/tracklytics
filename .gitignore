@@ -18,3 +18,5 @@ etl/gold/portadas_cache.json
 .env
 __pycache__/
 *.pyc
+# Cache incremental de tsc -b (artefacto local)
+frontend/tsconfig.tsbuildinfo
