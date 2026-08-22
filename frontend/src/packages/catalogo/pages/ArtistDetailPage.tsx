@@ -121,6 +121,7 @@ export function ArtistDetailPage() {
     return (
       <section>
         <div className={styles.hero}>
+          <div className={styles.heroBg} aria-hidden="true" />
           <SkeletonLoader count={1} height={200} className={styles.heroSkeletonArt} />
           <div className={styles.heroMeta}>
             <SkeletonLoader count={2} height={16} />
@@ -151,6 +152,7 @@ export function ArtistDetailPage() {
   return (
     <section>
       <div className={styles.hero}>
+        <div className={styles.heroBg} aria-hidden="true" />
         <AlbumArt src={artist.imagen_url} alt="" size={200} genreSeed={String(id)} />
         <div className={styles.heroMeta}>
           <span className={styles.heroType}>Artista</span>

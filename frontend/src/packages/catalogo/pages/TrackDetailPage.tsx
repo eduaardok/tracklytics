@@ -106,6 +106,7 @@ export function TrackDetailPage() {
   return (
     <section>
       <div className={styles.hero}>
+        <div className={styles.heroBg} aria-hidden="true" />
         <AlbumArt src={track.imagen_url} alt="" size={96} />
         <div className={styles.heroMeta}>
           <span className={styles.heroType}>Canción</span>

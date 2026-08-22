@@ -58,6 +58,7 @@ export function AlbumDetailPage() {
   return (
     <section>
       <div className={styles.hero}>
+        <div className={styles.heroBg} aria-hidden="true" />
         <AlbumArt src={album.imagen_url} alt="" size={96} />
         <div className={styles.heroMeta}>
           <span className={styles.heroType}>{esSencillo ? 'Sencillo' : 'Álbum'}</span>
