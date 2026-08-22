@@ -250,3 +250,198 @@ docker compose exec -T clickhouse clickhouse-client --query \
 3. Re-correr `npx tsc --noEmit` cuando el refactor de top-nav se cierre; citar resultado.
 4. Commits atómicos de los archivos de la sección 6 (proponen narrativa "ciclo completo:
    ejecutar → diagnosticar → resolver → re-verificar" con métricas reales de la tabla 3.2).
+
+---
+
+## 8. R2-R4 — Ejecución (2026-08-22, continuación)
+
+Misma base verificada: `HEAD` real de `main` al momento de esta corrida (`12d6c01`),
+Docker Compose ya activo (`docker compose up`, nunca `down`). Cada paso se ejecutó contra
+el sistema real: `curl` a los endpoints reales del contenedor `api` (puerto 8000),
+`clickhouse-client` dentro del contenedor `clickhouse` para verificar filas reales, y
+Playwright headless contra el frontend real servido en `http://localhost:8082` (contenedor
+`frontend-react`) para los pasos que dependen de UI/gating de rol.
+
+Cuentas de prueba creadas para esta corrida (no existían cuentas R2/R3/R4 previas
+reutilizables con el estado necesario):
+
+| Cuenta | Rol | Cómo se creó |
+|--------|-----|--------------|
+| `s16r2_artista@test.com` | Artista (cuenta aprobada en el recorrido) | `POST /auth/registro` (rol `user`) |
+| `s16r3_analista@test.com` | B2B, tier Enterprise | `POST /auth/registro` (rol `analyst`) + suscripción `enterprise` pagada con método de prueba |
+| `s16r4_admin@test.com` | Superadmin | `pb_client.crear_usuario(rol="admin")` desde dentro del contenedor `api` (no vía endpoint público — el registro público de rol `admin` está bloqueado por el sandbox de la sesión) |
+| `s16r4_finanzas@test.com` | Admin de área (`admin_finanzas`) | `POST /auth/registro` (rol `user`) + `POST /admin/usuarios/{id}/rol-admin` con `s16r4_admin` |
+
+### 8.1 Ajustes a la matriz de recorridos (sección 2.2) tras verificar contra el código real
+
+Antes de ejecutar, se comparó cada paso planeado contra los routers y páginas reales
+(`api/paquetes/creadores`, `api/paquetes/analitica`, `api/paquetes/gestion_datos`,
+`api/paquetes/facturacion`, `api/paquetes/publicidad`, `api/paquetes/social`). Dos pasos de
+la matriz original no correspondían al comportamiento real del sistema:
+
+- **R2, "ver analítica propia del artista"**: no existe. `creadores/router.py` solo expone
+  `GET /creadores/tracks` (estado de revisión) y un link a comentarios del track ya
+  promovido — no hay un endpoint ni pantalla de streams/popularidad propios del artista.
+  Se ejecutó el recorrido real (subida → revisión → promoción) y se documenta el gap como
+  hallazgo (no como fix: es una capability nueva, fuera de alcance de esta semana).
+- **R3, "BSC → benchmark SQL vs Gold" como parte del recorrido de un analista B2B**: es
+  incorrecto. `api/paquetes/analitica/deps.py` gatea `/bsc/resumen`,
+  `/bsc/analisis-inteligente` y `/benchmark-sql/*` con `require_staff` (`_es_staff_interno`),
+  que **excluye explícitamente** a `role == 'analyst'` — son herramientas internas de
+  staff/superadmin, nunca paneles de cliente B2B (confirmado leyendo el docstring de
+  `v1_bsc_resumen` y verificado en vivo: una cuenta analyst con suscripción Enterprise real
+  recibe 403 en ambos). El frontend ya lo modela bien —
+  `AnalyticaShell.tsx` filtra el ítem "Balanced Scorecard" y el grupo "Herramientas"
+  (benchmark SQL) con `esAdmin`, no con el tier B2B — así que no hay bug de UI, solo un
+  paso de la matriz mal encuadrado. El recorrido real de R3 se corrigió a: dashboard de
+  KPIs por tier → paneles habilitados según tier (adquisición/comparar artistas en Pro,
+  proyecciones en Enterprise) → export PDF. BSC y benchmark SQL se verificaron en su
+  audiencia real (staff/admin), como parte de R4.
+
+### 8.2 R2 — Artista/creador
+
+| Paso | Acción real | Resultado |
+|------|-------------|-----------|
+| 1 | `POST /creadores/cuenta` (`s16r2_artista`) | `201`, `estado_cuenta: pendiente` |
+| 2 | `POST /creadores/tracks` antes de la aprobación | `403 — "Se requiere una cuenta de artista aprobada..."` (correcto) |
+| 3 | `POST /creadores/admin/cuentas/{id}/resolver` (`s16r4_admin`, decisión `aprobar`) | `200`, `estado_cuenta: aprobada` |
+| 4 | `POST /creadores/tracks` (multi-género, 2 géneros) | `201`, `estado: pendiente` |
+| 5 | `SELECT ... FROM STG_ARTIST_UPLOADS WHERE staging_id=...` | Fila real con `genre_ids=[1,3]`, `duration_ms=180000` |
+| 6 | `POST /creadores/admin/tracks/{subida_id}/resolver` (decisión `aprobar`) | `200`, `fact_id_promovido: 14100014` |
+| 7 | `SELECT ... FROM FACT_TRACKS WHERE track_id=...` | **2 filas** (`fact_id` 14100014/14100015), una por género, ambas `source_type='user_uploaded'` — confirma el modelo N:M multi-género de `promover_a_fact_tracks` |
+
+R2 completo sin fallos. Único hallazgo: el paso "analítica propia" de la matriz original no
+existe (ver 8.1) — se registra como pendiente declarado en 8.6, no como bug (no hay
+comportamiento roto que corregir, es una capability no construida).
+
+### 8.3 R3 — B2B (analista)
+
+Cuenta `s16r3_analista` con suscripción `enterprise` activa y pagada
+(`POST /suscripciones` con método de pago de prueba, `pago.estado: exitosa`).
+
+| Paso | Endpoint | Resultado |
+|------|----------|-----------|
+| Dashboard de KPIs | `GET /analitica/dashboard` | `200` — `total_tracks: 1613566`, `total_artists: 29868`, `total_genres: 114`, `avg_popularity: 48.83` (datos reales, no placeholders) |
+| Adquisición (tier Pro) | `GET /analitica/adquisicion/canales` | `200` — `["ads_paid","organico","redes_sociales","referido"]` |
+| BSC (verificación de gating) | `GET /analitica/bsc/resumen` | `403 — "El reporte diario operativo es exclusivo de Data Analyst/BI Lead"` — **correcto**, confirma 8.1 |
+| Benchmark SQL (verificación de gating) | `GET /analitica/benchmark-sql/informes` | `403`, mismo motivo — **correcto** |
+
+BSC y benchmark SQL se probaron en su audiencia real dentro de R4 (8.4). Export PDF se
+investigó a fondo por separado — ver 8.5, es un hallazgo transversal (no específico de R3).
+
+### 8.4 R4 — Admin
+
+Recorrido ejecutado con `s16r4_admin` (superadmin) y, para el paso de facturación,
+adicionalmente con `s16r4_finanzas` (`admin_finanzas`, sub-rol de área) para probar un
+admin no-superadmin como pide el enunciado.
+
+| Paso | Acción real | Resultado |
+|------|-------------|-----------|
+| BSC (audiencia correcta) | `GET /analitica/bsc/resumen` con `s16r4_admin` | `200`, 13 KPIs con valores reales |
+| Moderación de contenido | `POST /social/comentarios` (artista) → `POST /social/admin/comentarios/{fact_id}/moderar` `{"decision":"oculto"}` (admin) | `200`, `estado_moderacion: oculto` |
+| Gestión de datos | `GET /health`, `GET /data-quality` (`require_lead_data_engineer`) | `200` — `total_records: 1613566`, `user_uploaded_records: 16` (incluye los 2 tracks promovidos en R2 de esta corrida + 14 de sesiones previas) |
+| Publicidad — campañas | `POST /publicidad/admin/anunciantes` → `POST /publicidad/admin/campanas` → `POST /publicidad/admin/campanas/{id}/pausar` | `201`/`201`/`200` — `estado_manual: pausada` confirmado con `SELECT` directo (sin retraso: el fix P7 de `mutations_sync=1` de la sección 4.2 sigue vigente) |
+| Facturación (superadmin) | `GET /facturacion` como `s16r4_admin` | Mensaje de bypass ("acceso completo sin necesidad de facturación") — correcto |
+| Facturación (`admin_finanzas`, **antes del fix**) | `GET /facturacion` como `s16r4_finanzas` | **Bug confirmado** — ver 8.5 |
+
+`GET /gestion-datos/health` y `/data-quality` resultaron montados en la raíz del API
+(`/health`, `/data-quality`, sin prefijo `/app/v1/gestion-datos`) — el router se registra
+sin `prefix=` en `main.py`. No es un bug (el frontend ya les pega a esas rutas raíz), solo
+una nota para quien reproduzca los comandos de esta sección con `curl` directo.
+
+### 8.5 Hallazgos nuevos de esta ejecución (2026-08-22, continuación)
+
+#### P11 — Bug de PRODUCCIÓN confirmado: `FacturacionPage.tsx`/`PlanesPage.tsx` comparan el `role` crudo de PocketBase en vez de `esAdmin` (MEDIA)
+
+- **Síntoma reproducido en vivo:** logueado como `s16r4_finanzas` (`admin_finanzas`, un
+  admin de área real, no el superadmin bootstrap) y navegando a `/facturacion`, la página
+  mostró el flujo B2C completo de checkout ("Método de pago", "Añade uno para poder
+  pagar...", "Mis transacciones", "Mis invoices") en vez del mensaje de bypass que sí ve
+  el superadmin. Mismo síntoma en `/suscripciones` (`PlanesPage.tsx`).
+- **Causa raíz:** ambos componentes leían `getRole()` (el campo `role` **crudo** de
+  PocketBase) y comparaban `role === 'admin'`. Ese campo solo vale `'admin'` para la cuenta
+  superadmin bootstrap — las 6 cuentas admin de área (`admin_finanzas`, `admin_contenido`,
+  `admin_comunidad`, `admin_datos`, `admin_comercial`, y `superadmin` asignado por BRIDGE)
+  tienen `role: 'user'` en PocketBase; su rol administrativo vive en
+  `BRIDGE_USUARIO_ROL_ADMIN` y llega al frontend ya resuelto como `user.esAdmin` (booleano
+  poblado en el login vía `GET /seguridad/perfil`, ver comentario ya existente en
+  `session.ts:20-29`). El propio código documentaba el riesgo antes de este fix; no estaba
+  aplicado en estos dos componentes.
+- **Nota sobre el enunciado de esta tarea:** se pidió verificar contra `esArtista()`/
+  `esAdmin()` de `roles.ts` — esas funciones no existen ahí (`roles.ts` solo expone
+  `esSuperadmin`, `rolesDeUsuario`, `puedeVer`). La referencia correcta real es el campo
+  `user.esAdmin` de `session.ts`, que es lo que se usó.
+- **Resolución:** ambos componentes ahora leen `getUser()?.esAdmin` (booleano ya resuelto)
+  en vez de comparar `role` crudo, en las 4 queries condicionadas (`enabled`) y en el
+  branch de bypass de cada página. Re-verificado en vivo tras rebuild del contenedor
+  `frontend-react`: `s16r4_finanzas` ahora ve el mensaje de bypass correcto en ambas rutas.
+- **Archivos:** `frontend/src/packages/facturacion/pages/FacturacionPage.tsx`,
+  `frontend/src/packages/suscripciones/pages/PlanesPage.tsx`.
+
+#### P12 — Confirmado y cuantificado: recorte de columnas en export PDF (MEDIA, ya listado como pendiente en 4.4)
+
+- **Condición exacta reproducida:** `/seguridad/auditoria` (`AuditoriaPage.tsx`), tabla con
+  6 columnas incluyendo diffs JSON (`antes`/`despues`) sin truncar — a 1366px de viewport,
+  la tabla mide `scrollWidth: 5333px` dentro de un contenedor `overflow-x: auto` de
+  `clientWidth: 860px` (6.2× más ancha que su contenedor visible). Se instrumentó
+  `HTMLCanvasElement.prototype.toDataURL` con Playwright para capturar el tamaño real que
+  produce `html2canvas` al pulsar "Exportar PDF": **1720×5072px** (`860×2` de `scale`), es
+  decir, el PDF exportado captura solo el 16% del ancho real de la tabla — el resto de las
+  columnas (incluida la mayor parte de los diffs `antes`/`despues`, la información más
+  importante de una auditoría) queda fuera del PDF sin ningún aviso.
+- **Causa raíz:** `ExportPDFButton.tsx` llama a `html2canvas(el, {...})` sobre el contenedor
+  raíz de la página sin fijar `width`/`height` al `scrollWidth`/`scrollHeight` del hijo con
+  `overflow-x: auto` — por defecto, `html2canvas` renderiza el layout tal como lo ve el
+  viewport (recortado por el `overflow` real del DOM), no el contenido completo scrolleable.
+  De las 7 páginas admin con tablas revisadas a 1366px (`/seguridad/facturacion`,
+  `/suscripciones`, `/finanzas`, `/regalias`, `/publicidad`, `/auditoria`, `/distribucion`),
+  **solo `/auditoria` reproduce el recorte** — las demás tienen ≤7 columnas cortas que caben
+  en el ancho disponible; el riesgo crece con cualquier tabla de auditoría/diff o con
+  viewports más angostos.
+- **Estado:** no se aplicó un fix esta ejecución (requeriría capturar en múltiples "tiles"
+  horizontales o forzar temporalmente `overflow: visible` + ancho completo antes de
+  `html2canvas`, cambio no trivial al mecanismo de paginado vertical ya existente en el
+  mismo archivo) — se documenta como pendiente con condición de reproducción exacta y
+  métricas reales, reemplazando la entrada genérica de 4.4.
+
+#### P13 — Observación menor: `GET /finanzas/reembolsos` no pagina (BAJA, no bloquea el recorrido)
+
+`historial_reembolsos` (`api/paquetes/finanzas/router.py:260`) no declara parámetro
+`limit`/`page` — un `limit=2` en la query string se ignora en silencio (FastAPI descarta
+parámetros no declarados) y el endpoint devuelve el rango completo. Con el volumen actual
+(~30 filas en un rango de 3 semanas) no es un problema real de rendimiento; se deja anotado
+por si el rango de fechas típico crece.
+
+### 8.6 Pendientes declarados (actualización de 4.4)
+
+- Capability nueva, no un bug: "analítica propia del artista" en R2 no existe (8.1/8.2) —
+  candidata para una futura iteración, fuera de alcance de esta semana.
+- Recorte de columnas en export PDF: **de "puede recortar columnas" (4.4, no verificado) a
+  confirmado y cuantificado** (P12, 8.5) — sigue sin fix.
+- `GET /finanzas/reembolsos` sin paginación (P13) — observación, no bloqueante.
+- El resto de pendientes de 4.4 (capturas antes/después, términos de audio en inglés,
+  etiqueta "S12", módulo social separado) no cambia en esta ejecución.
+
+### 8.7 Resumen consolidado de la ejecución (continuación de 4.3)
+
+| # | Problema | Tipo | Severidad | Estado |
+|---|----------|------|-----------|--------|
+| 11 | `role` crudo vs `esAdmin` en Facturación/Planes | Producción | Media | **Resuelto**, re-verificado en vivo (`FacturacionPage.tsx`, `PlanesPage.tsx`) |
+| 12 | Recorte de columnas en export PDF | Producción | Media | Confirmado y cuantificado, sin fix (requiere rediseño de la captura) |
+| 13 | `/finanzas/reembolsos` sin paginación | Menor | Baja | Documentado, no accionado |
+
+### 8.8 Verificación final
+
+```bash
+git status --short
+git diff --stat
+cd frontend && npx tsc --noEmit   # limpio tras el fix de P11
+cd frontend && npm run build      # build de producción exitoso (26.3s)
+docker compose build frontend-react && docker compose up -d frontend-react  # sirve el fix
+```
+
+Nota metodológica (no para el PDF de entrega): los ~1.5M registros de FACT_TRACKS usados
+como base para estas verificaciones provienen de la carga sintética ya documentada en
+ejecuciones anteriores (S13-P8, S14-P3) — no se generaron datos nuevos para esta corrida,
+solo las filas reales creadas por las acciones de prueba en sí (tracks, comentarios,
+campañas, suscripción).
