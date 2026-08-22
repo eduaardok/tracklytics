@@ -184,7 +184,7 @@ export function TrackSocialPage() {
               >
                 <div className={styles.commentHeader}>
                   <Link to={`/usuarios/${c.usuario_id}`} className={styles.commentAuthor}>
-                    Usuario {c.usuario_id.slice(0, 6)}
+                    {c.usuario_nombre || `Usuario ${c.usuario_id.slice(0, 6)}`}
                   </Link>
                   <span className={styles.commentDate}>{fmtDate(c.fecha_creacion)}</span>
                 </div>

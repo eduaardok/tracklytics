@@ -122,6 +122,7 @@ LIMIT {limit:UInt32}
 _COMENTARIO_COLS = """
     c.fact_id             AS fact_id,
     c.usuario_id          AS usuario_id,
+    u.nombre              AS usuario_nombre,
     c.fact_id_track       AS fact_id_track,
     ft.track_name         AS track_name,
     a.name                AS artist_name,
@@ -151,6 +152,7 @@ FROM FACT_COMENTARIO c
 LEFT JOIN FACT_COMENTARIO p ON c.comentario_padre_id = p.fact_id
 LEFT JOIN FACT_TRACKS ft ON c.fact_id_track = ft.fact_id
 LEFT JOIN DIM_ARTISTS a ON ft.artist_id = a.artist_id
+LEFT JOIN DIM_USUARIO u ON c.usuario_id = u.usuario_id
 WHERE c.fact_id_track = {{fact_id_track:UInt64}}
   AND c.estado_moderacion != 'eliminado'
   AND (c.comentario_padre_id IS NULL OR p.estado_moderacion != 'eliminado')
@@ -215,6 +217,7 @@ def comentarios_admin_sql(where: str) -> str:
     FROM FACT_COMENTARIO c
     LEFT JOIN FACT_TRACKS ft ON c.fact_id_track = ft.fact_id
     LEFT JOIN DIM_ARTISTS a ON ft.artist_id = a.artist_id
+    LEFT JOIN DIM_USUARIO u ON c.usuario_id = u.usuario_id
     {where}
     ORDER BY c.fecha_creacion DESC
     LIMIT {{limit:UInt32}} OFFSET {{offset:UInt32}}

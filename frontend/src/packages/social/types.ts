@@ -14,6 +14,7 @@ export type ArtistaSeguido = {
 export type Comentario = {
   fact_id:              number
   usuario_id:           string
+  usuario_nombre:       string | null
   fact_id_track:        number
   track_name:           string | null
   artist_name:          string | null
