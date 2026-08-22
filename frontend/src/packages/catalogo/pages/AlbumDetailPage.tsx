@@ -50,13 +50,17 @@ export function AlbumDetailPage() {
   }
 
   const tracks = tracksRes?.data ?? []
+  // Contenedor auto-creado por `_resolver_album_id` (api/paquetes/creadores/
+  // promocion.py) para un track subido sin álbum explícito — ya viene con
+  // `album_type: 'Single'` real desde el backend, no hace falta inferirlo.
+  const esSencillo = album.album_type === 'Single' && album.release_year === 0
 
   return (
     <section>
       <div className={styles.hero}>
         <AlbumArt src={album.imagen_url} alt="" size={96} />
         <div className={styles.heroMeta}>
-          <span className={styles.heroType}>Álbum</span>
+          <span className={styles.heroType}>{esSencillo ? 'Sencillo' : 'Álbum'}</span>
           <h1 className={styles.heroName}>{album.name}</h1>
           <div className={styles.heroSub}>
             {/* `release_year && <span>` renderiza un "0" suelto sin etiqueta
@@ -94,9 +98,9 @@ export function AlbumDetailPage() {
       {loadingTracks ? (
         <p className={styles.loading}>// cargando…</p>
       ) : tracks.length === 0 ? (
-        <EmptyState icon={<Disc3 size={22} aria-hidden="true" />} title="Sin canciones registradas para esta playlist." />
+        <EmptyState icon={<Disc3 size={22} aria-hidden="true" />} title="Sin canciones registradas para este álbum." />
       ) : (
-        <ul className={styles.trackList} aria-label="Canciones de la playlist">
+        <ul className={styles.trackList} aria-label="Canciones del álbum">
           {tracks.map((track: Track, i: number) => (
             <li key={`${track.fact_id}-${track.track_id}`}>
               <TrackCard track={track} position={i + 1} queue={tracks} />
