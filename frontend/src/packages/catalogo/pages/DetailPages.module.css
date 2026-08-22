@@ -219,54 +219,8 @@
   color: var(--color-muted);
 }
 
-/* Badge ⓘ con tooltip (InfoHint) — visible al hover o foco por teclado. */
-.infoHint {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  cursor: help;
-  color: var(--color-muted);
-}
-
-.infoHint:hover, .infoHint:focus-visible { color: var(--color-ink); }
-
-.infoHint:focus-visible {
-  outline: 2px solid var(--color-primary);
-  outline-offset: 1px;
-  border-radius: var(--radius-sm);
-}
-
-.infoTooltip {
-  position: absolute;
-  bottom: calc(100% + 8px);
-  left: 50%;
-  transform: translateX(-50%) translateY(2px);
-  width: max-content;
-  max-width: 230px;
-  padding: 8px 10px;
-  background: var(--color-surface-raised);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  box-shadow: var(--shadow-card);
-  font-family: var(--font-sans);
-  font-size: 0.6875rem;
-  font-weight: 400;
-  line-height: 1.45;
-  text-align: left;
-  text-transform: none;
-  letter-spacing: normal;
-  color: var(--color-ink);
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity var(--duration-fast) var(--ease-standard), transform var(--duration-fast) var(--ease-standard);
-  z-index: 10;
-}
-
-.infoHint:hover .infoTooltip,
-.infoHint:focus-visible .infoTooltip {
-  opacity: 1;
-  transform: translateX(-50%) translateY(0);
-}
+/* Badge ⓘ con tooltip (InfoHint) — promovido a @shared/components/InfoHint
+   (InfoHint.module.css) en S16 para reutilizar el patrón en todo el frontend. */
 
 .attrValue {
   font-family: var(--font-sans);
@@ -315,15 +269,6 @@
   font-size: 0.8125rem;
   font-weight: 500;
   color: var(--color-ink);
-}
-
-.featureDesc {
-  display: block;
-  font-family: var(--font-sans);
-  font-size: 0.6875rem;
-  font-weight: 400;
-  color: var(--color-muted);
-  margin-top: 1px;
 }
 
 .featureTrack {

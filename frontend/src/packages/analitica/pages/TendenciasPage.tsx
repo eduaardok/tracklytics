@@ -183,12 +183,12 @@ export function TendenciasPage() {
             seriesLabel="Popularidad"
           />
           <TrendPanel
-            title="Energy promedio"
+            title="Energía (Energy) promedio"
             data={data}
             dataKey="avg_energy"
             domain={[0, 1]}
             formatValue={(n) => n.toFixed(2)}
-            seriesLabel="Energy"
+            seriesLabel="Energía"
           />
         </div>
       )}

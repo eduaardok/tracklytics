@@ -20,13 +20,13 @@ const fmtDec = (n: number | null, d = 4) => n == null ? '—' : n.toFixed(d)
 const DIFF_ROWS: Array<{ label: string; get: (a: ArtistAudioStats) => number | null; fmt: (n: number | null) => string }> = [
   { label: 'Tracks',           get: (a) => a.track_count,          fmt },
   { label: 'Popularidad',      get: (a) => a.avg_popularity,       fmt: (n) => n == null ? '—' : n.toFixed(2) },
-  { label: 'Danceability',     get: (a) => a.avg_danceability,     fmt: fmtDec },
-  { label: 'Energy',           get: (a) => a.avg_energy,           fmt: fmtDec },
-  { label: 'Speechiness',      get: (a) => a.avg_speechiness,      fmt: fmtDec },
-  { label: 'Acousticness',     get: (a) => a.avg_acousticness,     fmt: fmtDec },
-  { label: 'Instrumentalness', get: (a) => a.avg_instrumentalness, fmt: fmtDec },
-  { label: 'Liveness',         get: (a) => a.avg_liveness,         fmt: fmtDec },
-  { label: 'Valence',          get: (a) => a.avg_valence,          fmt: fmtDec },
+  { label: 'Baile (Danceability)',            get: (a) => a.avg_danceability,     fmt: fmtDec },
+  { label: 'Energía (Energy)',                get: (a) => a.avg_energy,           fmt: fmtDec },
+  { label: 'Habla (Speechiness)',             get: (a) => a.avg_speechiness,      fmt: fmtDec },
+  { label: 'Acústica (Acousticness)',         get: (a) => a.avg_acousticness,     fmt: fmtDec },
+  { label: 'Instrumental (Instrumentalness)', get: (a) => a.avg_instrumentalness, fmt: fmtDec },
+  { label: 'En vivo (Liveness)',              get: (a) => a.avg_liveness,         fmt: fmtDec },
+  { label: 'Valencia (Valence)',              get: (a) => a.avg_valence,          fmt: fmtDec },
   { label: 'Explícitos',       get: (a) => a.explicit_count,       fmt },
 ]
 

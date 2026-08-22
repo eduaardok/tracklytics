@@ -8,6 +8,7 @@ import { AlbumArt } from '@shared/components/AlbumArt'
 import { ErrorState } from '@shared/components/ErrorState'
 import { EmptyState } from '@shared/components/EmptyState'
 import { SkeletonLoader } from '@shared/components/SkeletonLoader'
+import { InfoHint } from '@shared/components/InfoHint'
 import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { apiErrorMessage, ApiError } from '@shared/lib/api-client'
 import { isAuthenticated } from '@shared/lib/session'
@@ -200,21 +201,36 @@ export function ArtistDetailPage() {
 
       {shareResult && <div className={styles.shareResult}>{shareResult}</div>}
 
+      {/* Glosario coherente con el detalle de canción (S16): español +
+          término original entre paréntesis + ⓘ descriptivo. Los valores son
+          promedios del catálogo del artista. */}
       <div className={styles.attrGrid}>
         <div className={styles.attrCard}>
-          <div className={styles.attrLabel}>Popularidad</div>
+          <div className={styles.attrLabel}>
+            Popularidad (Score)
+            <InfoHint text="Promedio de popularidad de sus canciones: reproducciones, «me gusta» y reacciones, de 0 a 100." />
+          </div>
           <div className={styles.attrValue}>{artist.avg_popularity ?? '—'}</div>
         </div>
         <div className={styles.attrCard}>
-          <div className={styles.attrLabel}>Energía</div>
+          <div className={styles.attrLabel}>
+            Energía (Energy)
+            <InfoHint text="Intensidad y actividad percibida promedio de sus canciones." />
+          </div>
           <div className={styles.attrValue}>{artist.avg_energy ?? '—'}</div>
         </div>
         <div className={styles.attrCard}>
-          <div className={styles.attrLabel}>Baile</div>
+          <div className={styles.attrLabel}>
+            Baile (Danceability)
+            <InfoHint text="Qué tan bailable es su música en promedio." />
+          </div>
           <div className={styles.attrValue}>{artist.avg_danceability ?? '—'}</div>
         </div>
         <div className={styles.attrCard}>
-          <div className={styles.attrLabel}>Valencia</div>
+          <div className={styles.attrLabel}>
+            Valencia (Valence)
+            <InfoHint text="Positividad emocional promedio del sonido." />
+          </div>
           <div className={styles.attrValue}>{artist.avg_valence ?? '—'}</div>
         </div>
       </div>

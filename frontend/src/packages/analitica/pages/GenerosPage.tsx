@@ -87,19 +87,19 @@ export function GenerosPage() {
               <dd className={styles.kvValue}>{fmt(perfil.track_count)}</dd>
               <dt className={styles.kvLabel}>Tempo promedio</dt>
               <dd className={styles.kvValue}>{fmtDec(perfil.avg_tempo)} bpm</dd>
-              <dt className={styles.kvLabel}>Danceability</dt>
+              <dt className={styles.kvLabel}>Baile (Danceability)</dt>
               <dd className={styles.kvValue}>{fmtDec(perfil.danceability)}</dd>
-              <dt className={styles.kvLabel}>Energy</dt>
+              <dt className={styles.kvLabel}>Energía (Energy)</dt>
               <dd className={styles.kvValue}>{fmtDec(perfil.energy)}</dd>
-              <dt className={styles.kvLabel}>Valence</dt>
+              <dt className={styles.kvLabel}>Valencia (Valence)</dt>
               <dd className={styles.kvValue}>{fmtDec(perfil.valence)}</dd>
-              <dt className={styles.kvLabel}>Acousticness</dt>
+              <dt className={styles.kvLabel}>Acústica (Acousticness)</dt>
               <dd className={styles.kvValue}>{fmtDec(perfil.acousticness)}</dd>
-              <dt className={styles.kvLabel}>Speechiness</dt>
+              <dt className={styles.kvLabel}>Habla (Speechiness)</dt>
               <dd className={styles.kvValue}>{fmtDec(perfil.speechiness)}</dd>
-              <dt className={styles.kvLabel}>Instrumentalness</dt>
+              <dt className={styles.kvLabel}>Instrumental (Instrumentalness)</dt>
               <dd className={styles.kvValue}>{fmtDec(perfil.instrumentalness)}</dd>
-              <dt className={styles.kvLabel}>Liveness</dt>
+              <dt className={styles.kvLabel}>En vivo (Liveness)</dt>
               <dd className={styles.kvValue}>{fmtDec(perfil.liveness)}</dd>
             </dl>
           </div>

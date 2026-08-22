@@ -140,9 +140,9 @@ export function DashboardPage() {
           <p className={styles.sectionLabel}>Audio promedio</p>
           <div className={styles.kpiSubGrid}>
             <KPICard title="Popularidad" value={fmtDec(audio.avg_popularity, 2)} icon={Gauge} />
-            <KPICard title="Energy" value={fmtDec(audio.avg_energy)} icon={Zap} />
-            <KPICard title="Danceability" value={fmtDec(audio.avg_danceability)} icon={Music4} />
-            <KPICard title="Valence" value={fmtDec(audio.avg_valence)} icon={Smile} />
+            <KPICard title="Energía (Energy)" value={fmtDec(audio.avg_energy)} icon={Zap} />
+            <KPICard title="Baile (Danceability)" value={fmtDec(audio.avg_danceability)} icon={Music4} />
+            <KPICard title="Valencia (Valence)" value={fmtDec(audio.avg_valence)} icon={Smile} />
             <KPICard title="Tempo" value={`${fmtDec(audio.avg_tempo, 2)} bpm`} icon={Timer} />
           </div>
         </div>

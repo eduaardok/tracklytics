@@ -1,11 +1,12 @@
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { ArrowLeft, Heart, Info, ListPlus, Lock, MessageSquare, Play, ThumbsDown, ThumbsUp } from 'lucide-react'
+import { ArrowLeft, Heart, ListPlus, Lock, MessageSquare, Play, ThumbsDown, ThumbsUp } from 'lucide-react'
 import { catalogoApi } from '../api/catalogo.api'
 import { usePlayer } from '@shared/context/PlayerContext'
 import { AlbumArt } from '@shared/components/AlbumArt'
 import { TrackName, FeaturingCaption } from '@shared/components/TrackName'
 import { ErrorState } from '@shared/components/ErrorState'
+import { InfoHint } from '@shared/components/InfoHint'
 import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { ApiError, apiClient, apiErrorMessage } from '@shared/lib/api-client'
 import { useFavoritos } from '../hooks/useFavoritos'
@@ -22,30 +23,21 @@ function formatDuration(ms: number): string {
   return `${m}:${s.toString().padStart(2, '0')}`
 }
 
-function FeatureBar({ label, desc, value }: { label: string; desc: string; value: number }) {
+function FeatureBar({ label, hint, value }: { label: string; hint: string; value: number }) {
   const pct = Math.round(value * 100)
   return (
     <div className={styles.featureBar}>
       <span className={styles.featureLabel}>
         {label}
-        <span className={styles.featureDesc}>{desc}</span>
+        {/* Mismo patrón que las Métricas: ⓘ con tooltip en vez de la
+            descripción siempre visible (S16 — coherencia de glosario). */}
+        <InfoHint text={hint} />
       </span>
       <div className={styles.featureTrack}>
         <div className={styles.featureFill} style={{ width: `${pct}%` }} />
       </div>
       <span className={styles.featureValue}>{pct}%</span>
     </div>
-  )
-}
-
-// Badge "ⓘ" con tooltip al hover/foco — explica la métrica sin ocupar lugar
-// en la card (feedback: Score/Tempo/Loudness no se explicaban solos).
-function InfoHint({ text }: { text: string }) {
-  return (
-    <span className={styles.infoHint} tabIndex={0} aria-label={text}>
-      <Info size={12} aria-hidden="true" />
-      <span className={styles.infoTooltip} role="tooltip">{text}</span>
-    </span>
   )
 }
 
@@ -232,16 +224,19 @@ export function TrackDetailPage() {
         </div>
       </div>
 
+      {/* Glosario coherente (S16): etiqueta en español + término original
+          entre paréntesis + ⓘ con la descripción — mismos nombres que el
+          perfil del artista (Baile, Energía, Valencia). */}
       <h2 className={styles.sectionTitle}>Características de audio</h2>
       {planLoading ? null : esPremium && audioFeatures ? (
         <div className={styles.featureBars}>
-          <FeatureBar label="Danceability"     desc="Qué tan bailable es la canción"          value={audioFeatures.danceability} />
-          <FeatureBar label="Energy"           desc="Intensidad y actividad percibida"        value={audioFeatures.energy} />
-          <FeatureBar label="Valence"          desc="Positividad emocional del sonido"        value={audioFeatures.valence} />
-          <FeatureBar label="Acousticness"     desc="Probabilidad de ser acústica"            value={audioFeatures.acousticness} />
-          <FeatureBar label="Speechiness"      desc="Presencia de palabras habladas"          value={audioFeatures.speechiness} />
-          <FeatureBar label="Instrumentalness" desc="Ausencia de voz (más = instrumental)"    value={audioFeatures.instrumentalness} />
-          <FeatureBar label="Liveness"         desc="Probabilidad de ser en vivo"              value={audioFeatures.liveness} />
+          <FeatureBar label="Baile (Danceability)"         hint="Qué tan bailable es la canción"       value={audioFeatures.danceability} />
+          <FeatureBar label="Energía (Energy)"             hint="Intensidad y actividad percibida"     value={audioFeatures.energy} />
+          <FeatureBar label="Valencia (Valence)"           hint="Positividad emocional del sonido"     value={audioFeatures.valence} />
+          <FeatureBar label="Acústica (Acousticness)"      hint="Probabilidad de ser acústica"         value={audioFeatures.acousticness} />
+          <FeatureBar label="Habla (Speechiness)"          hint="Presencia de palabras habladas"       value={audioFeatures.speechiness} />
+          <FeatureBar label="Instrumental (Instrumentalness)" hint="Ausencia de voz (más = instrumental)" value={audioFeatures.instrumentalness} />
+          <FeatureBar label="En vivo (Liveness)"           hint="Probabilidad de ser una grabación en vivo" value={audioFeatures.liveness} />
         </div>
       ) : (
         <div className={styles.paywall}>

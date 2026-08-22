@@ -287,7 +287,7 @@ function CancionesSection({ genre, onToggleGenre }: CancionesProps) {
               />
             </label>
             <label className={styles.advancedFilterField}>
-              Energy mínima
+              Energía mínima (Energy)
               <input
                 type="number" min={0} max={1} step={0.1} placeholder="0–1"
                 value={energyMin}
