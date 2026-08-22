@@ -5,12 +5,13 @@ que no hay una convención previa que igualar; se usa pytest estándar,
 conectando directo contra el ClickHouse real de desarrollo (mismo patrón que
 `init_clickhouse.py`: variables de entorno `CLICKHOUSE_*`, sin mocks) porque
 las queries de `finanzas` son el objeto bajo prueba, no la conectividad."""
+import functools
 import uuid
 from datetime import date, datetime, timedelta
 
 import pytest
 
-from core.database import execute, get_client
+from core.database import execute, get_client, query_one
 
 
 @pytest.fixture(scope="session")
@@ -89,10 +90,60 @@ def campana_con_ingreso():
     return _crear
 
 
+# Tablas que las pruebas insertan/consultan por fecha — una fecha candidata
+# solo sirve como rango aislado si NO tiene filas preexistentes en ninguna de
+# estas tablas (la carga sintética S12 ocupa fechas reales del calendario, así
+# que "lejano en el pasado" ya no garantiza vacío).
+_TABLAS_A_ISOLAR = (
+    ("FACT_TRANSACCION_PAGO", "fecha"),
+    ("FACT_INGRESO_PUBLICITARIO", "fecha"),
+    ("FACT_LIQUIDACION_REGALIA", "fecha_calculo"),
+    ("FACT_GASTO_OPERATIVO", "fecha"),
+    ("FACT_REEMBOLSO", "fecha"),
+)
+
+
+@functools.lru_cache(maxsize=1)
+def _horizonte_datos() -> date:
+    """Última fecha con datos en las tablas aislables (cacheada por sesión).
+
+    La carga sintética S12 ocupa casi todo el calendario histórico, así que
+    buscar días vacíos hacia atrás es infructuoso: los rangos aislados deben
+    vivir DESPUÉS del último dato cargado."""
+    maximo = date.today()
+    for tabla, columna in _TABLAS_A_ISOLAR:
+        val = ((query_one(f"SELECT max(toDate({columna})) AS m FROM {tabla}") or {}).get("m"))
+        if val and val > maximo:
+            maximo = val
+    return maximo
+
+
 @pytest.fixture
 def rango_unico():
-    """Genera un rango de fechas [desde, hasta) único y lejano en el pasado
-    para que cada test de dashboard/indicadores/reporte no vea datos de
-    otros tests corridos en la misma base compartida."""
-    base = date(2021, 1, 1) + timedelta(days=(uuid.uuid4().int % 3000))
-    return base, base + timedelta(days=1)
+    """Genera un rango de fechas [desde, hasta) único Y verificado vacío,
+    para que cada test de dashboard/indicadores/reporte no vea datos ni de
+    otros tests ni de la carga sintética que comparte la misma base.
+
+    La ventana libre incluye los 12 días ANTERIORES al rango: los tests
+    colocan ventanas auxiliares dentro de ella (comparación de dashboard en
+    d-10/d-9, periodo previo de caída de ingreso en d-1) y las alertas de
+    caída comparan contra el periodo inmediatamente anterior — todo eso debe
+    estar libre de datos ajenos."""
+    base = _horizonte_datos() + timedelta(days=14)
+    ini_ventana = base - timedelta(days=12)
+    fin_ventana = base + timedelta(days=1)
+    for _ in range(120):
+        ocupado = any(
+            int((query_one(
+                f"SELECT count() AS n FROM {tabla} "
+                f"WHERE toDate({columna}) >= {{ini:Date}} AND toDate({columna}) < {{fin:Date}}",
+                {"ini": ini_ventana, "fin": fin_ventana},
+            ) or {}).get("n") or 0) > 0
+            for tabla, columna in _TABLAS_A_ISOLAR
+        )
+        if not ocupado:
+            return base, base + timedelta(days=1)
+        base += timedelta(days=1)
+        ini_ventana += timedelta(days=1)
+        fin_ventana += timedelta(days=1)
+    pytest.fail("No se encontró un día sin datos previos para aislar la prueba")
