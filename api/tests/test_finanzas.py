@@ -19,6 +19,7 @@ from datetime import date, datetime, timedelta
 
 import pytest
 from fastapi import HTTPException
+from pydantic import ValidationError
 
 from core.database import get_client, query_one, query_rows
 from paquetes.finanzas import router as finanzas_router
@@ -65,7 +66,7 @@ def test_gasto_crear_listar_editar_anular_excluido_de_rango(admin):
     ) or {}).get("total") or 0)
     assert antes_total >= 100.0
 
-    editado = editar_gasto(gasto_id, GastoBody(concepto="Servidor mensual v2", categoria="infraestructura", monto=150.0, fecha=fecha, descripcion="AWS actualizado"), admin)
+    editado = editar_gasto(GastoBody(concepto="Servidor mensual v2", categoria="infraestructura", monto=150.0, fecha=fecha, descripcion="AWS actualizado"), gasto_id, admin)
     assert editado["monto"] == 150.0
     fila = query_one("SELECT monto, concepto FROM FACT_GASTO_OPERATIVO WHERE gasto_id={id:String}", {"id": gasto_id})
     assert fila["monto"] == 150.0
@@ -84,9 +85,11 @@ def test_gasto_crear_listar_editar_anular_excluido_de_rango(admin):
 
 
 def test_gasto_monto_invalido_rechazado(admin):
-    with pytest.raises(HTTPException) as exc:
+    # La validación de borde vive en Pydantic desde la auditoría de validación
+    # (monto: Field(gt=0) en GastoBody): en llamada directa el rechazo llega
+    # como ValidationError; vía HTTP FastAPI lo traduce al mismo 422.
+    with pytest.raises(ValidationError):
         crear_gasto(GastoBody(concepto="x", categoria="otros", monto=0, fecha=date.today()), admin)
-    assert exc.value.status_code == 422
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -336,7 +339,7 @@ def test_arpu_e_indicadores_con_usuarios_activos_mockeados(admin, rango_unico, m
 def test_alerta_campana_presupuesto_agotado(admin, campana_con_ingreso, rango_unico):
     d1, d2 = rango_unico
     campana_id = campana_con_ingreso(500.0, 1.0)
-    alertas = _alertas_financieras(d1, d2, admin["record"]["id"])
+    alertas = asyncio.run(_alertas_financieras(d1, d2, admin["record"]["id"]))
     assert any(a["tipo"] == "campana_presupuesto_agotado" and a["campana_id"] == campana_id for a in alertas)
 
 
@@ -348,7 +351,7 @@ def test_alerta_factura_vencida(admin, rango_unico):
         [(invoice_id, "test-user", _uid(), 90.0, 10.0, datetime.now() - timedelta(days=40), "emitido")],
         column_names=["invoice_id", "usuario_id", "transaccion_id", "monto", "iva", "fecha_emision", "estado"],
     )
-    alertas = _alertas_financieras(d1, d2, admin["record"]["id"])
+    alertas = asyncio.run(_alertas_financieras(d1, d2, admin["record"]["id"]))
     assert any(a["tipo"] == "factura_vencida" and a["invoice_id"] == invoice_id for a in alertas)
 
 
@@ -360,7 +363,7 @@ def test_alerta_retiro_pendiente(admin, rango_unico):
         [(retiro_id, "sello", _uid(), 25.0, "pendiente")],
         column_names=["retiro_id", "tipo_rightsholder", "rightsholder_id", "monto", "estado"],
     )
-    alertas = _alertas_financieras(d1, d2, admin["record"]["id"])
+    alertas = asyncio.run(_alertas_financieras(d1, d2, admin["record"]["id"]))
     assert any(a["tipo"] == "retiro_regalia_pendiente" and a["retiro_id"] == retiro_id for a in alertas)
 
 
@@ -374,7 +377,7 @@ def test_alerta_regalias_sin_retiro(admin, rango_unico):
         column_names=["liquidacion_id", "contrato_id", "fact_id_track", "tipo_rightsholder", "rightsholder_id",
                        "periodo_inicio", "periodo_fin", "streams_periodo", "monto", "moneda", "fecha_calculo"],
     )
-    alertas = _alertas_financieras(d1, d2, admin["record"]["id"])
+    alertas = asyncio.run(_alertas_financieras(d1, d2, admin["record"]["id"]))
     assert any(a["tipo"] == "regalias_sin_retiro" and a["rightsholder_id"] == rightsholder_id for a in alertas)
 
 
@@ -382,7 +385,7 @@ def test_alerta_gasto_mayor_a_ingreso(admin, rango_unico):
     d1, d2 = rango_unico
     crear_gasto(GastoBody(concepto="Sobregasto", categoria="otros", monto=500.0, fecha=d1), admin)
     # Sin ingreso alguno insertado en este rango.
-    alertas = _alertas_financieras(d1, d2, admin["record"]["id"])
+    alertas = asyncio.run(_alertas_financieras(d1, d2, admin["record"]["id"]))
     assert any(a["tipo"] == "gasto_mayor_a_ingreso" for a in alertas)
 
 
@@ -391,7 +394,7 @@ def test_alerta_caida_de_ingreso(admin, rango_unico):
     d1_prev, d2_prev = d1 - timedelta(days=1), d1
     _insertar_ingreso_periodo(d1_prev, monto_suscripcion=1000.0, monto_ads=0, monto_regalias=0)
     _insertar_ingreso_periodo(d1, monto_suscripcion=100.0, monto_ads=0, monto_regalias=0)
-    alertas = _alertas_financieras(d1, d2, admin["record"]["id"])
+    alertas = asyncio.run(_alertas_financieras(d1, d2, admin["record"]["id"]))
     assert any(a["tipo"] == "caida_ingreso" for a in alertas)
 
 
@@ -411,7 +414,7 @@ def test_alerta_reembolso_elevado(admin, rango_unico, transaccion_exitosa):
         [(reembolso_id, transaccion_id, monto_alto, "total", "elevado", fecha_dt, admin["record"]["id"], "procesado")],
         column_names=["reembolso_id", "transaccion_id", "monto", "tipo", "motivo", "fecha", "responsable_id", "estado"],
     )
-    alertas = _alertas_financieras(d1, d2, admin["record"]["id"])
+    alertas = asyncio.run(_alertas_financieras(d1, d2, admin["record"]["id"]))
     assert any(a["tipo"] == "reembolso_elevado" and a["reembolso_id"] == reembolso_id for a in alertas)
 
 
@@ -425,7 +428,7 @@ def test_alertas_periodo_scoped_vacias_sin_condiciones(admin, rango_unico):
     reembolso elevado) no se disparan — cobertura parcial del escenario
     "Sin condiciones de alerta" de spec.md."""
     d1, d2 = rango_unico
-    alertas = _alertas_financieras(d1, d2, admin["record"]["id"])
+    alertas = asyncio.run(_alertas_financieras(d1, d2, admin["record"]["id"]))
     tipos_period_scoped = {"gasto_mayor_a_ingreso", "caida_ingreso", "reembolso_elevado"}
     assert not any(a["tipo"] in tipos_period_scoped for a in alertas)
 
