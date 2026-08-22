@@ -141,10 +141,10 @@ WHERE periodo_inicio = {inicio:Date} AND periodo_fin = {fin:Date}
 SALDO_DISPONIBLE_RIGHTSHOLDER = """
 SELECT
     (SELECT coalesce(sum(monto), 0) FROM FACT_LIQUIDACION_REGALIA
-     WHERE tipo_rightsholder = {tipo:String} AND rightsholder_id = {rightsholder_id:String})
+     WHERE toString(tipo_rightsholder) = {tipo:String} AND rightsholder_id = {rightsholder_id:String})
     -
     (SELECT coalesce(sum(monto), 0) FROM FACT_RETIRO_REGALIA
-     WHERE tipo_rightsholder = {tipo:String} AND rightsholder_id = {rightsholder_id:String}
+     WHERE toString(tipo_rightsholder) = {tipo:String} AND rightsholder_id = {rightsholder_id:String}
        AND estado IN ('pendiente', 'procesado'))
     AS saldo_disponible
 """
@@ -152,7 +152,7 @@ SELECT
 RETIROS_POR_RIGHTSHOLDER = """
 SELECT retiro_id, tipo_rightsholder, rightsholder_id, monto, estado, fecha_solicitud, fecha_procesado
 FROM FACT_RETIRO_REGALIA
-WHERE tipo_rightsholder = {tipo:String} AND rightsholder_id = {rightsholder_id:String}
+WHERE toString(tipo_rightsholder) = {tipo:String} AND rightsholder_id = {rightsholder_id:String}
 ORDER BY fecha_solicitud DESC
 """
 
