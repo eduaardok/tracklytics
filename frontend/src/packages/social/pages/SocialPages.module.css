@@ -67,6 +67,15 @@
   margin-top: 2px;
 }
 
+/* S16 F1: enlaces de vuelta al catálogo desde el hilo — heredan la
+   tipografía del subject y solo subrayan al hover/foco. */
+.subjectLink {
+  color: inherit;
+  text-decoration: none;
+}
+.subjectLink:hover { text-decoration: underline; text-underline-offset: 3px; }
+.subjectLink:focus-visible { outline: none; box-shadow: 0 0 0 2px oklch(0.48 0.15 290 / 0.5); border-radius: var(--radius-sm); }
+
 .subjectActions {
   display: flex;
   gap: var(--space-sm);

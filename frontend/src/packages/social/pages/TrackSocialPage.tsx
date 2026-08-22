@@ -101,8 +101,18 @@ export function TrackSocialPage() {
             <span className={styles.skel} style={{ width: '50%', height: 18 }} />
           ) : (
             <>
-              <span className={styles.subjectName}>{track.data?.track_name ?? `Track #${id}`}</span>
-              {track.data?.artist_name && <div className={styles.subjectMeta}>{track.data.artist_name}</div>}
+              {/* F1 (recíproco): el hilo era un callejón sin salida — track y
+                  artista eran texto plano. Ahora vuelven al catálogo. */}
+              <Link to={`/catalogo/track/${id}`} className={`${styles.subjectName} ${styles.subjectLink}`}>
+                {track.data?.track_name ?? `Track #${id}`}
+              </Link>
+              {track.data?.artist_name && (
+                <div className={styles.subjectMeta}>
+                  <Link to={`/catalogo/artista/${track.data.artist_id}`} className={styles.subjectLink}>
+                    {track.data.artist_name}
+                  </Link>
+                </div>
+              )}
             </>
           )}
         </div>

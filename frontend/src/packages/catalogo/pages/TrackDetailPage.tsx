@@ -1,13 +1,13 @@
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { ArrowLeft, Heart, Info, ListPlus, Lock, Play, ThumbsDown, ThumbsUp } from 'lucide-react'
+import { ArrowLeft, Heart, Info, ListPlus, Lock, MessageSquare, Play, ThumbsDown, ThumbsUp } from 'lucide-react'
 import { catalogoApi } from '../api/catalogo.api'
 import { usePlayer } from '@shared/context/PlayerContext'
 import { AlbumArt } from '@shared/components/AlbumArt'
 import { TrackName, FeaturingCaption } from '@shared/components/TrackName'
 import { ErrorState } from '@shared/components/ErrorState'
 import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
-import { ApiError, apiErrorMessage } from '@shared/lib/api-client'
+import { ApiError, apiClient, apiErrorMessage } from '@shared/lib/api-client'
 import { useFavoritos } from '../hooks/useFavoritos'
 import { useLikes } from '../hooks/useLikes'
 import { AddToPlaylistMenu } from '../components/AddToPlaylistMenu'
@@ -77,6 +77,21 @@ export function TrackDetailPage() {
   })
 
   useDocumentTitle(track?.track_name ?? 'Track')
+
+  // F1 (auditoría de lógica y flujos): el hilo de comentarios existía solo en
+  // /social — desde el detalle no había ni un camino hacia él. Contamos con
+  // el mismo endpoint del hilo para etiquetar "Comentarios (N)". Va por
+  // apiClient directo y no por `@packages/social` porque social ya importa a
+  // catálogo y la dependencia inversa rompería la capa (regla del proyecto).
+  // El endpoint exige sesión: sin sesión o ante error, el enlace se muestra
+  // simplemente sin número.
+  const { data: comentariosRes } = useQuery({
+    queryKey: ['social', 'comentarios', id],
+    queryFn:  () => apiClient.get<{ data: unknown[] }>(`/social/comentarios/${id}`),
+    enabled:  Number.isFinite(id) && isAuthenticated,
+    retry:    false,
+  })
+  const numComentarios = comentariosRes?.data?.length ?? null
 
   if (isLoading) return <p className={styles.loading}>// cargando…</p>
 
@@ -235,6 +250,16 @@ export function TrackDetailPage() {
           <Link to="/suscripciones" className={styles.btnPrimary}>Actualizar a Premium</Link>
         </div>
       )}
+
+      {/* F1: puerta de entrada al hilo social del track — la ruta y la UI
+          ya existían en /social/track/:factId, aquí solo se abre el enlace. */}
+      <h2 className={styles.sectionTitle}>Comentarios</h2>
+      <div>
+        <Link to={`/social/track/${track.fact_id}`} className={styles.btnGhost}>
+          <MessageSquare size={16} aria-hidden="true" style={{ verticalAlign: '-3px', marginRight: 4 }} />
+          {numComentarios != null && numComentarios > 0 ? `Ver comentarios (${numComentarios})` : 'Ver comentarios'}
+        </Link>
+      </div>
 
       <button type="button" className={styles.btnBack} style={{ marginTop: 'var(--space-xl)' }} onClick={() => navigate(-1)}>
         <ArrowLeft size={16} aria-hidden="true" />

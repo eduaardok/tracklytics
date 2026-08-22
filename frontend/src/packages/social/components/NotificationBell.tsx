@@ -55,8 +55,14 @@ export function NotificationBell() {
   function abrir(n: Notificacion) {
     if (!n.leido) marcarLeida.mutate(n.fact_id)
     setOpen(false)
-    if (n.referencia_tipo === 'track') navigate(`/catalogo/track/${n.referencia_id}`)
-    else if (n.referencia_tipo === 'playlist') navigate('/biblioteca')
+    // S16 F1: un comentario nuevo enviaba al catálogo aunque la notificación
+    // era justamente una interacción social — el destino natural es el hilo.
+    // El backend emite comentario_en_tu_contenido con referencia_tipo="track"
+    // y referencia_id = fact_id del track (api/paquetes/social/router.py),
+    // así que /social/track/:id siempre resuelve.
+    if (n.tipo === 'comentario_en_tu_contenido') navigate(`/social/track/${n.referencia_id}`)
+    else if (n.referencia_tipo === 'track') navigate(`/catalogo/track/${n.referencia_id}`)
+    else if (n.referencia_tipo === 'playlist' || n.tipo === 'nuevo_colaborador_playlist') navigate('/biblioteca')
   }
 
   return (
