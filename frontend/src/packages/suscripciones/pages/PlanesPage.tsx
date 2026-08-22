@@ -12,12 +12,11 @@ import { useConfirm } from '@shared/context/ConfirmContext'
 // una ruta B2C eager; ver comentario equivalente en router.tsx).
 import { facturacionApi } from '@packages/facturacion/api/facturacion.api'
 import type { MetodoPago } from '@packages/facturacion/types'
+import { FormMetodoPago } from '@packages/facturacion/components/FormMetodoPago'
 import { suscripcionesApi } from '../api/suscripciones.api'
 import { PLAN_ACTIVO_QUERY_KEY } from '../hooks/usePlanActivo'
 import { DIAS_TRIAL_PREMIUM, type MotivoCancelacion, type Plan } from '../types'
 import styles from './PlanesPage.module.css'
-
-const TIPOS_METODO = ['Visa', 'Mastercard', 'Amex']
 
 const MOTIVOS_CANCELACION: { value: MotivoCancelacion; label: string }[] = [
   { value: 'otro',        label: 'Prefiero no decir' },
@@ -80,8 +79,6 @@ export function PlanesPage() {
 
   const [selectedPlan, setSelectedPlan]   = useState<Plan | null>(null)
   const [metodoElegidoId, setMetodoElegidoId] = useState<string | null>(null)
-  const [nuevoTipo, setNuevoTipo]         = useState(TIPOS_METODO[0])
-  const [nuevoDigitos, setNuevoDigitos]   = useState('')
   const [formError, setFormError]         = useState<string | null>(null)
   const [motivoCancelacion, setMotivoCancelacion] = useState<MotivoCancelacion>('otro')
   const [emailInstitucional, setEmailInstitucional] = useState('')
@@ -112,25 +109,6 @@ export function PlanesPage() {
     enabled:  !esAdmin,
   })
   const metodos: MetodoPago[] = metodosQuery.data?.data ?? []
-
-  const agregarMetodo = useMutation({
-    mutationFn: () => facturacionApi.registrarMetodoPago({ tipo: nuevoTipo, ultimos_4_digitos: nuevoDigitos }),
-    onSuccess: (res) => {
-      setMetodoElegidoId(res.metodo_pago_id)
-      setNuevoDigitos('')
-      setFormError(null)
-      queryClient.invalidateQueries({ queryKey: ['facturacion', 'metodos-pago'] })
-      toast.success('Método de pago agregado')
-    },
-    onError: (err: unknown) => {
-      // Antes: `err.message` crudo (ej. "API 422: Unprocessable Entity") en
-      // el banner del formulario, mientras el toast sí mostraba el mensaje
-      // real — dos textos distintos para el mismo error (auditoría S16).
-      const msg = apiErrorMessage(err, 'No se pudo agregar el método de pago.')
-      setFormError(msg)
-      toast.error(msg)
-    },
-  })
 
   const confirmar = useMutation({
     mutationFn: (body: { plan_id: string; metodo_pago_id: string | null; email_institucional?: string | null }) =>
@@ -260,7 +238,6 @@ export function PlanesPage() {
   function handleSelect(plan: Plan) {
     setSelectedPlan(plan)
     setMetodoElegidoId(null)
-    setNuevoDigitos('')
     setEmailInstitucional('')
     setFormError(null)
   }
@@ -455,30 +432,11 @@ export function PlanesPage() {
                 <span className={styles.newMethodLabel}>
                   {metodos.length > 0 ? 'O agregar un método nuevo' : 'No tienes un método de pago registrado — agrega uno para continuar'}
                 </span>
-                <select
-                  className={styles.input}
-                  value={nuevoTipo}
-                  onChange={(e) => setNuevoTipo(e.target.value)}
-                >
-                  {TIPOS_METODO.map((t) => <option key={t} value={t}>{t}</option>)}
-                </select>
-                <input
-                  className={styles.input}
-                  type="text"
-                  placeholder="Últimos 4 dígitos"
-                  maxLength={4}
-                  inputMode="numeric"
-                  value={nuevoDigitos}
-                  onChange={(e) => setNuevoDigitos(e.target.value.replace(/\D/g, ''))}
-                />
-                <button
-                  type="button"
-                  className={styles.btnGhost}
-                  disabled={agregarMetodo.isPending || !/^\d{4}$/.test(nuevoDigitos)}
-                  onClick={() => agregarMetodo.mutate()}
-                >
-                  {agregarMetodo.isPending ? 'Guardando…' : 'Guardar método'}
-                </button>
+                {/* F7: mismo formulario (y mismo rigor: Luhn, expiración, CVV,
+                    dirección fiscal) que Facturación — antes acá solo se pedía
+                    tipo + 4 dígitos para el mismo objeto DIM_METODO_PAGO. Al
+                    guardar, el método nuevo queda seleccionado. */}
+                <FormMetodoPago onRegistrado={(metodoPagoId) => setMetodoElegidoId(metodoPagoId)} />
               </div>
             </div>
           )}
