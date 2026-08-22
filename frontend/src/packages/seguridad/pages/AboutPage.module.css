@@ -34,35 +34,157 @@
   border-radius: var(--radius-md);
   padding: 8px var(--space-md);
   text-decoration: none;
+  transition: border-color var(--duration-fast) var(--ease-standard), color var(--duration-fast) var(--ease-standard);
 }
 
-/* Identidad propia (antes un fondo plano sin ningún elemento gráfico, ver
-   feedback de usuario): dos glows radiales en --color-primary/--color-accent,
-   mismo tratamiento ya usado en AuthPages.module.css — `.glow` contenido
-   dentro de `.hero` (no de toda la página) y `.heroInner` por encima con
-   `position: relative`, así el texto nunca queda debajo del degradado. */
+.btnOutline:hover { border-color: var(--color-primary); color: var(--color-primary-light); }
+
+/* ── Hero con identidad propia ──────────────────────────────────────────────
+   Antes un h1 + párrafo sobre dos glows planos (feedback: "se ve muy
+   triste"). Ahora: glows en capas (primario/acento, más presencia), ondas de
+   marca ancladas abajo (mismo motivo del login — continuidad visual entre la
+   puerta pública y la app) y banda de cifras EN VIVO del catálogo. */
 .hero {
   position: relative;
   overflow: hidden;
-  padding: 3.5rem var(--space-2xl, 3rem) 2rem;
+  padding: 4.5rem var(--space-2xl, 3rem) 5.5rem;
 }
 
-.glow {
+.glowA,
+.glowB {
   position: absolute;
   inset: 0;
-  background:
-    radial-gradient(560px 560px at 8% -20%, oklch(0.48 0.15 290 / 0.22), transparent 65%),
-    radial-gradient(480px 480px at 96% 10%, oklch(0.70 0.14 195 / 0.16), transparent 65%);
   pointer-events: none;
 }
 
-.heroInner { position: relative; max-width: 900px; }
-.hero h1 { font-size: 2.1rem; font-weight: 800; margin-bottom: var(--space-md); line-height: 1.2; }
-.hero p { color: var(--color-muted); font-size: 1.0625rem; max-width: 640px; }
+.glowA {
+  background:
+    radial-gradient(640px 640px at 10% -25%, oklch(0.48 0.15 290 / 0.28), transparent 65%),
+    radial-gradient(520px 520px at 95% -5%, oklch(0.70 0.14 195 / 0.20), transparent 65%);
+}
 
-.section { padding: var(--space-xl) var(--space-2xl, 3rem) var(--space-2xl, 3rem); max-width: 1100px; }
-.section h2 { font-size: 1.25rem; font-weight: 700; margin-bottom: var(--space-md); }
+/* Capa secundaria desplazada hacia el centro-derecho para que el degradado
+   no se sienta como una sola mancha arriba. */
+.glowB {
+  background:
+    radial-gradient(420px 420px at 55% 115%, oklch(0.48 0.15 290 / 0.12), transparent 70%);
+}
 
+.waves {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -6px;
+  width: 100%;
+  height: 90px;
+  color: var(--color-primary-light);
+  opacity: 0.16;
+  pointer-events: none;
+}
+
+.heroInner {
+  position: relative;
+  max-width: 860px;
+}
+
+.heroEyebrow {
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  letter-spacing: 0.08em;
+  color: var(--color-primary-light);
+  border: 1px solid oklch(0.48 0.15 290 / 0.35);
+  border-radius: var(--radius-pill);
+  padding: 4px 12px;
+  margin-bottom: var(--space-md);
+}
+
+.hero h1 {
+  font-size: clamp(2rem, 4.5vw, 2.9rem);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+  margin-bottom: var(--space-md);
+}
+
+/* La palabra clave lleva el gradiente de marca — un solo acento, sin más. */
+.hero h1 em {
+  font-style: normal;
+  background: var(--gradient-primary);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.hero p {
+  color: var(--color-muted);
+  font-size: 1.0625rem;
+  max-width: 620px;
+}
+
+/* ── Banda de cifras en vivo ── */
+.statsBand {
+  display: flex;
+  align-items: center;
+  gap: var(--space-lg);
+  margin-top: var(--space-xl);
+  padding: var(--space-md) var(--space-lg);
+  width: fit-content;
+  background: color-mix(in oklab, var(--color-surface) 82%, transparent);
+  backdrop-filter: blur(6px);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+}
+
+.stat dd {
+  margin: 0;
+  font-size: 1.75rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+
+.stat dt {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  letter-spacing: 0.06em;
+  color: var(--color-muted);
+}
+
+.statDivider {
+  width: 1px;
+  align-self: stretch;
+  background: var(--color-border);
+}
+
+/* ── Secciones ── */
+.section { padding: var(--space-xl) var(--space-2xl, 3rem) 0; max-width: 1100px; }
+.section h2,
+.pillarsSection h2 {
+  position: relative;
+  font-size: 1.25rem;
+  font-weight: 700;
+  margin-bottom: var(--space-lg);
+  padding-bottom: var(--space-xs);
+}
+
+/* Subrayado corto de acento bajo cada título de sección — ritmo visual sin
+   cajas ni fondos pesados. */
+.section h2::after,
+.pillarsSection h2::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 44px;
+  height: 3px;
+  border-radius: var(--radius-pill);
+  background: linear-gradient(90deg, var(--color-primary), var(--color-accent));
+}
+
+/* ── Personas ── */
 .personaGrid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
@@ -70,6 +192,7 @@
 }
 
 .personaCard {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: var(--space-sm);
@@ -77,9 +200,45 @@
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
+  overflow: hidden;
+  transition:
+    transform var(--duration-standard) var(--ease-standard),
+    border-color var(--duration-standard) var(--ease-standard),
+    box-shadow var(--duration-standard) var(--ease-standard);
 }
 
-.personaFeatured { border-color: var(--color-primary); background: var(--color-surface-raised); }
+.personaCard:hover {
+  transform: translateY(-4px);
+  border-color: var(--color-primary);
+  box-shadow: var(--shadow-card-lg);
+}
+
+.personaFeatured { border-color: var(--color-primary); }
+
+.personaIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-md);
+  margin-bottom: 2px;
+}
+
+.personaIcon[data-accent='primary'] {
+  color: var(--color-primary-light);
+  background: oklch(0.48 0.15 290 / 0.12);
+}
+
+.personaIcon[data-accent='accent'] {
+  color: var(--color-accent);
+  background: oklch(0.70 0.14 195 / 0.14);
+}
+
+.personaIcon[data-accent='neutral'] {
+  color: var(--color-muted);
+  background: var(--color-surface-raised);
+}
 
 .personaTag {
   font-family: var(--font-mono);
@@ -96,15 +255,16 @@
   align-items: center;
   font-size: 0.875rem;
   font-weight: 600;
-  color: var(--color-ink);
-  background: var(--gradient-primary);
+  color: var(--color-on-primary);
+  background: var(--color-primary);
   border: none;
   border-radius: var(--radius-md);
   padding: 9px var(--space-md);
   text-decoration: none;
   align-self: flex-start;
+  transition: filter var(--duration-fast) var(--ease-standard), transform var(--duration-fast) var(--ease-standard);
 }
-.btnPrimary:hover { filter: brightness(1.1); }
+.btnPrimary:hover { filter: brightness(1.08); }
 .btnPrimary:active { transform: scale(0.98); }
 
 .btnOutlineWide {
@@ -119,8 +279,58 @@
   padding: 9px var(--space-md);
   text-decoration: none;
   align-self: flex-start;
+  transition: border-color var(--duration-fast) var(--ease-standard), color var(--duration-fast) var(--ease-standard);
+}
+.btnOutlineWide:hover { border-color: var(--color-primary); color: var(--color-primary-light); }
+
+/* ── Qué hay detrás (pillars) ── */
+.pillarsSection { padding: var(--space-xl) var(--space-2xl, 3rem) var(--space-2xl, 3rem); max-width: 1100px; }
+
+.pillarGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: var(--space-md);
 }
 
+.pillar {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-sm);
+  padding: var(--space-md);
+  border-left: 2px solid var(--color-primary);
+  background: var(--color-surface);
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
+}
+
+.pillar svg { flex-shrink: 0; margin-top: 2px; color: var(--color-primary-light); }
+
+.pillar p {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--color-muted);
+  line-height: 1.55;
+}
+
+/* ── Footer ── */
+.footer {
+  display: flex;
+  justify-content: center;
+  gap: var(--space-sm);
+  padding: var(--space-lg) var(--space-md) calc(var(--space-xl) + var(--space-lg));
+  font-size: 0.8125rem;
+  color: var(--color-muted);
+}
+
+.footer a { color: var(--color-muted); text-decoration: none; }
+.footer a:hover { color: var(--color-primary-light); text-decoration: underline; }
+
 @media (max-width: 760px) {
-  .header, .hero, .section { padding-left: var(--space-md); padding-right: var(--space-md); }
+  .header, .hero, .section, .pillarsSection { padding-left: var(--space-md); padding-right: var(--space-md); }
+  .statsBand { gap: var(--space-md); padding: var(--space-sm) var(--space-md); }
+  .stat dd { font-size: 1.375rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .personaCard { transition: none; }
+  .personaCard:hover { transform: none; }
 }
