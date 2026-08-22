@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { Link, useParams, useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ArrowLeft, Music2, UserCheck, UserPlus } from 'lucide-react'
@@ -12,9 +13,30 @@ import { apiErrorMessage, ApiError } from '@shared/lib/api-client'
 import { isAuthenticated } from '@shared/lib/session'
 import { useToast } from '@shared/context/ToastContext'
 import { socialApi } from '@packages/social'
+import type { Canal } from '@packages/social'
 import { creadoresApi } from '@packages/creadores'
 import type { Track } from '../types'
 import styles from './DetailPages.module.css'
+
+// F8: menú de compartir portado de la antigua /social/artista/:id (página
+// eliminada por duplicar el follow) — el único aporte real que tenía sobre
+// esta página era justo este botón.
+const CANALES: { canal: Canal; label: string }[] = [
+  { canal: 'x', label: 'Compartir en X' },
+  { canal: 'whatsapp', label: 'Compartir en WhatsApp' },
+  { canal: 'copiar_enlace', label: 'Copiar enlace' },
+]
+
+function ShareIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+      <circle cx="11" cy="3" r="1.6" stroke="currentColor" strokeWidth="1.3" />
+      <circle cx="3" cy="7" r="1.6" stroke="currentColor" strokeWidth="1.3" />
+      <circle cx="11" cy="11" r="1.6" stroke="currentColor" strokeWidth="1.3" />
+      <path d="M4.4 6.2l5.2-2.4M4.4 7.8l5.2 2.4" stroke="currentColor" strokeWidth="1.3" />
+    </svg>
+  )
+}
 
 export function ArtistDetailPage() {
   const { artistaId } = useParams<{ artistaId: string }>()
@@ -23,6 +45,8 @@ export function ArtistDetailPage() {
   const authed = isAuthenticated()
   const queryClient = useQueryClient()
   const toast = useToast()
+  const [shareOpen, setShareOpen] = useState(false)
+  const [shareResult, setShareResult] = useState<string | null>(null)
 
   const { data: artist, isLoading: loadingArtist, isError: errorArtist, error: artistError } = useQuery({
     queryKey: ['catalogo', 'artist-detail', id],
@@ -70,6 +94,18 @@ export function ArtistDetailPage() {
     queryFn:  () => creadoresApi.miCuenta(),
     enabled:  authed,
     retry:    false,
+  })
+
+  // F8: compartir perfil de artista (mismo endpoint que usaba la página
+  // social eliminada).
+  const compartir = useMutation({
+    mutationFn: (canal: Canal) =>
+      socialApi.compartir({ tipo_interaccion_id: 'compartir_perfil_artista', canal, artista_id: id }),
+    onSuccess: (res) => {
+      setShareResult(res.contenido); setShareOpen(false)
+      toast.success('Enlace generado para compartir')
+    },
+    onError: (err) => toast.error(apiErrorMessage(err, 'No se pudo generar el enlace para compartir.')),
   })
 
   const { data: tracksRes, isLoading: loadingTracks } = useQuery({
@@ -143,10 +179,26 @@ export function ArtistDetailPage() {
                   Tu hub de creador
                 </Link>
               )}
+              <div className={styles.shareWrap}>
+                <button type="button" className={styles.btnGhost} onClick={() => setShareOpen((v) => !v)}>
+                  <ShareIcon /> Compartir
+                </button>
+                {shareOpen && (
+                  <div className={styles.shareOptions}>
+                    {CANALES.map(({ canal, label }) => (
+                      <button key={canal} type="button" className={styles.shareOption} onClick={() => compartir.mutate(canal)}>
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </div>
       </div>
+
+      {shareResult && <div className={styles.shareResult}>{shareResult}</div>}
 
       <div className={styles.attrGrid}>
         <div className={styles.attrCard}>

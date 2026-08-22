@@ -169,7 +169,9 @@ export function SeguidosSocialPage() {
       ) : (
         <ul className={styles.followedList}>
           {data.map((a) => (
-            <Link key={a.artista_id} to={`/social/artista/${a.artista_id}`} className={styles.followedRow}>
+            /* F8: apunta al perfil consolidado del catálogo (la antigua
+               /social/artista/:id redirige ahí). */
+            <Link key={a.artista_id} to={`/catalogo/artista/${a.artista_id}`} className={styles.followedRow}>
               <span className={styles.followedName}>{a.nombre}</span>
               <span className={styles.followedMeta}>desde {fmtDate(a.fecha_inicio)}</span>
             </Link>

@@ -1,5 +1,5 @@
 import { lazy, Suspense, type ComponentType } from 'react'
-import { createBrowserRouter, Outlet } from 'react-router-dom'
+import { createBrowserRouter, Navigate, Outlet, useParams } from 'react-router-dom'
 import { AuthPromptProvider } from '@shared/context/AuthPromptContext'
 import { PlayerProvider } from '@shared/context/PlayerContext'
 // Import directo (no vía el barrel `@app/layout`): ese índice también
@@ -44,6 +44,14 @@ function lazyNamed<P extends object, K extends string>(
   return lazy(() => loader().then((mod) => ({ default: mod[key] }))) as unknown as ComponentType<P>
 }
 
+// F8: destino de la ruta social/artista/:artistaId — la página que vivía ahí
+// duplicaba el follow del perfil de catálogo; cualquier enlace viejo (ej.
+// historial del navegador) aterriza ahora en el perfil consolidado.
+function RedirigeArtistaSocial() {
+  const { artistaId } = useParams<{ artistaId: string }>()
+  return <Navigate to={`/catalogo/artista/${artistaId}`} replace />
+}
+
 // Fuera del camino crítico de landing/login (S16 prompt 09, hallazgo de
 // rendimiento): páginas secundarias que solo se visitan DESPUÉS de iniciar
 // sesión, o que son admin-only — no tenían por qué viajar en el bundle que
@@ -59,7 +67,6 @@ const InvoiceDetailPage   = lazyNamed(() => import('@packages/facturacion/pages/
 const PlanesPage          = lazyNamed(() => import('@packages/suscripciones/pages/PlanesPage'), 'PlanesPage')
 const CuentaArtistaPage   = lazyNamed(() => import('@packages/creadores/pages/CuentaArtistaPage'), 'CuentaArtistaPage')
 const SeguidosSocialPage  = lazyNamed(() => import('@packages/social/pages/SeguidosSocialPage'), 'SeguidosSocialPage')
-const ArtistaSocialPage   = lazyNamed(() => import('@packages/social/pages/ArtistaSocialPage'), 'ArtistaSocialPage')
 const TrackSocialPage     = lazyNamed(() => import('@packages/social/pages/TrackSocialPage'), 'TrackSocialPage')
 const PerfilPublicoPage   = lazyNamed(() => import('@packages/social/pages/PerfilPublicoPage'), 'PerfilPublicoPage')
 const DisponibilidadPage  = lazyNamed(() => import('@packages/distribucion/pages/DisponibilidadPage'), 'DisponibilidadPage')
@@ -218,7 +225,11 @@ export const router = createBrowserRouter([
       { path: 'suscripciones', element: <RequireAuth><PlanesPage /></RequireAuth> },
       { path: 'creadores',   element: <RequireAuth><CuentaArtistaPage /></RequireAuth> },
       { path: 'social',                element: <RequireAuth><SeguidosSocialPage /></RequireAuth> },
-      { path: 'social/artista/:artistaId', element: <RequireAuth><ArtistaSocialPage /></RequireAuth> },
+      // F8: la página social del artista duplicaba el follow de
+      // /catalogo/artista/:id (y era un callejón sin salida) — la ruta vieja
+      // redirige al perfil real del catálogo, que ahora concentra Seguir +
+      // Compartir.
+      { path: 'social/artista/:artistaId', element: <RedirigeArtistaSocial /> },
       { path: 'social/track/:factId',      element: <RequireAuth><TrackSocialPage /></RequireAuth> },
       { path: 'distribucion/disponibilidad', element: <RequireAuth><DisponibilidadPage /></RequireAuth> },
       { path: 'soporte',     element: <RequireAuth><SoportePage /></RequireAuth> },

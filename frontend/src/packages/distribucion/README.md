@@ -13,7 +13,7 @@
 > de implementar `distribucion`, `catalogo` todavía no tiene esa vista en React (`TrackCard.tsx`
 > tiene su click deliberadamente deshabilitado) — esa migración es responsabilidad de la
 > capability `experiencia`. Mientras tanto, la consulta de disponibilidad (RF-DIS-008) se hace por
-> `fact_id` manual, mismo patrón que `ArtistaSocialPage`/`TrackSocialPage` en `social`.
+> `fact_id` manual, mismo patrón que `TrackSocialPage` en `social`.
 >
 > **El bloqueo real de reproducción (RF-DIS-007) no se ve en el frontend React**: el
 > "reproductor persistente" que efectivamente llama a `POST /app/v1/biblioteca/historial/{fact_id}`

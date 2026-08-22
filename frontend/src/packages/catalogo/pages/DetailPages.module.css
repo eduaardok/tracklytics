@@ -384,3 +384,55 @@
   .hero        { flex-direction: column; align-items: flex-start; }
   .featureBar  { grid-template-columns: 100px 1fr 36px; gap: var(--space-sm); }
 }
+
+/* ── F8: menú para compartir el perfil del artista (portado de la antigua
+   /social/artista) — mismas reglas que SocialPages.module.css .shareMenu/
+   .shareOptions, solo tokens. ── */
+.shareWrap {
+  position: relative;
+  display: inline-flex;
+}
+
+.shareOptions {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: var(--z-dropdown);
+  display: flex;
+  flex-direction: column;
+  min-width: 180px;
+  background: var(--color-surface-raised);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-xs);
+  box-shadow: 0 8px 24px oklch(0 0 0 / 0.35);
+}
+
+.shareOption {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+  color: var(--color-ink);
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+  cursor: pointer;
+  text-align: left;
+  transition: background-color var(--duration-fast) var(--ease-standard);
+}
+.shareOption:hover { background: var(--color-surface); }
+
+.shareResult {
+  margin-top: var(--space-sm);
+  padding: 8px 10px;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--color-muted);
+  word-break: break-all;
+}
