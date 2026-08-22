@@ -238,13 +238,16 @@
    (naranja), no a `badgeSuspend` (rojo): son estados distintos en el modelo
    (`seguridad/types.ts`), aunque el enunciado original solo mencionaba
    "suspendida"/"bloqueada" sin nombrar el tercer valor real. */
-.badgeActive  { background: oklch(0.45 0.12 155 / 0.15); color: oklch(0.7 0.15 155); }
-.badgeSuspend { background: oklch(0.45 0.12 25 / 0.15);  color: oklch(0.7 0.15 25);  }
-.badgeBlocked { background: oklch(0.45 0.12 60 / 0.15);  color: oklch(0.7 0.15 60);  }
+/* Fill fijo (--color-*-fill) + texto adaptable (--color-*) — el literal
+   `oklch(0.7 …)` anterior daba buen contraste en dark (su tema original)
+   pero se lavaba en light, el tema por defecto (auditoría S16, A1). */
+.badgeActive  { background: color-mix(in oklch, var(--color-success-fill) 15%, transparent); color: var(--color-success); }
+.badgeSuspend { background: color-mix(in oklch, var(--color-error-fill) 15%, transparent);   color: var(--color-error);   }
+.badgeBlocked { background: color-mix(in oklch, var(--color-warning-fill) 15%, transparent); color: var(--color-warning); }
 
 /* Origen de un strike (StrikesGlobalPage). */
-.badgeManual   { background: oklch(0.35 0.02 0 / 0.2);   color: oklch(0.65 0.02 0);  }
-.badgeDenuncia { background: oklch(0.45 0.12 60 / 0.15); color: oklch(0.7 0.15 60);  }
+.badgeManual   { background: var(--color-surface-raised); color: var(--color-muted); }
+.badgeDenuncia { background: color-mix(in oklch, var(--color-warning-fill) 15%, transparent); color: var(--color-warning); }
 
 /* Botón destructivo compacto con ícono (SesionesActivasPage: "Cerrar sesión"
    por fila) — distinto de `.button` (relleno, para la acción primaria de la

@@ -724,6 +724,8 @@
    de arriba, con los colores de estado que pidió el enunciado (distintos de
    `.badgeOk`/`.badgePending`, que aquí significaban otra cosa: éxito/pendiente
    de una acción, no lectura). */
-.badgeRead   { background: oklch(0.45 0.12 155 / 0.15); color: oklch(0.7 0.15 155); }
-.badgeUnread { background: oklch(0.35 0.02 0 / 0.2);    color: oklch(0.65 0.02 0);  }
+/* Fill fijo + texto adaptable (--color-*) — mismo fix que SeguridadPages
+   (auditoría S16, A1): el literal `oklch(0.7 …)` se lavaba en tema claro. */
+.badgeRead   { background: color-mix(in oklch, var(--color-success-fill) 15%, transparent); color: var(--color-success); }
+.badgeUnread { background: var(--color-surface-raised); color: var(--color-muted); }
 
