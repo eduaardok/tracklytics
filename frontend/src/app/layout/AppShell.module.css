@@ -5,22 +5,27 @@
   font-family: var(--font-sans);
 }
 
-/* ── Brand bar — mismo patrón (sticky, 56px) que AnalyticaShell/SeguridadShell.
-   Conserva el blur que ya tenía este shell (es la superficie de cara al
-   consumidor, no un panel admin) — el resto de la estructura sí se unifica. */
-.brandBar {
+/* ── Chrome (header de dos filas, sticky como una sola unidad) ──
+   Fila 1: marca + búsqueda + acciones. Fila 2: tabs primarios + "Más".
+   El blur/fondo/borde vive en el wrapper para que ambas filas se lean como
+   UNA superficie al hacer scroll — dos stickies independientes con fondos
+   propios mostraban una costura entre ellas. */
+.chrome {
   position: sticky;
   top: 0;
   z-index: var(--z-sticky);
+  background: var(--overlay-chrome-bg);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-bottom: 1px solid var(--color-border-strong);
+}
+
+.brandBar {
   height: 56px;
   display: flex;
   align-items: center;
   gap: var(--space-sm);
   padding: 0 var(--space-lg);
-  background: var(--overlay-chrome-bg);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border-bottom: 1px solid var(--color-border);
 }
 
 /* El wordmark ya no crece: el espacio libre del header lo toma ahora la
@@ -34,20 +39,19 @@
   text-decoration: none;
   flex: 0 0 auto;
   min-width: 0;
-  margin-right: auto;
 }
 
 .headerActions {
   display: flex;
   align-items: center;
   gap: var(--space-sm);
+  margin-left: auto;
   flex-shrink: 0;
 }
 
-/* Trigger del drawer mobile — oculto en desktop, el sidebar ya cubre esa
+/* Trigger del drawer mobile — oculto en desktop, los tabs ya cubren esa
    navegación. Icono de 3 barras en vez de un ícono importado: el resto del
-   nav de este shell (y NavMoreMenu antes de este cambio) ya usa texto/glifos
-   puros, sin librería de iconos establecida. */
+   nav de este shell usa texto/glifos puros, sin librería extra aquí. */
 .hamburger {
   display: none;
   flex-direction: column;
@@ -78,167 +82,90 @@
   box-shadow: 0 0 0 2px oklch(0.48 0.15 290 / 0.5);
 }
 
-/* ── Body (sidebar + main) — mismo layout que AnalyticaShell/SeguridadShell ── */
-.body {
+/* ── Nav bar (fila 2): tabs primarios + menú "Más" ── */
+.navBar {
   display: flex;
-  align-items: flex-start;
+  align-items: stretch;
+  gap: var(--space-md);
+  height: 44px;
+  padding: 0 var(--space-lg);
 }
 
-/* ── Sidebar ──
-   Ancho vía custom property (no un valor fijo) para poder animar el colapso
-   con una sola transition de `width` — `.main`/`.content` son flex/margin
-   relativos a este elemento, así que no hace falta recalcular nada por JS ni
-   el contenido principal salta de layout. */
-.sidebar {
-  --sidebar-w: 220px;
-  width: var(--sidebar-w);
-  flex-shrink: 0;
-  position: sticky;
-  top: 56px;
-  height: calc(100vh - 56px);
-  overflow-x: hidden;
-  overflow-y: auto;
-  background: var(--color-bg-sidebar);
-  /* Borde violeta perceptible, no gris-con-tinte — refuerzo de marca (S15-04)
-     acotado a un borde de 1px, dentro del margen del One Voice Rule. */
-  border-right: 1px solid color-mix(in oklch, var(--color-primary) 15%, var(--color-border));
-  padding: var(--space-sm) 0;
+.navTabs {
   display: flex;
-  flex-direction: column;
-  transition: width var(--duration-standard) var(--ease-standard);
-}
-
-.sidebarCollapsed {
-  --sidebar-w: 64px;
-}
-
-/* Reserva el hueco del PlayerBar (fixed) para que no tape los últimos ítems
-   del sidebar cuando hay una pista cargada — mismo tratamiento que
-   `.mainWithPlayer`. */
-.sidebarWithPlayer {
-  padding-bottom: calc(var(--player-bar-height) + var(--space-sm));
-}
-
-.navGroups {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
+  align-items: stretch;
+  gap: 2px;
   min-width: 0;
+  /* Seguridad en anchos desktop justos (768–900px): los tabs deslizan antes
+     de empujar al trigger "Más" fuera de la pantalla. */
+  overflow-x: auto;
+  scrollbar-width: none;
 }
+.navTabs::-webkit-scrollbar { display: none; }
 
-.navItem {
+/* Tab activo por color + subrayado (DESIGN.md §5: "active state is color,
+   not shape" — sin pill de fondo). El subrayado entra con scaleX desde el
+   centro: feedback direccional del cambio de sección, no decoración. */
+.navTab {
+  position: relative;
   display: flex;
   align-items: center;
-  gap: var(--space-sm);
-  padding: 7px var(--space-md);
-  font-family: var(--font-sans);
+  gap: 6px;
+  padding: 0 var(--space-md);
   font-size: 0.8125rem;
   font-weight: 500;
   color: var(--color-muted);
   text-decoration: none;
   white-space: nowrap;
-  transition:
-    color var(--duration-fast) var(--ease-standard),
-    box-shadow var(--duration-fast) var(--ease-standard);
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+  transition: color var(--duration-fast) var(--ease-standard);
+}
+
+.navTab::after {
+  content: '';
+  position: absolute;
+  left: var(--space-md);
+  right: var(--space-md);
+  bottom: 0;
+  height: 2px;
+  border-radius: 2px 2px 0 0;
+  background: var(--color-primary-light);
+  transform: scaleX(0);
+  transition: transform var(--duration-standard) var(--ease-standard);
+}
+
+.navTab:hover {
+  color: var(--color-ink);
+}
+
+.navTab:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 2px oklch(0.48 0.15 290 / 0.4);
+}
+
+.navTabActive {
+  color: var(--color-primary-light);
+}
+
+.navTabActive::after {
+  transform: scaleX(1);
 }
 
 .navIcon {
   flex-shrink: 0;
 }
 
-.navText {
-  overflow: hidden;
-  text-overflow: ellipsis;
+/* ── Franja publicitaria (plan free) — a ancho del contenido, bajo el nav ── */
+.adStrip {
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: var(--space-sm) var(--space-lg) 0;
 }
 
-/* Colapsado: ícono centrado, texto oculto (no `display:none` en el link
-   completo — el tooltip nativo `title` y el foco de teclado siguen
-   funcionando igual). */
-.sidebarCollapsed .navItem {
-  justify-content: center;
-  padding: 7px 0;
-}
-
-.sidebarCollapsed .navText {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip: rect(0 0 0 0);
-  white-space: nowrap;
-}
-
-.collapseBtn {
-  display: flex;
-  align-items: center;
-  gap: var(--space-sm);
-  margin: var(--space-sm) var(--space-sm) 0;
-  padding: 7px var(--space-sm);
-  background: transparent;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  color: var(--color-muted);
-  font-family: var(--font-sans);
-  font-size: 0.75rem;
-  font-weight: 500;
-  cursor: pointer;
-  white-space: nowrap;
-  overflow: hidden;
-  transition:
-    color var(--duration-fast) var(--ease-standard),
-    background-color var(--duration-fast) var(--ease-standard);
-}
-
-.collapseBtn:hover { color: var(--color-ink); background-color: var(--color-surface-raised); }
-
-.collapseBtn:focus-visible {
-  outline: none;
-  box-shadow: 0 0 0 2px oklch(0.48 0.15 290 / 0.4);
-}
-
-.sidebarCollapsed .collapseBtn {
-  justify-content: center;
-  margin: var(--space-sm) var(--space-xs) 0;
-}
-
-.navItem:hover {
-  color: var(--color-ink);
-  background-color: var(--color-surface-raised);
-}
-
-.navItem:focus-visible {
-  outline: none;
-  box-shadow: inset 0 0 0 2px oklch(0.48 0.15 290 / 0.4);
-}
-
-/* Estado activo por color, no por "pill" de fondo (DESIGN.md §5, "the active
-   state is color, not shape") — texto en Violet Light + borde lateral de
-   3px, sin fill violeta detrás que duplique la señal. */
-.navActive {
-  color: var(--color-primary-light);
-  box-shadow: inset 3px 0 0 var(--color-primary-light);
-}
-
-/* Combina el acento activo con el anillo de foco — sin esto, tabular hasta
-   el item activo pisaba el box-shadow del acento en vez de sumarse. */
-.navActive:focus-visible {
-  box-shadow: inset 3px 0 0 var(--color-primary-light), inset 0 0 0 2px oklch(0.48 0.15 290 / 0.4);
-}
-
-.navActive:hover {
-  color: var(--color-primary-light);
-}
-
-.divider {
-  height: 1px;
-  background: var(--color-border);
-  margin: var(--space-sm) var(--space-md);
-  flex-shrink: 0;
-}
+.adStrip > * { margin: 0; }
 
 /* ── Main content ── */
 .main {
-  flex: 1;
   min-width: 0;
   padding: var(--space-xl) var(--space-lg) var(--space-2xl);
 }
@@ -250,24 +177,23 @@
 }
 
 /* 900px (S15-01) dejaba franjas laterales grandes en escritorio estándar
-   (1440px+, sidebar 220px): el catálogo es una grilla de cards, no prosa —
-   ensanchar deja que quepan más columnas por fila en vez de comprimirse al
-   centro (S15-02, herencia de un layout pensado para dark donde esa
-   franja lateral se disimulaba más). */
+   (1440px+): el catálogo es una grilla de cards, no prosa — ensanchar deja
+   que quepan más columnas por fila en vez de comprimirse al centro (S15-02).
+   Segundo ensanche (feedback: el contenido se sentía estrecho contra tanto
+   margen): 1240 → 1320px, mismo criterio. */
 .content {
-  max-width: 1240px;
+  max-width: 1320px;
   margin: 0 auto;
 }
 
 /* ── Responsive: breakpoint unificado con AnalyticaShell/SeguridadShell
-   (768px) — antes este shell usaba 900/640px sin relación con los otros dos.
-   Bajo 768px el sidebar se reemplaza por el drawer (MobileNavDrawer), a
-   diferencia de Analitica/Seguridad, que hoy solo ocultan el sidebar sin
-   alternativa (paneles admin, gap conocido fuera de alcance de este cambio). ── */
+   (768px) — bajo ese ancho el top-nav se reemplaza por el drawer
+   (MobileNavDrawer), que sigue cubriendo primary + secondary + admin. ── */
 @media (max-width: 768px) {
-  .sidebar    { display: none; }
-  .hamburger  { display: flex; }
-  .main       { padding: var(--space-lg) var(--space-md) var(--space-xl); }
+  .navBar    { display: none; }
+  .hamburger { display: flex; }
+  .main      { padding: var(--space-lg) var(--space-md) var(--space-xl); }
+  .adStrip   { padding: var(--space-xs) var(--space-md) 0; }
 }
 
 @media (max-width: 480px) {

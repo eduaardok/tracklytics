@@ -24,6 +24,11 @@ export function CatalogHero({ onExplore }: { onExplore: () => void }) {
         <g fill="none" stroke="currentColor" strokeWidth="1.5">
           <path d="M0 90 Q 30 40 60 90 T 120 90 T 180 90 T 240 90 T 300 90 T 360 90 T 420 90" />
         </g>
+        {/* Pulso viajero sobre la onda (mismo motivo que el fondo de login)
+            — el hero no es un banner muerto: una luz recorre la señal. */}
+        <g className={styles.ambientFlow} fill="none" stroke="currentColor">
+          <path d="M0 90 Q 30 40 60 90 T 120 90 T 180 90 T 240 90 T 300 90 T 420 90" />
+        </g>
         <g fill="currentColor">
           <circle cx="60" cy="90" r="3" />
           <circle cx="180" cy="90" r="3" />

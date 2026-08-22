@@ -29,6 +29,35 @@
   pointer-events: none;
 }
 
+/* Pulso viajero: trazo punteado redondo cuyo dashoffset avanza en bucle
+   sobre la onda del hero (periodo 10 = múltiplo exacto del patrón 2+8, bucle
+   sin salto). Aparece tras montar y corre para siempre; con reduced-motion,
+   estático. */
+.ambientFlow {
+  opacity: 0;
+  animation: hero-flow-fade 800ms var(--ease-standard) 500ms forwards;
+}
+
+.ambientFlow path {
+  stroke-dasharray: 2 8;
+  stroke-linecap: round;
+  stroke-width: 2.5;
+  animation: ambient-flow-loop 6s linear infinite;
+}
+
+@keyframes hero-flow-fade {
+  to { opacity: 1; }
+}
+
+@keyframes ambient-flow-loop {
+  to { stroke-dashoffset: -200; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ambientFlow { animation: none; opacity: 1; }
+  .ambientFlow path { animation: none; }
+}
+
 .content {
   position: relative;
   z-index: 1;
