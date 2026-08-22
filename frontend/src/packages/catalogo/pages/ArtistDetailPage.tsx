@@ -1,4 +1,4 @@
-import { useParams, useNavigate } from 'react-router-dom'
+import { Link, useParams, useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ArrowLeft, Music2, UserCheck, UserPlus } from 'lucide-react'
 import { catalogoApi } from '../api/catalogo.api'
@@ -12,6 +12,7 @@ import { apiErrorMessage, ApiError } from '@shared/lib/api-client'
 import { isAuthenticated } from '@shared/lib/session'
 import { useToast } from '@shared/context/ToastContext'
 import { socialApi } from '@packages/social'
+import { creadoresApi } from '@packages/creadores'
 import type { Track } from '../types'
 import styles from './DetailPages.module.css'
 
@@ -58,6 +59,19 @@ export function ArtistDetailPage() {
     onError: (err) => toast.error(apiErrorMessage(err, 'No se pudo dejar de seguir al artista.')),
   })
 
+  // F2 (hub de artista): puente de vuelta catálogo→hub cuando el visitante
+  // es el dueño de esta cuenta de artista. No hay FK DIM_ARTISTS↔
+  // DIM_CUENTA_ARTISTA — el backend mismo resuelve la autoría por el "soft
+  // join" nombre_artistico = name (ver promocion.py::_resolver_artist_id y
+  // AUTOR_TRACK_POR_FACT_ID en social/queries.py); acá se replica esa misma
+  // heurística ya aceptada en el proyecto, con la cuenta aprobada.
+  const miCuenta = useQuery({
+    queryKey: ['creadores', 'cuenta'],
+    queryFn:  () => creadoresApi.miCuenta(),
+    enabled:  authed,
+    retry:    false,
+  })
+
   const { data: tracksRes, isLoading: loadingTracks } = useQuery({
     queryKey: ['catalogo', 'tracks-by-artist', id],
     queryFn:  () => catalogoApi.tracksByArtist(id, 20),
@@ -94,6 +108,8 @@ export function ArtistDetailPage() {
   }
 
   const tracks = tracksRes?.data ?? []
+  const esMiCuentaDeArtista =
+    miCuenta.data?.estado_cuenta === 'aprobada' && miCuenta.data.nombre_artistico === artist.name
 
   return (
     <section>
@@ -122,6 +138,11 @@ export function ArtistDetailPage() {
                 )}
                 {siguiendo ? 'Siguiendo' : 'Seguir'}
               </button>
+              {esMiCuentaDeArtista && (
+                <Link to="/creadores" className={styles.btnGhost}>
+                  Tu hub de creador
+                </Link>
+              )}
             </div>
           )}
         </div>

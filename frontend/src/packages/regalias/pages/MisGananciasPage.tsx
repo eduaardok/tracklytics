@@ -4,6 +4,7 @@ import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { apiErrorMessage } from '@shared/lib/api-client'
 import { useToast } from '@shared/context/ToastContext'
 import { regaliasApi } from '../api/regalias.api'
+import { ArtistaHubTabs } from '@packages/creadores'
 import type { Ganancia, Retiro } from '../types'
 import styles from './RegaliasPages.module.css'
 
@@ -181,6 +182,11 @@ export function MisGananciasPage() {
   return (
     <section className={styles.page}>
       <h1 className={styles.heading}>Mis ganancias</h1>
+
+      {/* F2 (hub de artista): puente de vuelta a /creadores — el dinero del
+          artista ya no es una isla. Solo aplica a quien tiene cuenta de
+          artista; un rightsholder solo-sello no tiene hub. */}
+      {tieneArtista && <ArtistaHubTabs activa="ganancias" />}
 
       {tieneArtista && tieneSello && (
         <div className={styles.tabBar}>

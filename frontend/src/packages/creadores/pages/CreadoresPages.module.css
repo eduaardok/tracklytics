@@ -691,6 +691,16 @@
   justify-content: center;
 }
 
+/* F2 (hub de artista): resumen propio arriba — grid auto-fit para los KPIs
+   de tracks/streams/hilos. Solo tokens, sin hex. */
+.hubStatsGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: var(--space-md);
+  margin-bottom: var(--space-xl);
+}
+.hubStatsGrid .kpiPanel { gap: var(--space-xs); }
+
 .kpiRow {
   display: flex;
   flex-direction: column;

@@ -2,12 +2,14 @@ import { useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { catalogoApi } from '@packages/catalogo'
+import { regaliasApi } from '@packages/regalias'
 import { ApiError, apiErrorMessage, fieldErrorsFromApiError } from '@shared/lib/api-client'
 import { ErrorState } from '@shared/components/ErrorState'
 import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { useToast } from '@shared/context/ToastContext'
 import { useConfirm } from '@shared/context/ConfirmContext'
 import { creadoresApi } from '../api/creadores.api'
+import { ArtistaHubTabs, type ArtistaHubVista } from '../components/ArtistaHubTabs'
 import type { EstadoCuenta, EstadoRevision, SubidaTrack } from '../types'
 import styles from './CreadoresPages.module.css'
 
@@ -147,6 +149,14 @@ export function CuentaArtistaPage() {
   // artístico arranca en blanco de todos modos si el visitante llega
   // directo a `/creadores` sin pasar por ese flujo.
   const [searchParams] = useSearchParams()
+  // F2: pestaña activa del hub — ?vista=comentarios muestra el índice de
+  // hilos por track publicado; Música es la vista default y Ganancias vive
+  // en /regalias/ganancias (ruta existente, solo se agrupa aquí).
+  const vista: ArtistaHubVista = searchParams.get('vista') === 'comentarios' ? 'comentarios' : 'musica'
+  // F2: el formulario de subida pasaba siempre desplegado arriba de todo,
+  // empujando la gestión de tracks ya publicados (uso más frecuente) bajo
+  // el pliegue. Ahora arranca colapsado y la lista manda.
+  const [mostrarFormSubida, setMostrarFormSubida] = useState(false)
   const [nombreArtistico, setNombreArtistico] = useState(searchParams.get('nombre') ?? '')
   const [trackName, setTrackName]             = useState('')
   const [albumName, setAlbumName]             = useState('')
@@ -188,6 +198,18 @@ export function CuentaArtistaPage() {
     queryKey: ['creadores', 'tracks'],
     queryFn:  () => creadoresApi.misTracks(),
     enabled:  cuenta.data?.estado_cuenta === 'aprobada',
+  })
+
+  // Resumen de métricas propias (F2): lo único por-track que ya expone un
+  // endpoint son los streams liquidados en regalías (mis-ganancias-artista,
+  // mismo queryKey que MisGananciasPage — cache compartida). No existe
+  // endpoint de likes/plays por track propio; se reportó en la auditoría y
+  // cuando exista, este panel es su lugar natural.
+  const ganancias = useQuery({
+    queryKey: ['regalias', 'mis-ganancias-artista'],
+    queryFn:  () => regaliasApi.misGananciasArtista(),
+    enabled:  cuenta.data?.estado_cuenta === 'aprobada',
+    retry:    false,
   })
 
   const solicitar = useMutation({
@@ -272,6 +294,12 @@ export function CuentaArtistaPage() {
   const noTieneCuenta = cuenta.isError && esNoEncontrado(cuenta.error)
   const tracksData: SubidaTrack[] = tracks.data?.data ?? []
   const generosData = generos.data?.data ?? []
+  const porEstado = tracksData.reduce<Record<string, number>>((acc, t) => {
+    acc[t.estado_nombre] = (acc[t.estado_nombre] ?? 0) + 1
+    return acc
+  }, {})
+  const streamsLiquidados = (ganancias.data?.data ?? []).reduce((s, g) => s + g.streams_periodo, 0)
+  const tracksConHilo = tracksData.filter((t) => t.fact_id_promovido != null)
 
   return (
     <section className={styles.page}>
@@ -354,8 +382,120 @@ export function CuentaArtistaPage() {
 
           {cuenta.data.estado_cuenta === 'aprobada' && (
             <>
-              <p className={styles.sectionLabel}>Subir un track</p>
-              <form
+              <ArtistaHubTabs activa={vista} />
+
+              {vista === 'comentarios' ? (
+                <>
+                  {/* F2: índice de hilos de comentarios por track publicado.
+                      Reusa /social/track/:factId (UI existente) — acá solo se
+                      concentra la puerta de entrada, una por track. */}
+                  <p className={styles.sectionLabel}>Comentarios recibidos</p>
+                  {tracks.isLoading ? (
+                    <ul className={styles.trackList}>
+                      <SkelTrackRow /><SkelTrackRow />
+                    </ul>
+                  ) : tracksConHilo.length === 0 ? (
+                    <div className={styles.emptyState}>
+                      <span className={styles.emptyTitle}>Todavía no tienes tracks con hilo de comentarios</span>
+                      <span className={styles.emptyBody}>
+                        Los comentarios se activan cuando un track tuyo es aprobado y promovido al catálogo.
+                      </span>
+                    </div>
+                  ) : (
+                    <ul className={styles.trackList}>
+                      {tracksConHilo.map((t) => (
+                        <li key={t.subida_id} className={styles.trackRow}>
+                          <div className={styles.trackInfo}>
+                            <span className={styles.trackName}>{t.track_name}</span>
+                            <span className={styles.trackMeta}>{fmtDuration(t.duration_ms)} · {fmtDate(t.fecha_subida)}</span>
+                          </div>
+                          <div className={styles.trackActions}>
+                            <Link to={`/social/track/${t.fact_id_promovido}`} className={styles.btnGhost}>
+                              Ver hilo
+                            </Link>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </>
+              ) : (
+                <>
+                  {/* F2: resumen propio arriba, por frecuencia de uso. Los
+                      streams vienen de las liquidaciones ya existentes; los
+                      conteos, de misTracks. */}
+                  <div className={styles.hubStatsGrid}>
+                    <div className={styles.kpiPanel}>
+                      <span className={styles.kpiValue}>{porEstado.aprobado ?? 0}</span>
+                      <span className={styles.kpiLabel}>Tracks publicados</span>
+                    </div>
+                    <div className={styles.kpiPanel}>
+                      <span className={styles.kpiValue}>{porEstado.pendiente ?? 0}</span>
+                      <span className={styles.kpiLabel}>En revisión</span>
+                    </div>
+                    <div className={styles.kpiPanel}>
+                      <span className={styles.kpiValue}>{streamsLiquidados.toLocaleString('es-ES')}</span>
+                      <span className={styles.kpiLabel}>Streams liquidados</span>
+                    </div>
+                    <div className={styles.kpiPanel}>
+                      <span className={styles.kpiValue}>{tracksConHilo.length}</span>
+                      <span className={styles.kpiLabel}>Hilos de comentarios</span>
+                    </div>
+                  </div>
+
+                  <p className={styles.sectionLabel}>Mis tracks subidos</p>
+                  {tracks.isLoading ? (
+                    <ul className={styles.trackList}>
+                      <SkelTrackRow /><SkelTrackRow /><SkelTrackRow />
+                    </ul>
+                  ) : tracksData.length === 0 ? (
+                    <div className={styles.emptyState}>
+                      <UploadTrayIcon />
+                      <span className={styles.emptyTitle}>Sin tracks subidos todavía</span>
+                      <span className={styles.emptyBody}>Usa «Subir un track» aquí abajo para enviar el primero — quedará pendiente de revisión.</span>
+                    </div>
+                  ) : (
+                    <ul className={styles.trackList}>
+                      {tracksData.map((t) => (
+                        <li key={t.subida_id} className={styles.trackRow}>
+                          <div className={styles.trackInfo}>
+                            <span className={styles.trackName}>{t.track_name}</span>
+                            <span className={styles.trackMeta}>{fmtDuration(t.duration_ms)} · {fmtDate(t.fecha_subida)}</span>
+                          </div>
+                          <div className={styles.trackActions}>
+                            <EstadoBadge estado={t.estado_nombre} />
+                            {/* Comentarios recibidos (S16 — vista de artista): reusa
+                                la página de comentarios ya existente por track
+                                (`/social/track/:factId`), en vez de duplicar la UI
+                                de hilos acá. Solo tiene sentido si el track ya fue
+                                aprobado y promovido — antes de eso no tiene fact_id
+                                en el catálogo real. */}
+                            {t.fact_id_promovido != null && (
+                              <Link to={`/social/track/${t.fact_id_promovido}`} className={styles.btnGhost}>
+                                Comentarios
+                              </Link>
+                            )}
+                            {t.estado_nombre !== 'retirado' && (
+                              <>
+                                <button type="button" className={styles.btnGhost} onClick={() => setEditTrack(t)}>Editar</button>
+                                <button type="button" className={styles.btnGhostDanger} onClick={() => pedirRetirar(t)}>Retirar</button>
+                              </>
+                            )}
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+
+                  {!mostrarFormSubida && (
+                    <button type="button" className={styles.btnGhost} onClick={() => setMostrarFormSubida(true)}>
+                      + Subir un track nuevo
+                    </button>
+                  )}
+                  {mostrarFormSubida && (
+                    <>
+                      <p className={styles.sectionLabel}>Subir un track</p>
+                      <form
                 className={styles.uploadForm}
                 onSubmit={(e) => {
                   e.preventDefault()
@@ -449,53 +589,13 @@ export function CuentaArtistaPage() {
                   {subir.isPending ? 'Procesando…' : 'Subir track'}
                 </button>
               </form>
-              {uploadStep && <UploadProgress step={uploadStep} />}
-              {subir.isError && Object.keys(uploadFieldErrors).length === 0 && (
-                <ErrorState message={apiErrorMessage(subir.error, 'No se pudo subir el track. Intenta de nuevo.')} />
-              )}
-
-              <p className={styles.sectionLabel}>Mis tracks subidos</p>
-              {tracks.isLoading ? (
-                <ul className={styles.trackList}>
-                  <SkelTrackRow /><SkelTrackRow /><SkelTrackRow />
-                </ul>
-              ) : tracksData.length === 0 ? (
-                <div className={styles.emptyState}>
-                  <UploadTrayIcon />
-                  <span className={styles.emptyTitle}>Sin tracks subidos todavía</span>
-                  <span className={styles.emptyBody}>Sube tu primer track con el formulario de arriba — quedará pendiente de revisión.</span>
-                </div>
-              ) : (
-                <ul className={styles.trackList}>
-                  {tracksData.map((t) => (
-                    <li key={t.subida_id} className={styles.trackRow}>
-                      <div className={styles.trackInfo}>
-                        <span className={styles.trackName}>{t.track_name}</span>
-                        <span className={styles.trackMeta}>{fmtDuration(t.duration_ms)} · {fmtDate(t.fecha_subida)}</span>
-                      </div>
-                      <div className={styles.trackActions}>
-                        <EstadoBadge estado={t.estado_nombre} />
-                        {/* Comentarios recibidos (S16 — vista de artista): reusa
-                            la página de comentarios ya existente por track
-                            (`/social/track/:factId`), en vez de duplicar la UI
-                            de hilos acá. Solo tiene sentido si el track ya fue
-                            aprobado y promovido — antes de eso no tiene fact_id
-                            en el catálogo real. */}
-                        {t.fact_id_promovido != null && (
-                          <Link to={`/social/track/${t.fact_id_promovido}`} className={styles.btnGhost}>
-                            Comentarios
-                          </Link>
-                        )}
-                        {t.estado_nombre !== 'retirado' && (
-                          <>
-                            <button type="button" className={styles.btnGhost} onClick={() => setEditTrack(t)}>Editar</button>
-                            <button type="button" className={styles.btnGhostDanger} onClick={() => pedirRetirar(t)}>Retirar</button>
-                          </>
-                        )}
-                      </div>
-                    </li>
-                  ))}
-                </ul>
+                      {uploadStep && <UploadProgress step={uploadStep} />}
+                      {subir.isError && Object.keys(uploadFieldErrors).length === 0 && (
+                        <ErrorState message={apiErrorMessage(subir.error, 'No se pudo subir el track. Intenta de nuevo.')} />
+                      )}
+                    </>
+                  )}
+                </>
               )}
             </>
           )}
