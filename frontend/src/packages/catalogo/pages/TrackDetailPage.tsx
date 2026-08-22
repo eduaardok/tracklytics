@@ -248,10 +248,13 @@ export function TrackDetailPage() {
       )}
 
       {/* F1: puerta de entrada al hilo social del track — la ruta y la UI
-          ya existían en /social/track/:factId, aquí solo se abre el enlace. */}
+          ya existían en /social/track/:factId, aquí solo se abre el enlace.
+          btnGhostPage y no btnGhost: este link vive FUERA del hero y el vidrio
+          esmerilado de btnGhost (texto blanco fijo) era invisible en modo
+          claro sobre --color-bg casi blanco. */}
       <h2 className={styles.sectionTitle}>Comentarios</h2>
       <div>
-        <Link to={`/social/track/${track.fact_id}`} className={styles.btnGhost}>
+        <Link to={`/social/track/${track.fact_id}`} className={styles.btnGhostPage}>
           <MessageSquare size={16} aria-hidden="true" style={{ verticalAlign: '-3px', marginRight: 4 }} />
           {numComentarios != null && numComentarios > 0 ? `Ver comentarios (${numComentarios})` : 'Ver comentarios'}
         </Link>

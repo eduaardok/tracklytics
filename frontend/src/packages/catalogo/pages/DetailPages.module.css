@@ -191,7 +191,8 @@
    blanco. Mismo patrón "ghost" ya usado fuera de hero en BibliotecaPage e
    InvoiceDetailPage: transparente + borde + texto de las variables
    semánticas, así se re-tematiza solo. */
-.btnBack {
+.btnBack,
+.btnGhostPage {
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -208,6 +209,11 @@
 }
 
 .btnBack:hover { color: var(--color-ink); border-color: var(--color-border-strong); }
+
+/* Acción "ghost" genérica fuera del hero (bug S16: "Ver comentarios" usaba
+   .btnGhost y en modo claro era invisible). Hover más vivo que .btnBack
+   porque es una acción, no solo retroceso. */
+.btnGhostPage:hover { color: var(--color-ink); border-color: var(--color-primary); }
 
 /* ── Stat grid ── */
 .attrGrid {
