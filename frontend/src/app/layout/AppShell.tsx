@@ -3,7 +3,7 @@ import { Outlet, NavLink, useLocation } from 'react-router-dom'
 import { RouteLoadingFallback } from '@shared/components/RouteLoadingFallback'
 import {
   LayoutGrid, Library, CreditCard, Receipt, Mic2, Users, Globe, LifeBuoy,
-  BarChart3, ShieldCheck, PanelLeftClose, PanelLeftOpen, Sparkles, Coins, type LucideIcon,
+  BarChart3, ShieldCheck, Sparkles, Coins, type LucideIcon,
 } from 'lucide-react'
 // Import directo, no vía el barrel `@packages/seguridad` (arrastraría los
 // dashboards con Recharts de ese paquete al bundle principal — ver router.tsx).
@@ -29,17 +29,19 @@ import { PageTransition } from '@shared/components/PageTransition'
 import { usePlayer } from '@shared/context/PlayerContext'
 import { getRole, getUser } from '@shared/lib/session'
 import { esSuperadmin } from '@shared/lib/roles'
-import { getSidebarCollapsed, setSidebarCollapsed } from '@shared/lib/ui-prefs'
 import { MobileNavDrawer } from './MobileNavDrawer'
+import { TopNavMore } from './TopNavMore'
 import styles from './AppShell.module.css'
 
 export type NavItem = { to: string; label: string; icon: LucideIcon; end?: boolean }
 
-// Arquitectura de información del sidebar: consumo primario arriba (lo que un
-// usuario B2C visita todo el tiempo), transaccional/admin-adyacente abajo del
-// divider (cosas que se visitan ocasionalmente). "Soporte" cae en el segundo
-// grupo — es una acción puntual, no de consumo diario, igual que Facturación/
-// Creadores/Social/Distribución.
+// Rediseño de navegación (híbrido por zona): este shell B2C abandona el
+// sidebar — su consumo es primario y plano (4 destinos de diario), así que
+// pasa a un top-nav de dos filas: fila 1 marca+búsqueda+acciones, fila 2 los
+// tabs primarios + menú "Más" con lo ocasional. El sidebar SOBREVIVE en
+// AnalíticaShell/SeguridadShell, donde la densidad real (13+ ítems agrupados
+// con gating por rol) sí justifica un panel dedicado. El drawer móvil no
+// cambia: bajo 768px el nav de escritorio se oculta y el drawer cubre todo.
 const NAV_PRIMARY: NavItem[] = [
   { to: '/',              label: 'Catálogo',       icon: LayoutGrid, end: true },
   { to: '/recomendaciones', label: 'Para ti',      icon: Sparkles },
@@ -63,10 +65,9 @@ const NAV_SECONDARY: NavItem[] = [
 // conoce la URL de memoria. Gating idéntico al del backend: `/analitica`
 // acepta admin o analyst con suscripción activa (`require_b2b_panel_access`,
 // api/paquetes/analitica/deps.py); `/seguridad` es admin-only
-// (`require_admin`, api/paquetes/seguridad/deps.py). Grupo propio con su
-// propio divider — conceptualmente son "salir a otro panel", no una acción
-// más dentro de la app de consumo. (La salida de vuelta vive en `ZoneSwitcher`,
-// montado dentro de esos dos shells.)
+// (`require_admin`, api/paquetes/seguridad/deps.py). En el modelo top-nav
+// viven dentro del menú "Más", tras su propio divisor — conceptualmente son
+// "salir a otro panel", no una acción más dentro de la app de consumo.
 // FASE 1 (Prompt 10): la gating original usaba `role` crudo de PocketBase
 // (`role === 'admin'`), que solo vale para la cuenta superadmin bootstrap —
 // las cuentas admin asignadas por BRIDGE_USUARIO_ROL_ADMIN (ej.
@@ -92,7 +93,6 @@ export function AppShell() {
   // espacio muerto permanente cuando nadie ha reproducido nada todavía.
   const { currentTrack } = usePlayer()
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
-  const [collapsed, setCollapsed] = useState(getSidebarCollapsed)
   const location = useLocation()
   const role = getRole()
   const user = getUser()
@@ -105,12 +105,14 @@ export function AppShell() {
   const navPrimary   = role === 'admin' ? NAV_PRIMARY.filter((i) => i.to !== '/suscripciones') : NAV_PRIMARY
   const navSecondary = role === 'admin' ? NAV_SECONDARY.filter((i) => i.to !== '/facturacion') : NAV_SECONDARY
   // Banner display (monetizacion-retencion-mejoras): visible solo para
-  // usuarios free, mismo criterio que el paywall de TrackDetailPage.
+  // usuarios free, mismo criterio que el paywall de TrackDetailPage. Con el
+  // sidebar fuera, el banner pasa a franja propia bajo el nav — a ancho del
+  // contenido, sin competir con la navegación.
   const { tipoPlan } = usePlanActivo()
 
   // Cierra el drawer al navegar y si la ventana crece más allá del breakpoint
   // (ej. rotar una tablet) — evita quedar con el overlay abierto sobre el
-  // sidebar de escritorio.
+  // nav de escritorio.
   useEffect(() => { setMobileNavOpen(false) }, [location.pathname])
 
   useEffect(() => {
@@ -132,111 +134,76 @@ export function AppShell() {
     return () => document.removeEventListener('keydown', onKeyDown)
   }, [mobileNavOpen])
 
-  function toggleCollapsed() {
-    setCollapsed((prev) => {
-      const next = !prev
-      setSidebarCollapsed(next)
-      return next
-    })
-  }
-
-  function renderNavItem(item: NavItem) {
+  function renderTab(item: NavItem) {
     const Icon = item.icon
     return (
       <NavLink
         key={item.to}
         to={item.to}
         end={item.end}
-        title={collapsed ? item.label : undefined}
-        className={({ isActive }) => (isActive ? `${styles.navItem} ${styles.navActive}` : styles.navItem)}
+        className={({ isActive }) => (isActive ? `${styles.navTab} ${styles.navTabActive}` : styles.navTab)}
       >
-        <Icon className={styles.navIcon} size={18} aria-hidden="true" />
-        <span className={styles.navText}>{item.label}</span>
+        <Icon size={16} className={styles.navIcon} aria-hidden="true" />
+        <span>{item.label}</span>
       </NavLink>
     )
   }
 
   return (
     <div className={styles.shell}>
-      <header className={styles.brandBar} data-print-hide="true">
-        <button
-          type="button"
-          className={styles.hamburger}
-          aria-label="Abrir navegación"
-          aria-expanded={mobileNavOpen}
-          onClick={() => setMobileNavOpen(true)}
-        >
-          <span /><span /><span />
-        </button>
-        <div className={styles.wordmark}>
-          <ZoneSwitcher currentZone="catalogo" badge="beta" />
+      <header className={styles.chrome} data-print-hide="true">
+        <div className={styles.brandBar}>
+          <button
+            type="button"
+            className={styles.hamburger}
+            aria-label="Abrir navegación"
+            aria-expanded={mobileNavOpen}
+            onClick={() => setMobileNavOpen(true)}
+          >
+            <span /><span /><span />
+          </button>
+          <div className={styles.wordmark}>
+            <ZoneSwitcher currentZone="catalogo" badge="beta" />
+          </div>
+          <GlobalSearch />
+          <div className={styles.headerActions}>
+            <ThemeToggle />
+            <NotificationBell />
+            <UserMenu />
+          </div>
         </div>
-        <GlobalSearch />
-        <div className={styles.headerActions}>
-          <ThemeToggle />
-          <NotificationBell />
-          <UserMenu />
-        </div>
+
+        <nav className={styles.navBar} aria-label="Navegación principal">
+          <div className={styles.navTabs}>
+            {navPrimary.map(renderTab)}
+          </div>
+          <TopNavMore secondary={navSecondary} admin={navAdmin} />
+        </nav>
       </header>
 
       <VerificacionEmailBanner />
 
-      <div className={styles.body}>
-        <nav
-          className={[
-            styles.sidebar,
-            currentTrack ? styles.sidebarWithPlayer : '',
-            collapsed ? styles.sidebarCollapsed : '',
-          ].join(' ').trim()}
-          aria-label="Navegación principal"
-          data-print-hide="true"
-        >
-          <div className={styles.navGroups}>
-            {navPrimary.map(renderNavItem)}
+      {tipoPlan === 'free' && (
+        <div className={styles.adStrip} data-print-hide="true">
+          <AdBanner />
+        </div>
+      )}
 
-            <div className={styles.divider} role="separator" />
-
-            {navSecondary.map(renderNavItem)}
-
-            {navAdmin.length > 0 && (
-              <>
-                <div className={styles.divider} role="separator" />
-                {navAdmin.map(renderNavItem)}
-              </>
-            )}
-
-            {tipoPlan === 'free' && <AdBanner collapsed={collapsed} />}
-          </div>
-
-          <button
-            type="button"
-            className={styles.collapseBtn}
-            onClick={toggleCollapsed}
-            title={collapsed ? 'Expandir navegación' : 'Colapsar navegación'}
-            aria-label={collapsed ? 'Expandir navegación' : 'Colapsar navegación'}
-            aria-pressed={collapsed}
-          >
-            {collapsed ? <PanelLeftOpen size={18} aria-hidden="true" /> : <PanelLeftClose size={18} aria-hidden="true" />}
-            <span className={styles.navText}>Colapsar</span>
-          </button>
-        </nav>
-
-        <main className={`${styles.main} ${currentTrack ? styles.mainWithPlayer : ''}`}>
-          <div className={styles.content}>
-            <PageTransition>
-              {/* Suspense único para todo el Outlet (mismo patrón que
-                  AnalyticaShell/SeguridadShell): varias rutas hijas ahora son
-                  lazy (biblioteca, perfil, facturación, creadores, social,
-                  etc. — S16 prompt 09, fuera del camino crítico de landing/
-                  login). Catálogo/login se mantienen eager y no disparan
-                  este fallback. */}
-              <Suspense fallback={<RouteLoadingFallback />}>
-                <Outlet />
-              </Suspense>
-            </PageTransition>
-          </div>
-        </main>
-      </div>
+      <main className={`${styles.main} ${currentTrack ? styles.mainWithPlayer : ''}`}>
+        <div className={styles.content}>
+          <PageTransition>
+            {/* Suspense único para todo el Outlet (mismo patrón que
+                AnalyticaShell/SeguridadShell): varias rutas hijas ahora son
+                lazy (biblioteca, perfil, facturación, creadores, social,
+                etc. — S16 prompt 09, fuera del camino crítico de landing/
+                login). Catálogo/login se mantienen eager y no disparan
+                este fallback. */}
+            <Suspense fallback={<RouteLoadingFallback />}>
+              <Outlet />
+            </Suspense>
+          </PageTransition>
+        </div>
+      </main>
 
       <MobileNavDrawer
         open={mobileNavOpen}

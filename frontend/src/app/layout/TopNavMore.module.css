@@ -1,0 +1,116 @@
+.wrap {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+}
+
+/* Mismo vocabulario tipográfico que .navTab (Label 13px/500) — el trigger se
+   lee como un tab más, solo el chevron delata que despliega opciones. */
+.btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0 var(--space-md);
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--color-muted);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color var(--duration-fast) var(--ease-standard);
+}
+
+.btn:hover,
+.btnOpen {
+  color: var(--color-ink);
+}
+
+.btn:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 2px oklch(0.48 0.15 290 / 0.4);
+}
+
+/* Estado activo por color (DESIGN.md §5) — igual que los tabs cuando una ruta
+   interna del menú es la actual. */
+.btnActive {
+  color: var(--color-primary-light);
+}
+
+.chevron {
+  transition: transform var(--duration-standard) var(--ease-standard);
+}
+
+.btnOpen .chevron {
+  transform: rotate(180deg);
+}
+
+.menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  min-width: 220px;
+  max-height: min(420px, 70vh);
+  overflow-y: auto;
+  padding: var(--space-xs);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card-lg);
+  z-index: var(--z-dropdown);
+  transform-origin: top left;
+  animation: menu-in var(--duration-standard) var(--ease-exit);
+}
+
+@keyframes menu-in {
+  from { opacity: 0; transform: translateY(-4px) scale(0.98); }
+  to   { opacity: 1; transform: translateY(0)    scale(1); }
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: 8px var(--space-md);
+  border-radius: var(--radius-md);
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--color-muted);
+  text-decoration: none;
+  white-space: nowrap;
+  transition:
+    color var(--duration-fast) var(--ease-standard),
+    background-color var(--duration-fast) var(--ease-standard);
+}
+
+.item:hover {
+  color: var(--color-ink);
+  background-color: var(--color-surface-raised);
+}
+
+.item:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 2px oklch(0.48 0.15 290 / 0.4);
+}
+
+.itemActive {
+  color: var(--color-primary-light);
+}
+
+.itemIcon {
+  flex-shrink: 0;
+}
+
+.divider {
+  height: 1px;
+  margin: var(--space-xs) var(--space-sm);
+  background: var(--color-border);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .menu { animation: none; }
+  .chevron { transition: none; }
+}
