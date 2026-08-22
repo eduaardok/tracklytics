@@ -107,6 +107,20 @@
 
 .table tbody tr:hover { background: var(--color-surface-raised); transition: background-color 150ms ease; }
 
+/* Fila de estado vacío dentro de `.table` (ReporteUsuariosPage,
+   StrikesGlobalPage, UsuariosAdminPage) — clase referenciada por esas 3
+   páginas pero nunca definida acá (auditoría S16, A7): el texto de vacío
+   se renderizaba sin ningún estilo. Mismo criterio que `.userCellMeta`
+   (muted, sans) para que se lea como mensaje, no como dato de tabla. */
+.empty {
+  text-align: center;
+  padding: var(--space-lg) var(--space-md) !important;
+  color: var(--color-muted) !important;
+  font-family: var(--font-sans) !important;
+  font-size: 0.875rem !important;
+  white-space: normal !important;
+}
+
 /* Celda usuario en Auditoría/Errores: nombre + correo apilados en vez del
    usuario_id crudo — el id sigue disponible como fallback (usuario borrado
    del DIM, o registro de sistema sin usuario asociado). */
