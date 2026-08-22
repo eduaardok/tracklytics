@@ -1,6 +1,10 @@
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { ChevronRight } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
+import type { ReactNode } from 'react'
 import { genreAccent } from '@shared/lib/genre-colors'
+import { useDragScroll } from '@shared/hooks/useDragScroll'
 import { catalogoApi } from '../api/catalogo.api'
 import { TrackGridCard } from './TrackGridCard'
 import { ExploreGridCard } from './ExploreGridCard'
@@ -10,12 +14,12 @@ import styles from './CatalogDiscovery.module.css'
 
 const PREVIEW_LIMIT = 12
 const GENRE_CHIPS_LIMIT = 12
-// Artistas circulares más chicos que las portadas cuadradas de canciones
-// (feedback visual: "los covers de artistas se ven muy grandes en
-// comparación a los de canciones") — playlists conserva el cuadrado pero
-// también se achica, mismo motivo.
-const ARTIST_SIZE   = 96
-const PLAYLIST_SIZE = 130
+// Covers GRANDES (feedback: "que tenga sentido el arrastre" — con covers de
+// 96/130px los 12 items cabían y la fila nunca desbordaba). Artista circular
+// 132, playlist 168, canción 176 de ancho: todas las filas desbordan en el
+// contenedor de 1320px y el arrastre/flechas tienen razón de ser.
+const ARTIST_SIZE   = 132
+const PLAYLIST_SIZE = 168
 
 type Props = {
   // Navega a la vista completa de una categoría (mismo mecanismo que "Ver
@@ -32,6 +36,73 @@ function SectionHeader({ title, ctaLabel, onClick }: { title: string; ctaLabel: 
         {ctaLabel}
         <ChevronRight size={14} aria-hidden="true" />
       </button>
+    </div>
+  )
+}
+
+// Fila horizontal con affordance de arrastre: fades en los bordes (hay más
+// contenido fuera de vista) + flechas laterales que aparecen al hover y
+// avanzan ~3/4 de viewport. El ref vive DENTRO de este componente (solo se
+// monta cuando ya hay datos), así el efecto inicial siempre encuentra el
+// nodo — el caso patológico del hook global (montaje condicional) no aplica.
+function DraggableRow({ label, dragRow, children }: { label: string; dragRow: ReturnType<typeof useDragScroll>; children: ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null)
+  const [atStart, setAtStart] = useState(true)
+  const [atEnd, setAtEnd] = useState(false)
+
+  const sync = useCallback(() => {
+    const el = ref.current
+    if (!el) return
+    setAtStart(el.scrollLeft <= 4)
+    setAtEnd(el.scrollLeft + el.clientWidth >= el.scrollWidth - 4)
+  }, [])
+
+  useEffect(() => {
+    sync()
+    const el = ref.current
+    if (!el) return
+    const ro = new ResizeObserver(sync)
+    ro.observe(el)
+    window.addEventListener('resize', sync)
+    return () => {
+      ro.disconnect()
+      window.removeEventListener('resize', sync)
+    }
+  }, [sync])
+
+  function nudge(dir: number) {
+    const el = ref.current
+    if (!el) return
+    el.scrollBy({ left: dir * el.clientWidth * 0.75, behavior: 'smooth' })
+  }
+
+  return (
+    <div className={styles.rowShell}>
+      <div {...dragRow} ref={ref} className={styles.hRow} aria-label={label} onScroll={sync}>
+        {children}
+      </div>
+      <span aria-hidden="true" className={`${styles.rowFadeL} ${atStart ? styles.rowFadeHidden : ''}`} />
+      <span aria-hidden="true" className={`${styles.rowFadeR} ${atEnd ? styles.rowFadeHidden : ''}`} />
+      {!atStart && (
+        <button
+          type="button"
+          className={`${styles.rowNav} ${styles.rowNavL}`}
+          onClick={() => nudge(-1)}
+          aria-label={`Desplazar ${label} hacia atrás`}
+        >
+          <ChevronLeft size={18} aria-hidden="true" />
+        </button>
+      )}
+      {!atEnd && (
+        <button
+          type="button"
+          className={`${styles.rowNav} ${styles.rowNavR}`}
+          onClick={() => nudge(1)}
+          aria-label={`Desplazar ${label} hacia adelante`}
+        >
+          <ChevronRight size={18} aria-hidden="true" />
+        </button>
+      )}
     </div>
   )
 }
@@ -53,6 +124,11 @@ function SectionHeader({ title, ctaLabel, onClick }: { title: string; ctaLabel: 
 const PREVIEW_STALE_TIME = 5 * 60_000
 
 export function CatalogDiscovery({ onVerTodo }: Props) {
+  const navigate = useNavigate()
+  // Arrastre con mouse en cada fila horizontal — un solo objeto de props
+  // (delegación global por atributo, ver useDragScroll).
+  const dragRow = useDragScroll()
+
   const tracks = useQuery({
     queryKey: ['tracks', 'top', PREVIEW_LIMIT],
     queryFn:  () => catalogoApi.tracksTop(PREVIEW_LIMIT),
@@ -96,20 +172,24 @@ export function CatalogDiscovery({ onVerTodo }: Props) {
       {trackList.length > 0 && (
         <section className={styles.section}>
           <SectionHeader title="Canciones populares" ctaLabel="Ver todas" onClick={() => onVerTodo('canciones')} />
-          <div className={styles.hRow} aria-label="Canciones populares">
+          <DraggableRow label="Canciones populares" dragRow={dragRow}>
             {trackList.map((track, i) => (
               <div key={`${track.fact_id}-${track.track_id}`} className={styles.trackItem}>
                 <TrackGridCard track={track} queue={trackList} index={i} />
               </div>
             ))}
-          </div>
+          </DraggableRow>
         </section>
       )}
 
+      {/* Artista/playlist clickean a SU detalle (rutas existentes
+          /catalogo/artista/:id y /catalogo/album/:id) — antes caían en el
+          listado genérico de la pestaña, mismo bug que tenía la card de
+          canción antes de su detalle. */}
       {artistList.length > 0 && (
         <section className={styles.section}>
           <SectionHeader title="Artistas destacados" ctaLabel="Ver todos" onClick={() => onVerTodo('artistas')} />
-          <div className={styles.hRow} aria-label="Artistas destacados">
+          <DraggableRow label="Artistas destacados" dragRow={dragRow}>
             {artistList.map((a) => (
               <ExploreGridCard
                 key={a.artist_id}
@@ -118,11 +198,11 @@ export function CatalogDiscovery({ onVerTodo }: Props) {
                 size={ARTIST_SIZE}
                 name={a.name}
                 imagenUrl={a.imagen_url}
-                metric={`${a.track_count.toLocaleString('es')} tracks`}
-                onClick={() => onVerTodo('artistas')}
+                metric={`${a.track_count.toLocaleString('es')} canciones`}
+                onClick={() => navigate(`/catalogo/artista/${a.artist_id}`)}
               />
             ))}
-          </div>
+          </DraggableRow>
         </section>
       )}
 
@@ -151,7 +231,7 @@ export function CatalogDiscovery({ onVerTodo }: Props) {
       {playlistList.length > 0 && (
         <section className={styles.section}>
           <SectionHeader title="Playlists" ctaLabel="Ver todas" onClick={() => onVerTodo('playlists')} />
-          <div className={styles.hRow} aria-label="Playlists">
+          <DraggableRow label="Playlists" dragRow={dragRow}>
             {playlistList.map((p) => (
               <ExploreGridCard
                 key={p.album_id}
@@ -159,11 +239,12 @@ export function CatalogDiscovery({ onVerTodo }: Props) {
                 size={PLAYLIST_SIZE}
                 name={p.name}
                 imagenUrl={p.imagen_url}
+                albumId={p.album_id}
                 metric={`${(p.track_count ?? 0).toLocaleString('es')} canciones${p.release_year ? ` · ${p.release_year}` : ''}`}
-                onClick={() => onVerTodo('playlists')}
+                onClick={() => navigate(`/catalogo/album/${p.album_id}`)}
               />
             ))}
-          </div>
+          </DraggableRow>
         </section>
       )}
     </div>

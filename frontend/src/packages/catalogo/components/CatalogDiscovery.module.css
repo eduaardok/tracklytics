@@ -4,6 +4,29 @@
   gap: var(--space-xl);
 }
 
+/* Entrada escalonada de las secciones del descubrimiento (MixDiario +
+   filas): cada bloque sube 70ms después del anterior, total <400ms — ritmo
+   de llegada, no espera. Corre al montar (CSS puro, sin gate de scroll), y
+   con reduced-motion se apaga. */
+.discovery > * {
+  animation: discovery-in 420ms var(--ease-out-quart) backwards;
+}
+
+.discovery > *:nth-child(1) { animation-delay: 0ms; }
+.discovery > *:nth-child(2) { animation-delay: 70ms; }
+.discovery > *:nth-child(3) { animation-delay: 140ms; }
+.discovery > *:nth-child(4) { animation-delay: 210ms; }
+.discovery > *:nth-child(n + 5) { animation-delay: 280ms; }
+
+@keyframes discovery-in {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .discovery > * { animation: none; }
+}
+
 .section {
   display: flex;
   flex-direction: column;
@@ -55,31 +78,119 @@
    en una sola fila que el usuario desliza, no en un bloque que empuja todo
    lo demás hacia abajo. `> *` fuerza que cada card mantenga su tamaño
    intrínseco en vez de encogerse para caber (comportamiento flex default),
-   que es justo lo que se necesita para poder desplazar. */
+   que es justo lo que se necesita para poder desplazar. `cursor: grab`
+   comunica el arrastre con mouse (useDragScroll); mientras arrastra,
+   `data-dragging` apaga los pointer-events internos para que ni hover ni
+   selección estorben. SIN scroll-snap: re-anclaba la posición al soltar el
+   arrastre (salto brusco) — el fling del hook deja la fila donde el usuario
+   la deja. */
 .hRow {
   display: flex;
   gap: var(--space-md);
   overflow-x: auto;
-  scroll-snap-type: x proximity;
   padding-bottom: 4px;
   scrollbar-width: none;
+  cursor: grab;
 }
 
 .hRow::-webkit-scrollbar { display: none; }
 
+.hRow[data-dragging] {
+  cursor: grabbing;
+  user-select: none;
+}
+
+.hRow[data-dragging] * { pointer-events: none; }
+
 .hRow > * {
   flex: 0 0 auto;
-  scroll-snap-align: start;
 }
 
 /* TrackGridCard no tiene prop de tamaño propio (se reusa intacto, sin
    tocarlo, en su vista completa) — el ancho fijo se lo da este wrapper,
    contenedor con ancho definido real (no relativo) para que el `width:100%`
    interno de TrackGridCard resuelva de forma predecible dentro de un flex
-   row. */
+   row. 176px (antes 150): covers más grandes para que las filas desborden y
+   el arrastre tenga sentido (feedback). */
 .trackItem {
-  width: 150px;
+  width: 176px;
 }
+
+/* ── Affordance de arrastre (DraggableRow) ──
+   Shell relativa alrededor de la fila: fades que tapan el borde indicando
+   "hay más contenido" + flechas circulares que aparecen al hover y avanzan
+   ~3/4 del viewport. Los fades usan --color-bg para fundirse con la página. */
+.rowShell {
+  position: relative;
+}
+
+.rowFadeL,
+.rowFadeR {
+  position: absolute;
+  top: -4px;
+  bottom: 0;
+  width: 56px;
+  pointer-events: none;
+  z-index: 1;
+  transition: opacity var(--duration-fast) var(--ease-standard);
+}
+
+.rowFadeL {
+  left: -4px;
+  background: linear-gradient(90deg, var(--color-bg) 30%, transparent);
+}
+
+.rowFadeR {
+  right: -4px;
+  background: linear-gradient(270deg, var(--color-bg) 30%, transparent);
+}
+
+.rowFadeHidden {
+  opacity: 0;
+}
+
+.rowNav {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-pill);
+  color: var(--color-ink);
+  background: var(--color-surface-raised);
+  border: 1px solid var(--color-border);
+  box-shadow: var(--shadow-card);
+  cursor: pointer;
+  z-index: 2;
+  opacity: 0;
+  transition:
+    opacity var(--duration-fast) var(--ease-standard),
+    transform var(--duration-fast) var(--ease-standard),
+    border-color var(--duration-fast) var(--ease-standard);
+}
+
+/* Visible al hover del shell O con foco por teclado — nunca invisible para
+   navegación con teclado. */
+.rowShell:hover .rowNav,
+.rowNav:focus-visible {
+  opacity: 1;
+}
+
+.rowNav:hover {
+  transform: translateY(-50%) scale(1.08);
+  border-color: var(--color-primary);
+}
+
+.rowNav:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+.rowNavL { left: -10px; }
+.rowNavR { right: -10px; }
 
 /* ── Géneros: fila de chips compacta (regla 8 — nunca bloques grandes) ── */
 .genreChips {
