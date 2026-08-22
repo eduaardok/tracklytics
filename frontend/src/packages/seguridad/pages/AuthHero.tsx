@@ -25,7 +25,17 @@ function MiniEqualizer() {
 export function AuthHero() {
   return (
     <svg className={styles.heroAmbient} aria-hidden="true" viewBox="0 0 320 220" preserveAspectRatio="xMidYMax slice">
+      {/* Ondas base: se dibujan al entrar y quedan fijas. Tres alturas dan
+          profundidad de "cordillera de señal" sin subir la opacidad. */}
       <g fill="none" stroke="currentColor" strokeWidth="1.5">
+        <path d="M4 190 Q 40 120 76 190 T 148 190 T 220 190 T 292 190" />
+        <path d="M4 168 Q 44 118 84 168 T 164 168 T 244 168 T 304 168" />
+        <path d="M4 210 Q 50 160 96 210 T 188 210 T 280 210" />
+      </g>
+      {/* Pulsos que viajan por las ondas (mismos trazos, punteado redondo
+          desplazándose en bucle) — la capa sigue viva después de la entrada,
+          no solo en el primer segundo. */}
+      <g className={styles.heroFlow} fill="none" stroke="currentColor">
         <path d="M4 190 Q 40 120 76 190 T 148 190 T 220 190 T 292 190" />
         <path d="M4 210 Q 50 160 96 210 T 188 210 T 280 210" />
       </g>
@@ -47,9 +57,8 @@ export function AuthHero() {
 export function AuthBrand() {
   return (
     <div className={styles.brandRow}>
-      <span className={styles.brandLogoRing}>
-        <img src="/logo.png" alt="" className={styles.brandLogo} width={40} height={40} />
-      </span>
+      {/* Logo tal cual (feedback de usuario: sin anillo de gradiente alrededor). */}
+      <img src="/logo.png" alt="" className={styles.brandLogo} width={40} height={40} />
       <span className={styles.brandName}>Tracklytics</span>
       <MiniEqualizer />
     </div>

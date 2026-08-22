@@ -24,18 +24,139 @@
   z-index: var(--z-sticky);
 }
 
+/* ── Aurora de marca ──
+   Tres masas de luz (primario/acento/un matiz magenta de unión) que respiran
+   muy lento DETRÁS de todo — la capa que convierte "fondo plano" en
+   atmósfera. inset negativo para que la deriva nunca descubra bordes.
+   transform+opacity only: 60fps garantizado. */
+.page::before {
+  content: '';
+  position: absolute;
+  inset: -20%;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(42rem 32rem at 18% 12%, oklch(0.48 0.15 290 / 0.14), transparent 62%),
+    radial-gradient(36rem 28rem at 86% 76%, oklch(0.70 0.14 195 / 0.11), transparent 64%),
+    radial-gradient(30rem 26rem at 80% 6%, oklch(0.55 0.13 330 / 0.08), transparent 60%);
+  animation: aurora-drift 26s ease-in-out infinite alternate;
+}
+
+:root[data-theme='dark'] .page::before {
+  background:
+    radial-gradient(42rem 32rem at 18% 12%, oklch(0.48 0.15 290 / 0.22), transparent 62%),
+    radial-gradient(36rem 28rem at 86% 76%, oklch(0.70 0.14 195 / 0.16), transparent 64%),
+    radial-gradient(30rem 26rem at 80% 6%, oklch(0.55 0.13 330 / 0.12), transparent 60%);
+}
+
+@keyframes aurora-drift {
+  from { transform: translate3d(-1.5%, -1%, 0) scale(1); }
+  to   { transform: translate3d(2%, 1.5%, 0) scale(1.06); }
+}
+
+/* ── Grano ──
+   Textura fotográfica finísima (feTurbulence inline, estática — cero coste
+   de runtime): elimina el banding de la aurora en monitores buenos y da el
+   acabado mate que separa "web template" de "producto terminado". Queda POR
+   ENCIMA de las ondas (unifica capas) y POR DEBAJO del contenido (z1). */
+.page::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.045;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+:root[data-theme='dark'] .page::after { opacity: 0.06; }
+
 /* Ambiente de marca (antes protagonista de un panel lateral propio) — capa
    de fondo muy sutil detrás de toda la pantalla centrada, nunca compite con
-   el card. */
+   el card. VIVO, no estático: las ondas se dibujan al entrar, pulsos viajan
+   por ellas en bucle y toda la capa flota muy lento (16s). Opacity 0.09 en
+   claro (feedback: a 0.05 casi no se veía sobre blanco; oscuro mantiene su
+   0.08, que ya se veía bien). */
 .heroAmbient {
   position: absolute;
   inset: 0;
   width: 100%;
   height: 100%;
   color: var(--color-primary-light);
-  opacity: 0.05;
+  opacity: 0.09;
   pointer-events: none;
   z-index: 0;
+  animation: hero-float 16s ease-in-out infinite alternate;
+}
+
+/* Draw-in de las ondas: stroke-dashoffset revela el trazo como si se
+   dibujara a mano — 700 cubre el largo real de los paths (~600 unidades). */
+.heroAmbient path {
+  stroke-dasharray: 700;
+  stroke-dashoffset: 700;
+  animation: hero-wave-draw 1800ms var(--ease-out-quart) forwards;
+}
+
+.heroAmbient path:nth-of-type(2) {
+  animation-delay: 220ms;
+}
+
+.heroAmbient circle {
+  animation: hero-dot-breathe 4s ease-in-out infinite alternate;
+}
+
+.heroAmbient circle:nth-of-type(even) {
+  animation-delay: -2s;
+}
+
+/* Pulsos viajando por la onda (segundo <g> con los mismos trazos): trazo
+   punteado redondo cuyo dashoffset avanza en bucle — puntos que recorren la
+   señal como una reproducción en curso. Aparece suavizado cuando termina el
+   draw-in (~2s) y corre para siempre; el offset de cierre (-125) es múltiplo
+   exacto del periodo del patrón (0.5+12=12.5) para un bucle sin salto. */
+.heroFlow {
+  opacity: 0;
+  animation:
+    hero-flow-fade 900ms var(--ease-standard) 1900ms forwards,
+    hero-flow-drift 14s ease-in-out infinite alternate;
+}
+
+.heroFlow path {
+  stroke-dasharray: 0.5 12;
+  stroke-linecap: round;
+  stroke-width: 2.5;
+  animation: hero-wave-flow 7s linear infinite;
+}
+
+.heroFlow path:nth-of-type(2) { animation-delay: -3.5s; }
+
+@keyframes hero-flow-fade {
+  to { opacity: 1; }
+}
+
+/* Deriva horizontal lentísima del grupo completo — los pulsos no siguen
+   siempre la misma fase visual (el conjunto respira). */
+@keyframes hero-flow-drift {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-14px); }
+}
+
+@keyframes hero-wave-flow {
+  to { stroke-dashoffset: -125; }
+}
+
+@keyframes hero-wave-draw {
+  to { stroke-dashoffset: 0; }
+}
+
+@keyframes hero-float {
+  from { transform: translateY(0); }
+  to   { transform: translateY(-10px); }
+}
+
+@keyframes hero-dot-breathe {
+  from { opacity: 0.55; }
+  to   { opacity: 1; }
 }
 
 :root[data-theme='dark'] .heroAmbient {
@@ -57,14 +178,14 @@
   display: flex;
   align-items: center;
   gap: var(--space-sm);
+  /* Primera pieza en asentarse: la marca baja suavemente antes de que el
+     card suba — dos direcciones opuestas dan profundidad a la entrada. */
+  animation: brand-in var(--duration-entrance) var(--ease-out-quart) backwards;
 }
 
-.brandLogoRing {
-  display: flex;
-  padding: 2px;
-  border-radius: 50%;
-  background: var(--gradient-primary);
-  flex-shrink: 0;
+@keyframes brand-in {
+  from { opacity: 0; transform: translateY(-8px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 
 .brandLogo {
@@ -108,6 +229,23 @@
 
 @media (prefers-reduced-motion: reduce) {
   .miniEqBar { animation: none; height: 55%; }
+
+  /* Sin movimiento, pero con los estados FINALES correctos: ondas dibujadas,
+     acento completo, todo visible — la entrada se vuelve un corte seco, no
+     una pantalla a medias (la regla global de index.css ya acorta las
+     duraciones; esto fija estados para no depender de cómo cada navegador
+     resuelve fill-mode con duration ~0). */
+  .heroAmbient { animation: none; }
+  .heroAmbient path  { animation: none; stroke-dashoffset: 0; }
+  .heroAmbient circle { animation: none; }
+  .heroFlow { animation: none; opacity: 1; }
+  .heroFlow path { animation: none; }
+  .page::before { animation: none; }
+  .brandRow,
+  .card,
+  .form > *,
+  .pageFooter { animation: none; }
+  .card::before { animation: none; transform: scaleX(1); }
 }
 
 /* ── Card ── */
@@ -118,10 +256,26 @@
   flex-direction: column;
   gap: var(--space-md);
   padding: var(--space-lg) var(--space-xl);
-  background: var(--color-surface);
+  /* Superficie ligeramente translúcida + blur: la aurora se insinúa A
+      TRAVÉS del panel — profundidad real, no decoración (único uso de glass
+      en todo el flujo). El highlight interior superior simula el canto
+      iluminado de una tarjeta física. */
+  background: color-mix(in oklab, var(--color-surface) 86%, transparent);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-card-lg);
+  box-shadow:
+    var(--shadow-card-lg),
+    inset 0 1px 0 oklch(1 0 0 / 0.07);
+  /* El card sube y se asienta después de la marca — secuencia de ~400ms en
+     total, rápida a propósito (login ocurre en mitad de una tarea). */
+  animation: card-in var(--duration-entrance) var(--ease-out-quart) 80ms backwards;
+}
+
+@keyframes card-in {
+  from { opacity: 0; transform: translateY(14px) scale(0.985); }
+  to   { opacity: 1; transform: translateY(0)    scale(1); }
 }
 
 .card::before {
@@ -133,6 +287,15 @@
   height: 3px;
   border-radius: var(--radius-pill);
   background: linear-gradient(90deg, var(--color-primary), var(--color-accent));
+  /* La barra de acento se DIBUJA de izquierda a derecha tras asentarse el
+     card — el toque distintivo del panel, ganado, no decoración gratuita. */
+  transform: scaleX(0);
+  transform-origin: left center;
+  animation: accent-draw 700ms var(--ease-out-quart) 380ms forwards;
+}
+
+@keyframes accent-draw {
+  to { transform: scaleX(1); }
 }
 
 .formContext {
@@ -167,6 +330,29 @@
   gap: var(--space-md);
 }
 
+/* Stagger de campos — cada pieza sube 40ms después de la anterior (máximo
+   8 piezas escalonadas; de ahí en adelante aparecen juntas para no hacer
+   esperar a RegisterPage, que es el panel más largo). Total ~600ms: ritmo,
+   no espera. */
+.form > * {
+  animation: field-in var(--duration-deliberate) var(--ease-out-quart) backwards;
+}
+
+.form > *:nth-child(1) { animation-delay: 180ms; }
+.form > *:nth-child(2) { animation-delay: 220ms; }
+.form > *:nth-child(3) { animation-delay: 260ms; }
+.form > *:nth-child(4) { animation-delay: 300ms; }
+.form > *:nth-child(5) { animation-delay: 340ms; }
+.form > *:nth-child(6) { animation-delay: 380ms; }
+.form > *:nth-child(7) { animation-delay: 420ms; }
+.form > *:nth-child(8) { animation-delay: 460ms; }
+.form > *:nth-child(n + 9) { animation-delay: 480ms; }
+
+@keyframes field-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
 .field {
   display: flex;
   flex-direction: column;
@@ -196,12 +382,17 @@
   border-radius: var(--radius-md);
   border: 1px solid var(--color-border);
   outline: none;
-  transition: border-color var(--duration-standard) var(--ease-standard);
+  transition:
+    border-color var(--duration-standard) var(--ease-standard),
+    box-shadow var(--duration-standard) var(--ease-standard);
 }
 
 .input::placeholder { color: var(--color-muted); }
 .input:hover  { border-color: var(--color-border-strong); }
-.input:focus  { border-color: var(--color-primary); }
+.input:focus  {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px oklch(0.48 0.15 290 / 0.15);
+}
 
 /* ── Account type picker (RegisterPage) ── */
 .roleGrid {
@@ -260,6 +451,8 @@
 
 /* ── Submit / footer ── */
 .submit {
+  position: relative;
+  overflow: hidden;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -273,11 +466,40 @@
   padding: 10px var(--space-md);
   height: 44px;
   cursor: pointer;
-  transition: background-color var(--duration-standard) var(--ease-standard);
+  transition:
+    background-color var(--duration-standard) var(--ease-standard),
+    transform var(--duration-fast) var(--ease-standard),
+    box-shadow var(--duration-standard) var(--ease-standard);
 }
 
-.submit:hover:not(:disabled) { background: var(--color-primary-hover); }
+.submit::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -60%;
+  width: 45%;
+  /* Sheen: franja de luz que barre el botón al pasar el mouse — feedback de
+     "superficie pulida", corre una sola vez por hover. */
+  background: linear-gradient(105deg, transparent, oklch(1 0 0 / 0.28), transparent);
+  transform: skewX(-18deg) translateX(0);
+}
+
+.submit:hover:not(:disabled)::after {
+  animation: submit-sheen 650ms var(--ease-out-quart);
+}
+
+@keyframes submit-sheen {
+  to { transform: skewX(-18deg) translateX(420%); }
+}
+
+.submit:hover:not(:disabled) {
+  background: var(--color-primary-hover);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px oklch(0.48 0.15 290 / 0.30);
+}
 .submit:focus-visible { outline: none; box-shadow: 0 0 0 2px oklch(0.48 0.15 290 / 0.5); }
+.submit:active:not(:disabled) { transform: translateY(0) scale(0.99); }
 .submit:disabled { opacity: 0.5; cursor: not-allowed; }
 
 .footer {
@@ -379,6 +601,13 @@
   font-family: var(--font-sans);
   font-size: 0.75rem;
   color: var(--color-muted);
+  /* Lo periférico entra al final, sin protagonismo. */
+  animation: fade-in var(--duration-deliberate) var(--ease-standard) 420ms backwards;
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
 }
 
 .pageFooter a {
