@@ -1,6 +1,6 @@
 # Tracklytics — Pendientes
 
-> Última revisión: **Semana 16 (S16-P4/P5)** — actualizado tras las auditorías de lógica y
+> Última revisión: **Semana 16 (S16-P6)** — actualizado tras las auditorías de lógica y
 > visual/completitud S16 y el lote de fixes F1/F2/F7/F8/F9 + A6/A8. Las decisiones y detalles
 > por prompt están en `docs/BITACORA_S16.md`.
 
@@ -18,6 +18,10 @@
 - [ ] SQL por interpolación en `dim_create`/`dim_update` (sigue sin resolver, heredado)
 - [ ] Nav mobile en `AnalyticaShell`/`SeguridadShell` (sin drawer bajo 768px; AppShell ya lo tiene)
 - [ ] Airflow idle CPU/RAM alto
+- [ ] **Performance del core**: FACT_TRACKS ordenada físicamente por genre_id — todo
+      lookup por act_id/	rack_id escanea ~1.6M filas (favoritos ~1.4–2.9s caliente;
+      bajo concurrencia se apila y ahoga el threadpool del API). Fix recomendado: projection
+      por act_id (+ 	rack_id) con backfill y ajuste del CREATE TABLE del pipeline ETL
 - [ ] 2 `ComingSoonPage` en analítica (Partners, Ingestas)
 - [ ] Consistencia visual: ~24 páginas con query usan manejo de error local (`panelError`,
       texto plano) en vez del `ErrorState`/`EmptyState` compartidos — bajo impacto, la
@@ -37,9 +41,9 @@
 
 ## Ranking de mejora propuesto (post-S16)
 
-1. Lote rápido: consistencia de loaders transversal + gaps de datos ← **actual**
-2. Rediseño Biblioteca (pantalla B2C más visitada, hoy plancha)
-3. R2 analítica propia del artista
+1. ~~Lote rápido: loaders + gaps de datos~~ ✅ (S16-P5)
+2. ~~Rediseño Biblioteca~~ ✅ (S16-P6)
+3. R2 analítica propia del artista ← **siguiente**
 4. A9/A10/A11 (restos de auditoría visual de Analítica)
 5. Aparte: P12 PDF y bloque dinero (cuando se descongele)
 
