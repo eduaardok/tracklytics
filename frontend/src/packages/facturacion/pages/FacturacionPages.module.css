@@ -240,17 +240,68 @@
   border-color: var(--color-primary);
 }
 
-/* ── Inline add form ── */
+/* ── Inline add form ──
+   S16-P8: contenedor en columna — la tarjeta visual arriba y DOS bloques
+   etiquetados debajo (datos de tarjeta / dirección fiscal) en vez de una
+   sola sopa de campos. */
 .addForm {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-  gap: var(--space-sm);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
   padding: var(--space-md);
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   margin-bottom: var(--space-xl);
-  align-items: end;
+}
+
+/* Bloque etiquetado dentro del formulario (tarjeta vs dirección). */
+.formSeccion {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-md);
+  background: var(--color-surface-secondary);
+}
+
+.formSeccionTitulo {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 var(--space-sm);
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-muted);
+}
+
+/* Grid interno de cada bloque — 2 columnas fijas (auto-fit reordenaba los
+   campos de forma impredecible al crecer el panel). */
+.formGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-sm) var(--space-md);
+}
+.fieldFull { grid-column: 1 / -1; }
+
+/* Label con acompañante a la derecha (chip de marca, "4 dígitos" del CVV). */
+.filaLabel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.marcaChip {
+  font-family: var(--font-mono);
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--color-primary-light);
+  background: oklch(0.48 0.15 290 / 0.10);
+  border: 1px solid oklch(0.48 0.15 290 / 0.35);
+  padding: 1px 7px;
+  border-radius: 999px;
 }
 
 /* ── Admin search form ── */
@@ -281,6 +332,24 @@
   font-family: var(--font-sans);
   font-size: 0.75rem;
   color: var(--color-error);
+}
+
+/* Estados en vivo del formulario de tarjeta (S16-P8): ok en verde, y un
+   tono neutro para lo que aún se está escribiendo (rojo a mitad de tipeo
+   era ruido, el error fuerte queda para algo ya completo e inválido). */
+.fieldHintOk {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--font-sans);
+  font-size: 0.75rem;
+  color: var(--color-success);
+}
+
+.fieldHintSoft {
+  font-family: var(--font-sans);
+  font-size: 0.75rem;
+  color: var(--color-muted);
 }
 
 .input {
@@ -491,7 +560,7 @@
 @media (max-width: 480px) {
   .historyGrid  { grid-template-columns: 1fr; }
   .auditGrid    { grid-template-columns: 1fr; }
-  .addForm      { grid-template-columns: 1fr; }
+  .formGrid     { grid-template-columns: 1fr; }
   .methodCountry { display: none; }
 }
 

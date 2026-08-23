@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { Check, CreditCard, MapPin } from 'lucide-react'
 import { apiErrorMessage } from '@shared/lib/api-client'
 import { useToast } from '@shared/context/ToastContext'
 import { distribucionApi } from '@packages/distribucion/api/distribucion.api'
@@ -30,6 +31,13 @@ function MarcaTarjeta({ marca }: { marca: string }) {
   if (marca === 'amex') return <span className={`${cardStyles.marca} ${cardStyles.marcaAmex}`}>AMEX</span>
   if (marca === 'discover') return <span className={`${cardStyles.marca} ${cardStyles.marcaDiscover}`}>DISCOVER</span>
   return <span className={`${cardStyles.marca} ${cardStyles.marcaGeneric}`} aria-hidden="true">♦</span>
+}
+
+// Chip pequeño junto al label del campo número — refuerza la marca detectada
+// sin depender de mirar la tarjeta visual (S16-P8).
+function MarcaChip({ marca }: { marca: string }) {
+  if (marca === 'tarjeta') return null
+  return <span className={styles.marcaChip}>{marca.toUpperCase()}</span>
 }
 
 // Tarjeta de crédito visual en vivo (S16-P7): refleja número/titular/expiración
@@ -92,6 +100,13 @@ function TarjetaVisual({
 // nivel del más estricto. Igual que en FacturacionPage: el número completo,
 // la expiración y el CVV viven SOLO en este estado local — nunca viajan al
 // backend (solo `ultimos_4_digitos`, ya extraído).
+//
+// S16-P8 (feedback de armonía): el formulario se divide en dos bloques con
+// etiqueta propia ("Datos de la tarjeta" / "Dirección de facturación") y las
+// validaciones críticas se muestran EN VIVO bajo cada campo — número (Luhn),
+// expiración (rango/vigencia) y CVV (largo según marca, AMEX=4) — con estados
+// ok/error diferenciados. El toast al submit queda como última barrera, no
+// como único feedback.
 export function FormMetodoPago({ onRegistrado }: { onRegistrado?: (metodoPagoId: string) => void }) {
   const toast = useToast()
   const queryClient = useQueryClient()
@@ -113,6 +128,55 @@ export function FormMetodoPago({ onRegistrado }: { onRegistrado?: (metodoPagoId:
 
   const ultimos4 = numeroTarjeta.replace(/\D/g, '').slice(-4)
   const tipoInferido = inferirMarcaTarjeta(numeroTarjeta)
+
+  // ── Validaciones en vivo (derivadas, sin estado extra) ──
+  const digitos = numeroTarjeta.replace(/\D/g, '')
+  // luhnValido exige ≥12 dígitos — antes de eso cualquier rojo sería ruido
+  // mientras el usuario todavía está escribiendo.
+  const numeroCompleto = digitos.length >= 12
+  const numeroOk = numeroCompleto && luhnValido(numeroTarjeta)
+  const cvvEsperado = tipoInferido === 'amex' ? 4 : 3
+  const expCompleta = expiracion.length === 5
+
+  function hintNumero() {
+    if (digitos.length === 0) return null
+    if (!numeroCompleto) return <span className={styles.fieldHintSoft}>Faltan dígitos…</span>
+    if (!numeroOk) return <span className={styles.fieldHint}>El número no es válido — revisa los dígitos.</span>
+    return (
+      <span className={styles.fieldHintOk}>
+        <Check size={12} aria-hidden="true" /> Número válido
+      </span>
+    )
+  }
+
+  function hintExpiracion() {
+    if (mesExpiracionFueraDeRango(expiracion)) {
+      return <span className={styles.fieldHint}>El mes debe estar entre 01 y 12.</span>
+    }
+    if (expCompleta && !expiracionValida(expiracion)) {
+      return <span className={styles.fieldHint}>Esa fecha ya venció.</span>
+    }
+    if (expCompleta && expiracionValida(expiracion)) {
+      return (
+        <span className={styles.fieldHintOk}>
+          <Check size={12} aria-hidden="true" /> Vigente
+        </span>
+      )
+    }
+    return null
+  }
+
+  function hintCvv() {
+    if (cvv.length === 0) return null
+    if (cvv.length < cvvEsperado) {
+      return <span className={styles.fieldHintSoft}>{cvvEsperado - cvv.length} dígito{cvvEsperado - cvv.length !== 1 ? 's' : ''} más…</span>
+    }
+    return (
+      <span className={styles.fieldHintOk}>
+        <Check size={12} aria-hidden="true" /> Completo
+      </span>
+    )
+  }
 
   const registrarMetodo = useMutation({
     mutationFn: () =>
@@ -177,145 +241,160 @@ export function FormMetodoPago({ onRegistrado }: { onRegistrado?: (metodoPagoId:
         cvvActivo={cvvActivo}
       />
 
-      <div className={styles.formGrid}>
-        <div className={`${styles.field} ${styles.fieldFull}`}>
-          <label className={styles.fieldLabel} htmlFor="numeroTarjeta">número de tarjeta</label>
-          <input
-            id="numeroTarjeta"
-            className={styles.input}
-            type="text"
-            autoComplete="cc-number"
-            inputMode="numeric"
-            value={numeroTarjeta}
-            onChange={(e) => setNumeroTarjeta(formatearNumeroTarjeta(e.target.value))}
-            maxLength={23}
-            placeholder="4242 4242 4242 4242"
-            required
-          />
+      {/* ── Bloque 1: la tarjeta ── */}
+      <section className={styles.formSeccion}>
+        <p className={styles.formSeccionTitulo}>
+          <CreditCard size={13} aria-hidden="true" /> Datos de la tarjeta
+        </p>
+        <div className={styles.formGrid}>
+          <div className={`${styles.field} ${styles.fieldFull}`}>
+            <span className={styles.filaLabel}>
+              <label className={styles.fieldLabel} htmlFor="numeroTarjeta">número de tarjeta</label>
+              <MarcaChip marca={tipoInferido} />
+            </span>
+            <input
+              id="numeroTarjeta"
+              className={styles.input}
+              type="text"
+              autoComplete="cc-number"
+              inputMode="numeric"
+              value={numeroTarjeta}
+              onChange={(e) => setNumeroTarjeta(formatearNumeroTarjeta(e.target.value))}
+              maxLength={23}
+              placeholder="4242 4242 4242 4242"
+              required
+            />
+            {hintNumero()}
+          </div>
+          <div className={`${styles.field} ${styles.fieldFull}`}>
+            <label className={styles.fieldLabel} htmlFor="nombreTitular">titular</label>
+            <input
+              id="nombreTitular"
+              className={styles.input}
+              type="text"
+              autoComplete="cc-name"
+              value={nombreTitular}
+              onChange={(e) => setNombreTitular(e.target.value)}
+              placeholder="Como aparece en la tarjeta"
+              maxLength={200}
+              required
+            />
+          </div>
+          <div className={styles.field}>
+            <label className={styles.fieldLabel} htmlFor="expiracion">expiración</label>
+            <input
+              id="expiracion"
+              className={styles.input}
+              type="text"
+              inputMode="numeric"
+              autoComplete="cc-exp"
+              value={expiracion}
+              onChange={(e) => setExpiracion(formatearExpiracion(e.target.value))}
+              maxLength={5}
+              placeholder="MM/AA"
+              required
+            />
+            {hintExpiracion()}
+          </div>
+          <div className={styles.field}>
+            <span className={styles.filaLabel}>
+              <label className={styles.fieldLabel} htmlFor="cvv">CVV</label>
+              {tipoInferido === 'amex' && <span className={styles.fieldLabel}>4 dígitos</span>}
+            </span>
+            <input
+              id="cvv"
+              className={styles.input}
+              type="password"
+              autoComplete="cc-csc"
+              inputMode="numeric"
+              value={cvv}
+              onFocus={() => setCvvActivo(true)}
+              onBlur={() => setCvvActivo(false)}
+              onChange={(e) => setCvv(e.target.value.replace(/\D/g, '').slice(0, cvvEsperado))}
+              maxLength={cvvEsperado}
+              placeholder={cvvEsperado === 4 ? '••••' : '•••'}
+              required
+            />
+            {hintCvv()}
+          </div>
         </div>
-        <div className={`${styles.field} ${styles.fieldFull}`}>
-          <label className={styles.fieldLabel} htmlFor="nombreTitular">titular</label>
-          <input
-            id="nombreTitular"
-            className={styles.input}
-            type="text"
-            autoComplete="cc-name"
-            value={nombreTitular}
-            onChange={(e) => setNombreTitular(e.target.value)}
-            placeholder="Como aparece en la tarjeta"
-            maxLength={200}
-            required
-          />
+      </section>
+
+      {/* ── Bloque 2: dirección fiscal ── */}
+      <section className={styles.formSeccion}>
+        <p className={styles.formSeccionTitulo}>
+          <MapPin size={13} aria-hidden="true" /> Dirección de facturación
+        </p>
+        <div className={styles.formGrid}>
+          <div className={`${styles.field} ${styles.fieldFull}`}>
+            <label className={styles.fieldLabel} htmlFor="direccion">dirección</label>
+            <input
+              id="direccion"
+              className={styles.input}
+              type="text"
+              autoComplete="address-line1"
+              value={direccion}
+              onChange={(e) => setDireccion(e.target.value)}
+              placeholder="Calle y número"
+              maxLength={300}
+            />
+          </div>
+          <div className={styles.field}>
+            <label className={styles.fieldLabel} htmlFor="ciudad">ciudad</label>
+            <input
+              id="ciudad"
+              className={styles.input}
+              type="text"
+              autoComplete="address-level2"
+              value={ciudad}
+              onChange={(e) => setCiudad(e.target.value)}
+              placeholder="Madrid"
+              maxLength={150}
+            />
+          </div>
+          <div className={styles.field}>
+            <label className={styles.fieldLabel} htmlFor="codigoPostal">código postal</label>
+            <input
+              id="codigoPostal"
+              className={styles.input}
+              type="text"
+              autoComplete="postal-code"
+              value={codigoPostal}
+              onChange={(e) => setCodigoPostal(e.target.value)}
+              placeholder="28001"
+              maxLength={12}
+            />
+            {/* Solo cuando ya escribió algo: un hint rojo con el campo vacío
+                era ruido de primera impresión (S16-P8). */}
+            {codigoPostal.length > 0 && !codigoPostalValido(codigoPostal) && (
+              <span className={styles.fieldHint}>Debe tener entre 3 y 12 caracteres.</span>
+            )}
+          </div>
+          <div className={`${styles.field} ${styles.fieldFull}`}>
+            <label className={styles.fieldLabel} htmlFor="paisFacturacion">país</label>
+            <select
+              id="paisFacturacion"
+              className={styles.input}
+              autoComplete="country"
+              value={paisId}
+              onChange={(e) => setPaisId(e.target.value)}
+              required
+            >
+              <option value="">Selecciona…</option>
+              {paises.map((p) => (
+                <option key={p.pais_id} value={p.codigo_iso}>{p.nombre}</option>
+              ))}
+            </select>
+          </div>
         </div>
-        <div className={styles.field}>
-          <label className={styles.fieldLabel} htmlFor="expiracion">expiración</label>
-          <input
-            id="expiracion"
-            className={styles.input}
-            type="text"
-            inputMode="numeric"
-            autoComplete="cc-exp"
-            value={expiracion}
-            onChange={(e) => setExpiracion(formatearExpiracion(e.target.value))}
-            maxLength={5}
-            placeholder="MM/AA"
-            required
-          />
-          {/* Feedback inline (no solo al submit) — apenas el mes queda
-              completo con 2 dígitos, antes de que el usuario termine de
-              escribir el año. */}
-          {mesExpiracionFueraDeRango(expiracion) && (
-            <span className={styles.fieldHint}>El mes debe estar entre 01 y 12.</span>
-          )}
-          {!mesExpiracionFueraDeRango(expiracion) && expiracion.length === 5 && !expiracionValida(expiracion) && (
-            <span className={styles.fieldHint}>Esa fecha ya venció.</span>
-          )}
-        </div>
-        <div className={styles.field}>
-          <label className={styles.fieldLabel} htmlFor="cvv">CVV</label>
-          <input
-            id="cvv"
-            className={styles.input}
-            type="password"
-            autoComplete="cc-csc"
-            inputMode="numeric"
-            value={cvv}
-            onFocus={() => setCvvActivo(true)}
-            onBlur={() => setCvvActivo(false)}
-            onChange={(e) => setCvv(e.target.value.replace(/\D/g, '').slice(0, 4))}
-            maxLength={4}
-            placeholder="•••"
-            required
-          />
-        </div>
-        <div className={`${styles.field} ${styles.fieldFull}`}>
-          <label className={styles.fieldLabel} htmlFor="direccion">dirección</label>
-          <input
-            id="direccion"
-            className={styles.input}
-            type="text"
-            autoComplete="address-line1"
-            value={direccion}
-            onChange={(e) => setDireccion(e.target.value)}
-            placeholder="Calle y número"
-            maxLength={300}
-          />
-        </div>
-        <div className={styles.field}>
-          <label className={styles.fieldLabel} htmlFor="ciudad">ciudad</label>
-          <input
-            id="ciudad"
-            className={styles.input}
-            type="text"
-            autoComplete="address-level2"
-            value={ciudad}
-            onChange={(e) => setCiudad(e.target.value)}
-            placeholder="Madrid"
-            maxLength={150}
-          />
-        </div>
-        <div className={styles.field}>
-          <label className={styles.fieldLabel} htmlFor="codigoPostal">código postal</label>
-          <input
-            id="codigoPostal"
-            className={styles.input}
-            type="text"
-            autoComplete="postal-code"
-            value={codigoPostal}
-            onChange={(e) => setCodigoPostal(e.target.value)}
-            placeholder="28001"
-            maxLength={12}
-          />
-          {/* 12 caracteres, no 20 (S16): cubre con margen los formatos reales
-              más largos (ej. ZIP+4 de EE.UU. = 10) sin bloquear ningún código
-              postal legítimo. */}
-          {!codigoPostalValido(codigoPostal) && (
-            <span className={styles.fieldHint}>Debe tener entre 3 y 12 caracteres.</span>
-          )}
-        </div>
-        <div className={`${styles.field} ${styles.fieldFull}`}>
-          <label className={styles.fieldLabel} htmlFor="paisFacturacion">país</label>
-          <select
-            id="paisFacturacion"
-            className={styles.input}
-            autoComplete="country"
-            value={paisId}
-            onChange={(e) => setPaisId(e.target.value)}
-            required
-          >
-            <option value="">Selecciona…</option>
-            {paises.map((p) => (
-              <option key={p.pais_id} value={p.codigo_iso}>{p.nombre}</option>
-            ))}
-          </select>
-        </div>
-      </div>
+      </section>
+
       <button
         className={styles.btnPrimary}
         type="submit"
         disabled={registrarMetodo.isPending}
       >
-        {registrarMetodo.isPending ? 'Guardando…' : 'Guardar'}
+        {registrarMetodo.isPending ? 'Guardando…' : 'Guardar método'}
       </button>
     </form>
   )
