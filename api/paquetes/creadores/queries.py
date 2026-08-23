@@ -184,3 +184,38 @@ GROUP BY er.nombre
 """
 
 CUENTAS_ARTISTA_TOTAL = "SELECT count() AS n FROM (SELECT cuenta_artista_id FROM DIM_CUENTA_ARTISTA GROUP BY cuenta_artista_id)"
+
+
+# ── Analítica propia del artista (R2, S16-P9) ────────────────────────────────
+# Lo que la auditoría dejó anotado y CuentaArtistaPage esperaba: engagement
+# real sobre los tracks propios. La fuente es FACT_ENGAGEMENT_USUARIO
+# filtrando por los fact_id promovidos de la cuenta — el mismo patrón IN
+# podable que experiencia usa desde S16-P7 (la tabla no tiene projection por
+# fact_id, pero el costo es comparable al de las agregaciones de SENALES).
+# Favoritos netos = altas − bajas (mismo criterio de favorito vigente que
+# biblioteca/experiencia aplican con argMax; aquí la resta basta porque solo
+# interesa el saldo por track).
+
+ANALITICA_ARTISTA_POR_TRACK = """
+SELECT
+    fact_id,
+    countIf(event_type = 'reproduccion')   AS plays,
+    countIf(event_type = 'like')           AS likes,
+    countIf(event_type = 'favorito_add') - countIf(event_type = 'favorito_remove') AS favoritos,
+    uniqIf(user_id, event_type = 'reproduccion') AS oyentes
+FROM FACT_ENGAGEMENT_USUARIO
+WHERE fact_id IN {fact_ids:Array(UInt64)}
+GROUP BY fact_id
+"""
+
+ANALITICA_ARTISTA_SERIE = """
+SELECT
+    toDate(event_timestamp) AS dia,
+    count()                 AS plays
+FROM FACT_ENGAGEMENT_USUARIO
+WHERE event_type = 'reproduccion'
+  AND fact_id IN {fact_ids:Array(UInt64)}
+  AND event_timestamp >= now() - INTERVAL 30 DAY
+GROUP BY dia
+ORDER BY dia ASC
+"""

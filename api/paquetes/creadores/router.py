@@ -12,6 +12,7 @@ from paquetes.creadores.promocion import (
     NEUTRAL_AUDIO_DEFAULTS, perfil_audio_por_genero, promover_a_fact_tracks,
 )
 from paquetes.creadores.queries import (
+    ANALITICA_ARTISTA_POR_TRACK, ANALITICA_ARTISTA_SERIE,
     ARTIST_ID_POR_NOMBRE, CUENTA_ACTUAL_POR_ID, CUENTA_ACTUAL_POR_USUARIO, CUENTA_EXISTE_POR_USUARIO,
     CUENTAS_ARTISTA_TOTAL, GENERO_EXISTE, SUBIDA_ACTUAL_POR_ID, SUBIDA_MAX_VERSION, SUBIDAS_POR_CUENTA,
     SUBIDAS_POR_ESTADO, cuentas_admin_sql, subidas_admin_sql,
@@ -428,3 +429,61 @@ def dashboard_creadores(admin: dict = Depends(require_admin)):
         "subidas_por_estado":   query_rows(SUBIDAS_POR_ESTADO),
         "cuentas_artista_total": (query_one(CUENTAS_ARTISTA_TOTAL) or {}).get("n", 0),
     }
+
+
+# ── Analítica propia del artista (R2, S16-P9) ────────────────────────────────
+# Engagement real (plays/likes/favoritos netos/oyentes únicos) sobre SOLO los
+# tracks promovidos de la cuenta del artista que pregunta — el gap que
+# CuentaArtistaPage tenía documentado desde F2. Lectura pura: sin audit ni
+# mutación. El gating es el mismo criterio de mis-ganancias (cuenta aprobada),
+# pero 403 en vez de vacío para que la UI distinga "sin cuenta" de "sin datos".
+
+@router.get("/mi-analitica")
+def mi_analitica(user: dict = Depends(get_current_user)):
+    cuenta = query_one(CUENTA_ACTUAL_POR_USUARIO, {"usuario_id": user["record"]["id"]})
+    if not cuenta or cuenta["estado_cuenta"] != "aprobada":
+        raise HTTPException(status_code=403, detail="Requiere una cuenta de artista aprobada")
+
+    subidas = query_rows(SUBIDAS_POR_CUENTA, {"cuenta_artista_id": cuenta["cuenta_artista_id"]})
+    # Solo subidas promovidas a FACT_TRACKS tienen engagement posible.
+    publicados = [
+        (s["track_name"], int(s["fact_id_promovido"]))
+        for s in subidas
+        if s.get("fact_id_promovido")
+    ]
+    if not publicados:
+        return {
+            "data": {
+                "totales": {"plays": 0, "likes": 0, "favoritos": 0, "oyentes": 0},
+                "serie": [],
+                "tracks": [],
+            },
+        }
+
+    fact_ids = [f for _, f in publicados]
+    nombres = dict(publicados)
+
+    por_track = {
+        r["fact_id"]: r
+        for r in query_rows(ANALITICA_ARTISTA_POR_TRACK, {"fact_ids": fact_ids})
+    }
+    serie = query_rows(ANALITICA_ARTISTA_SERIE, {"fact_ids": fact_ids})
+
+    tracks_out = []
+    totales = {"plays": 0, "likes": 0, "favoritos": 0, "oyentes": 0}
+    for nombre, fid in publicados:
+        m = por_track.get(fid, {})
+        plays, likes = int(m.get("plays", 0)), int(m.get("likes", 0))
+        favoritos, oyentes = int(m.get("favoritos", 0)), int(m.get("oyentes", 0))
+        tracks_out.append({
+            "fact_id": fid, "track_name": nombre,
+            "plays": plays, "likes": likes, "favoritos": favoritos, "oyentes": oyentes,
+        })
+        totales["plays"] += plays
+        totales["likes"] += likes
+        totales["favoritos"] += favoritos
+        totales["oyentes"] += oyentes
+
+    # Los tracks con más streams primero — el orden que espera el panel.
+    tracks_out.sort(key=lambda t: t["plays"], reverse=True)
+    return {"data": {"totales": totales, "serie": serie, "tracks": tracks_out}}
