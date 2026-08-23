@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { EmptyState } from '@shared/components/EmptyState'
 import { analiticaApi } from '../api/analitica.api'
+import { SkeletonChart } from '@shared/components/SkeletonLoader'
 import styles from './ChurnPage.module.css'
 
 function isoMesesAtras(n: number): string {
@@ -47,7 +48,7 @@ export function ChurnPage() {
         </label>
       </div>
 
-      {churn.isLoading && <div className={styles.panel} style={{ minHeight: 160 }} />}
+      {churn.isLoading && <div className={styles.panel}><SkeletonChart height={160} /></div>}
 
       {churn.isError && (
         <div className={styles.panel}>

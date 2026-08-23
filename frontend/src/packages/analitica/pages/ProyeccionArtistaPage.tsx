@@ -8,6 +8,7 @@ import { CHART_COLORS } from '@shared/components/charts/colors'
 import { analiticaApi } from '../api/analitica.api'
 import { TierUpsell } from '../components/TierUpsell'
 import { tierInsuficienteInfo } from '../lib/tierError'
+import { SkeletonChart } from '@shared/components/SkeletonLoader'
 import styles from './ProyeccionArtistaPage.module.css'
 
 const TRAYECTORIA_LABEL: Record<string, string> = {
@@ -73,7 +74,7 @@ export function ProyeccionArtistaPage() {
       )}
 
       {artista && proyeccionQuery.isLoading && (
-        <div className={styles.panel} style={{ minHeight: 280 }} />
+        <div className={styles.panel}><SkeletonChart height={280} /></div>
       )}
 
       {artista && proyeccionQuery.isError && (

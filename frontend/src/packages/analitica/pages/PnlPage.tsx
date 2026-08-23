@@ -5,6 +5,7 @@ import { MiniBarChart, type BarDatum } from '@shared/components/charts/MiniBarCh
 import { CHART_COLORS } from '@shared/components/charts/colors'
 import { ExportPDFButton } from '@shared/components/ExportPDFButton'
 import { analiticaApi } from '../api/analitica.api'
+import { SkeletonChart } from '@shared/components/SkeletonLoader'
 import styles from './PnlPage.module.css'
 
 function isoMesesAtras(n: number): string {
@@ -60,7 +61,7 @@ export function PnlPage() {
         </label>
       </div>
 
-      {pnl.isLoading && <div className={styles.panel} style={{ minHeight: 220 }} />}
+      {pnl.isLoading && <div className={styles.panel}><SkeletonChart height={220} /></div>}
 
       {pnl.isError && (
         <div className={styles.panel}>

@@ -7,6 +7,7 @@ import { MiniBarChart, type BarDatum } from '@shared/components/charts/MiniBarCh
 import { CHART_COLORS } from '@shared/components/charts/colors'
 import { ExportPDFButton } from '@shared/components/ExportPDFButton'
 import { KPICard } from '@shared/components/KPICard'
+import { SkeletonCard, SkeletonChart } from '@shared/components/SkeletonLoader'
 import { analiticaApi } from '../api/analitica.api'
 import styles from './DashboardPage.module.css'
 
@@ -48,22 +49,22 @@ function DashboardSkeleton() {
       <Skel w={140} h={24} mb={6} />
       <Skel w={260} h={13} mb={40} />
       <div className={styles.topGrid}>
-        <div className={styles.panel} style={{ minHeight: 124 }} />
-        <div className={styles.panel} style={{ minHeight: 124 }} />
+        <div className={styles.panel}><SkeletonCard height={124} /></div>
+        <div className={styles.panel}><SkeletonCard height={124} /></div>
       </div>
       <div className={styles.midGrid}>
-        <div className={styles.panel} style={{ minHeight: 250 }} />
-        <div className={styles.panel} style={{ minHeight: 250 }} />
+        <div className={styles.panel}><SkeletonChart height={250} /></div>
+        <div className={styles.panel}><SkeletonChart height={250} /></div>
       </div>
       <div className={styles.midGrid}>
-        <div className={styles.panel} style={{ minHeight: 220 }} />
-        <div className={styles.panel} style={{ minHeight: 220 }} />
+        <div className={styles.panel}><SkeletonChart height={220} /></div>
+        <div className={styles.panel}><SkeletonChart height={220} /></div>
       </div>
       <div className={styles.midGrid}>
-        <div className={styles.panel} style={{ minHeight: 220 }} />
-        <div className={styles.panel} style={{ minHeight: 220 }} />
+        <div className={styles.panel}><SkeletonChart height={220} /></div>
+        <div className={styles.panel}><SkeletonChart height={220} /></div>
       </div>
-      <div className={styles.etlPanel} style={{ minHeight: 44 }} />
+      <div className={styles.etlPanel}><SkeletonCard height={28} /></div>
     </>
   )
 }

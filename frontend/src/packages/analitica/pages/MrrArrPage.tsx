@@ -5,6 +5,7 @@ import { MiniLineChart } from '@shared/components/charts/MiniLineChart'
 import { CHART_COLORS } from '@shared/components/charts/colors'
 import { ExportPDFButton } from '@shared/components/ExportPDFButton'
 import { analiticaApi } from '../api/analitica.api'
+import { SkeletonChart } from '@shared/components/SkeletonLoader'
 import styles from './MrrArrPage.module.css'
 
 function isoMesesAtras(n: number): string {
@@ -52,7 +53,7 @@ export function MrrArrPage() {
         </label>
       </div>
 
-      {mrr.isLoading && <div className={styles.panel} style={{ minHeight: 220 }} />}
+      {mrr.isLoading && <div className={styles.panel}><SkeletonChart height={220} /></div>}
 
       {mrr.isError && (
         <div className={styles.panel}>

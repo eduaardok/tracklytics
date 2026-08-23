@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { EmptyState } from '@shared/components/EmptyState'
 import { analiticaApi } from '../api/analitica.api'
+import { SkeletonChart } from '@shared/components/SkeletonLoader'
 import styles from './ReporteDiarioPage.module.css'
 
 const fmt = (n: number) => n.toLocaleString('es-ES')
@@ -53,7 +54,7 @@ export function ReporteDiarioPage() {
         </div>
       </div>
 
-      {reporte.isLoading && <div className={styles.panel} style={{ minHeight: 160 }} />}
+      {reporte.isLoading && <div className={styles.panel}><SkeletonChart height={160} /></div>}
 
       {reporte.isError && (
         <div className={styles.panel}>

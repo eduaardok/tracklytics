@@ -8,6 +8,7 @@ import { TierUpsell } from '../components/TierUpsell'
 import { artistToAudioValues } from '../lib/audioFeatures'
 import { tierInsuficienteInfo } from '../lib/tierError'
 import type { ArtistAudioStats, ArtistSearchResult } from '../types'
+import { SkeletonChart } from '@shared/components/SkeletonLoader'
 import styles from './ComparacionPage.module.css'
 
 // Los `avg_*` de audio pueden ser `null` (artista sin tracks propios, ver
@@ -63,7 +64,7 @@ export function ComparacionPage() {
       )}
 
       {artistaA && artistaB && comparar.isLoading && (
-        <div className={styles.panel} style={{ minHeight: 320 }} />
+        <div className={styles.panel}><SkeletonChart height={320} /></div>
       )}
 
       {artistaA && artistaB && comparar.isError && (

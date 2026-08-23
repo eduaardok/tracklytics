@@ -7,6 +7,7 @@ import { tierInsuficienteInfo } from '../lib/tierError'
 import { ExportPDFButton } from '@shared/components/ExportPDFButton'
 import { EmptyState } from '@shared/components/EmptyState'
 import type { AdquisicionCanal } from '../types'
+import { SkeletonChart } from '@shared/components/SkeletonLoader'
 import styles from './AdquisicionPage.module.css'
 
 // Tabla (no gráfico de barras apiladas) — evita introducir una paleta
@@ -106,7 +107,7 @@ export function AdquisicionPage() {
         )}
       </div>
 
-      {adquisicion.isLoading && <div className={styles.panel} style={{ minHeight: 200 }} />}
+      {adquisicion.isLoading && <div className={styles.panel}><SkeletonChart height={200} /></div>}
 
       {adquisicion.isError && (
         tierInfo ? (

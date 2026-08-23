@@ -8,6 +8,7 @@ import { ExportPDFButton } from '@shared/components/ExportPDFButton'
 import { EmptyState } from '@shared/components/EmptyState'
 import { analiticaApi } from '../api/analitica.api'
 import type { DisponibilidadComponente } from '../types'
+import { SkeletonChart } from '@shared/components/SkeletonLoader'
 import styles from './DisponibilidadInfraPage.module.css'
 
 // Nombre del archivo/componente deliberadamente distinto de `DisponibilidadPage`
@@ -65,7 +66,6 @@ function ComponentePanel({ componente, data }: { componente: string; data: Dispo
               strokeWidth={2}
               dot={{ r: 4, fill: TREND_COLOR, strokeWidth: 0 }}
               activeDot={{ r: 5 }}
-              isAnimationActive={false}
             />
           </LineChart>
         </ResponsiveContainer>
@@ -101,7 +101,7 @@ export function DisponibilidadInfraPage() {
         {componentes.length > 0 ? `// ${componentes.length} componentes` : '// % de uptime por componente y semana'}
       </span>
 
-      {disponibilidad.isLoading && <div className={styles.panel} style={{ minHeight: 200 }} />}
+      {disponibilidad.isLoading && <div className={styles.panel}><SkeletonChart height={200} /></div>}
 
       {disponibilidad.isError && (
         <div className={styles.panel}>

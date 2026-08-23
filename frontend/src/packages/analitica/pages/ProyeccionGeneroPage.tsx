@@ -7,6 +7,7 @@ import { CHART_COLORS } from '@shared/components/charts/colors'
 import { analiticaApi } from '../api/analitica.api'
 import { TierUpsell } from '../components/TierUpsell'
 import { tierInsuficienteInfo } from '../lib/tierError'
+import { SkeletonChart } from '@shared/components/SkeletonLoader'
 import styles from './ProyeccionGeneroPage.module.css'
 
 // Panel predictivo exclusivo Enterprise (CU-O92, b2b-tier-access-analitica):
@@ -78,7 +79,7 @@ export function ProyeccionGeneroPage() {
       )}
 
       {generoId !== null && proyeccionQuery.isLoading && (
-        <div className={styles.panel} style={{ minHeight: 280 }} />
+        <div className={styles.panel}><SkeletonChart height={280} /></div>
       )}
 
       {generoId !== null && proyeccionQuery.isError && (

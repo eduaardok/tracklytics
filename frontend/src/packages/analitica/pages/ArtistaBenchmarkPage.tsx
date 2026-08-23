@@ -8,6 +8,7 @@ import { TierUpsell } from '../components/TierUpsell'
 import { AUDIO_FEATURES, artistToAudioValues, genreToAudioValues } from '../lib/audioFeatures'
 import { tierInsuficienteInfo } from '../lib/tierError'
 import type { ArtistSearchResult } from '../types'
+import { SkeletonChart } from '@shared/components/SkeletonLoader'
 import styles from './ArtistaBenchmarkPage.module.css'
 
 const fmt    = (n: number)     => n.toLocaleString('es-ES')
@@ -49,7 +50,7 @@ export function ArtistaBenchmarkPage() {
         </div>
       )}
 
-      {artista && benchmark.isLoading && <div className={styles.panel} style={{ minHeight: 320 }} />}
+      {artista && benchmark.isLoading && <div className={styles.panel}><SkeletonChart height={320} /></div>}
 
       {artista && benchmark.isError && (
         tierInfo ? (

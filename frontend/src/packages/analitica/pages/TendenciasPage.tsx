@@ -8,6 +8,7 @@ import { ExportPDFButton } from '@shared/components/ExportPDFButton'
 import { EmptyState } from '@shared/components/EmptyState'
 import { analiticaApi } from '../api/analitica.api'
 import type { TendenciaSemana } from '../types'
+import { SkeletonChart } from '@shared/components/SkeletonLoader'
 import styles from './TendenciasPage.module.css'
 
 const TREND_COLOR = 'oklch(0.70 0.14 195)' // --color-accent — trend/series único, sin necesidad de la paleta categórica
@@ -74,7 +75,6 @@ function TrendPanel({ title, data, dataKey, domain, formatValue, seriesLabel }: 
               strokeWidth={2}
               dot={{ r: 4, fill: TREND_COLOR, strokeWidth: 0 }}
               activeDot={{ r: 5 }}
-              isAnimationActive={false}
             />
           </LineChart>
         </ResponsiveContainer>
@@ -152,7 +152,7 @@ export function TendenciasPage() {
         )}
       </form>
 
-      {tendencias.isLoading && <div className={styles.panel} style={{ minHeight: 200 }} />}
+      {tendencias.isLoading && <div className={styles.panel}><SkeletonChart height={200} /></div>}
 
       {tendencias.isError && (
         <div className={styles.panel}>

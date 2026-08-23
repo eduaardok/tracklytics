@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { ExportPDFButton } from '@shared/components/ExportPDFButton'
 import { analiticaApi } from '../api/analitica.api'
+import { SkeletonChart } from '@shared/components/SkeletonLoader'
 import styles from './FunnelConversionPage.module.css'
 
 function isoMesesAtras(n: number): string {
@@ -52,7 +53,7 @@ export function FunnelConversionPage() {
         </label>
       </div>
 
-      {funnel.isLoading && <div className={styles.panel} style={{ minHeight: 160 }} />}
+      {funnel.isLoading && <div className={styles.panel}><SkeletonChart height={160} /></div>}
 
       {funnel.isError && (
         <div className={styles.panel}>

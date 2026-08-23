@@ -80,7 +80,6 @@ export function AudioRadarChart({ series, height = 320 }: Props) {
               fillOpacity={0.1}
               strokeWidth={2}
               dot={{ r: 4, fill: s.color, strokeWidth: 0 }}
-              isAnimationActive={false}
             />
           ))}
           <Tooltip content={<RadarTooltip />} />
