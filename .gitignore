@@ -15,6 +15,11 @@ frontend/dist/
 # (S14-P1, ver docs/BITACORA_S14.md).
 etl/gold/portadas_cache.json
 .impeccable/
+
+# Comprobantes de estudiante subidos por usuarios reales (P2, S16) — datos
+# de usuario, no código fuente; el bind mount `./api:/app` los persiste al
+# host pero no deben terminar en el repo.
+api/uploads/
 .env
 __pycache__/
 *.pyc

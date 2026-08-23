@@ -149,7 +149,80 @@ export function AdminSuscripcionesPage() {
           onSuccess={() => toast.success('Suscripción extendida')}
         />
       )}
+
+      <SolicitudesEstudiante />
     </section>
+  )
+}
+
+// Comprobante de estudiante real (P2, S16): canal aparte del checkout
+// self-servido por dominio de email — acá un admin revisa la evidencia real
+// que el usuario subió (POST /suscripciones/estudiante/comprobante) y la
+// aprueba/rechaza. No cambia la elegibilidad del checkout en sí.
+function SolicitudesEstudiante() {
+  const queryClient = useQueryClient()
+  const toast = useToast()
+  const [filtroEstado, setFiltroEstado] = useState<'' | 'pendiente' | 'aprobado' | 'rechazado'>('pendiente')
+
+  const q = useQuery({
+    queryKey: ['suscripciones', 'estudiante', 'admin', filtroEstado],
+    queryFn: () => suscripcionesApi.solicitudesEstudianteAdmin(filtroEstado || undefined),
+  })
+
+  const revisar = useMutation({
+    mutationFn: ({ id, estado }: { id: string; estado: 'aprobado' | 'rechazado' }) =>
+      suscripcionesApi.revisarSolicitudEstudiante(id, estado),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['suscripciones', 'estudiante', 'admin'] })
+      toast.success('Solicitud actualizada')
+    },
+    onError: (err) => toast.error(apiErrorMessage(err, 'No se pudo actualizar la solicitud.')),
+  })
+
+  const solicitudes = q.data?.data ?? []
+
+  return (
+    <div className={styles.tablePanel} style={{ marginTop: 'var(--space-lg)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--space-md)', flexWrap: 'wrap' }}>
+        <h2 className={styles.heading} style={{ fontSize: '1.05rem' }}>Comprobantes de estudiante</h2>
+        <select
+          className={styles.select}
+          value={filtroEstado}
+          onChange={(e) => setFiltroEstado(e.target.value as typeof filtroEstado)}
+          aria-label="Filtrar por estado"
+        >
+          <option value="pendiente">Pendientes</option>
+          <option value="aprobado">Aprobados</option>
+          <option value="rechazado">Rechazados</option>
+          <option value="">Todos</option>
+        </select>
+      </div>
+      <table className={styles.table}>
+        <thead><tr><th>Email institucional</th><th>Archivo</th><th>Estado</th><th>Subido</th><th className={styles.actionsCol}>Acciones</th></tr></thead>
+        <tbody>
+          {q.isLoading ? (
+            <SkeletonTableRows columns={5} rows={3} />
+          ) : solicitudes.length === 0 ? (
+            <tr><td colSpan={5} className={styles.emptyState}>Sin solicitudes en este filtro.</td></tr>
+          ) : solicitudes.map((s) => (
+            <tr key={s.solicitud_id}>
+              <td>{s.email_institucional}</td>
+              <td className={styles.mono}>{s.archivo_nombre ?? '—'}</td>
+              <td><span className={`${styles.badge} ${s.estado === 'aprobado' ? styles.badgeOk : s.estado === 'rechazado' ? styles.badgeOff : ''}`}>{s.estado}</span></td>
+              <td>{fmtDate(s.creado_en)}</td>
+              <td className={styles.actionsCol}>
+                {s.estado === 'pendiente' && (
+                  <div className={styles.actions}>
+                    <button className={styles.btnGhost} disabled={revisar.isPending} onClick={() => revisar.mutate({ id: s.solicitud_id, estado: 'aprobado' })}>Aprobar</button>
+                    <button className={styles.btnGhostDanger} disabled={revisar.isPending} onClick={() => revisar.mutate({ id: s.solicitud_id, estado: 'rechazado' })}>Rechazar</button>
+                  </div>
+                )}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   )
 }
 

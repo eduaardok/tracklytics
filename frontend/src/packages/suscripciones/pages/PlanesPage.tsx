@@ -112,11 +112,12 @@ export function PlanesPage({ embebido = false }: { embebido?: boolean }) {
   const [formError, setFormError]         = useState<string | null>(null)
   const [motivoCancelacion, setMotivoCancelacion] = useState<MotivoCancelacion>('otro')
   const [emailInstitucional, setEmailInstitucional] = useState('')
-  // Wizard de verificación estudiante (S16-P8): paso 1 = correo
-  // institucional con validación en vivo; paso 2 = comprobante (simulado en
-  // cliente — el endpoint existente solo recibe email_institucional).
+  // Wizard de verificación estudiante (S16-P8, comprobante real desde P2/S16):
+  // paso 1 = correo institucional con validación en vivo; paso 2 = archivo
+  // real, subido a POST /suscripciones/estudiante/comprobante ANTES de
+  // confirmar el plan — ya no es solo evidencia local del paso.
   const [pasoEstudiante, setPasoEstudiante] = useState<1 | 2>(1)
-  const [comprobanteNombre, setComprobanteNombre] = useState<string | null>(null)
+  const [comprobanteArchivo, setComprobanteArchivo] = useState<File | null>(null)
 
   const queryClient = useQueryClient()
   const toast = useToast()
@@ -153,7 +154,7 @@ export function PlanesPage({ embebido = false }: { embebido?: boolean }) {
       setMetodoElegidoId(null)
       setEmailInstitucional('')
       setPasoEstudiante(1)
-      setComprobanteNombre(null)
+      setComprobanteArchivo(null)
       setFormError(null)
       queryClient.invalidateQueries({ queryKey: PLAN_ACTIVO_QUERY_KEY })
       queryClient.invalidateQueries({ queryKey: ['suscripciones', 'planes'] })
@@ -167,6 +168,16 @@ export function PlanesPage({ embebido = false }: { embebido?: boolean }) {
       const msg = apiErrorMessage(err, 'No se pudo confirmar la suscripción.')
       setFormError(msg)
       toast.error(msg)
+    },
+  })
+
+  // Sube el comprobante ANTES de confirmar el plan (handleConfirmar espera
+  // esta promesa) — si falla, no se llega a confirmar la suscripción.
+  const subirComprobante = useMutation({
+    mutationFn: ({ email, archivo }: { email: string; archivo: File }) =>
+      suscripcionesApi.subirComprobanteEstudiante(email, archivo),
+    onError: (err: unknown) => {
+      setFormError(apiErrorMessage(err, 'No se pudo subir el comprobante.'))
     },
   })
 
@@ -283,11 +294,11 @@ export function PlanesPage({ embebido = false }: { embebido?: boolean }) {
     setMetodoElegidoId(null)
     setEmailInstitucional('')
     setPasoEstudiante(1)
-    setComprobanteNombre(null)
+    setComprobanteArchivo(null)
     setFormError(null)
   }
 
-  function handleConfirmar(e: FormEvent) {
+  async function handleConfirmar(e: FormEvent) {
     e.preventDefault()
     if (!selectedPlan) return
     if (selectedPlan.precio > 0 && !metodoElegidoId) {
@@ -297,6 +308,18 @@ export function PlanesPage({ embebido = false }: { embebido?: boolean }) {
     if (selectedPlan.id === 'estudiante' && !emailEstudianteValido) {
       setFormError('Ingresa un email institucional válido (.edu) para el plan estudiante.')
       return
+    }
+    if (selectedPlan.id === 'estudiante' && comprobanteArchivo) {
+      // Comprobante real (P2, S16): sube el archivo antes de activar el
+      // plan — si la subida falla, `onError` deja el mensaje en `formError`
+      // y no se llega a confirmar. La revisión admin ocurre después, aparte
+      // (el plan queda activo con verificación provisional mientras tanto,
+      // igual que documentaba el wizard desde S16-P8).
+      try {
+        await subirComprobante.mutateAsync({ email: emailInstitucional.trim(), archivo: comprobanteArchivo })
+      } catch {
+        return
+      }
     }
     confirmar.mutate({
       plan_id: selectedPlan.id,
@@ -504,11 +527,12 @@ export function PlanesPage({ embebido = false }: { embebido?: boolean }) {
           {formError && <p className={styles.formError} role="alert">{formError}</p>}
           {selectedPlan.id === 'estudiante' && (
             <div className={styles.field}>
-              {/* Verificación de estudiante (S16-P8): mini-registro en dos
-                  pasos — correo institucional con validación EN VIVO y
-                  comprobante. Simulado en cliente (el endpoint solo recibe
-                  email_institucional); el comprobante es evidencia del paso,
-                  no viaja a ningún lado. */}
+              {/* Verificación de estudiante (S16-P8, comprobante real desde
+                  P2/S16): mini-registro en dos pasos — correo institucional
+                  con validación EN VIVO y comprobante. El archivo del paso 2
+                  sube de verdad a POST /suscripciones/estudiante/comprobante
+                  al confirmar (handleConfirmar), quedando "pendiente" hasta
+                  que un admin lo revise. */}
               <div className={styles.wizardPasos} aria-hidden="true">
                 <span className={`${styles.pasoPunto} ${pasoEstudiante === 1 ? styles.pasoPuntoActivo : styles.pasoPuntoHecho}`}>1</span>
                 <span className={`${styles.pasoNombre}`}>Correo</span>
@@ -561,17 +585,20 @@ export function PlanesPage({ embebido = false }: { embebido?: boolean }) {
                       type="file"
                       accept=".pdf,.jpg,.jpeg,.png"
                       style={{ display: 'none' }}
-                      onChange={(e) => setComprobanteNombre(e.target.files?.[0]?.name ?? null)}
+                      onChange={(e) => setComprobanteArchivo(e.target.files?.[0] ?? null)}
                     />
-                    {comprobanteNombre ? (
+                    {comprobanteArchivo ? (
                       <span className={styles.archivoChip}>
                         <FileText size={13} aria-hidden="true" />
-                        <span>{comprobanteNombre}</span>
+                        <span>{comprobanteArchivo.name}</span>
                       </span>
                     ) : (
-                      <>Haz clic para elegir un archivo — PDF, JPG o PNG</>
+                      <>Haz clic para elegir un archivo — PDF, JPG o PNG (máx. 5MB)</>
                     )}
                   </label>
+                  {subirComprobante.isError && (
+                    <span className={styles.hintSoft}>No se pudo subir el comprobante — intenta de nuevo.</span>
+                  )}
                   <p className={styles.wizardNota}>
                     Revisamos el documento en menos de 24 h; mientras tanto tu plan queda activo con
                     verificación provisional. Sin comprobante, el descuento puede suspenderse.
@@ -627,11 +654,13 @@ export function PlanesPage({ embebido = false }: { embebido?: boolean }) {
               type="submit"
               className={styles.btnPrimary}
               disabled={
-                confirmar.isPending ||
-                (selectedPlan.id === 'estudiante' && (pasoEstudiante === 1 || !comprobanteNombre))
+                confirmar.isPending || subirComprobante.isPending ||
+                (selectedPlan.id === 'estudiante' && (pasoEstudiante === 1 || !comprobanteArchivo))
               }
             >
-              {confirmar.isPending
+              {subirComprobante.isPending
+                ? 'Subiendo comprobante…'
+                : confirmar.isPending
                 ? 'Confirmando…'
                 : selectedPlan.id === 'estudiante'
                 ? 'Enviar solicitud'
@@ -641,7 +670,7 @@ export function PlanesPage({ embebido = false }: { embebido?: boolean }) {
               Cancelar
             </button>
           </div>
-          {selectedPlan.id === 'estudiante' && (pasoEstudiante === 1 || !comprobanteNombre) && (
+          {selectedPlan.id === 'estudiante' && (pasoEstudiante === 1 || !comprobanteArchivo) && (
             <p className={styles.hintSoft}>Completa la verificación de estudiante para enviar la solicitud.</p>
           )}
         </form>

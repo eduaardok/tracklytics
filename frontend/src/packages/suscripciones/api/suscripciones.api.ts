@@ -63,6 +63,37 @@ export const suscripcionesApi = {
 
   adminExtender: (suscripcionId: string, dias: number, motivo: string) =>
     apiClient.post<{ data: SuscripcionAdminRecord; fecha_vencimiento: string }>(`/suscripciones/admin/suscripciones/${suscripcionId}/extender`, { dias, motivo }),
+
+  // ── Comprobante de estudiante real (P2, S16) ────────────────────────────────
+  subirComprobanteEstudiante: (emailInstitucional: string, archivo: File) => {
+    const form = new FormData()
+    form.set('archivo', archivo)
+    return apiClient.postForm<{ data: SolicitudEstudiante }>(
+      `/suscripciones/estudiante/comprobante?email_institucional=${encodeURIComponent(emailInstitucional)}`, form,
+    )
+  },
+
+  miSolicitudEstudiante: () =>
+    apiClient.get<{ data: SolicitudEstudiante | null }>('/suscripciones/estudiante/mi-solicitud'),
+
+  solicitudesEstudianteAdmin: (estado?: 'pendiente' | 'aprobado' | 'rechazado') =>
+    apiClient.get<{ data: SolicitudEstudiante[] }>(
+      `/suscripciones/admin/estudiante/solicitudes${estado ? `?estado=${estado}` : ''}`,
+    ),
+
+  revisarSolicitudEstudiante: (solicitudId: string, estado: 'aprobado' | 'rechazado') =>
+    apiClient.patch<{ status: string }>(`/suscripciones/admin/estudiante/solicitudes/${solicitudId}`, { estado }),
+}
+
+export type SolicitudEstudiante = {
+  solicitud_id:        string
+  usuario_id?:          string
+  email_institucional:  string
+  archivo_nombre?:      string
+  estado:                'pendiente' | 'aprobado' | 'rechazado'
+  creado_en:              string
+  revisado_en?:           string | null
+  revisado_por?:          string | null
 }
 
 export type SuscripcionAdminRecord = {

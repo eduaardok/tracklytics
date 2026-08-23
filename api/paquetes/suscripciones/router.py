@@ -1,11 +1,12 @@
+import os
 import uuid
 from datetime import datetime, timedelta
 from typing import Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from pydantic import BaseModel, EmailStr, Field
 
-from core.database import get_client, query_one, query_rows
+from core.database import execute, get_client, query_one, query_rows
 from core.deps import get_current_user
 from paquetes.facturacion.router import metodo_pago_existe, procesar_pago, resolver_conversion_moneda
 from paquetes.seguridad import audit
@@ -596,3 +597,112 @@ async def extender_suscripcion_admin(suscripcion_id: str, body: ExtenderBody, ad
                  "dias": body.dias, "motivo": body.motivo},
     )
     return {"data": actualizada, "fecha_vencimiento": nueva_fecha.isoformat(sep=" ")}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Comprobante de estudiante real (P2, S16): el checkout de `estudiante` sigue
+# auto-servido por dominio de email (regla de negocio ya decidida, sin tocar
+# acá). Esto es un canal AUDITABLE aparte — el usuario sube evidencia real y
+# un admin la revisa — que cierra el hueco "el wizard S16-P8 era simulación
+# cliente, falta endpoint que reciba/almacene el archivo".
+# ─────────────────────────────────────────────────────────────────────────────
+
+_COMPROBANTE_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "uploads", "comprobantes_estudiante")
+_COMPROBANTE_EXT_VALIDAS = {".pdf", ".jpg", ".jpeg", ".png"}
+_COMPROBANTE_MAX_BYTES = 5 * 1024 * 1024  # 5MB — mismo tope que el wizard del frontend (S16-P8)
+
+
+@router.post("/estudiante/comprobante", status_code=201)
+async def subir_comprobante_estudiante(
+    email_institucional: EmailStr = Query(...),
+    archivo: UploadFile = File(...),
+    user: dict = Depends(get_current_user),
+):
+    if not email_institucional_valido(email_institucional):
+        raise HTTPException(status_code=422, detail="El email institucional no pertenece al dominio requerido")
+
+    ext = os.path.splitext(archivo.filename or "")[1].lower()
+    if ext not in _COMPROBANTE_EXT_VALIDAS:
+        raise HTTPException(status_code=422, detail="Formato no admitido — usar PDF, JPG o PNG")
+
+    contenido = await archivo.read()
+    if len(contenido) > _COMPROBANTE_MAX_BYTES:
+        raise HTTPException(status_code=422, detail="El archivo supera el máximo de 5MB")
+
+    os.makedirs(_COMPROBANTE_DIR, exist_ok=True)
+    solicitud_id = str(uuid.uuid4())
+    nombre_guardado = f"{solicitud_id}{ext}"
+    with open(os.path.join(_COMPROBANTE_DIR, nombre_guardado), "wb") as f:
+        f.write(contenido)
+
+    ahora = datetime.now()
+    get_client().insert(
+        "SOLICITUD_VERIFICACION_ESTUDIANTE",
+        [(
+            solicitud_id, user["record"]["id"], email_institucional,
+            archivo.filename or nombre_guardado, nombre_guardado, "pendiente", ahora, None, None,
+        )],
+        column_names=[
+            "solicitud_id", "usuario_id", "email_institucional", "archivo_nombre",
+            "archivo_path", "estado", "creado_en", "revisado_en", "revisado_por",
+        ],
+    )
+    return {"data": {"solicitud_id": solicitud_id, "estado": "pendiente", "creado_en": ahora}}
+
+
+@router.get("/estudiante/mi-solicitud")
+def mi_solicitud_estudiante(user: dict = Depends(get_current_user)):
+    """Última solicitud del usuario autenticado (o `None` si nunca subió una)
+    — el wizard del frontend la consulta para no re-mostrar el formulario a
+    quien ya tiene una revisión pendiente/resuelta."""
+    fila = query_one(
+        "SELECT solicitud_id, email_institucional, archivo_nombre, estado, creado_en, revisado_en "
+        "FROM SOLICITUD_VERIFICACION_ESTUDIANTE WHERE usuario_id = {usuario_id:String} "
+        "ORDER BY creado_en DESC LIMIT 1",
+        {"usuario_id": user["record"]["id"]},
+    )
+    return {"data": fila}
+
+
+@router.get("/admin/estudiante/solicitudes")
+def solicitudes_estudiante_admin(
+    estado: Literal["pendiente", "aprobado", "rechazado"] | None = Query(None),
+    admin: dict = Depends(require_admin),
+):
+    where = "WHERE estado = {estado:String}" if estado else ""
+    params = {"estado": estado} if estado else {}
+    return {"data": query_rows(
+        f"SELECT solicitud_id, usuario_id, email_institucional, archivo_nombre, estado, "
+        f"creado_en, revisado_en, revisado_por FROM SOLICITUD_VERIFICACION_ESTUDIANTE "
+        f"{where} ORDER BY creado_en DESC",
+        params,
+    )}
+
+
+class RevisarSolicitudEstudianteBody(BaseModel):
+    estado: Literal["aprobado", "rechazado"]
+
+
+@router.patch("/admin/estudiante/solicitudes/{solicitud_id}")
+def revisar_solicitud_estudiante(
+    solicitud_id: str, body: RevisarSolicitudEstudianteBody, admin: dict = Depends(require_admin),
+):
+    existe = query_one(
+        "SELECT solicitud_id FROM SOLICITUD_VERIFICACION_ESTUDIANTE WHERE solicitud_id = {id:String} LIMIT 1",
+        {"id": solicitud_id},
+    )
+    if not existe:
+        raise HTTPException(status_code=404, detail="Solicitud no encontrada")
+    execute(
+        "ALTER TABLE SOLICITUD_VERIFICACION_ESTUDIANTE UPDATE "
+        "estado = {estado:String}, revisado_en = now(), revisado_por = {revisor:String} "
+        "WHERE solicitud_id = {id:String}",
+        {"estado": body.estado, "revisor": admin["record"]["id"], "id": solicitud_id},
+    )
+    audit.record(
+        usuario_id=admin["record"]["id"], accion="revisar_solicitud_estudiante",
+        tabla_afectada="SOLICITUD_VERIFICACION_ESTUDIANTE",
+        antes={"solicitud_id": solicitud_id, "estado": "pendiente"},
+        despues={"solicitud_id": solicitud_id, "estado": body.estado},
+    )
+    return {"status": "ok", "solicitud_id": solicitud_id, "estado": body.estado}

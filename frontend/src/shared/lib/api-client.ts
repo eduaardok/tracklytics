@@ -128,10 +128,36 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return res.json() as Promise<T>
 }
 
+// Subida de archivos (comprobante de estudiante, P2/S16): no puede reusar
+// `request` porque esa fija `Content-Type: application/json` siempre — un
+// `FormData` necesita que el navegador ponga su propio Content-Type con el
+// boundary del multipart, así que este camino omite el header por completo.
+async function requestForm<T>(path: string, form: FormData): Promise<T> {
+  const hadToken = Boolean(getToken())
+  const res = await fetch(`${BASE_URL}${path}`, { method: 'POST', headers: { ...getAuthHeaders() }, body: form })
+  if (!res.ok) {
+    if (res.status === 401) clearSession()
+    const sessionWasActive = res.status === 401 && hadToken
+    if (sessionWasActive) {
+      throw new ApiError(res.status, res.statusText, 'Tu sesión expiró — vuelve a iniciar sesión.', undefined, undefined, true)
+    }
+    let detail: string | undefined
+    try {
+      const body = await res.clone().json()
+      if (typeof body?.detail === 'string') detail = body.detail
+    } catch {
+      // Body vacío o no-JSON.
+    }
+    throw new ApiError(res.status, res.statusText, detail, undefined, undefined, false)
+  }
+  return res.json() as Promise<T>
+}
+
 export const apiClient = {
-  get:    <T>(path: string)               => request<T>(path),
-  post:   <T>(path: string, body: unknown) => request<T>(path, { method: 'POST',   body: JSON.stringify(body) }),
-  put:    <T>(path: string, body: unknown) => request<T>(path, { method: 'PUT',    body: JSON.stringify(body) }),
-  patch:  <T>(path: string, body: unknown) => request<T>(path, { method: 'PATCH',  body: JSON.stringify(body) }),
-  delete: <T>(path: string)               => request<T>(path, { method: 'DELETE' }),
+  get:     <T>(path: string)               => request<T>(path),
+  post:    <T>(path: string, body: unknown) => request<T>(path, { method: 'POST',   body: JSON.stringify(body) }),
+  put:     <T>(path: string, body: unknown) => request<T>(path, { method: 'PUT',    body: JSON.stringify(body) }),
+  patch:   <T>(path: string, body: unknown) => request<T>(path, { method: 'PATCH',  body: JSON.stringify(body) }),
+  delete:  <T>(path: string)               => request<T>(path, { method: 'DELETE' }),
+  postForm: <T>(path: string, form: FormData) => requestForm<T>(path, form),
 }
