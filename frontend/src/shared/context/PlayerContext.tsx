@@ -82,6 +82,11 @@ type PlayerContextValue = {
   replaceQueue:     (tracks: PlayableTrack[]) => void
   removeFromQueue:  (index: number) => void
   moveInQueue:      (index: number, direction: -1 | 1) => void
+  // Shuffle inteligente (P2, S16): reordena la cola restante evitando que dos
+  // tracks del MISMO artista queden adyacentes — no es un `Math.random()`
+  // uniforme (ese podía repetir artista dos veces seguidas por azar), es la
+  // heurística real que distingue un shuffle "inteligente" de uno crudo.
+  shuffleQueue:     () => void
   volume:           number
   setVolume:        (volume: number) => void
   // 'none' (default) = se detiene al agotar la cola, igual que antes.
@@ -594,6 +599,30 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     })
   }, [])
 
+  // Fisher-Yates + una pasada de "declumping": si dos tracks consecutivos
+  // quedaron del mismo artista tras el shuffle uniforme, busca el próximo
+  // índice con un artista distinto y lo intercambia — evita la racha que un
+  // shuffle puramente aleatorio deja pasar seguido en catálogos con pocos
+  // artistas muy prolíficos.
+  const shuffleQueue = useCallback(() => {
+    setQueue((prev) => {
+      if (prev.length < 2) return prev
+      const shuffled = [...prev]
+      for (let i = shuffled.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1))
+        ;[shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]]
+      }
+      for (let i = 1; i < shuffled.length; i++) {
+        if (shuffled[i].artist_name !== shuffled[i - 1].artist_name) continue
+        const swapWith = shuffled.findIndex(
+          (t, idx) => idx > i && t.artist_name !== shuffled[i - 1].artist_name,
+        )
+        if (swapWith !== -1) [shuffled[i], shuffled[swapWith]] = [shuffled[swapWith], shuffled[i]]
+      }
+      return shuffled
+    })
+  }, [])
+
   const setVolume = useCallback((v: number) => {
     const clamped = Math.max(0, Math.min(1, v))
     setVolumeState(clamped)
@@ -674,7 +703,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
         playbackUnavailable, playbackUnavailableReason: playbackReason,
         play, playList, togglePlay, seek, stop, reportPlaybackIssue,
         playNext, playPrevious, hasNext, hasPrevious: historyLength > 0,
-        queue, enqueue, enqueueMany, replaceQueue, removeFromQueue, moveInQueue,
+        queue, enqueue, enqueueMany, replaceQueue, removeFromQueue, moveInQueue, shuffleQueue,
         volume, setVolume, repeatMode, setRepeatMode,
       }}
     >

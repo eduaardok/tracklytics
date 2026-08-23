@@ -1,4 +1,4 @@
-import { ChevronUp, ChevronDown, X } from 'lucide-react'
+import { ChevronUp, ChevronDown, Shuffle, X } from 'lucide-react'
 import type { PlayableTrack } from '@shared/context/PlayerContext'
 import { AlbumArt } from './AlbumArt'
 import { TrackName } from './TrackName'
@@ -9,6 +9,7 @@ type Props = {
   queue:        PlayableTrack[]
   onRemove:     (index: number) => void
   onMove:       (index: number, direction: -1 | 1) => void
+  onShuffle:    () => void
   onClose:      () => void
 }
 
@@ -17,7 +18,7 @@ type Props = {
 // propio PlayerContext, sin dependencia de `bibliotecaApi`. Sin
 // drag-and-drop (no hay librería de eso en el proyecto): reordenar es
 // subir/bajar un puesto por click, suficiente para una cola corta.
-export function QueuePanel({ currentTrack, queue, onRemove, onMove, onClose }: Props) {
+export function QueuePanel({ currentTrack, queue, onRemove, onMove, onShuffle, onClose }: Props) {
   return (
     <>
       <button type="button" className={styles.backdrop} aria-label="Cerrar cola" onClick={onClose} />
@@ -36,7 +37,21 @@ export function QueuePanel({ currentTrack, queue, onRemove, onMove, onClose }: P
         </div>
 
         <div className={styles.section}>
-          <span className={styles.sectionLabel}>A continuación{queue.length > 0 ? ` (${queue.length})` : ''}</span>
+          <div className={styles.sectionHeader}>
+            <span className={styles.sectionLabel}>A continuación{queue.length > 0 ? ` (${queue.length})` : ''}</span>
+            {queue.length > 1 && (
+              <button
+                type="button"
+                className={styles.shuffleBtn}
+                onClick={onShuffle}
+                aria-label="Mezclar la cola (shuffle inteligente)"
+                title="Mezclar — evita repetir artista seguido"
+              >
+                <Shuffle size={13} aria-hidden="true" />
+                Mezclar
+              </button>
+            )}
+          </div>
           {queue.length === 0 ? (
             <p className={styles.empty}>La cola está vacía — agrega tracks desde el catálogo o un detalle de canción.</p>
           ) : (

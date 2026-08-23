@@ -42,7 +42,7 @@ export function PlayerBar({ actions }: Props) {
   const {
     currentTrack, isPlaying, progressMs, playbackUnavailable, playbackUnavailableReason, togglePlay, seek,
     playNext, playPrevious, hasNext, hasPrevious,
-    queue, removeFromQueue, moveInQueue, volume, setVolume,
+    queue, removeFromQueue, moveInQueue, shuffleQueue, volume, setVolume,
     repeatMode, setRepeatMode,
   } = usePlayer()
   const navigate = useNavigate()
@@ -205,6 +205,7 @@ export function PlayerBar({ actions }: Props) {
                 queue={queue}
                 onRemove={removeFromQueue}
                 onMove={moveInQueue}
+                onShuffle={shuffleQueue}
                 onClose={() => setQueueOpen(false)}
               />
             )}
