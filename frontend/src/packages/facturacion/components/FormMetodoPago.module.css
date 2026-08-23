@@ -1,0 +1,241 @@
+/* Tarjeta de crédito visual del FormMetodoPago (S16-P7) — solo estilos de la
+   tarjeta; los campos del formulario reutilizan FacturacionPages.module.css.
+   El flip es 3D puro (preserve-3d + rotateY), sin JS más allá del estado
+   cvvActivo que ya maneja el componente. */
+
+.tarjeta {
+  perspective: 1200px;
+  width: 100%;
+  max-width: 380px;
+  aspect-ratio: 1.586; /* proporción ISO/IEC 7810 ID-1 real */
+  margin-bottom: var(--space-lg);
+  flex-shrink: 0;
+}
+
+.tarjetaInner {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  transform-style: preserve-3d;
+  transition: transform var(--duration-deliberate) var(--ease-standard);
+}
+
+/* CVV con foco → dorso */
+.tarjetaGirada .tarjetaInner {
+  transform: rotateY(180deg);
+}
+
+.tarjetaCara,
+.tarjetaCaraBack {
+  position: absolute;
+  inset: 0;
+  border-radius: var(--radius-lg);
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  display: flex;
+  flex-direction: column;
+  padding: var(--space-md);
+  overflow: hidden;
+  color: oklch(0.98 0.006 285);
+  /* Gradiente violeta de marca — los dos tonos ya existentes
+     (--color-primary-light / --color-primary); la tarjeta se ve igual en
+     ambos temas, como un objeto físico. */
+  background:
+    radial-gradient(ellipse at top right, oklch(0.60 0.17 290 / 0.55), transparent 55%),
+    linear-gradient(135deg, oklch(0.42 0.17 290), oklch(0.30 0.13 292));
+  box-shadow: 0 12px 32px oklch(0.48 0.15 290 / 0.28);
+}
+
+.tarjetaCaraBack {
+  transform: rotateY(180deg);
+  padding: 0;
+  justify-content: center;
+  gap: var(--space-md);
+}
+
+/* Reflejo diagonal sutil sobre el frente — textura, no decoración ruidosa. */
+.tarjetaBrillo {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    115deg,
+    transparent 30%,
+    oklch(1 0 0 / 0.10) 45%,
+    transparent 60%
+  );
+  pointer-events: none;
+}
+
+.tarjetaTop {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.chipCard {
+  width: 40px;
+  height: 30px;
+  border-radius: 6px;
+  /* Chip dorado genérico con contactos insinuados por gradiente. */
+  background:
+    repeating-linear-gradient(
+      90deg,
+      transparent 0 5px,
+      oklch(0.35 0.06 80 / 0.45) 5px 7px,
+      transparent 7px 12px
+    ),
+    linear-gradient(135deg, oklch(0.85 0.11 85), oklch(0.72 0.12 82));
+  border: 1px solid oklch(0.55 0.09 82);
+}
+
+.marca {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+}
+
+.marcaVisa {
+  font-style: italic;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  font-size: 1.05rem;
+}
+
+.circuloMcRojo,
+.circuloMcAmarillo {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: inline-block;
+}
+.circuloMcRojo {
+  background: oklch(0.62 0.21 25);
+}
+.circuloMcAmarillo {
+  background: oklch(0.81 0.16 85);
+  margin-left: -9px;
+  mix-blend-mode: screen;
+}
+
+.marcaAmex {
+  font-weight: 700;
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  padding: 3px 7px;
+  border-radius: var(--radius-sm);
+  background: oklch(0.98 0.006 285 / 0.18);
+}
+
+.marcaDiscover {
+  font-weight: 700;
+  font-size: 0.68rem;
+  letter-spacing: 0.06em;
+}
+
+.marcaGeneric {
+  font-size: 1rem;
+  opacity: 0.8;
+}
+
+.numeroCard {
+  margin: auto 0;
+  font-family: var(--font-mono);
+  font-size: clamp(1rem, 4.5vw, 1.22rem);
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+  text-shadow: 0 1px 2px oklch(0 0 0 / 0.35);
+}
+
+/* Los grupos ya escritos van un punto más brillantes que los •••• pendientes. */
+.grupoReal {
+  color: oklch(1 0 0);
+}
+.numeroCard span:not(.grupoReal) {
+  opacity: 0.55;
+}
+
+.tarjetaBottom {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: var(--space-md);
+}
+
+.labelCard {
+  font-size: 0.72rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  opacity: 0.9;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.expCard {
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  letter-spacing: 0.08em;
+  opacity: 0.9;
+  flex-shrink: 0;
+}
+
+/* ── Dorso ── */
+.bandaMagnetica {
+  position: absolute;
+  top: 18%;
+  left: 0;
+  right: 0;
+  height: 44px;
+  background: oklch(0.20 0.03 285);
+}
+
+.filaCvv {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: 0 var(--space-md);
+}
+
+.firmaCvv {
+  flex: 1;
+  height: 34px;
+  border-radius: var(--radius-sm);
+  /* Franja de firma: blanco roto con rayas finas. */
+  background:
+    repeating-linear-gradient(
+      -45deg,
+      transparent 0 6px,
+      oklch(0.87 0.01 285 / 0.5) 6px 7px
+    ),
+    oklch(0.96 0.005 285);
+}
+
+.cajaCvv {
+  min-width: 52px;
+  height: 34px;
+  padding: 0 10px;
+  border-radius: var(--radius-sm);
+  background: oklch(0.98 0.006 285);
+  color: oklch(0.20 0.03 285);
+  font-family: var(--font-mono);
+  font-weight: 600;
+  letter-spacing: 0.2em;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.notaCvv {
+  margin: 0;
+  padding: 0 var(--space-md);
+  font-size: 0.68rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  opacity: 0.65;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tarjetaInner {
+    transition: none;
+  }
+}

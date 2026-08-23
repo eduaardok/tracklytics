@@ -553,3 +553,57 @@
   .dashboardGrid { grid-template-columns: 1fr; }
 }
 
+
+/* ── Tabs del hub Facturación / Mi plan (S16-P7) ──
+   Mismo vocabulario que los chips de Biblioteca: chip con icono acentuado +
+   borde/fondo que se enciende cuando está activo. */
+.tabRow {
+  display: flex;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-lg);
+}
+
+.tabChip {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--color-muted);
+  cursor: pointer;
+  transition:
+    border-color var(--duration-fast) var(--ease-standard),
+    background-color var(--duration-fast) var(--ease-standard),
+    color var(--duration-fast) var(--ease-standard),
+    transform var(--duration-fast) var(--ease-standard);
+}
+
+.tabChip:hover { border-color: oklch(0.38 0.012 285); }
+.tabChip:active { transform: scale(0.98); }
+.tabChip:focus-visible { outline: none; box-shadow: 0 0 0 2px oklch(0.68 0.14 290 / 0.7); }
+
+.tabIcon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.tabChipPagos .tabIcon { color: var(--color-primary); }
+.tabChipPlan .tabIcon { color: var(--color-warning); }
+
+.tabChipActive {
+  color: var(--color-ink);
+}
+.tabChipPagos.tabChipActive {
+  border-color: oklch(0.55 0.20 290 / 0.50);
+  background: oklch(0.55 0.20 290 / 0.07);
+}
+.tabChipPlan.tabChipActive {
+  border-color: oklch(0.50 0.14 70 / 0.45);
+  background: oklch(0.78 0.18 70 / 0.08);
+}

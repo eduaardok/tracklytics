@@ -64,7 +64,12 @@ function fmtFechaCobroTrial(): string {
 // que ya combina las tres en un único flujo. Separarlas en dos rutas
 // distintas solo duplicaría el fetch de /suscripciones/activa sin aportar
 // nada que el legacy no resolviera ya en una página.
-export function PlanesPage() {
+//
+// `embebido` (S16-P7): FacturacionPage monta este mismo componente dentro de
+// su tab "Mi plan" (hub pedido por el usuario) — en ese modo se oculta la
+// cabecera propia (el h1 "Mi plan" y el subtitle) porque el hub ya tiene el
+// suyo; toda la lógica de suscripciones queda intacta.
+export function PlanesPage({ embebido = false }: { embebido?: boolean }) {
   useDocumentTitle('Mi plan')
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
@@ -263,10 +268,14 @@ export function PlanesPage() {
 
   return (
     <section className={styles.page}>
-      <h1 className={styles.heading}>Mi plan</h1>
-      <span className={styles.subtitle}>
-        // {getUser()?.role === 'analyst' ? 'planes empresariales' : 'planes personales'}
-      </span>
+      {!embebido && (
+        <>
+          <h1 className={styles.heading}>Mi plan</h1>
+          <span className={styles.subtitle}>
+            // {getUser()?.role === 'analyst' ? 'planes empresariales' : 'planes personales'}
+          </span>
+        </>
+      )}
 
       {onboarding && (
         <div className={styles.onboardingBanner}>
