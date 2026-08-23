@@ -4,6 +4,7 @@ import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { ErrorState } from '@shared/components/ErrorState'
 import { ExportPDFButton } from '@shared/components/ExportPDFButton'
 import { experienciaApi } from '../api/experiencia.api'
+import { SkeletonTableRows } from '@shared/components/SkeletonLoader'
 import styles from './ExperienciaPages.module.css'
 
 function fmtFecha(iso: string) {
@@ -98,7 +99,7 @@ export function FamiliasReportePage() {
             </thead>
             <tbody>
               {isLoading ? (
-                <tr><td colSpan={5}><span className={styles.emptyBody}>Cargando…</span></td></tr>
+                <SkeletonTableRows columns={5} rows={5} />
               ) : filtradas.length === 0 ? (
                 <tr><td colSpan={5}>
                   <span className={styles.emptyBody}>No hay planes familiares que coincidan con el filtro.</span>

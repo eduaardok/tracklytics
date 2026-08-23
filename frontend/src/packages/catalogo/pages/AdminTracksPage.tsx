@@ -9,6 +9,7 @@ import { ExportPDFButton } from '@shared/components/ExportPDFButton'
 import { EmptyState } from '@shared/components/EmptyState'
 import { catalogoApi } from '../api/catalogo.api'
 import type { Track } from '../types'
+import { SkeletonTableRows } from '@shared/components/SkeletonLoader'
 import styles from './AdminTracksPage.module.css'
 
 // Panel admin de takedown de catálogo (change p1-ciclos-vida, rol
@@ -102,7 +103,7 @@ export function AdminTracksPage() {
           <thead><tr><th>Track</th><th>Artista</th><th className={styles.actionsCol}>Acción</th></tr></thead>
           <tbody>
             {ocultos.isLoading ? (
-              <tr><td colSpan={3} className={styles.emptyState}>Cargando…</td></tr>
+              <SkeletonTableRows columns={3} rows={5} />
             ) : ocultosData.length === 0 ? (
               <tr><td colSpan={3}><EmptyState icon={<EyeOff size={22} aria-hidden="true" />} title="No hay tracks ocultos" /></td></tr>
             ) : ocultosData.map((t) => (

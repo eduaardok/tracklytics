@@ -7,6 +7,7 @@ import { finanzasApi } from '../api/finanzas.api'
 import { ReembolsosScatter } from './charts/ReembolsosScatter'
 import { fmtMoney, fmtDate, isoDaysAgo, isoToday } from '../lib/format'
 import type { ReembolsoBody } from '../types'
+import { SkeletonTableRows } from '@shared/components/SkeletonLoader'
 import styles from '../pages/FinanzasPages.module.css'
 
 const UMBRAL_ELEVADO = 500 // REEMBOLSO_MONTO_ALTO_USD en finanzas/deps.py — mismo umbral que dispara la alerta
@@ -116,7 +117,7 @@ export function ReembolsosTab() {
           <thead><tr><th>Transacción</th><th>Monto</th><th>Tipo</th><th>Motivo</th><th>Estado</th><th>Fecha</th></tr></thead>
           <tbody>
             {historial.isLoading ? (
-              <tr><td colSpan={6} className={styles.emptyState}>Cargando…</td></tr>
+              <SkeletonTableRows columns={6} rows={5} />
             ) : data.length === 0 ? (
               <tr><td colSpan={6} className={styles.emptyState}>Sin reembolsos en este rango.</td></tr>
             ) : data.map((r) => (

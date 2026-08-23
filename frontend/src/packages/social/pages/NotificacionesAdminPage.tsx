@@ -4,6 +4,7 @@ import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { ErrorState } from '@shared/components/ErrorState'
 import { ExportPDFButton } from '@shared/components/ExportPDFButton'
 import { socialApi } from '../api/social.api'
+import { SkeletonTableRows } from '@shared/components/SkeletonLoader'
 import styles from './SocialPages.module.css'
 
 function fmtFecha(iso: string) {
@@ -115,7 +116,7 @@ export function NotificacionesAdminPage() {
             </thead>
             <tbody>
               {isLoading ? (
-                <tr><td colSpan={5}><span className={styles.emptyBody}>Cargando…</span></td></tr>
+                <SkeletonTableRows columns={5} rows={5} />
               ) : filtradas.length === 0 ? (
                 <tr><td colSpan={5}>
                   <span className={styles.emptyBody}>Sin notificaciones que coincidan con el filtro.</span>

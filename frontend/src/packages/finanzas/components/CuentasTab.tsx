@@ -5,6 +5,7 @@ import { CHART_COLORS, STATUS_COLORS } from '@shared/components/charts/colors'
 import { finanzasApi } from '../api/finanzas.api'
 import { RadialGauge } from './charts/RadialGauge'
 import { fmtMoney, fmtDate } from '../lib/format'
+import { SkeletonTableRows } from '@shared/components/SkeletonLoader'
 import styles from '../pages/FinanzasPages.module.css'
 
 // Cuentas por cobrar / por pagar (CU-O84) — on-read sobre FACT_INVOICE +
@@ -65,7 +66,7 @@ export function CuentasTab() {
           <thead><tr><th>Invoice</th><th>Usuario</th><th>Monto + IVA</th><th>Emitida</th><th>Días desde emisión</th></tr></thead>
           <tbody>
             {cuentas.isLoading ? (
-              <tr><td colSpan={5} className={styles.emptyState}>Cargando…</td></tr>
+              <SkeletonTableRows columns={5} rows={5} />
             ) : (cobrar?.proximos_vencimientos.length ?? 0) === 0 ? (
               <tr><td colSpan={5} className={styles.emptyState}>Sin invoices pendientes.</td></tr>
             ) : cobrar!.proximos_vencimientos.map((i) => (
@@ -87,7 +88,7 @@ export function CuentasTab() {
           <thead><tr><th>Retiro</th><th>Tipo</th><th>Rightsholder</th><th>Monto</th><th>Solicitado</th></tr></thead>
           <tbody>
             {cuentas.isLoading ? (
-              <tr><td colSpan={5} className={styles.emptyState}>Cargando…</td></tr>
+              <SkeletonTableRows columns={5} rows={5} />
             ) : (pagar?.aging_retiros.length ?? 0) === 0 ? (
               <tr><td colSpan={5} className={styles.emptyState}>Sin retiros pendientes.</td></tr>
             ) : pagar!.aging_retiros.map((r) => (

@@ -64,8 +64,8 @@ export function ReembolsosScatter({
               )
             }}
           />
-          <Scatter data={normales} fill={CHART_COLORS.teal} fillOpacity={0.75} isAnimationActive={false} />
-          <Scatter data={elevados} fill={STATUS_COLORS.warning} fillOpacity={0.9} shape="diamond" isAnimationActive={false} />
+          <Scatter data={normales} fill={CHART_COLORS.teal} fillOpacity={0.75} />
+          <Scatter data={elevados} fill={STATUS_COLORS.warning} fillOpacity={0.9} shape="diamond" />
         </ScatterChart>
       </ResponsiveContainer>
     </div>

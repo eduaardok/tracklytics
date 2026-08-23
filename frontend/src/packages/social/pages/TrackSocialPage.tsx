@@ -3,7 +3,8 @@ import { useParams, Link } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { catalogoApi } from '@packages/catalogo'
 import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
-import { apiErrorMessage } from '@shared/lib/api-client'
+import { apiErrorMessage, ApiError } from '@shared/lib/api-client'
+import { EmptyState } from '@shared/components/EmptyState'
 import { useToast } from '@shared/context/ToastContext'
 import { socialApi } from '../api/social.api'
 import { DenunciarButton } from '../components/DenunciarButton'
@@ -87,26 +88,39 @@ export function TrackSocialPage() {
 
   const data: Comentario[] = comentarios.data?.data ?? []
 
+  // El feed de actividad puede traer fact_ids de tracks que ya no están en el
+  // catálogo (historial legítimo, p. ej. takedowns). Un 404 no es un error del
+  // sistema — se comunica como contenido retirado, sin banner rojo ni link
+  // roto al catálogo.
+  const trackEliminado = track.isError && track.error instanceof ApiError && track.error.status === 404
+
   return (
     <section className={styles.page}>
       <h1 className={styles.heading}>Track</h1>
 
-      {track.isError && (
+      {trackEliminado ? (
+        <EmptyState
+          icon="◌"
+          title="Este contenido ya no está disponible"
+          body="El track fue retirado del catálogo, pero conservamos la conversación."
+        />
+      ) : track.isError && (
         <div className={styles.bannerError} role="alert">No se pudo cargar el track.</div>
       )}
 
-      <div className={styles.subjectBar}>
-        <div className={styles.subjectInfo}>
-          {track.isLoading ? (
-            <span className={styles.skel} style={{ width: '50%', height: 18 }} />
-          ) : (
-            <>
-              {/* F1 (recíproco): el hilo era un callejón sin salida — track y
-                  artista eran texto plano. Ahora vuelven al catálogo. */}
-              <Link to={`/catalogo/track/${id}`} className={`${styles.subjectName} ${styles.subjectLink}`}>
-                {track.data?.track_name ?? `Track #${id}`}
-              </Link>
-              {track.data?.artist_name && (
+      {!trackEliminado && (
+        <div className={styles.subjectBar}>
+          <div className={styles.subjectInfo}>
+            {track.isLoading ? (
+              <span className={styles.skel} style={{ width: '50%', height: 18 }} />
+            ) : (
+              <>
+                {/* F1 (recíproco): el hilo era un callejón sin salida — track y
+                    artista eran texto plano. Ahora vuelven al catálogo. */}
+                <Link to={`/catalogo/track/${id}`} className={`${styles.subjectName} ${styles.subjectLink}`}>
+                  {track.data?.track_name ?? `Track #${id}`}
+                </Link>
+                {track.data?.artist_name && (
                 <div className={styles.subjectMeta}>
                   <Link to={`/catalogo/artista/${track.data.artist_id}`} className={styles.subjectLink}>
                     {track.data.artist_name}
@@ -134,6 +148,7 @@ export function TrackSocialPage() {
           <DenunciarButton tipoObjeto="track" objetoId={String(id)} label="Denunciar track" className={styles.btnGhost} />
         </div>
       </div>
+      )}
 
       {shareResult && <div className={styles.shareLinkBox}>{shareResult}</div>}
 

@@ -11,6 +11,7 @@ import { distribucionApi } from '@packages/distribucion'
 import { creadoresApi } from '@packages/creadores'
 import { regaliasApi } from '../api/regalias.api'
 import type { Contrato } from '../types'
+import { SkeletonTableRows } from '@shared/components/SkeletonLoader'
 import styles from './RegaliasPages.module.css'
 
 function fmtMoney(v: number, moneda = 'USD') {
@@ -446,7 +447,7 @@ function HistorialContratoDetalle({ contratoId }: { contratoId: string }) {
           </thead>
           <tbody>
             {liquidaciones.isLoading ? (
-              <tr><td colSpan={5} className={styles.emptyState}>Cargando…</td></tr>
+              <SkeletonTableRows columns={5} rows={5} />
             ) : data.length === 0 ? (
               <tr><td colSpan={5} className={styles.emptyState}>Sin liquidaciones todavía para este contrato.</td></tr>
             ) : data.map((l) => (

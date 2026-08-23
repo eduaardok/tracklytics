@@ -7,6 +7,7 @@ import { ExportPDFButton } from '@shared/components/ExportPDFButton'
 import { AirflowLinkButton } from '@shared/components/AirflowLinkButton'
 import { ingestaApi, IngestaApiError } from '../api/ingesta.api'
 import type { SyntheticMode, EjecucionEstado, RecalificacionEstado } from '../types'
+import { SkeletonChart } from '@shared/components/SkeletonLoader'
 import styles from './EtlPage.module.css'
 
 // Paleta categórica validada (dataviz skill) — mismos criterios que
@@ -337,7 +338,7 @@ export function EtlPage() {
       </div>
 
       <p className={styles.sectionLabel} style={{ marginTop: 'var(--space-xl)' }}>Historial de cargas</p>
-      {cargas.isLoading && <div className={styles.panel} style={{ minHeight: 120 }} />}
+      {cargas.isLoading && <div className={styles.panel}><SkeletonChart height={120} /></div>}
       {cargas.isError && (
         <div className={styles.panel}><p className={styles.errorText}>No se pudo cargar el historial.</p></div>
       )}
@@ -411,7 +412,7 @@ export function EtlPage() {
                   <span className={styles.muted}> · +{generoChartData.restantes} más</span>
                 )}
               </p>
-              {distribucion.isLoading && <div style={{ minHeight: 220 }} />}
+              {distribucion.isLoading && <SkeletonChart height={220} />}
               {!distribucion.isLoading && (
                 <MiniBarChart data={generoChartData.top} color={CHART_COLOR_GENRE} />
               )}
@@ -448,7 +449,7 @@ export function EtlPage() {
           <p className={styles.sectionLabel} style={{ marginTop: 'var(--space-lg)' }}>
             Muestra ({muestra.data?.data.length ?? 0} tracks)
           </p>
-          {muestra.isLoading && <div className={styles.panel} style={{ minHeight: 120 }} />}
+          {muestra.isLoading && <div className={styles.panel}><SkeletonChart height={120} /></div>}
           {muestra.isError && (
             <div className={styles.panel}><p className={styles.errorText}>No se pudo cargar la muestra.</p></div>
           )}

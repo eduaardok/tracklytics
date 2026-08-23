@@ -3,6 +3,7 @@ import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from 'recha
 import { EmptyState } from '@shared/components/EmptyState'
 import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { ingestaApi } from '../api/ingesta.api'
+import { SkeletonChart } from '@shared/components/SkeletonLoader'
 import styles from './DataQualityPage.module.css'
 
 const fmt = (n: number) => n.toLocaleString('es-ES')
@@ -62,7 +63,7 @@ export function DataQualityPage() {
     <section className={styles.page}>
       <h1 className={styles.heading}>Calidad de datos</h1>
 
-      {quality.isLoading && <div className={styles.panel} style={{ minHeight: 200 }} />}
+      {quality.isLoading && <div className={styles.panel}><SkeletonChart height={200} /></div>}
       {quality.isError && (
         <div className={styles.panel}><p className={styles.errorText}>No se pudo cargar la calidad de datos.</p></div>
       )}
@@ -86,7 +87,6 @@ export function DataQualityPage() {
                         outerRadius="80%"
                         paddingAngle={2}
                         strokeWidth={0}
-                        isAnimationActive={false}
                       >
                         {donutData.map((d) => <Cell key={d.name} fill={d.color} />)}
                       </Pie>

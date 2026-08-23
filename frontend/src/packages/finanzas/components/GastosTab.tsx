@@ -7,6 +7,7 @@ import { finanzasApi } from '../api/finanzas.api'
 import { CategoriaTreemap } from './charts/CategoriaTreemap'
 import { fmtMoney, fmtDate, isoToday, CATEGORIA_LABEL } from '../lib/format'
 import type { CategoriaGasto, GastoBody, GastoOperativo } from '../types'
+import { SkeletonTableRows } from '@shared/components/SkeletonLoader'
 import styles from '../pages/FinanzasPages.module.css'
 
 const CATEGORIAS = Object.keys(CATEGORIA_LABEL) as CategoriaGasto[]
@@ -166,7 +167,7 @@ export function GastosTab() {
           <thead><tr><th>Concepto</th><th>Categoría</th><th>Monto</th><th>Fecha</th><th>Estado</th><th></th></tr></thead>
           <tbody>
             {gastos.isLoading ? (
-              <tr><td colSpan={6} className={styles.emptyState}>Cargando…</td></tr>
+              <SkeletonTableRows columns={6} rows={5} />
             ) : data.length === 0 ? (
               <tr><td colSpan={6} className={styles.emptyState}>Sin gastos para este filtro.</td></tr>
             ) : data.map((g) => (

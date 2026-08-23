@@ -4,6 +4,7 @@ import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { apiErrorMessage } from '@shared/lib/api-client'
 import { facturacionApi } from '../api/facturacion.api'
 import type { EmpresaInfo } from '../types'
+import { SkeletonLoader } from '@shared/components/SkeletonLoader'
 import styles from './FacturacionPages.module.css'
 
 // CU-O81: antes de esta página, la razón social/RUC/dirección del
@@ -39,7 +40,7 @@ export function EmpresaConfigPage() {
       </p>
 
       {empresa.isLoading ? (
-        <p className={styles.promptText}>Cargando…</p>
+        <SkeletonLoader count={2} height={12} />
       ) : (
         <form className={styles.searchForm} style={{ flexDirection: 'column', alignItems: 'stretch', maxWidth: 420 }} onSubmit={handleSubmit}>
           <div className={styles.field}>

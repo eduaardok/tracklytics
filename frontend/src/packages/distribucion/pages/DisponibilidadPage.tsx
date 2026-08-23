@@ -7,6 +7,7 @@ import { apiErrorMessage } from '@shared/lib/api-client'
 import { useToast } from '@shared/context/ToastContext'
 import { distribucionApi } from '../api/distribucion.api'
 import type { EstadoDisponibilidadFiltro } from '../types'
+import { SkeletonTableRows } from '@shared/components/SkeletonLoader'
 import styles from './DistribucionPages.module.css'
 
 const PAGE_LIMIT = 30
@@ -143,7 +144,7 @@ export function DisponibilidadPage() {
             </thead>
             <tbody>
               {lista.isLoading && (
-                <tr><td colSpan={3} className={styles.emptyBody}>Cargando…</td></tr>
+                <SkeletonTableRows columns={3} rows={5} />
               )}
               {!lista.isLoading && filas.length === 0 && (
                 <tr><td colSpan={3} className={styles.emptyBody}>Sin resultados para este filtro.</td></tr>

@@ -5,6 +5,7 @@ import { apiErrorMessage } from '@shared/lib/api-client'
 import { useToast } from '@shared/context/ToastContext'
 import { ExportPDFButton } from '@shared/components/ExportPDFButton'
 import { suscripcionesApi, type SuscripcionAdminRecord } from '../api/suscripciones.api'
+import { SkeletonTableRows } from '@shared/components/SkeletonLoader'
 import styles from './AdminSuscripcionesPage.module.css'
 
 // "suspendida" no existe como estado real (auditoría de validación): el
@@ -92,7 +93,7 @@ export function AdminSuscripcionesPage() {
           <thead><tr><th>Usuario</th><th>Plan</th><th>Monto</th><th>Estado</th><th>Creada</th><th>Vence</th><th className={styles.actionsCol}>Acciones</th></tr></thead>
           <tbody>
             {lista.isLoading ? (
-              <tr><td colSpan={7} className={styles.emptyState}>Cargando…</td></tr>
+              <SkeletonTableRows columns={7} rows={5} />
             ) : data.length === 0 ? (
               <tr><td colSpan={7} className={styles.emptyState}>Sin suscripciones que coincidan.</td></tr>
             ) : data.map((s) => {

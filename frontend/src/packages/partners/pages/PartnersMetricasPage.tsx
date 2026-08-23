@@ -6,6 +6,7 @@ import { metricasApi } from '../api/metricas.api'
 import { ErrorState } from '@shared/components/ErrorState'
 import { EmptyState } from '@shared/components/EmptyState'
 import { ExportPDFButton } from '@shared/components/ExportPDFButton'
+import { SkeletonChart } from '@shared/components/SkeletonLoader'
 import styles from './PartnersMetricasPage.module.css'
 
 // CU-O56: agregación de `LOG_LLAMADAS_PARTNER` por partner — vista de solo
@@ -42,7 +43,7 @@ export function PartnersMetricasPage() {
         />
       )}
 
-      {!isError && isLoading && <div className={styles.panel} style={{ minHeight: 200 }} />}
+      {!isError && isLoading && <div className={styles.panel}><SkeletonChart height={200} /></div>}
 
       {!isError && !isLoading && partners.length === 0 && (
         <EmptyState

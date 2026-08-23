@@ -20,6 +20,7 @@ import type { MiFamilia } from '@packages/experiencia/types'
 import { Users } from 'lucide-react'
 import { EmptyState } from '@shared/components/EmptyState'
 import { authApi } from '../api/auth.api'
+import { SkeletonLoader } from '@shared/components/SkeletonLoader'
 import styles from './ProfilePage.module.css'
 
 function fmtDate(iso: string | undefined): string {
@@ -409,7 +410,7 @@ export function ProfilePage() {
         )}
 
         {sesionesQuery.isLoading ? (
-          <p className={styles.kvValue}>Cargando…</p>
+          <SkeletonLoader count={1} height={12} />
         ) : sesionesQuery.isError ? (
           <p className={styles.formError}>No se pudieron cargar tus sesiones.</p>
         ) : (
@@ -468,7 +469,7 @@ export function ProfilePage() {
           <h2 className={styles.sectionTitle}>Plan familiar</h2>
 
           {familiaQuery.isLoading ? (
-            <p className={styles.kvValue}>Cargando…</p>
+            <SkeletonLoader count={1} height={12} />
           ) : !familia?.suscripcion_id ? (
             <>
               <EmptyState

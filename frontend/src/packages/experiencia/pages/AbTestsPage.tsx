@@ -5,6 +5,7 @@ import { ErrorState } from '@shared/components/ErrorState'
 import { EmptyState } from '@shared/components/EmptyState'
 import { ExportPDFButton } from '@shared/components/ExportPDFButton'
 import { experienciaApi } from '../api/experiencia.api'
+import { SkeletonTableRows } from '@shared/components/SkeletonLoader'
 import styles from './ExperienciaPages.module.css'
 
 function fmtFecha(iso: string) {
@@ -82,7 +83,7 @@ export function AbTestsPage() {
             </thead>
             <tbody>
               {isLoading ? (
-                <tr><td colSpan={6}><span className={styles.emptyBody}>Cargando…</span></td></tr>
+                <SkeletonTableRows columns={6} rows={5} />
               ) : (
                 tests.map((t) => (
                   <tr key={`${t.experimento}:${t.variante}`}>

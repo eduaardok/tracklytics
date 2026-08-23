@@ -5,6 +5,7 @@ import { useConfirm } from '@shared/context/ConfirmContext'
 import { ExportPDFButton } from '@shared/components/ExportPDFButton'
 import { ingestaApi, IngestaApiError } from '../api/ingesta.api'
 import { DIM_TABLE_OPTIONS, type DimRow } from '../types'
+import { SkeletonChart } from '@shared/components/SkeletonLoader'
 import styles from './CrudDimensionesPage.module.css'
 
 const FACTS_OPTION = '__facts__'
@@ -288,7 +289,7 @@ export function CrudDimensionesPage() {
         )}
       </div>
 
-      {listQuery.isLoading && <div className={styles.panel} style={{ minHeight: 160 }} />}
+      {listQuery.isLoading && <div className={styles.panel}><SkeletonChart height={160} /></div>}
       {listQuery.isError && (
         <div className={styles.panel}><p className={styles.errorText}>No se pudo cargar la tabla.</p></div>
       )}

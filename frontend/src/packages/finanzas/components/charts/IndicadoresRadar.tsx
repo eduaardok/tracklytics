@@ -42,7 +42,7 @@ export function IndicadoresRadar({
           <PolarGrid stroke="oklch(0.22 0.012 285)" />
           <PolarAngleAxis dataKey="eje" tick={AXIS_TICK} />
           <PolarRadiusAxis domain={[0, maxDominio]} tickCount={3} tick={{ ...AXIS_TICK, fontSize: 9, fontFamily: 'var(--font-mono)' }} axisLine={false} />
-          <Radar dataKey="valor" stroke={CHART_COLORS.violeta} fill={CHART_COLORS.violeta} fillOpacity={0.14} strokeWidth={2} dot={{ r: 4, fill: CHART_COLORS.violeta, strokeWidth: 0 }} isAnimationActive={false} />
+          <Radar dataKey="valor" stroke={CHART_COLORS.violeta} fill={CHART_COLORS.violeta} fillOpacity={0.14} strokeWidth={2} dot={{ r: 4, fill: CHART_COLORS.violeta, strokeWidth: 0 }} />
           <Tooltip content={<RadarTooltip />} />
         </RadarChart>
       </ResponsiveContainer>

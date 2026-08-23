@@ -5,6 +5,7 @@ import { CHART_COLORS, STATUS_COLORS } from '@shared/components/charts/colors'
 import { finanzasApi } from '../api/finanzas.api'
 import { RadialGauge } from './charts/RadialGauge'
 import { fmtMoney, fmtDate } from '../lib/format'
+import { SkeletonCard } from '@shared/components/SkeletonLoader'
 import styles from '../pages/FinanzasPages.module.css'
 
 // Consumo de presupuesto por campaña (CU-O87) — cada gauge es la proporción
@@ -26,7 +27,7 @@ export function PresupuestoTab() {
   return (
     <div className={styles.gaugeGrid}>
       {presupuesto.isLoading ? (
-        <p className={styles.kpiLabel}>Cargando…</p>
+        <>{[0, 1, 2].map((i) => <SkeletonCard key={i} height={150} />)}</>
       ) : data.map((c) => {
         const color = c.alerta_agotado ? STATUS_COLORS.error : c.alerta_80 ? STATUS_COLORS.warning : CHART_COLORS.teal
         return (

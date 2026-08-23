@@ -34,7 +34,7 @@ export function RadialGauge({
           barSize={thickness}
         >
           <PolarAngleAxis type="number" domain={[0, 100]} tick={false} axisLine={false} />
-          <RadialBar dataKey="value" background={{ fill: TRACK_COLOR }} cornerRadius={thickness / 2} isAnimationActive={false} />
+          <RadialBar dataKey="value" background={{ fill: TRACK_COLOR }} cornerRadius={thickness / 2} />
         </RadialBarChart>
       </ResponsiveContainer>
       <div className={styles.gaugeCenter}>
