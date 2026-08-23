@@ -1,5 +1,6 @@
 import random
 import re
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from typing import Literal
 
@@ -17,30 +18,30 @@ from paquetes.experiencia.deps import (
 from paquetes.experiencia.queries import (
     AB_TESTS_RESUMEN,
     COUNT_MIEMBROS_SUSCRIPCION,
-    FACT_IDS_ESCUCHADOS_USUARIO,
-    FACT_IDS_FAVORITOS_USUARIO,
     FAMILIAS_RESUMEN,
-    GENERO_DOMINANTE_USUARIO,
-    GENEROS_FAVORITOS_USUARIO,
-    GENEROS_MAS_ESCUCHADOS_USUARIO,
+    FEATURES_DE_FACT_IDS,
+    GENEROS_DE_FACT_IDS,
+    GENERO_DOMINANTE_DE_FACT_IDS,
     MIEMBRO_EXISTE,
     MIEMBROS_DE_SUSCRIPCION,
     MIS_TICKETS,
     MIX_AFINIDAD,
     MIX_EXPLORACION,
-    PERFIL_AUDIO_FAVORITOS_E_HISTORIAL,
+    POPULARIDAD_MIN_CANDIDATOS,
     RADIO_POR_TRACK,
     RECOMENDACIONES_NOVEDADES_ARTISTAS_SEGUIDOS,
     RECOMENDACIONES_POPULARES,
     RECOMENDACIONES_POR_AFINIDAD,
-    REDESCUBRE_USUARIO,
-    TRACK_SEMILLA,
+    SENALES_USUARIO,
     SUSCRIPCION_FAMILIAR_DE_USUARIO,
     SUSCRIPCION_TIENE_TITULAR,
     TICKET_POR_ID,
     TICKETS_ABIERTOS_TOTAL,
     TICKETS_POR_ESTADO,
+    TODOS_LOS_GENEROS,
     TOP_TRACKS_PLAYLIST,
+    TRACK_SEMILLA,
+    TRACKS_RESUMEN_DE_FACT_IDS,
     USUARIO_POR_EMAIL,
     USUARIO_YA_EN_PLAN_FAMILIAR,
     tickets_admin_count_sql,
@@ -53,6 +54,24 @@ router = APIRouter(prefix="/app/v1/experiencia", tags=["Experiencia"])
 
 FAMILIA_LIMITE_MIEMBROS = 5
 PLAYLISTS_SYNC_DAG = "playlists_sync"
+# Cuántos géneros ajenos muestrea la porción de exploración del mix diario
+# (S16-P7 — ver comentario de MIX_EXPLORACION en queries.py).
+MIX_GENEROS_EXPLORACION = 6
+
+
+def _generos_exploracion(generos_usuario: list[int], seed: str) -> list[int]:
+    """Muestreo determinista de géneros ajenos al usuario para la porción de
+    exploración del mix diario. Misma semilla que antes usaba la query para
+    barajar tracks (usuario_id + fecha), así que el mix del día sigue siendo
+    estable y cambia al día siguiente. Si no quedan géneros disponibles fuera
+    de los habituales, devuelve vacío y la porción simplemente sale corta."""
+    todos = [r["genre_id"] for r in query_rows(TODOS_LOS_GENEROS)]
+    ajenos = [g for g in todos if g not in set(generos_usuario)]
+    if not ajenos:
+        return []
+    rng = random.Random(seed)
+    k = min(MIX_GENEROS_EXPLORACION, len(ajenos))
+    return sorted(rng.sample(ajenos, k))
 
 
 def _gen_fact_id() -> int:
@@ -188,82 +207,149 @@ def _registrar_impresiones(
     return items
 
 
+def _senales_usuario(usuario_id: str) -> dict:
+    """Todas las señales de consumo del usuario en UNA pasada por
+    FACT_ENGAGEMENT_USUARIO (S16-P7 — ver comentario del bloque en queries.py).
+
+    Deriva, con la misma semántica que las queries que reemplaza:
+      - `favoritos`: favoritos VIGENTES (argMax == favorito_add; si se removió,
+        dejó de ser favorito aunque el evento exista).
+      - `escuchados`: fact_ids con CUALQUIER reproducción (presencia, no estado).
+      - `perfil_ids`: última señal positiva (favorito_add o reproducción) —
+        un track removido ya no aporta al perfil de audio.
+      - `dominante_ids`: presencia de favorito o reproducción (para el género
+        dominante del motivo).
+      - `redescubre`: (fact_id, last_ts) ordenado por interacción más antigua.
+    """
+    filas = query_rows(SENALES_USUARIO, {
+        "usuario_id": usuario_id,
+        "eventos": ["favorito_add", "favorito_remove", "reproduccion"],
+    })
+    return {
+        "filas": filas,
+        "favoritos":  [f["fact_id"] for f in filas if f["last_event"] == "favorito_add"],
+        "escuchados": [f["fact_id"] for f in filas if f["con_reproduccion"]],
+        "perfil_ids": [
+            f["fact_id"] for f in filas if f["last_event"] in ("favorito_add", "reproduccion")
+        ],
+        "dominante_ids": [
+            f["fact_id"] for f in filas if f["con_favorito"] or f["con_reproduccion"]
+        ],
+        "redescubre": sorted(
+            (
+                (f["fact_id"], f["last_ts"])
+                for f in filas
+                if f["last_event"] in ("favorito_add", "reproduccion")
+            ),
+            key=lambda par: par[1],
+        ),
+    }
+
+
 @router.get("/recomendaciones")
 def obtener_recomendaciones(limit: int = Query(10, ge=1, le=50), user: dict = Depends(require_b2c_user)):
     usuario_id = user["record"]["id"]
-    favoritos  = [r["fact_id"] for r in query_rows(FACT_IDS_FAVORITOS_USUARIO, {"usuario_id": usuario_id})]
-    escuchados = [r["fact_id"] for r in query_rows(FACT_IDS_ESCUCHADOS_USUARIO, {"usuario_id": usuario_id})]
+    sen = _senales_usuario(usuario_id)
     # No recomendar lo que el usuario ya conoce (favorito o ya reproducido) —
     # no solo lo que marcó como favorito.
-    excluidos  = list({*favoritos, *escuchados})
+    excluidos = list({*sen["favoritos"], *sen["escuchados"]})
 
     secciones = []
 
-    # 1. Hecho para ti — afinidad real al perfil de audio del usuario (change
-    # p2-descubrimiento-comunidad). Antes esta sección ordenaba por distancia
-    # solo DENTRO de los géneros más escuchados; ahora la distancia se evalúa
-    # sobre todo el catálogo disponible con el género como peso, de modo que
-    # puede sorprender con un track afín de un género vecino.
-    perfil = query_one(PERFIL_AUDIO_FAVORITOS_E_HISTORIAL, {"usuario_id": usuario_id}) or {}
-    generos_usuario = [
-        r["genre_id"] for r in query_rows(GENEROS_MAS_ESCUCHADOS_USUARIO, {"usuario_id": usuario_id})
-    ] or [
-        r["genre_id"] for r in query_rows(GENEROS_FAVORITOS_USUARIO, {"usuario_id": usuario_id})
-    ]
-
-    if perfil.get("n_senales"):
-        algoritmo = "afinidad_audio"
-        fila_genero = query_one(GENERO_DOMINANTE_USUARIO, {"usuario_id": usuario_id}) or {}
-        genero_dominante = fila_genero.get("genero") or ""
-        motivo = (
-            f"similar a tus favoritos de {genero_dominante}" if genero_dominante
-            else "similar a lo que sueles escuchar"
+    # Las señales derivadas son queries independientes — corren en paralelo
+    # (S16-P7): antes encadenaban secuencialmente y el endpoint completo
+    # tardaba ~10.5s; el muro ahora es la query más lenta, no su suma.
+    with ThreadPoolExecutor(max_workers=4) as ex:
+        f_perfil    = ex.submit(query_one, FEATURES_DE_FACT_IDS, {"fact_ids": sen["perfil_ids"]})
+        f_generos   = ex.submit(query_rows, GENEROS_DE_FACT_IDS, {"fact_ids": sen["escuchados"], "limit": 5})
+        f_dominante = ex.submit(query_one, GENERO_DOMINANTE_DE_FACT_IDS, {"fact_ids": sen["dominante_ids"]})
+        ids_redescubre = [fid for fid, _ in sen["redescubre"][: limit * 3]]
+        # Margen x3 sobre `limit`: el dedup por (track_name, artista) puede
+        # colapsar varios fact_ids del candidato en una sola tarjeta.
+        f_redescubre = (
+            ex.submit(query_rows, TRACKS_RESUMEN_DE_FACT_IDS, {"fact_ids": ids_redescubre})
+            if ids_redescubre else None
         )
-        tracks = query_rows(
-            RECOMENDACIONES_POR_AFINIDAD,
-            {
-                "genre_ids": generos_usuario, "excluidos": excluidos, "limit": limit,
-                **_params_perfil(perfil),
-            },
-        )
-    else:
-        # Sin ninguna señal de consumo: populares de géneros diversos.
-        algoritmo = "popularidad_global"
-        motivo = "popular ahora mismo"
-        tracks = query_rows(RECOMENDACIONES_POPULARES, {"excluidos": excluidos, "limit": limit})
 
-    secciones.append({
-        "id": "hecho_para_ti", "titulo": "Hecho para ti",
-        "data": _registrar_impresiones(usuario_id, algoritmo, tracks, motivo),
-    })
+        perfil = f_perfil.result() or {}
+        generos_usuario = [r["genre_id"] for r in (f_generos.result() or [])]
+        if not generos_usuario and sen["favoritos"]:
+            generos_usuario = [
+                r["genre_id"]
+                for r in query_rows(GENEROS_DE_FACT_IDS, {"fact_ids": sen["favoritos"], "limit": 5})
+            ]
 
-    # 2. Novedades de artistas que sigues — ausente si no sigue a nadie o no
-    # hay tracks nuevos, no una sección vacía.
-    artistas_seguidos = [r["artista_id"] for r in query_rows(ARTISTAS_SEGUIDOS_POR_USUARIO, {"usuario_id": usuario_id})]
-    if artistas_seguidos:
-        tracks_novedades = query_rows(
-            RECOMENDACIONES_NOVEDADES_ARTISTAS_SEGUIDOS,
-            {"artist_ids": artistas_seguidos, "excluidos": excluidos, "limit": limit},
-        )
-        if tracks_novedades:
-            secciones.append({
-                "id": "novedades_seguidos", "titulo": "Novedades de artistas que sigues",
-                "data": _registrar_impresiones(
-                    usuario_id, "novedades_artistas_seguidos", tracks_novedades,
-                    "novedad de un artista que sigues",
-                ),
-            })
+        # 1. Hecho para ti — afinidad real al perfil de audio del usuario
+        # (change p2-descubrimiento-comunidad): la distancia se evalúa sobre
+        # todo el catálogo disponible con el género como peso, de modo que
+        # puede sorprender con un track afín de un género vecino.
+        if perfil.get("n_senales"):
+            algoritmo = "afinidad_audio"
+            fila_genero = f_dominante.result() or {}
+            genero_dominante = fila_genero.get("genero") or ""
+            motivo = (
+                f"similar a tus favoritos de {genero_dominante}" if genero_dominante
+                else "similar a lo que sueles escuchar"
+            )
+            tracks = query_rows(
+                RECOMENDACIONES_POR_AFINIDAD,
+                {
+                    "genre_ids": generos_usuario, "excluidos": excluidos, "limit": limit,
+                    "popularidad_min": POPULARIDAD_MIN_CANDIDATOS,
+                    **_params_perfil(perfil),
+                },
+            )
+        else:
+            # Sin ninguna señal de consumo: populares de géneros diversos.
+            algoritmo = "popularidad_global"
+            motivo = "popular ahora mismo"
+            tracks = query_rows(
+                RECOMENDACIONES_POPULARES,
+                {"excluidos": excluidos, "limit": limit, "popularidad_min": POPULARIDAD_MIN_CANDIDATOS},
+            )
 
-    # 3. Redescubre — ausente si el usuario no tiene ningún favorito/reproducción todavía.
-    tracks_redescubre = query_rows(REDESCUBRE_USUARIO, {"usuario_id": usuario_id, "limit": limit})
-    if tracks_redescubre:
         secciones.append({
-            "id": "redescubre", "titulo": "Redescubre",
-            "data": _registrar_impresiones(
-                usuario_id, "redescubre_historial_antiguo", tracks_redescubre,
-                "lo escuchaste hace tiempo",
-            ),
+            "id": "hecho_para_ti", "titulo": "Hecho para ti",
+            "data": _registrar_impresiones(usuario_id, algoritmo, tracks, motivo),
         })
+
+        # 2. Novedades de artistas que sigues — ausente si no sigue a nadie o no
+        # hay tracks nuevos, no una sección vacía.
+        artistas_seguidos = [
+            r["artista_id"]
+            for r in query_rows(ARTISTAS_SEGUIDOS_POR_USUARIO, {"usuario_id": usuario_id})
+        ]
+        if artistas_seguidos:
+            tracks_novedades = query_rows(
+                RECOMENDACIONES_NOVEDADES_ARTISTAS_SEGUIDOS,
+                {"artist_ids": artistas_seguidos, "excluidos": excluidos, "limit": limit},
+            )
+            if tracks_novedades:
+                secciones.append({
+                    "id": "novedades_seguidos", "titulo": "Novedades de artistas que sigues",
+                    "data": _registrar_impresiones(
+                        usuario_id, "novedades_artistas_seguidos", tracks_novedades,
+                        "novedad de un artista que sigues",
+                    ),
+                })
+
+        # 3. Redescubre — ausente si el usuario no tiene ningún favorito/reproducción
+        # todavía. El orden por interacción más antigua lo aplica acá el router:
+        # TRACKS_RESUMEN_DE_FACT_IDS no puede proyectar el timestamp através del
+        # IN, pero el set de candidatos ya salió ordenado de SENALES_USUARIO.
+        if f_redescubre is not None:
+            ts_por_fact = dict(sen["redescubre"])
+            filas_rd = f_redescubre.result() or []
+            filas_rd.sort(key=lambda r: ts_por_fact.get(r["fact_id"], datetime.min.replace(tzinfo=timezone.utc)))
+            tracks_redescubre = filas_rd[:limit]
+            if tracks_redescubre:
+                secciones.append({
+                    "id": "redescubre", "titulo": "Redescubre",
+                    "data": _registrar_impresiones(
+                        usuario_id, "redescubre_historial_antiguo", tracks_redescubre,
+                        "lo escuchaste hace tiempo",
+                    ),
+                })
 
     return {"secciones": secciones}
 
@@ -344,36 +430,54 @@ def mix_diario(user: dict = Depends(require_b2c_user)):
     fecha = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     seed = f"{usuario_id}:{fecha}"
 
-    perfil = query_one(PERFIL_AUDIO_FAVORITOS_E_HISTORIAL, {"usuario_id": usuario_id}) or {}
-    generos = [
-        r["genre_id"] for r in query_rows(GENEROS_MAS_ESCUCHADOS_USUARIO, {"usuario_id": usuario_id})
-    ] or [
-        r["genre_id"] for r in query_rows(GENEROS_FAVORITOS_USUARIO, {"usuario_id": usuario_id})
-    ]
+    sen = _senales_usuario(usuario_id)
+    excluidos = list({*sen["favoritos"], *sen["escuchados"]})
 
-    # Sin señal de consumo no hay perfil que seguir: se degrada a populares.
-    if not perfil.get("n_senales") or not generos:
-        populares = query_rows(RECOMENDACIONES_POPULARES, {"excluidos": [], "limit": MIX_TOTAL})
-        return {
-            "fecha": fecha, "personalizado": False,
-            "data": populares, "total": len(populares),
-        }
+    # Perfil + géneros en paralelo (S16-P7, misma racionalización que
+    # /recomendaciones).
+    with ThreadPoolExecutor(max_workers=2) as ex:
+        f_perfil  = ex.submit(query_one, FEATURES_DE_FACT_IDS, {"fact_ids": sen["perfil_ids"]})
+        f_generos = ex.submit(query_rows, GENEROS_DE_FACT_IDS, {"fact_ids": sen["escuchados"], "limit": 5})
+        perfil = f_perfil.result() or {}
+        generos = [r["genre_id"] for r in (f_generos.result() or [])]
+        if not generos and sen["favoritos"]:
+            generos = [
+                r["genre_id"]
+                for r in query_rows(GENEROS_DE_FACT_IDS, {"fact_ids": sen["favoritos"], "limit": 5})
+            ]
 
-    favoritos  = [r["fact_id"] for r in query_rows(FACT_IDS_FAVORITOS_USUARIO, {"usuario_id": usuario_id})]
-    escuchados = [r["fact_id"] for r in query_rows(FACT_IDS_ESCUCHADOS_USUARIO, {"usuario_id": usuario_id})]
-    excluidos  = list({*favoritos, *escuchados})
+        # Sin señal de consumo no hay perfil que seguir: se degrada a populares.
+        if not perfil.get("n_senales") or not generos:
+            populares = query_rows(
+                RECOMENDACIONES_POPULARES,
+                {"excluidos": [], "limit": MIX_TOTAL, "popularidad_min": POPULARIDAD_MIN_CANDIDATOS},
+            )
+            return {
+                "fecha": fecha, "personalizado": False,
+                "data": populares, "total": len(populares),
+            }
 
-    afinidad = query_rows(
-        MIX_AFINIDAD,
-        {
-            "genre_ids": generos, "excluidos": excluidos,
-            "limit": MIX_TOTAL - MIX_EXPLORACION_N, **_params_perfil(perfil),
-        },
-    )
-    exploracion = query_rows(
-        MIX_EXPLORACION,
-        {"genre_ids": generos, "excluidos": excluidos, "limit": MIX_EXPLORACION_N, "seed": seed},
-    )
+        afinidad = ex.submit(
+            query_rows,
+            MIX_AFINIDAD,
+            {
+                "genre_ids": generos, "excluidos": excluidos,
+                "limit": MIX_TOTAL - MIX_EXPLORACION_N, "popularidad_min": POPULARIDAD_MIN_CANDIDATOS,
+                **_params_perfil(perfil),
+            },
+        )
+        exploracion = ex.submit(
+            query_rows,
+            MIX_EXPLORACION,
+            {
+                "generos_exploracion": _generos_exploracion(generos, seed),
+                "excluidos": excluidos,
+                "limit": MIX_EXPLORACION_N, "seed": seed,
+                "popularidad_min": POPULARIDAD_MIN_CANDIDATOS,
+            },
+        )
+        afinidad = afinidad.result()
+        exploracion = exploracion.result()
 
     # La exploración va al final y no intercalada: intercalar exigiría un
     # barajado que rompería el determinismo o habría que sembrarlo aparte, y la

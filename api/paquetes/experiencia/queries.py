@@ -15,44 +15,89 @@
 # aparecer repetido en la lista de recomendaciones.
 # ─────────────────────────────────────────────────────────────────────────────
 
-GENEROS_FAVORITOS_USUARIO = """
-SELECT DISTINCT ft.genre_id AS genre_id
-FROM (
-    SELECT fact_id, argMax(event_type, event_timestamp) AS last_event
-    FROM FACT_ENGAGEMENT_USUARIO
-    WHERE user_id = {usuario_id:String}
-    GROUP BY fact_id
-    HAVING last_event = 'favorito_add'
-) fav
-JOIN FACT_TRACKS ft ON fav.fact_id = ft.fact_id
+# ─────────────────────────────────────────────────────────────────────────────
+# Señales del usuario (S16-P7, fix de performance de "Para ti"/"Mix diario")
+#
+# Antes cada señal (favoritos, escuchados, perfil de audio, géneros, género
+# dominante) era su propia query y varias hacían `JOIN FACT_TRACKS ON
+# ft.fact_id = ...` — un JOIN sin predicate constante NO puede podar granulas
+# ni aprovechar la projection p_by_fact_id: escanea las ~1.6M filas completas
+# por query. El patrón que sí poda (probado en biblioteca, S16-P6) es el IN
+# explícito, así que ahora:
+#   1. SENALES_USUARIO hace UNA pasada por FACT_ENGAGEMENT_USUARIO (tabla
+#      chica, ordenada por user_id) y devuelve todas las señales crudas;
+#   2. el router deriva las listas de fact_ids en Python;
+#   3. los lookups contra FACT_TRACKS usan esas listas como {fact_ids} con IN.
+# Semánticamente idéntico a las queries que reemplaza (misma derivación de
+# favoritos vigentes vía argMax, mismas presencias por tipo de evento).
+SENALES_USUARIO = """
+SELECT
+    fact_id,
+    argMax(event_type, event_timestamp)  AS last_event,
+    max(event_type = 'favorito_add')     AS con_favorito,
+    max(event_type = 'reproduccion')     AS con_reproduccion,
+    max(event_timestamp)                 AS last_ts
+FROM FACT_ENGAGEMENT_USUARIO
+WHERE user_id = {usuario_id:String}
+  AND event_type IN {eventos:Array(String)}
+GROUP BY fact_id
 """
 
-FACT_IDS_FAVORITOS_USUARIO = """
-SELECT fact_id FROM (
-    SELECT fact_id, argMax(event_type, event_timestamp) AS last_event
-    FROM FACT_ENGAGEMENT_USUARIO
-    WHERE user_id = {usuario_id:String}
-    GROUP BY fact_id
-    HAVING last_event = 'favorito_add'
-)
+# Perfil de audio promedio sobre un set chico de fact_ids ya resuelto
+# (≤ unos cientos): reemplaza al JOIN completo de PERFIL_AUDIO_FAVORITOS_E_HISTORIAL.
+FEATURES_DE_FACT_IDS = """
+SELECT
+    avg(danceability) AS danceability,
+    avg(energy)       AS energy,
+    avg(valence)      AS valence,
+    avg(acousticness) AS acousticness,
+    avg(tempo)        AS tempo,
+    count()           AS n_senales
+FROM FACT_TRACKS
+WHERE fact_id IN {fact_ids:Array(UInt64)}
 """
 
-# Escucha real (no favoritos): géneros más escuchados y perfil de audio
-# promedio, para "encontrar tracks con atributos similares dentro de los
-# géneros que más escucha" en vez de solo género+popularidad.
-FACT_IDS_ESCUCHADOS_USUARIO = """
-SELECT DISTINCT fact_id FROM FACT_ENGAGEMENT_USUARIO
-WHERE user_id = {usuario_id:String} AND event_type = 'reproduccion'
-"""
-
-GENEROS_MAS_ESCUCHADOS_USUARIO = """
-SELECT ft.genre_id AS genre_id, count() AS plays
-FROM FACT_ENGAGEMENT_USUARIO e
-JOIN FACT_TRACKS ft ON ft.fact_id = e.fact_id
-WHERE e.user_id = {usuario_id:String} AND e.event_type = 'reproduccion'
-GROUP BY ft.genre_id
+# Géneros más escuchados a partir de los fact_ids con reproducción real.
+GENEROS_DE_FACT_IDS = """
+SELECT genre_id, count() AS plays
+FROM FACT_TRACKS
+WHERE fact_id IN {fact_ids:Array(UInt64)}
+GROUP BY genre_id
 ORDER BY plays DESC
-LIMIT 5
+LIMIT {limit:UInt32}
+"""
+
+# Género dominante (nombre) sobre fact_ids con señal positiva. DIM_GENRES es
+# una dimensión chica: el join no agrega costo perceptible.
+GENERO_DOMINANTE_DE_FACT_IDS = """
+SELECT g.name AS genero, count() AS n
+FROM FACT_TRACKS ft
+JOIN DIM_GENRES g ON g.genre_id = ft.genre_id
+WHERE ft.fact_id IN {fact_ids:Array(UInt64)}
+GROUP BY g.name
+ORDER BY n DESC
+LIMIT 1
+"""
+
+# Ficha pública de tracks por fact_ids (para "Redescubre"): mismo shape de
+# columnas que el resto de las queries de recomendación, deduplicado por
+# (track_name, artista) con min(fact_id) canónico. El orden final lo aplica el
+# router con los timestamps de última interacción (no se pueden proyectar
+# através de un IN).
+TRACKS_RESUMEN_DE_FACT_IDS = """
+SELECT
+    any(ft.track_id)                                                     AS track_id,
+    min(ft.fact_id)                                                      AS fact_id,
+    ft.track_name                                                        AS track_name,
+    a.name                                                               AS artist_name,
+    arrayStringConcat(groupUniqArray(g.name), ' / ')                     AS genre_name,
+    coalesce(any(ft.imagen_url), any(al.imagen_url), any(a.imagen_url))  AS imagen_url
+FROM FACT_TRACKS ft
+JOIN DIM_ARTISTS a  ON ft.artist_id = a.artist_id
+JOIN DIM_ALBUMS  al ON ft.album_id  = al.album_id
+JOIN DIM_GENRES  g  ON ft.genre_id  = g.genre_id
+WHERE ft.fact_id IN {fact_ids:Array(UInt64)}
+GROUP BY ft.track_name, a.name
 """
 
 PERFIL_AUDIO_USUARIO = """
@@ -129,6 +174,8 @@ LIMIT {limit:UInt32}
 """
 
 # Nivel 3: sin historial ni favoritos — popularidad global, deduplicado.
+# Mismo piso de POPULARIDAD_MIN_CANDIDATOS que la afinidad (S16-P7): ordenar
+# por popularidad no necesita escanear la cola larga para elegir 12.
 RECOMENDACIONES_POPULARES = """
 SELECT fact_id, track_id, track_name, artist_name, genre_name, imagen_url
 FROM (
@@ -145,6 +192,7 @@ FROM (
     JOIN DIM_ALBUMS  al ON ft.album_id  = al.album_id
     JOIN DIM_GENRES  g  ON ft.genre_id  = g.genre_id
     WHERE ft.fact_id NOT IN {excluidos:Array(UInt64)}
+      AND ft.popularity >= {popularidad_min:UInt8}
       AND ft.source_type != 'synthetic'
     GROUP BY ft.track_name, a.name
 )
@@ -187,38 +235,6 @@ ORDER BY inserted_at DESC
 LIMIT {limit:UInt32}
 """
 
-# Redescubre: resurge tracks que el propio usuario favoriteó o reprodujo
-# alguna vez pero no ha tocado recientemente — no es una recomendación de
-# tracks nuevos, es su propio historial ordenado por interacción más
-# antigua. No usa `excluidos`: excluir "lo ya conocido" no tendría sentido
-# acá, es literalmente lo ya conocido lo que se resurge.
-REDESCUBRE_USUARIO = """
-SELECT fact_id, track_id, track_name, artist_name, genre_name, imagen_url
-FROM (
-    SELECT
-        any(ft.track_id)                                                     AS track_id,
-        min(ft.fact_id)                                                      AS fact_id,
-        ft.track_name                                                        AS track_name,
-        a.name                                                                AS artist_name,
-        arrayStringConcat(groupUniqArray(g.name), ' / ')                     AS genre_name,
-        coalesce(any(ft.imagen_url), any(al.imagen_url), any(a.imagen_url))  AS imagen_url,
-        max(e.last_interaction)                                              AS last_interaction
-    FROM (
-        SELECT fact_id, max(event_timestamp) AS last_interaction
-        FROM FACT_ENGAGEMENT_USUARIO
-        WHERE user_id = {usuario_id:String} AND event_type IN ('favorito_add', 'reproduccion')
-        GROUP BY fact_id
-    ) e
-    JOIN FACT_TRACKS ft ON ft.fact_id = e.fact_id
-    JOIN DIM_ARTISTS a  ON ft.artist_id = a.artist_id
-    JOIN DIM_ALBUMS  al ON ft.album_id  = al.album_id
-    JOIN DIM_GENRES  g  ON ft.genre_id  = g.genre_id
-    GROUP BY ft.track_name, a.name
-)
-ORDER BY last_interaction ASC
-LIMIT {limit:UInt32}
-"""
-
 # ─────────────────────────────────────────────────────────────────────────────
 # Radio, mix diario y afinidad de audio (change p2-descubrimiento-comunidad)
 #
@@ -249,28 +265,12 @@ _DISTANCIA_AUDIO = """
     + penalizacion_genero
 """
 
-# Perfil de audio del usuario a partir de favoritos Y reproducciones (el
-# PERFIL_AUDIO_USUARIO previo solo miraba reproducciones). Un usuario que
-# marcó favoritos pero aún no reprodujo nada tenía perfil vacío y caía al
-# nivel de popularidad global pese a haber dado señal explícita.
-PERFIL_AUDIO_FAVORITOS_E_HISTORIAL = """
-SELECT
-    avg(ft.danceability) AS danceability,
-    avg(ft.energy)       AS energy,
-    avg(ft.valence)      AS valence,
-    avg(ft.acousticness) AS acousticness,
-    avg(ft.tempo)        AS tempo,
-    count()              AS n_senales
-FROM (
-    SELECT fact_id, argMax(event_type, event_timestamp) AS last_event
-    FROM FACT_ENGAGEMENT_USUARIO
-    WHERE user_id = {usuario_id:String}
-      AND event_type IN ('favorito_add', 'favorito_remove', 'reproduccion')
-    GROUP BY fact_id
-    HAVING last_event IN ('favorito_add', 'reproduccion')
-) senal
-JOIN FACT_TRACKS ft ON ft.fact_id = senal.fact_id
-"""
+# Perfil de audio del usuario a partir de favoritos Y reproducciones —
+# reemplazado en S16-P7 por SENALES_USUARIO (señales) + FEATURES_DE_FACT_IDS
+# (promedios), que evita el JOIN completo contra FACT_TRACKS. La regla de
+# negocio se conserva: el perfil usa la ÚLTIMA señal de cada track (un track
+# favoriteado y luego removido ya no aporta), y favoritos cuentan aunque no
+# haya reproducciones.
 
 # Atributos de audio y géneros de un track semilla, para la radio.
 TRACK_SEMILLA = """
@@ -347,6 +347,7 @@ FROM (
     JOIN DIM_GENRES  g  ON ft.genre_id  = g.genre_id
     WHERE ft.disponible = 1
       AND ft.genre_id IN {genre_ids:Array(UInt16)}
+      AND ft.popularity >= {popularidad_min:UInt8}
       AND ft.fact_id NOT IN {excluidos:Array(UInt64)}
     GROUP BY ft.track_name, a.name
 )
@@ -358,6 +359,12 @@ LIMIT {limit:UInt32}
 # usuario. El orden es pseudoaleatorio pero determinista para ese usuario y ese
 # día, porque la semilla del hash es (usuario_id + fecha) — de ahí que el mix
 # "del día" sea estable y cambie solo al día siguiente (Decisión 2).
+#
+# S16-P7: antes filtraba `genre_id NOT IN {géneros del usuario}` — un predicado
+# que NO permite podar granulas, o sea scan completo (~7-13s). Ahora el router
+# muestrea 6 géneros ajenos con la MISMA semilla determinista y pasa esa lista
+# (`generos_exploracion`) para el IN, que sí poda: mismo espíritu ("saca al
+# oyente de sus géneros"), costo ínfimo, variedad incluso más controlada.
 MIX_EXPLORACION = """
 SELECT fact_id, track_id, track_name, artist_name, genre_name, imagen_url
 FROM (
@@ -374,19 +381,34 @@ FROM (
     JOIN DIM_ALBUMS  al ON ft.album_id  = al.album_id
     JOIN DIM_GENRES  g  ON ft.genre_id  = g.genre_id
     WHERE ft.disponible = 1
-      AND ft.genre_id NOT IN {genre_ids:Array(UInt16)}
+      AND ft.genre_id IN {generos_exploracion:Array(UInt16)}
+      AND ft.popularity >= {popularidad_min:UInt8}
       AND ft.fact_id NOT IN {excluidos:Array(UInt64)}
-      AND ft.popularity >= 40
     GROUP BY ft.track_name, a.name
 )
 ORDER BY cityHash64(concat(track_name, artist_name, {seed:String})) ASC
 LIMIT {limit:UInt32}
 """
 
+# Catálogo de géneros disponible (dimensión chica) — insumo del muestreo de
+# géneros de exploración del mix diario.
+TODOS_LOS_GENEROS = """
+SELECT genre_id FROM DIM_GENRES ORDER BY genre_id
+"""
+
 # Recomendaciones por afinidad (reemplazo del nivel 1): mismo criterio que el
 # mix pero SIN restringir a los géneros habituales, para que la sección "Hecho
 # para ti" pueda sorprender. Filtra `disponible = 1`, que las queries de
 # recomendación previas no hacían.
+# Piso de popularidad para las agregaciones de catálogo completo (S16-P7):
+# sin él, la deduplicación por (track_name, artista) agrega TODAS las filas
+# disponibles (~113k, ~74k tracks) aunque el carril solo muestre 12. Con
+# popularity >= POPULARIDAD_MIN_CANDIDATOS se conservan ~32k tracks (43%) —
+# de sobra para sugerir — y la agregación baja proporcionalmente. Es un
+# recorte de candidatos plausibles, no de semántica: un track con tracción
+# casi nula tampoco aportaba como "hecho para ti".
+POPULARIDAD_MIN_CANDIDATOS = 40
+
 RECOMENDACIONES_POR_AFINIDAD = """
 SELECT fact_id, track_id, track_name, artist_name, genre_name, imagen_url
 FROM (
@@ -408,6 +430,7 @@ FROM (
     JOIN DIM_ALBUMS  al ON ft.album_id  = al.album_id
     JOIN DIM_GENRES  g  ON ft.genre_id  = g.genre_id
     WHERE ft.disponible = 1
+      AND ft.popularity >= {popularidad_min:UInt8}
       AND ft.fact_id NOT IN {excluidos:Array(UInt64)}
       AND ft.source_type != 'synthetic'
     GROUP BY ft.track_name, a.name
@@ -416,19 +439,8 @@ ORDER BY (__DISTANCIA__) ASC, track_name ASC
 LIMIT {limit:UInt32}
 """.replace("__DISTANCIA__", _DISTANCIA_AUDIO)
 
-# Género dominante del usuario, para redactar el `motivo` de la recomendación
-# ("similar a tus favoritos de <género>") sin inventar nada por track.
-GENERO_DOMINANTE_USUARIO = """
-SELECT g.name AS genero, count() AS n
-FROM FACT_ENGAGEMENT_USUARIO e
-JOIN FACT_TRACKS ft ON ft.fact_id = e.fact_id
-JOIN DIM_GENRES  g  ON g.genre_id = ft.genre_id
-WHERE e.user_id = {usuario_id:String}
-  AND e.event_type IN ('favorito_add', 'reproduccion')
-GROUP BY g.name
-ORDER BY n DESC
-LIMIT 1
-"""
+# (GENERO_DOMINANTE_USUARIO eliminado en S16-P7 — sustituido por
+# GENERO_DOMINANTE_DE_FACT_IDS, arriba, que poda con IN en vez de escanear.)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
