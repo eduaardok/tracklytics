@@ -373,3 +373,104 @@ como pedía el prompt explícitamente.
 
 Commits atómicos a `main` (paginación de Open Code, fixes de IDs, PDF, huecos cerrados,
 `GOLD_CREADORES_PERIODO` + KPI) — ver historial de `git log` para los hashes.
+
+## S16-P4 — Fixes de flujos B2C (F1/F2/F7/F8/F9), glosario español y estados de carga A6+A8 (22 ago 2026)
+
+### Contexto
+
+Sesión de implementación sobre las dos auditorías S16 (lógica de flujos + visual/completitud):
+los 5 fixes priorizados F1/F2/F7/F8/F9, un extra de glosario técnico, dos regresiones
+detectadas en verificación visual posterior, y el primer tramo del ranking de mejoras
+pendientes (A6 estados de carga de Monetización + A8 estados de carga y animaciones de
+Analítica), ejecutado con la skill impeccable (registro product).
+
+### Fixes entregados (commits atómicos)
+
+- `f531245` — **T1/F1**: comentarios accesibles desde el detalle del track (`TrackDetailPage`,
+  lista + formulario, vuelta al catálogo). Conteo vía API directa para no arrastrar el bundle
+  social al paquete catálogo.
+- `e320ed9` — **T2/F2**: hub de artista agrupa música, comentarios y ganancias en pestañas
+  (`ArtistaHubTabs`), puente ida y vuelta entre `/creadores` y detalle de catálogo.
+- `fd0abdb` — **T3/F7**: checkout de método de pago unificado (`FormMetodoPago`) con Luhn y
+  dirección fiscal en Mi Plan; elimina la bifurcación legacy.
+- `01eb9a4`+`bd5a65e` — **T4/F8**: follow consolidado en el perfil de catálogo
+  (`POST /social/seguimiento/{id}`), botón compartir con copiar-enlace, redirect
+  `/social/artista/:id` → `/catalogo/artista/:id`, eliminación de `ArtistaSocialPage.tsx`,
+  READMEs de los paquetes actualizados. `bd5a65e` corrige el export huérfano del barrel.
+- `f5f9df5` — **T5/F9**: feed de actividad clicable hacia el hilo del track —
+  `track_fact_id` en el SELECT externo y ambas ramas del UNION (`api/paquetes/social/
+  queries.py`), filas de `SeguidosSocialPage` convertidas en Links.
+- `f1e73f9` — **Extra**: glosario de atributos técnicos al español con patrón `InfoHint`
+  compartido (Baile/Energía/Valencia/Acústica/Habla/Instrumental/En vivo, con término
+  original entre paréntesis); renombres en Dashboard/Tendencias/Géneros/Comparación;
+  `.featureDesc` muerto eliminado. EtlPage y "Balanced Scorecard" se dejan en inglés a
+  propósito (jerga operativa/BI).
+- `5bfa2e9` — fix ETL relacionado (bind mount `./etl:/app` para que `portadas_cache.json`
+  persista al host).
+
+### Regresiones detectadas en verificación visual (Playwright)
+
+- `1824ade` — el hero de las páginas de detalle recortaba el menú "Compartir"
+  (`overflow:hidden` + decorados ::before/::after). Los decorados se movieron a una capa
+  `.heroBg` propia (inset 0, overflow oculto propio, border-radius heredado, z-index 0);
+  el hero ya no recorta nada ni se desplaza al tabular.
+- `6468eb8` — "Ver comentarios" usaba `.btnGhost` (texto blanco calibrado para el gradiente
+  del hero) y era invisible en modo claro fuera de él. Nuevo selector compartido
+  `.btnBack, .btnGhostPage` + hover con borde primario en `DetailPages.module.css`.
+
+### Estados de carga A6+A8 (impeccable, registro product)
+
+- **A8** `555e678`: los 14 archivos de Analítica usaban paneles `minHeight` vacíos (sin
+  pulso, no comunicaban carga). Ahora envuelven `SkeletonChart`/`SkeletonCard` del sistema
+  compartido, mismo vocabulario que BalancedScorecard y las tablas admin. Se quitan los tres
+  `isAnimationActive={false}` (TrendPanel, DisponibilidadInfra, AudioRadarChart): la
+  animación de montura termina antes de cualquier ExportPDF (captura bajo demanda) y el
+  precedente BSC ya exportaba bien con transiciones activas.
+- **A6** `c3542a9`: MisGanancias, Planes (card activa, grid de planes, métodos) e
+  InvoiceDetail mostraban "Cargando…" plano. Ahora anticipan el layout final con
+  `SkeletonCard`/`SkeletonLoader`/`SkeletonTableRows`. En InvoiceDetail la toolbar
+  (Volver) permanece visible durante la carga.
+
+### Verificación
+
+- `npx tsc --noEmit` limpio y `npm run build` OK (37.8s) tras cada lote.
+- Smoke Playwright contra el dev server (:5199) con retardo artificial de red de 2.5s en
+  `/app/v1/**` para observar el estado de carga: Planes 4 bloques shimmer (= card activa +
+  3 planes) y contenido real después; Mis ganancias 32 (= totalCard + retiro + 5×6 celdas);
+  Géneros ciclo completo shimmer→radar SVG; Churn shimmer sostenido; Tendencias línea
+  dibujada con animación reactivada; 0 errores JS en todas las pasadas. Capturas en
+  `smoke_s17/`.
+- Cuentas demo: `usuario@` (flujos B2C) y `superadmin@` (analítica). Hallazgo:
+  `analyst@demo` no puede entrar a `/analitica` (suscripción sin activar + email sin
+  verificar → gate de onboarding) — gap de datos para demos, no de código.
+- InvoiceDetail no se smokeó en runtime (requiere invoice_id real); usa los mismos
+  primitivos verificados en las otras páginas.
+
+### Hallazgos pendientes (fuera de alcance de este prompt)
+
+- Quedan "Cargando…" inline en otros paquetes: ingesta ×3, finanzas ×5 tabs/charts,
+  partners métricas, admin varios — candidatos a un pase de consistencia igual al A6/A8.
+- P12 (recorte de columnas en PDF de rankings anchos) sigue abierto, sin tocar.
+- Feed con algunos `fact_id` muertos (filas apuntan a tracks fuera de DIM_TRACKS) y
+  portadas de artista 404/503: gaps de datos que restan realismo a los flujos.
+- Openspec: sin cambios de spec que sincronizar (estados de carga y fixes de UI no alteran
+  requisitos ni comportamiento documentado).
+
+### Archivos nuevos o modificados
+
+- `frontend/src/packages/catalogo/pages/TrackDetailPage.tsx`, `ArtistDetailPage.tsx`,
+  `AlbumDetailPage.tsx`, `DetailPages.module.css` — comentarios, hero/.heroBg,
+  .btnGhostPage, share.
+- `frontend/src/packages/creadores/components/ArtistaHubTabs.tsx` (nuevo),
+  `RegaliasPages.module.css` — hub de artista.
+- `frontend/src/packages/facturacion/components/FormMetodoPago.tsx`,
+  `pages/FacturacionPage.tsx`, `pages/InvoiceDetailPage.tsx` — checkout unificado,
+  esqueleto de factura.
+- `frontend/src/packages/social/pages/ArtistaSocialPage.tsx` (eliminado),
+  `index.ts`, `SeguidosSocialPage.tsx`; `api/paquetes/social/queries.py` — T4/T5.
+- `frontend/src/shared/components/InfoHint.tsx` + `.module.css` (nuevos);
+  renombres de etiquetas en analitica/regalias/catalogo — glosario.
+- `frontend/src/packages/analitica/pages/*` (14 archivos) y
+  `components/AudioRadarChart.tsx` — A8.
+- `frontend/src/packages/regalias/pages/MisGananciasPage.tsx`,
+  `frontend/src/packages/suscripciones/pages/PlanesPage.tsx` — A6.
