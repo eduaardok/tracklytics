@@ -17,7 +17,7 @@ import { experienciaApi } from '@packages/experiencia/api/experiencia.api'
 // ModeracionSocialPage con Recharts al bundle principal — ver router.tsx).
 import { socialApi } from '@packages/social/api/social.api'
 import type { MiFamilia } from '@packages/experiencia/types'
-import { Users } from 'lucide-react'
+import { AlertTriangle, Ban, Download, Globe, ShieldCheck, Smartphone, User, Users } from 'lucide-react'
 import { EmptyState } from '@shared/components/EmptyState'
 import { authApi } from '../api/auth.api'
 import { SkeletonLoader } from '@shared/components/SkeletonLoader'
@@ -42,6 +42,14 @@ const MI_PERFIL_QUERY_KEY = ['seguridad', 'mi-perfil']
 function fmtDateTime(iso: string): string {
   const d = new Date(iso.replace(' ', 'T'))
   return isNaN(d.getTime()) ? iso : d.toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'short' })
+}
+
+// Iniciales para el avatar del hero (máx. 2 letras, como los avatares de
+// iniciales de cualquier app sin foto de perfil).
+function iniciales(nombre: string | undefined): string {
+  const partes = (nombre ?? '').trim().split(/\s+/).filter(Boolean)
+  if (partes.length === 0) return 'U'
+  return partes.slice(0, 2).map((p) => p[0]!.toUpperCase()).join('')
 }
 
 // Editar perfil (nombre + país) y plan familiar en autoservicio (CU-O51/52/53)
@@ -254,39 +262,45 @@ export function ProfilePage() {
 
   return (
     <section className={styles.page}>
-      <h1 className={styles.heading}>Mi perfil</h1>
+      {/* Hero de identidad (S16-P8): avatar de iniciales, badges de rol/plan
+          y las stats del viejo <dl> comprimidas a un vistazo. */}
+      <header className={styles.hero}>
+        <span className={styles.avatar} aria-hidden="true">{iniciales(user.name)}</span>
+        <div className={styles.heroId}>
+          <h1 className={styles.heroNombre}>{user.name || 'Usuario'}</h1>
+          <span className={styles.heroEmail}>{user.email}</span>
+          <div className={styles.chipsRow}>
+            <span className={styles.rolChip}>{ROLE_LABEL[user.role] ?? user.role}</span>
+            <span className={styles.planChip}>Plan {tipoPlan}</span>
+          </div>
+        </div>
+        <div className={styles.heroStats}>
+          <span className={styles.statTile}>
+            <span className={styles.statValor}>{fmtDate(user.created)}</span>
+            <span className={styles.statEtiqueta}>Miembro desde</span>
+          </span>
+          {user.pais && (
+            <span className={styles.statTile}>
+              <span className={styles.statValor}>{user.pais}</span>
+              <span className={styles.statEtiqueta}>País</span>
+            </span>
+          )}
+        </div>
+      </header>
 
-      <dl className={styles.kv}>
-        <dt className={styles.kvLabel}>Email</dt>
-        <dd className={styles.kvValue}>{user.email}</dd>
-
-        <dt className={styles.kvLabel}>Tipo de cuenta</dt>
-        <dd className={styles.kvValue}>{ROLE_LABEL[user.role] ?? user.role}</dd>
-
-        <dt className={styles.kvLabel}>Miembro desde</dt>
-        <dd className={styles.kvValue}>{fmtDate(user.created)}</dd>
-
-        {user.pais && (
-          <>
-            <dt className={styles.kvLabel}>País</dt>
-            <dd className={styles.kvValue}>{user.pais}</dd>
-          </>
-        )}
-      </dl>
-
-      <div className={styles.actions}>
+      <div className={styles.actions} style={{ animationDelay: '60ms' }}>
         <button type="button" className={styles.btnGhost} onClick={() => setEditando((v) => !v)}>
           {editando ? 'Cancelar' : 'Editar perfil'}
         </button>
         <button type="button" className={styles.btnGhost} onClick={() => setCambiandoPassword((v) => !v)}>
           {cambiandoPassword ? 'Cancelar' : 'Cambiar contraseña'}
         </button>
-        <Link to="/facturacion" className={styles.btnGhost}>Ver mis facturas</Link>
+        <Link to="/suscripciones?tab=facturacion" className={styles.btnGhost}>Ver mis facturas</Link>
       </div>
 
       {cambiandoPassword && (
-        <form className={styles.editForm} onSubmit={handleCambiarPassword} noValidate>
-          <h2 className={styles.sectionTitle}>Cambiar contraseña</h2>
+        <form className={styles.editForm} style={{ animationDelay: '80ms' }} onSubmit={handleCambiarPassword} noValidate>
+          <h2 className={styles.sectionTitle}><ShieldCheck size={17} aria-hidden="true" /> Cambiar contraseña</h2>
           {cambiarPassword.isError && (
             <p className={styles.formError} role="alert">
               {apiErrorMessage(cambiarPassword.error, 'No se pudo cambiar la contraseña.')}
@@ -348,8 +362,8 @@ export function ProfilePage() {
       )}
 
       {editando && (
-        <form className={styles.editForm} onSubmit={handleGuardar} noValidate>
-          <h2 className={styles.sectionTitle}>Editar perfil</h2>
+        <form className={styles.editForm} style={{ animationDelay: '80ms' }} onSubmit={handleGuardar} noValidate>
+          <h2 className={styles.sectionTitle}><User size={17} aria-hidden="true" /> Editar perfil</h2>
           {guardarPerfil.isError && (
             <p className={styles.formError} role="alert">No se pudo actualizar el perfil.</p>
           )}
@@ -388,8 +402,8 @@ export function ProfilePage() {
         </form>
       )}
 
-      <div className={styles.familiaSection}>
-        <h2 className={styles.sectionTitle}>Mis sesiones</h2>
+      <div className={styles.familiaSection} style={{ animationDelay: '120ms' }}>
+        <h2 className={styles.sectionTitle}><Smartphone size={17} aria-hidden="true" /> Mis sesiones</h2>
         <p className={styles.note}>Dispositivos donde tienes una sesión abierta ahora mismo.</p>
 
         {(sesionesQuery.data?.data ?? []).length > 1 && (
@@ -444,8 +458,8 @@ export function ProfilePage() {
         {cerrarSesion.isError && <p className={styles.formError}>No se pudo cerrar esa sesión.</p>}
       </div>
 
-      <div className={styles.familiaSection}>
-        <h2 className={styles.sectionTitle}>Perfil público</h2>
+      <div className={styles.familiaSection} style={{ animationDelay: '160ms' }}>
+        <h2 className={styles.sectionTitle}><Globe size={17} aria-hidden="true" /> Perfil público</h2>
         <p className={styles.note}>
           {miPerfilQuery.data?.perfil_publico
             ? 'Tu perfil es visible para cualquiera, con tus playlists marcadas como públicas.'
@@ -465,8 +479,8 @@ export function ProfilePage() {
       </div>
 
       {tipoPlan === 'premium' && (
-        <div className={styles.familiaSection}>
-          <h2 className={styles.sectionTitle}>Plan familiar</h2>
+        <div className={styles.familiaSection} style={{ animationDelay: '200ms' }}>
+          <h2 className={styles.sectionTitle}><Users size={17} aria-hidden="true" /> Plan familiar</h2>
 
           {familiaQuery.isLoading ? (
             <SkeletonLoader count={1} height={12} />
@@ -537,8 +551,8 @@ export function ProfilePage() {
           propia cuenta, así que van justo antes de la zona de baja. */}
       <UsuariosBloqueadosSection />
 
-      <div className={styles.familiaSection}>
-        <h2 className={styles.sectionTitle}>Mis datos personales</h2>
+      <div className={styles.familiaSection} style={{ animationDelay: '240ms' }}>
+        <h2 className={styles.sectionTitle}><Download size={17} aria-hidden="true" /> Mis datos personales</h2>
         <p className={styles.note}>
           Descarga un archivo con todo lo que Tracklytics guarda sobre ti: perfil,
           pagos, favoritos, playlists, historial, comentarios y denuncias.
@@ -559,8 +573,8 @@ export function ProfilePage() {
           ofrecer una acción que siempre va a fallar y que además borraría el
           acceso administrativo de quien la ve por accidente. */}
       {!user.esAdmin && (
-        <div className={styles.dangerZone}>
-          <h2 className={styles.sectionTitle}>Dar de baja mi cuenta</h2>
+        <div className={styles.dangerZone} style={{ animationDelay: '280ms' }}>
+          <h2 className={styles.sectionTitle}><AlertTriangle size={17} aria-hidden="true" /> Dar de baja mi cuenta</h2>
           <p className={styles.note}>
             Perderás el acceso, se cerrarán todas tus sesiones y se cancelará tu suscripción activa.
             Esta acción es irreversible.
@@ -609,8 +623,8 @@ function UsuariosBloqueadosSection() {
   if (lista.length === 0) return null
 
   return (
-    <div className={styles.familiaSection}>
-      <h2 className={styles.sectionTitle}>Usuarios bloqueados</h2>
+    <div className={styles.familiaSection} style={{ animationDelay: '220ms' }}>
+      <h2 className={styles.sectionTitle}><Ban size={17} aria-hidden="true" /> Usuarios bloqueados</h2>
       <p className={styles.note}>
         No ves sus comentarios y no pueden responder a los tuyos.
       </p>
