@@ -648,3 +648,67 @@ resto es la agregación de catálogo + inserts de impresiones), mix-diario 52.6s
 watcher): tras cada build hace falta
 `docker cp frontend/dist/. tracklytics_frontend_react:/usr/share/nginx/html/` o rebuild.
 Quedó anotado en PENDIENTES como brecha operativa.
+
+---
+
+## S16-P8 — Feedback de stakeholder: hub invertido, tarjeta por bloques, estudiante, Para ti arrastrable, Perfil hero (23 ago 2026)
+
+Lote dirigido por feedback directo del stakeholder sobre lo entregado en P7. El bloque
+dinero sigue CONGELADO en lógica (F3–F6/F10–F13): todo lo de este lote es presentación,
+flujo de UI y validación cliente — ninguna mutación financiera nueva.
+
+### Hub invertido: Suscripciones vuelve a ser principal, Facturación acoplada
+
+En P7 el hub quedó al revés de lo que el stakeholder quería (Facturación principal con
+"Mi plan" embebida). Se invirtió: `/suscripciones` renderiza "Mi plan" (PlanesPage,
+dueña del hub) y Facturación es una TAB acoplada dentro del mismo page shell
+("Mi plan" con Crown / "Facturación" con CreditCard, roving ←/→, `?tab=facturacion`
+deep-linkable). FacturacionPage se adelgazó: perdió sus tabs y ahora expone
+`{ embebido }` para ocultar su h1 cuando vive dentro de Suscripciones. La ruta vieja
+`/facturacion` redirige a `/suscripciones?tab=facturacion` (Navigate bajo RequireAuth).
+Nav secundaria limpiada: "Facturación" y "Mis ganancias" salieron de NAV_SECONDARY —
+llegan por sus dueños reales (Suscripciones y Creadores), no repetidas en el menú.
+
+### Formulario de método de pago armonizado (pedido explícito)
+
+FormMetodoPago reorganizado en dos bloques etiquetados — "Datos de la tarjeta" y
+"Dirección de facturación" — cada uno con su grid 2 columnas. Validaciones EN VIVO
+mientras se tipea: número (Luhn ≥12 dígitos → hint verde "Número válido"), expiración
+(rango MM válido + no vencida) y CVV (largo según marca, amex=4); estados fieldHintOk
+(verde + Check) vs fieldHintSoft (neutro mientras falta completar). Chip de marca junto
+al label del número. La tarjeta visual flip 3D de P7 se conserva intacta encima.
+Verificado: chip VISA al tipear 4242…, hints correctos, flip al enfocar CVV.
+
+### Verificación de plan Estudiante (flujo en vivo)
+
+El CTA de estudiante ya no confirma a ciegas: wizard de 2 pasos embebido en el confirmForm
+(solo en el camino "Suscribirme", usuarios sin suscripción activa). Paso 1: correo
+institucional con hint en vivo (regex + debe contener ".edu") que habilita Continuar;
+Paso 2: zona de comprobante (pdf/jpg/png ≤5MB, chip con nombre de archivo) + nota de
+revisión ≤24h; el submit queda deshabilitado hasta completar ambos pasos y su texto pasa
+a "Enviar solicitud". Es simulación cliente: el endpoint vigente solo recibe
+email_institucional; el comprobante es evidencia local del paso (pendiente real de
+backend anotado).
+
+### Para ti arrastrable + planes vivos + Perfil hero
+
+- Rails de Para ti adoptan el patrón de arrastre del catálogo (`useDragScroll`): sin
+  scrollbar visible, sin snap, cursor grab, pointer-events off mientras arrastra.
+- Grid de planes con vida: stagger de entrada (delay idx*90ms), hover lift, Premium
+  destacado con filete de gradiente y badge "Más popular".
+- Perfil rediseñado como página viva: hero de identidad (avatar con iniciales, nombre,
+  email, chips de rol/plan, stat tiles "Miembro desde"/"País"), títulos de sección
+  con icono lucide, paneles con entrada escalonada y hover; danger zone animada;
+  respeta prefers-reduced-motion. Link de facturas apunta al nuevo deep-link.
+
+### Verificación (Playwright, smoke completo verde)
+
+NAV sin duplicados · H1 "Mi plan" · tabs [Mi plan|Facturación] · badge "Más popular"
+· `?tab=facturacion` ida y vuelta · redirect /facturacion · secciones del formulario ·
+chip VISA · hint número · flip CVV · wizard estudiante completo (hint email, paso 2,
+submit bloqueado sin comprobante) · rails {drag:true, scrollbar oculto, 12 tarjetas} ·
+perfil hero · 0 errores JS. Capturas en `smoke_p8/`.
+
+Hallazgo operativo: el API devuelve 401 transitorio esporádico bajo carga y el api-client
+limpia sesión → redirect a /login. Los smokes ahora reintentan re-inyectando sesión;
+queda observado (no reproducible a demanda, no bloqueante).

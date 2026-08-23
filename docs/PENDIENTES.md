@@ -1,8 +1,9 @@
 # Tracklytics — Pendientes
 
-> Última revisión: **Semana 16 (S16-P7)** — actualizado tras resolver la performance del
-> core y de experiencia, y el lote de UI (hub Facturación/Mi plan, tarjeta visual, Para ti
-> en rails). Las decisiones y detalles por prompt están en `docs/BITACORA_S16.md`.
+> Última revisión: **Semana 16 (S16-P8)** — feedback de stakeholder aplicado: hub
+> invertido (Mi plan principal + Facturación acoplada), nav sin duplicados, formulario de
+> tarjeta por bloques con validaciones vivas, wizard estudiante, Para ti arrastrable,
+> Perfil hero. Detalles en `docs/BITACORA_S16.md`.
 
 ## Estado de la sesión S16
 
@@ -15,9 +16,14 @@
   mix-diario 52s → ~1.3–2s (señales en una pasada, IN podable, piso de popularidad,
   muestreo de géneros, paralelización).
 - ✅ Hub Facturación ⇄ Mi plan con tabs + tarjeta de crédito visual en vivo (S16-P7).
+- ✅ **S16-P8 (feedback stakeholder)**: hub invertido — Mi plan es la página principal y
+  Facturación quedó acoplada como tab (`?tab=facturacion`); nav secundaria sin
+  "Facturación"/"Mis ganancias" duplicadas; FormMetodoPago por bloques con validaciones
+  en vivo; wizard de verificación estudiante (email .edu + comprobante); Para ti con
+  arrastre tipo catálogo; Perfil con hero de identidad. Verificado con smoke completo.
 - 🧊 **Bloque dinero F3–F6/F10–F13: CONGELADO por decisión del stakeholder** (22 ago 2026).
-  No tocar hasta que se desbloquee explícitamente. (El hub S16-P7 solo reorganizó
-  navegación/UI; la lógica financiera quedó intacta.)
+  No tocar hasta que se desbloquee explícitamente. (El hub S16-P7/P8 solo reorganizó
+  navegación/UI/validación cliente; la lógica financiera quedó intacta.)
 - ⏳ P12 (columnas cortadas en PDF de rankings anchos): abierto desde S16-P3, prioridad baja.
 
 ## Deuda técnica conocida
@@ -41,7 +47,7 @@
 - [ ] **A9**: funnel de conversión estático → interactivo/por cohortes
 - [ ] **A10**: Simulación con valores fijos → escenarios editables
 - [ ] **A11**: Finanzas duplica paleta propia en vez de los tokens del design system
-- [ ] **A5**: rediseño de Perfil (ranking visual #2)
+- [x] ~~**A5**: rediseño de Perfil~~ ✅ (S16-P8: hero de identidad + paneles con iconos)
 - [ ] **R2**: analítica propia del artista (panel de streams/regalías propio, feature nueva)
 - [ ] Loaders restantes fuera del alcance A6/A8: ingesta ×3, finanzas ×5 tabs/charts,
       partners métricas, celdas admin inline *(en curso este lote)*
@@ -70,6 +76,11 @@
 - [ ] Historial de sanciones/strikes por usuario
 - [ ] `FACT_CANCELACION_SUSCRIPCION` (evento de churn dedicado)
 - [ ] Diferenciación de formato de ads (audio vs. display)
+- [ ] **Ads con imagen (idea stakeholder, 23 ago 2026)**: permitir que las campañas de
+      publicidad carguen la URL de una imagen/banner; cuando aparezca un ad en el player,
+      mostrar ese banner en vez del solo audio. Requiere: campo `imagen_url` en
+      DIM_CAMPANA (o DIM_ANUNCIANTE), validación de URL en el CRUD admin, y render en el
+      componente de anuncios del PlayerBar.
 - [ ] Exportación agregada para `regalias`/`finanzas`
 
 ## Brechas de producto (P2)
@@ -82,4 +93,6 @@
       existen desde S14/S15 (verificado en `PlanesPage`)
 - [ ] Verificación de email en registro (simulada; hoy bloquea comentarios/planes vía
       `require_email_verificado`)
+- [ ] **Comprobante de estudiante real**: el wizard S16-P8 es simulación cliente — falta
+      endpoint que reciba/almacene el archivo y estado de verificación admin
 - [ ] Export de datos personales (GDPR)
