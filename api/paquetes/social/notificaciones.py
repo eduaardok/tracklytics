@@ -10,7 +10,9 @@ from datetime import datetime, timezone
 from typing import Literal
 
 from core.database import get_client, query_rows
-from paquetes.social.queries import SEGUIDORES_ACTIVOS_DE_ARTISTA
+from paquetes.social.queries import (
+    PREFERENCIAS_DESACTIVADAS_DE_USUARIOS, SEGUIDORES_ACTIVOS_DE_ARTISTA,
+)
 
 TipoNotificacion = Literal[
     "nuevo_track_artista_seguido", "comentario_en_tu_contenido", "nuevo_colaborador_playlist",
@@ -29,10 +31,21 @@ def _gen_fact_id() -> int:
     return random.getrandbits(50)
 
 
+def _desactivada_para(usuario_id: str, tipo: TipoNotificacion) -> bool:
+    return bool(query_rows(
+        PREFERENCIAS_DESACTIVADAS_DE_USUARIOS, {"usuario_ids": [usuario_id], "tipo": tipo},
+    ))
+
+
 def crear(
     usuario_destino_id: str, tipo: TipoNotificacion, referencia_tipo: ReferenciaTipo,
     referencia_id: str, mensaje: str,
-) -> int:
+) -> int | None:
+    # Opt-out (P2, S16): el destinatario desactivó este tipo — no se inserta
+    # nada, ni siquiera en estado "silenciado", para no acumular ruido que
+    # nadie va a leer.
+    if _desactivada_para(usuario_destino_id, tipo):
+        return None
     fact_id = _gen_fact_id()
     get_client().insert(
         "FACT_NOTIFICACION",
@@ -54,10 +67,20 @@ def crear_para_seguidores_de_artista(
     seguidores = query_rows(SEGUIDORES_ACTIVOS_DE_ARTISTA, {"artista_id": artista_id})
     if not seguidores:
         return 0
+    usuario_ids = [s["usuario_id"] for s in seguidores]
+    # Opt-out en batch (P2, S16): una sola consulta filtra a quienes
+    # desactivaron este tipo, en vez de una consulta por seguidor.
+    desactivados = {
+        r["usuario_id"] for r in query_rows(
+            PREFERENCIAS_DESACTIVADAS_DE_USUARIOS, {"usuario_ids": usuario_ids, "tipo": tipo},
+        )
+    }
     ahora = datetime.now(timezone.utc)
     filas = [
-        (_gen_fact_id(), s["usuario_id"], tipo, referencia_tipo, referencia_id, mensaje, 0, ahora, None)
-        for s in seguidores
+        (_gen_fact_id(), uid, tipo, referencia_tipo, referencia_id, mensaje, 0, ahora, None)
+        for uid in usuario_ids if uid not in desactivados
     ]
+    if not filas:
+        return 0
     get_client().insert("FACT_NOTIFICACION", filas, column_names=_COLS)
     return len(filas)

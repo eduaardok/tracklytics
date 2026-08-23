@@ -1,6 +1,6 @@
 import random
 from datetime import datetime, timezone
-from typing import Literal
+from typing import Literal, get_args
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Path, Query, Request
 from pydantic import BaseModel, Field
@@ -38,6 +38,7 @@ from paquetes.social.queries import (
     NOTIFICACIONES_DE_USUARIO,
     NOTIFICACIONES_NO_LEIDAS_TOTAL,
     PERFIL_PUBLICO_USUARIO,
+    PREFERENCIAS_NOTIFICACION_USUARIO,
     SEGUIMIENTO_ACTIVO_EXISTE,
     TRACK_EXISTE,
     USUARIO_EXISTE,
@@ -615,6 +616,41 @@ def marcar_notificacion_leida(fact_id: int = Path(..., ge=1), user: dict = Depen
         {"fact_id": fact_id},
     )
     return {"status": "ok"}
+
+
+class ActualizarPreferenciaNotificacion(BaseModel):
+    activo: bool
+
+
+@router.get("/notificaciones/preferencias")
+def mis_preferencias_notificacion(user: dict = Depends(get_current_user)):
+    """Estado por tipo (P2, S16) — ausencia de fila = activo (opt-out, no
+    opt-in): se completan acá los tipos que el usuario nunca tocó."""
+    usuario_id = user["record"]["id"]
+    guardadas = {
+        r["tipo"]: bool(r["activo"])
+        for r in query_rows(PREFERENCIAS_NOTIFICACION_USUARIO, {"usuario_id": usuario_id})
+    }
+    return {
+        "data": [
+            {"tipo": tipo, "activo": guardadas.get(tipo, True)}
+            for tipo in get_args(notificaciones.TipoNotificacion)
+        ],
+    }
+
+
+@router.put("/notificaciones/preferencias/{tipo}")
+def actualizar_preferencia_notificacion(
+    body: ActualizarPreferenciaNotificacion,
+    tipo: notificaciones.TipoNotificacion = Path(...),
+    user: dict = Depends(get_current_user),
+):
+    get_client().insert(
+        "DIM_PREFERENCIA_NOTIFICACION",
+        [(user["record"]["id"], tipo, int(body.activo), datetime.now(timezone.utc))],
+        column_names=["usuario_id", "tipo", "activo", "actualizado_en"],
+    )
+    return {"status": "ok", "tipo": tipo, "activo": body.activo}
 
 
 # ─────────────────────────────────────────────────────────────────────────────

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
-import { Bell, BellOff } from 'lucide-react'
+import { Bell, BellOff, Settings } from 'lucide-react'
 import { isAuthenticated } from '@shared/lib/session'
 import { EmptyState } from '@shared/components/EmptyState'
 import { socialApi } from '../api/social.api'
@@ -9,6 +9,49 @@ import type { Notificacion } from '../types'
 import styles from './NotificationBell.module.css'
 
 const QUERY_KEY = ['social', 'notificaciones']
+const PREFS_QUERY_KEY = ['social', 'notificaciones', 'preferencias']
+
+// Etiqueta en español por tipo — mismo criterio del glosario técnico (S16-P4,
+// InfoHint): el `Enum8` del backend usa los nombres internos, la UI muestra
+// texto legible.
+const TIPO_LABEL: Record<string, string> = {
+  nuevo_track_artista_seguido: 'Nuevo track de un artista que sigues',
+  comentario_en_tu_contenido:  'Comentarios en tu contenido',
+  nuevo_colaborador_playlist:  'Nuevo colaborador en tu playlist',
+}
+
+function PreferenciasNotificacion() {
+  const queryClient = useQueryClient()
+  const { data, isLoading } = useQuery({
+    queryKey: PREFS_QUERY_KEY,
+    queryFn:  () => socialApi.preferenciasNotificacion(),
+  })
+  const actualizar = useMutation({
+    mutationFn: ({ tipo, activo }: { tipo: string; activo: boolean }) =>
+      socialApi.actualizarPreferenciaNotificacion(tipo, activo),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: PREFS_QUERY_KEY }),
+  })
+
+  if (isLoading) return <p className={styles.prefsHint}>Cargando preferencias…</p>
+
+  return (
+    <ul className={styles.prefsList}>
+      {(data?.data ?? []).map((p) => (
+        <li key={p.tipo} className={styles.prefsRow}>
+          <span>{TIPO_LABEL[p.tipo] ?? p.tipo}</span>
+          <label className={styles.prefsSwitch}>
+            <input
+              type="checkbox"
+              checked={p.activo}
+              onChange={(e) => actualizar.mutate({ tipo: p.tipo, activo: e.target.checked })}
+            />
+            <span className={styles.prefsSlider} aria-hidden="true" />
+          </label>
+        </li>
+      ))}
+    </ul>
+  )
+}
 
 // Campana de notificaciones (S10 ronda 2, punto 1) — montada directo en
 // AppShell.tsx por ruta explícita (no vía el barrel `@packages/social`, que
@@ -18,6 +61,7 @@ export function NotificationBell() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [open, setOpen] = useState(false)
+  const [prefsOpen, setPrefsOpen] = useState(false)
   const wrapRef = useRef<HTMLDivElement>(null)
   const authed = isAuthenticated()
 
@@ -85,17 +129,31 @@ export function NotificationBell() {
         <div className={styles.panel} role="menu" aria-label="Notificaciones">
           <div className={styles.panelHeader}>
             <span className={styles.panelTitle}>Notificaciones</span>
-            {noLeidas > 0 && (
+            <div className={styles.panelHeaderActions}>
+              {noLeidas > 0 && (
+                <button
+                  type="button"
+                  className={styles.markAllBtn}
+                  onClick={() => marcarTodas.mutate()}
+                  disabled={marcarTodas.isPending}
+                >
+                  Marcar todas leídas
+                </button>
+              )}
               <button
                 type="button"
-                className={styles.markAllBtn}
-                onClick={() => marcarTodas.mutate()}
-                disabled={marcarTodas.isPending}
+                className={styles.settingsBtn}
+                onClick={() => setPrefsOpen((v) => !v)}
+                aria-label="Preferencias de notificación"
+                aria-expanded={prefsOpen}
+                title="Preferencias de notificación"
               >
-                Marcar todas leídas
+                <Settings size={14} aria-hidden="true" />
               </button>
-            )}
+            </div>
           </div>
+
+          {prefsOpen && <PreferenciasNotificacion />}
 
           {items.length === 0 ? (
             <EmptyState icon={<BellOff size={22} aria-hidden="true" />} title="No tienes notificaciones todavía." />

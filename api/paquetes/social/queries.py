@@ -87,6 +87,32 @@ SELECT
     n.fecha_creacion       AS fecha_creacion
 FROM FACT_NOTIFICACION n
 LEFT JOIN DIM_USUARIO u ON n.usuario_destino_id = u.usuario_id
+"""
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Preferencias de notificación — opt-out por tipo (P2, S16)
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Estado real por tipo (última fila por versión). Ausencia de fila = activo
+# (modelo opt-out) — el router completa los tipos faltantes con `activo=1`
+# antes de responder, esta query solo trae lo que el usuario tocó alguna vez.
+PREFERENCIAS_NOTIFICACION_USUARIO = """
+SELECT tipo, argMax(activo, actualizado_en) AS activo
+FROM DIM_PREFERENCIA_NOTIFICACION
+WHERE usuario_id = {usuario_id:String}
+GROUP BY tipo
+"""
+
+# Usados por `notificaciones.crear*` para no insertar una notificación que el
+# destinatario desactivó. `usuario_ids` viaja como Array(String) para poder
+# filtrar en batch a los seguidores de un artista en una sola consulta.
+PREFERENCIAS_DESACTIVADAS_DE_USUARIOS = """
+SELECT usuario_id FROM (
+    SELECT usuario_id, argMax(activo, actualizado_en) AS activo
+    FROM DIM_PREFERENCIA_NOTIFICACION
+    WHERE usuario_id IN {usuario_ids:Array(String)} AND tipo = {tipo:String}
+    GROUP BY usuario_id
+) WHERE activo = 0
 ORDER BY n.fecha_creacion DESC
 LIMIT 200
 """

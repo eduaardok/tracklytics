@@ -637,6 +637,46 @@ DDL_STATEMENTS = [
     ORDER BY (usuario_destino_id, fecha_creacion)
     """,
 
+    # Preferencias de notificación (P2 — opt-out por tipo, S16): ausencia de
+    # fila = habilitado (modelo opt-out, no opt-in — no bloquea al usuario que
+    # nunca tocó su configuración). ReplacingMergeTree por `actualizado_en`
+    # para que togglear dos veces no acumule filas — se lee con FINAL o
+    # argMax, mismo criterio que otros espejos versionados (DIM_USUARIO).
+    f"""
+    CREATE TABLE IF NOT EXISTS {DB}.DIM_PREFERENCIA_NOTIFICACION (
+        usuario_id     String,
+        tipo           Enum8(
+            'nuevo_track_artista_seguido'=1,
+            'comentario_en_tu_contenido'=2,
+            'nuevo_colaborador_playlist'=3
+        ),
+        activo         UInt8 DEFAULT 1,
+        actualizado_en DateTime
+    ) ENGINE = ReplacingMergeTree(actualizado_en)
+    ORDER BY (usuario_id, tipo)
+    """,
+
+    # Solicitud de comprobante de estudiante (P2 — verificación real, S16):
+    # el checkout de `estudiante` sigue auto-servido por dominio de email
+    # (regla de negocio ya decidida, sin tocar); esto es un canal AUDITABLE
+    # aparte donde el usuario sube evidencia y un admin revisa. `estado` se
+    # muta in-place vía ALTER UPDATE, mismo patrón que `leido` en
+    # FACT_NOTIFICACION.
+    f"""
+    CREATE TABLE IF NOT EXISTS {DB}.SOLICITUD_VERIFICACION_ESTUDIANTE (
+        solicitud_id         String,
+        usuario_id           String,
+        email_institucional  String,
+        archivo_nombre       String,
+        archivo_path         String,
+        estado               Enum8('pendiente'=1, 'aprobado'=2, 'rechazado'=3) DEFAULT 1,
+        creado_en            DateTime,
+        revisado_en          Nullable(DateTime),
+        revisado_por         Nullable(String)
+    ) ENGINE = MergeTree()
+    ORDER BY (usuario_id, creado_en)
+    """,
+
     # ── capability `distribucion`: mercado, sellos, licencias, restricciones ───
     f"""
     CREATE TABLE IF NOT EXISTS {DB}.DIM_PAIS (

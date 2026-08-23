@@ -10,6 +10,8 @@ import type {
   ActualizarDenunciaResultado, UsuarioBloqueado, NotificacionAdmin,
 } from '../types'
 
+export type PreferenciaNotificacion = { tipo: string; activo: boolean }
+
 export const socialApi = {
   // ── Seguimiento de artistas ────────────────────────────────────────────────
   misSeguidos: () =>
@@ -101,6 +103,15 @@ export const socialApi = {
 
   marcarTodasLeidas: () =>
     apiClient.patch<{ status: string }>('/social/notificaciones/leer-todas', {}),
+
+  // ── Preferencias de notificación — opt-out por tipo (P2, S16) ───────────────
+  preferenciasNotificacion: () =>
+    apiClient.get<{ data: PreferenciaNotificacion[] }>('/social/notificaciones/preferencias'),
+
+  actualizarPreferenciaNotificacion: (tipo: string, activo: boolean) =>
+    apiClient.put<{ status: string; tipo: string; activo: boolean }>(
+      `/social/notificaciones/preferencias/${tipo}`, { activo },
+    ),
 
   // ── Perfiles públicos ────────────────────────────────────────────────────────
   perfilPublico: (usuarioId: string) =>
