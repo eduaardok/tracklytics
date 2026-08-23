@@ -1,6 +1,6 @@
-import { useState, type FormEvent } from 'react'
+import { lazy, Suspense, useState, type FormEvent } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { AlertTriangle } from 'lucide-react'
+import { AlertTriangle, Check, CreditCard, Crown, FileText, GraduationCap } from 'lucide-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { getUser } from '@shared/lib/session'
 import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
@@ -18,6 +18,14 @@ import { suscripcionesApi } from '../api/suscripciones.api'
 import { PLAN_ACTIVO_QUERY_KEY } from '../hooks/usePlanActivo'
 import { DIAS_TRIAL_PREMIUM, type MotivoCancelacion, type Plan } from '../types'
 import styles from './PlanesPage.module.css'
+
+// Hub S16-P8 (inversión del pedido original): SUSCRIPCIONES es la página
+// principal y Facturación vive acoplada como tab — al revés de P7, donde el
+// hub era FacturacionPage. Lazy para no arrastrar el bundle de facturación
+// (ni su CSS) al chunk principal; solo se baja si el usuario abre el tab.
+const FacturacionPage = lazy(() =>
+  import('@packages/facturacion/pages/FacturacionPage').then((m) => ({ default: m.FacturacionPage })),
+)
 
 const MOTIVOS_CANCELACION: { value: MotivoCancelacion; label: string }[] = [
   { value: 'otro',        label: 'Prefiero no decir' },
@@ -65,14 +73,30 @@ function fmtFechaCobroTrial(): string {
 // distintas solo duplicaría el fetch de /suscripciones/activa sin aportar
 // nada que el legacy no resolviera ya en una página.
 //
-// `embebido` (S16-P7): FacturacionPage monta este mismo componente dentro de
-// su tab "Mi plan" (hub pedido por el usuario) — en ese modo se oculta la
-// cabecera propia (el h1 "Mi plan" y el subtitle) porque el hub ya tiene el
-// suyo; toda la lógica de suscripciones queda intacta.
+// `embebido` (S16-P7/P8): en P7 FacturacionPage montaba esta página dentro de
+// su tab; desde la inversión del hub (P8) es al revés — aquí se monta
+// FacturacionPage. La prop se conserva por compatibilidad y para ocultar la
+// cabecera si algún día vuelve a embeberse.
 export function PlanesPage({ embebido = false }: { embebido?: boolean }) {
-  useDocumentTitle('Mi plan')
   const navigate = useNavigate()
-  const [searchParams] = useSearchParams()
+  const [searchParams, setSearchParams] = useSearchParams()
+  // Hub: "Mi plan" es el tab principal; "Facturación" el acoplado (?tab=).
+  const tab = searchParams.get('tab') === 'facturacion' ? 'facturacion' : 'plan'
+  function setTabHub(next: 'plan' | 'facturacion') {
+    const params = new URLSearchParams(searchParams)
+    if (next === 'facturacion') params.set('tab', 'facturacion')
+    else params.delete('tab')
+    setSearchParams(params, { replace: true })
+  }
+  // Roving con flechas — mismo vocabulario de tabs que Biblioteca.
+  function onTablistKeyDown(e: React.KeyboardEvent<HTMLDivElement>) {
+    if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return
+    e.preventDefault()
+    const siguiente = tab === 'plan' ? 'facturacion' : 'plan'
+    setTabHub(siguiente)
+    e.currentTarget.querySelector<HTMLButtonElement>(`[data-tab="${siguiente}"]`)?.focus()
+  }
+  useDocumentTitle(tab === 'facturacion' ? 'Facturación · Mi plan' : 'Mi plan')
   const onboarding = searchParams.get('onboarding') === '1'
   // `esAdmin` (no el `role` crudo de PocketBase): un admin de área
   // (admin_finanzas, ...) tiene `role==='user'` en PocketBase — el rol
@@ -88,6 +112,11 @@ export function PlanesPage({ embebido = false }: { embebido?: boolean }) {
   const [formError, setFormError]         = useState<string | null>(null)
   const [motivoCancelacion, setMotivoCancelacion] = useState<MotivoCancelacion>('otro')
   const [emailInstitucional, setEmailInstitucional] = useState('')
+  // Wizard de verificación estudiante (S16-P8): paso 1 = correo
+  // institucional con validación en vivo; paso 2 = comprobante (simulado en
+  // cliente — el endpoint existente solo recibe email_institucional).
+  const [pasoEstudiante, setPasoEstudiante] = useState<1 | 2>(1)
+  const [comprobanteNombre, setComprobanteNombre] = useState<string | null>(null)
 
   const queryClient = useQueryClient()
   const toast = useToast()
@@ -123,6 +152,8 @@ export function PlanesPage({ embebido = false }: { embebido?: boolean }) {
       setSelectedPlan(null)
       setMetodoElegidoId(null)
       setEmailInstitucional('')
+      setPasoEstudiante(1)
+      setComprobanteNombre(null)
       setFormError(null)
       queryClient.invalidateQueries({ queryKey: PLAN_ACTIVO_QUERY_KEY })
       queryClient.invalidateQueries({ queryKey: ['suscripciones', 'planes'] })
@@ -187,7 +218,7 @@ export function PlanesPage({ embebido = false }: { embebido?: boolean }) {
         'Necesitas un método de pago registrado para este upgrade. ¿Ir a Facturación para agregarlo?',
         { title: 'Sin método de pago', confirmLabel: 'Ir a Facturación' },
       )
-      if (irAFacturacion) navigate('/facturacion')
+      if (irAFacturacion) navigate('/suscripciones?tab=facturacion')
       return
     }
     const mensaje = ajusteEstimado > 0
@@ -218,6 +249,12 @@ export function PlanesPage({ embebido = false }: { embebido?: boolean }) {
   const planes = planesQuery.data?.data ?? []
   const activa = activaQuery.data?.data ?? null
 
+  // Correo institucional válido — mismo criterio que el gate del submit
+  // (formato email + contiene .edu, la regla heredada del backend).
+  const emailEstudianteValido =
+    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailInstitucional.trim()) &&
+    emailInstitucional.trim().toLowerCase().includes('.edu')
+
   // Igual que loadAll() en planes.html: si en modo onboarding ya hay un plan
   // activo (ej. el usuario vuelve a esta URL), no tiene sentido mostrar la
   // selección — se entra directo a la app.
@@ -245,6 +282,8 @@ export function PlanesPage({ embebido = false }: { embebido?: boolean }) {
     setSelectedPlan(plan)
     setMetodoElegidoId(null)
     setEmailInstitucional('')
+    setPasoEstudiante(1)
+    setComprobanteNombre(null)
     setFormError(null)
   }
 
@@ -255,7 +294,7 @@ export function PlanesPage({ embebido = false }: { embebido?: boolean }) {
       setFormError('Selecciona o agrega un método de pago para continuar.')
       return
     }
-    if (selectedPlan.id === 'estudiante' && !emailInstitucional.trim().toLowerCase().includes('.edu')) {
+    if (selectedPlan.id === 'estudiante' && !emailEstudianteValido) {
       setFormError('Ingresa un email institucional válido (.edu) para el plan estudiante.')
       return
     }
@@ -266,16 +305,60 @@ export function PlanesPage({ embebido = false }: { embebido?: boolean }) {
     })
   }
 
+  // Cabecera compartida del hub: título + tabs (el h1 sigue siendo "Mi plan"
+  // porque la página principal ES suscripciones; Facturación es el tab
+  // acoplado). En modo onboarding se ocultan los tabs: primero hay que elegir
+  // plan, no pasear por pagos.
+  const cabecera = (
+    <>
+      <h1 className={styles.heading}>Mi plan</h1>
+      <span className={styles.subtitle}>Tu suscripción y tus pagos, en un solo lugar.</span>
+      {!embebido && !onboarding && (
+        <div className={styles.hubTabs} role="tablist" aria-label="Mi plan y Facturación" onKeyDown={onTablistKeyDown}>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={tab === 'plan'}
+            data-tab="plan"
+            tabIndex={tab === 'plan' ? 0 : -1}
+            className={`${styles.hubTab} ${tab === 'plan' ? styles.hubTabActive : ''}`}
+            onClick={() => setTabHub('plan')}
+          >
+            <span className={styles.hubTabIcon} aria-hidden="true"><Crown size={15} strokeWidth={2.2} /></span>
+            <span>Mi plan</span>
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={tab === 'facturacion'}
+            data-tab="facturacion"
+            tabIndex={tab === 'facturacion' ? 0 : -1}
+            className={`${styles.hubTab} ${tab === 'facturacion' ? styles.hubTabActive : ''}`}
+            onClick={() => setTabHub('facturacion')}
+          >
+            <span className={styles.hubTabIcon} aria-hidden="true"><CreditCard size={15} strokeWidth={2.2} /></span>
+            <span>Facturación</span>
+          </button>
+        </div>
+      )}
+    </>
+  )
+
+  // Tab acoplado de Facturación: mismo shell (título + tabs), contenido lazy.
+  if (!embebido && tab === 'facturacion') {
+    return (
+      <section className={styles.page}>
+        {cabecera}
+        <Suspense fallback={<SkeletonCard height={420} />}>
+          <FacturacionPage embebido />
+        </Suspense>
+      </section>
+    )
+  }
+
   return (
     <section className={styles.page}>
-      {!embebido && (
-        <>
-          <h1 className={styles.heading}>Mi plan</h1>
-          <span className={styles.subtitle}>
-            // {getUser()?.role === 'analyst' ? 'planes empresariales' : 'planes personales'}
-          </span>
-        </>
-      )}
+      {!embebido && cabecera}
 
       {onboarding && (
         <div className={styles.onboardingBanner}>
@@ -355,13 +438,27 @@ export function PlanesPage({ embebido = false }: { embebido?: boolean }) {
         </div>
       ) : (
         <div className={styles.plansGrid}>
-          {planes.map((p) => {
+          {planes.map((p, idx) => {
             const esActual = activa?.tipo_plan === p.id
+            // Destacado cosmético: el plan premium lleva el filete con el
+            // gradiente de marca y el badge "Más popular" — guía el ojo sin
+            // tocar precios ni features (bloque dinero congelado).
+            const esPopular = p.id === 'premium'
             return (
-              <div key={p.id} className={esActual ? `${styles.planCard} ${styles.planCardCurrent}` : styles.planCard}>
+              <div
+                key={p.id}
+                className={[
+                  styles.planCard,
+                  esActual ? styles.planCardCurrent : '',
+                  esPopular ? styles.planCardDestacado : '',
+                  styles.planCardAnim,
+                ].filter(Boolean).join(' ')}
+                style={{ animationDelay: `${Math.min(idx * 90, 360)}ms` }}
+              >
                 <div className={styles.planTitle}>
                   {p.nombre}
                   {esActual && <span className={styles.currentBadge}>Plan actual</span>}
+                  {!esActual && esPopular && <span className={styles.popularBadge}>Más popular</span>}
                 </div>
                 <p className={styles.planDesc}>{p.descripcion}</p>
                 {p.features && p.features.length > 0 && (
@@ -407,15 +504,88 @@ export function PlanesPage({ embebido = false }: { embebido?: boolean }) {
           {formError && <p className={styles.formError} role="alert">{formError}</p>}
           {selectedPlan.id === 'estudiante' && (
             <div className={styles.field}>
-              <label className={styles.fieldLabel} htmlFor="email-institucional">Email institucional</label>
-              <input
-                id="email-institucional"
-                className={styles.input}
-                type="email"
-                placeholder="tu.nombre@universidad.edu"
-                value={emailInstitucional}
-                onChange={(e) => setEmailInstitucional(e.target.value)}
-              />
+              {/* Verificación de estudiante (S16-P8): mini-registro en dos
+                  pasos — correo institucional con validación EN VIVO y
+                  comprobante. Simulado en cliente (el endpoint solo recibe
+                  email_institucional); el comprobante es evidencia del paso,
+                  no viaja a ningún lado. */}
+              <div className={styles.wizardPasos} aria-hidden="true">
+                <span className={`${styles.pasoPunto} ${pasoEstudiante === 1 ? styles.pasoPuntoActivo : styles.pasoPuntoHecho}`}>1</span>
+                <span className={`${styles.pasoNombre}`}>Correo</span>
+                <span className={styles.pasoLinea} />
+                <span className={`${styles.pasoPunto} ${pasoEstudiante === 2 ? styles.pasoPuntoActivo : ''}`}>2</span>
+                <span className={`${styles.pasoNombre}`}>Comprobante</span>
+              </div>
+
+              {pasoEstudiante === 1 ? (
+                <>
+                  <p className={styles.estudianteIntro}>
+                    <GraduationCap size={15} aria-hidden="true" />
+                    Verificamos tu estado de estudiante con tu correo de la universidad.
+                  </p>
+                  <label className={styles.fieldLabel} htmlFor="email-institucional">Email institucional</label>
+                  <input
+                    id="email-institucional"
+                    className={styles.input}
+                    type="email"
+                    placeholder="tu.nombre@universidad.edu"
+                    value={emailInstitucional}
+                    onChange={(e) => setEmailInstitucional(e.target.value)}
+                  />
+                  {emailInstitucional.trim().length > 0 && !emailEstudianteValido && (
+                    <span className={styles.hintSoft}>Necesita formato de email y terminar en .edu</span>
+                  )}
+                  {emailEstudianteValido && (
+                    <span className={styles.hintOk}>
+                      <Check size={12} aria-hidden="true" /> Correo institucional válido
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    className={styles.btnPrimary}
+                    style={{ marginTop: 'var(--space-sm)' }}
+                    disabled={!emailEstudianteValido}
+                    onClick={() => setPasoEstudiante(2)}
+                  >
+                    Continuar
+                  </button>
+                </>
+              ) : (
+                <>
+                  <p className={styles.estudianteIntro}>
+                    <GraduationCap size={15} aria-hidden="true" />
+                    Último paso: adjunta un comprobante de matrícula (carnet, constancia o certificado).
+                  </p>
+                  <label className={styles.comprobanteDrop}>
+                    <input
+                      type="file"
+                      accept=".pdf,.jpg,.jpeg,.png"
+                      style={{ display: 'none' }}
+                      onChange={(e) => setComprobanteNombre(e.target.files?.[0]?.name ?? null)}
+                    />
+                    {comprobanteNombre ? (
+                      <span className={styles.archivoChip}>
+                        <FileText size={13} aria-hidden="true" />
+                        <span>{comprobanteNombre}</span>
+                      </span>
+                    ) : (
+                      <>Haz clic para elegir un archivo — PDF, JPG o PNG</>
+                    )}
+                  </label>
+                  <p className={styles.wizardNota}>
+                    Revisamos el documento en menos de 24 h; mientras tanto tu plan queda activo con
+                    verificación provisional. Sin comprobante, el descuento puede suspenderse.
+                  </p>
+                  <button
+                    type="button"
+                    className={styles.btnGhost}
+                    style={{ marginTop: 'var(--space-xs)', alignSelf: 'flex-start' }}
+                    onClick={() => setPasoEstudiante(1)}
+                  >
+                    ← Corregir el correo
+                  </button>
+                </>
+              )}
             </div>
           )}
           {selectedPlan.precio > 0 && (
@@ -453,13 +623,27 @@ export function PlanesPage({ embebido = false }: { embebido?: boolean }) {
             </div>
           )}
           <div className={styles.confirmActions}>
-            <button type="submit" className={styles.btnPrimary} disabled={confirmar.isPending}>
-              {confirmar.isPending ? 'Confirmando…' : 'Confirmar suscripción'}
+            <button
+              type="submit"
+              className={styles.btnPrimary}
+              disabled={
+                confirmar.isPending ||
+                (selectedPlan.id === 'estudiante' && (pasoEstudiante === 1 || !comprobanteNombre))
+              }
+            >
+              {confirmar.isPending
+                ? 'Confirmando…'
+                : selectedPlan.id === 'estudiante'
+                ? 'Enviar solicitud'
+                : 'Confirmar suscripción'}
             </button>
             <button type="button" className={styles.btnGhost} onClick={() => setSelectedPlan(null)}>
               Cancelar
             </button>
           </div>
+          {selectedPlan.id === 'estudiante' && (pasoEstudiante === 1 || !comprobanteNombre) && (
+            <p className={styles.hintSoft}>Completa la verificación de estudiante para enviar la solicitud.</p>
+          )}
         </form>
       )}
 

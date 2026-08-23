@@ -62,8 +62,9 @@ const ErroresPage         = lazyNamed(() => import('@packages/seguridad/pages/Er
 const RegisterPage        = lazyNamed(() => import('@packages/seguridad/pages/RegisterPage'), 'RegisterPage')
 const AboutPage           = lazyNamed(() => import('@packages/seguridad/pages/AboutPage'), 'AboutPage')
 const ProfilePage         = lazyNamed(() => import('@packages/seguridad/pages/ProfilePage'), 'ProfilePage')
-const FacturacionPage     = lazyNamed(() => import('@packages/facturacion/pages/FacturacionPage'), 'FacturacionPage')
-const InvoiceDetailPage   = lazyNamed(() => import('@packages/facturacion/pages/InvoiceDetailPage'), 'InvoiceDetailPage')
+  // FacturacionPage ya no se monta como ruta propia (S16-P8): vive como tab
+  // dentro de PlanesPage, que la importa con React.lazy.
+  const InvoiceDetailPage   = lazyNamed(() => import('@packages/facturacion/pages/InvoiceDetailPage'), 'InvoiceDetailPage')
 const PlanesPage          = lazyNamed(() => import('@packages/suscripciones/pages/PlanesPage'), 'PlanesPage')
 const CuentaArtistaPage   = lazyNamed(() => import('@packages/creadores/pages/CuentaArtistaPage'), 'CuentaArtistaPage')
 const SeguidosSocialPage  = lazyNamed(() => import('@packages/social/pages/SeguidosSocialPage'), 'SeguidosSocialPage')
@@ -220,7 +221,9 @@ export const router = createBrowserRouter([
       // El resto requiere sesión — sus endpoints dependen de `get_current_user`
       // o `require_b2c_user` en el backend, y hasta ahora el guard nunca se
       // aplicaba del lado del cliente.
-      { path: 'facturacion', element: <RequireAuth><FacturacionPage /></RequireAuth> },
+      // S16-P8 (inversión del hub): Facturación vive como tab dentro de
+      // /suscripciones (PlanesPage) — la URL vieja redirige al tab acoplado.
+      { path: 'facturacion', element: <RequireAuth><Navigate to="/suscripciones?tab=facturacion" replace /></RequireAuth> },
       { path: 'facturacion/:invoiceId', element: <RequireAuth><InvoiceDetailPage /></RequireAuth> },
       { path: 'suscripciones', element: <RequireAuth><PlanesPage /></RequireAuth> },
       { path: 'creadores',   element: <RequireAuth><CuentaArtistaPage /></RequireAuth> },

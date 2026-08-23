@@ -1,6 +1,6 @@
-import { useState, type KeyboardEvent, type MouseEvent } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
-import { CreditCard, Crown, Trash2 } from 'lucide-react'
+import { useState, type MouseEvent } from 'react'
+import { Link } from 'react-router-dom'
+import { Trash2 } from 'lucide-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ErrorState } from '@shared/components/ErrorState'
 import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
@@ -8,10 +8,10 @@ import { apiErrorMessage } from '@shared/lib/api-client'
 import { getUser } from '@shared/lib/session'
 import { useToast } from '@shared/context/ToastContext'
 import { useConfirm } from '@shared/context/ConfirmContext'
-// Import directo (no vía el barrel): PlanesPage es la mitad del hub de esta
-// página desde S16-P7 ("Mi plan" quedó fusionado junto a Facturación en una
-// sola pantalla a pedido del usuario).
-import { PlanesPage } from '@packages/suscripciones/pages/PlanesPage'
+// S16-P8 (inversión del hub): el tab "Mi plan" vive en PlanesPage — esta
+// página ya no embebe nada; se monta DENTRO del hub de suscripciones
+// (PlanesPage) con `embebido`, o sola en /facturacion/:invoiceId contextos
+// que conservan su cabecera propia.
 import { facturacionApi } from '../api/facturacion.api'
 import type { MetodoPago } from '../types'
 import { FormMetodoPago } from '../components/FormMetodoPago'
@@ -59,29 +59,8 @@ function SkelRows({ cols, n = 3 }: { cols: number; n?: number }) {
   )
 }
 
-export function FacturacionPage() {
+export function FacturacionPage({ embebido = false }: { embebido?: boolean }) {
   useDocumentTitle('Facturación')
-  // Hub de dos tabs (S16-P7): "Mi plan" vive aquí junto a Facturación en una
-  // sola pantalla (pedido del usuario: "Mi plan puede quedar más compacto
-  // junto a Facturación en una sola"). El tab activo viaja en la URL
-  // (?tab=plan) para que sea deep-linkable; el default es pagos.
-  const [searchParams, setSearchParams] = useSearchParams()
-  const tab = searchParams.get('tab') === 'plan' ? 'plan' : 'pagos'
-  function setTab(next: 'pagos' | 'plan') {
-    const params = new URLSearchParams(searchParams)
-    if (next === 'plan') params.set('tab', 'plan')
-    else params.delete('tab')
-    setSearchParams(params, { replace: true })
-  }
-  // Mismo roving con flechas que los chips de Biblioteca — vocabulario de
-  // tabs consistente en toda la app.
-  function onTablistKeyDown(e: KeyboardEvent<HTMLDivElement>) {
-    if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return
-    e.preventDefault()
-    const siguiente = tab === 'pagos' ? 'plan' : 'pagos'
-    setTab(siguiente)
-    e.currentTarget.querySelector<HTMLButtonElement>(`[data-tab="${siguiente}"]`)?.focus()
-  }
   // `esAdmin` (no el `role` crudo de PocketBase): un admin de área
   // (admin_finanzas, ...) tiene `role==='user'` en PocketBase — el rol
   // administrativo vive en BRIDGE_USUARIO_ROL_ADMIN y llega poblado como
@@ -220,37 +199,8 @@ export function FacturacionPage() {
 
   return (
     <section className={styles.page}>
-      <h1 className={styles.heading}>Facturación</h1>
+      {!embebido && <h1 className={styles.heading}>Facturación</h1>}
 
-      <div className={styles.tabRow} role="tablist" aria-label="Secciones de facturación y plan" onKeyDown={onTablistKeyDown}>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={tab === 'pagos'}
-          data-tab="pagos"
-          tabIndex={tab === 'pagos' ? 0 : -1}
-          className={`${styles.tabChip} ${styles.tabChipPagos} ${tab === 'pagos' ? styles.tabChipActive : ''}`}
-          onClick={() => setTab('pagos')}
-        >
-          <span className={styles.tabIcon} aria-hidden="true"><CreditCard size={16} strokeWidth={2.2} /></span>
-          <span>Facturación</span>
-        </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={tab === 'plan'}
-          data-tab="plan"
-          tabIndex={tab === 'plan' ? 0 : -1}
-          className={`${styles.tabChip} ${styles.tabChipPlan} ${tab === 'plan' ? styles.tabChipActive : ''}`}
-          onClick={() => setTab('plan')}
-        >
-          <span className={styles.tabIcon} aria-hidden="true"><Crown size={16} strokeWidth={2.2} /></span>
-          <span>Mi plan</span>
-        </button>
-      </div>
-
-      {tab === 'pagos' ? (
-        <>
       {/* ── Métodos de pago ── */}
       <p className={styles.sectionLabel}>Método de pago</p>
 
@@ -517,10 +467,6 @@ export function FacturacionPage() {
           )}
         </tbody>
       </table>
-        </>
-      ) : (
-        <PlanesPage embebido />
-      )}
     </section>
   )
 }

@@ -20,6 +20,49 @@
   margin-bottom: var(--space-lg);
 }
 
+/* ── Hub tabs (S16-P8): Mi plan es el principal; Facturación vive acá ── */
+.hubTabs {
+  display: flex;
+  gap: var(--space-xs);
+  margin-bottom: var(--space-lg);
+}
+
+.hubTab {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--color-muted);
+  background: transparent;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-pill);
+  padding: 7px 14px;
+  cursor: pointer;
+  transition:
+    color var(--duration-fast) var(--ease-standard),
+    border-color var(--duration-fast) var(--ease-standard),
+    background-color var(--duration-fast) var(--ease-standard),
+    transform var(--duration-fast) var(--ease-standard);
+}
+.hubTab:hover { color: var(--color-ink); }
+.hubTab:active { transform: scale(0.97); }
+.hubTab:focus-visible { outline: none; box-shadow: 0 0 0 2px oklch(0.68 0.14 290 / 0.6); }
+
+.hubTabIcon {
+  display: inline-flex;
+  color: var(--color-muted);
+  transition: color var(--duration-fast) var(--ease-standard);
+}
+
+.hubTabActive {
+  color: var(--color-ink);
+  border-color: var(--color-primary);
+  background: oklch(0.48 0.15 290 / 0.10);
+}
+.hubTabActive .hubTabIcon { color: var(--color-primary-light); }
+
 .sectionLabel {
   font-family: var(--font-sans);
   font-size: 0.8125rem;
@@ -101,10 +144,52 @@
 .planCard {
   display: flex;
   flex-direction: column;
+  position: relative;
   padding: var(--space-md);
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
+  transition:
+    transform var(--duration-standard) var(--ease-standard),
+    box-shadow var(--duration-standard) var(--ease-standard),
+    border-color var(--duration-standard) var(--ease-standard);
+}
+
+/* Vida (S16-P8): las cards se levantan al pasar el mouse y entran con un
+   stagger sutil — la grilla se sentía estática frente al resto de la app. */
+.planCard:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 14px 30px oklch(0 0 0 / 0.18);
+  border-color: var(--color-border-strong);
+}
+
+@keyframes planIn {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: none; }
+}
+.planCardAnim { animation: planIn 0.45s var(--ease-standard) both; }
+
+/* Card destacada ("Más popular"): filete superior con el gradiente de marca
+   + badge dorado — guía el ojo sin gritar. */
+.planCardDestacado::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 3px;
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
+  background: var(--gradient-primary);
+}
+
+.popularBadge {
+  font-family: var(--font-sans);
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: oklch(0.55 0.13 70);
+  background: oklch(0.78 0.18 70 / 0.16);
+  border-radius: var(--radius-pill);
+  padding: 2px 8px;
 }
 
 .planCardCurrent {
@@ -366,4 +451,132 @@
 
 @media (max-width: 480px) {
   .plansGrid { grid-template-columns: 1fr; }
+}
+
+/* ── Flujo estudiante (S16-P8): verificación en dos pasos ──
+   Paso 1 correo institucional (validación en vivo) → paso 2 comprobante.
+   Es un registro simulado en cliente: el endpoint existente solo recibe el
+   email_institucional; el comprobante queda como evidencia local del paso. */
+.wizardPasos {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: var(--space-sm);
+}
+
+.pasoPunto {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 1px solid var(--color-border);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  color: var(--color-muted);
+  transition:
+    color var(--duration-fast) var(--ease-standard),
+    border-color var(--duration-fast) var(--ease-standard),
+    background-color var(--duration-fast) var(--ease-standard);
+}
+.pasoPuntoActivo {
+  border-color: var(--color-primary);
+  color: var(--color-primary-light);
+  background: oklch(0.48 0.15 290 / 0.12);
+}
+.pasoPuntoHecho {
+  border-color: oklch(0.72 0.16 150 / 0.5);
+  color: var(--color-success);
+}
+.pasoLinea {
+  flex: 1;
+  height: 1px;
+  background: var(--color-border);
+}
+.pasoNombre {
+  font-family: var(--font-mono);
+  font-size: 0.66rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--color-muted);
+  margin-left: 4px;
+}
+
+.estudianteIntro {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+  color: var(--color-muted);
+  margin: 0 0 var(--space-sm);
+}
+.estudianteIntro svg { color: var(--color-primary-light); flex-shrink: 0; }
+
+.hintOk {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--font-sans);
+  font-size: 0.75rem;
+  color: var(--color-success);
+}
+.hintSoft {
+  font-family: var(--font-sans);
+  font-size: 0.75rem;
+  color: var(--color-muted);
+}
+
+/* Zona de arrastre/soltar del comprobante — label sobre input oculto. */
+.comprobanteDrop {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: var(--space-md);
+  border: 1px dashed var(--color-border-strong);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  text-align: center;
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+  color: var(--color-muted);
+  transition:
+    border-color var(--duration-fast) var(--ease-standard),
+    background-color var(--duration-fast) var(--ease-standard),
+    color var(--duration-fast) var(--ease-standard);
+}
+.comprobanteDrop:hover {
+  border-color: var(--color-primary);
+  color: var(--color-ink);
+  background: oklch(0.48 0.15 290 / 0.05);
+}
+
+.archivoChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: var(--color-primary-light);
+  background: oklch(0.48 0.15 290 / 0.10);
+  border: 1px solid oklch(0.48 0.15 290 / 0.35);
+  border-radius: 999px;
+  padding: 3px 10px;
+  max-width: 100%;
+  overflow: hidden;
+}
+.archivoChip span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wizardNota {
+  font-family: var(--font-sans);
+  font-size: 0.75rem;
+  line-height: 1.45;
+  color: var(--color-muted);
+  margin: var(--space-xs) 0 0;
 }

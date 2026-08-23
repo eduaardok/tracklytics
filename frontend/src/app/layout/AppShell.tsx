@@ -2,8 +2,8 @@ import { Suspense, useEffect, useState } from 'react'
 import { Outlet, NavLink, useLocation } from 'react-router-dom'
 import { RouteLoadingFallback } from '@shared/components/RouteLoadingFallback'
 import {
-  LayoutGrid, Library, CreditCard, Receipt, Mic2, Users, Globe, LifeBuoy,
-  BarChart3, ShieldCheck, Sparkles, Coins, type LucideIcon,
+  LayoutGrid, Library, CreditCard, Mic2, Users, Globe, LifeBuoy,
+  BarChart3, ShieldCheck, Sparkles, type LucideIcon,
 } from 'lucide-react'
 // Import directo, no vía el barrel `@packages/seguridad` (arrastraría los
 // dashboards con Recharts de ese paquete al bundle principal — ver router.tsx).
@@ -50,12 +50,15 @@ const NAV_PRIMARY: NavItem[] = [
 ]
 
 const NAV_SECONDARY: NavItem[] = [
-  { to: '/facturacion',                  label: 'Facturación', icon: Receipt },
+  // "Facturación" salió del nav en S16-P8: vive como tab dentro de Mi Plan
+  // (hub pedido por el stakeholder; /facturacion redirige a
+  // /suscripciones?tab=facturacion). "Mis ganancias" también: es una pestaña
+  // del hub Creadores (ArtistaHubTabs) y tener entrada propia duplicaba el
+  // destino con dos puntos de entrada visibles.
   { to: '/creadores',                    label: 'Creadores',   icon: Mic2 },
   { to: '/social',                       label: 'Social',      icon: Users },
   { to: '/distribucion/disponibilidad',  label: 'Distribución', icon: Globe },
   { to: '/soporte',                      label: 'Soporte',     icon: LifeBuoy },
-  { to: '/regalias/ganancias',           label: 'Mis ganancias', icon: Coins },
 ]
 
 // Hallazgo post-migración a sidebar (Fase 8): ni antes (nav horizontal +
@@ -103,7 +106,7 @@ export function AppShell() {
   // "Mi Plan" y "Facturación" no aplican a esa cuenta, se ocultan en vez de
   // mostrar un flujo de suscripción/cobro que el backend ahora rechaza.
   const navPrimary   = role === 'admin' ? NAV_PRIMARY.filter((i) => i.to !== '/suscripciones') : NAV_PRIMARY
-  const navSecondary = role === 'admin' ? NAV_SECONDARY.filter((i) => i.to !== '/facturacion') : NAV_SECONDARY
+  const navSecondary = NAV_SECONDARY
   // Banner display (monetizacion-retencion-mejoras): visible solo para
   // usuarios free, mismo criterio que el paywall de TrackDetailPage. Con el
   // sidebar fuera, el banner pasa a franja propia bajo el nav — a ancho del
