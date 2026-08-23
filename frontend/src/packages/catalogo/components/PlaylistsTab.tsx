@@ -7,6 +7,7 @@ import { useToast } from '@shared/context/ToastContext'
 import { useConfirm } from '@shared/context/ConfirmContext'
 import { ErrorState } from '@shared/components/ErrorState'
 import { EmptyState } from '@shared/components/EmptyState'
+import { SkeletonCard, SkeletonLoader } from '@shared/components/SkeletonLoader'
 import { PlaylistCollage } from '@shared/components/PlaylistCollage'
 import { bibliotecaApi } from '../api/biblioteca.api'
 import { LibraryTrackRow } from './LibraryTrackRow'
@@ -105,7 +106,7 @@ function PlaylistDetail({ playlistId, onBack }: { playlistId: string; onBack: ()
     reorder.mutate(factIds)
   }
 
-  if (isLoading) return <p className={styles.loading}>// cargando…</p>
+  if (isLoading) return <SkeletonLoader count={6} height={14} />
   if (!data) return null
 
   return (
@@ -129,7 +130,7 @@ function PlaylistDetail({ playlistId, onBack }: { playlistId: string; onBack: ()
           ) : (
             <>
               <span className={styles.detailName}>{data.name}</span>
-              <span className={styles.detailCount}>{data.total} canción{data.total !== 1 ? 'es' : ''}</span>
+              <span className={styles.detailCount}>{data.total} cancion{data.total !== 1 ? 'es' : ''}</span>
             </>
           )}
         </div>
@@ -318,8 +319,16 @@ export function PlaylistsTab() {
     return <PlaylistDetail playlistId={selectedId} onBack={() => setSelectedId(null)} />
   }
 
-  if (isLoading) return <p className={styles.loading}>// cargando…</p>
-  if (isError) return <div className={styles.blocked} role="alert">No se pudieron cargar las playlists.</div>
+  if (isLoading) {
+    return (
+      <div className={styles.grid} aria-hidden="true">
+        {Array.from({ length: 6 }).map((_, i) => (
+          <SkeletonCard key={i} height={200} />
+        ))}
+      </div>
+    )
+  }
+  if (isError) return <ErrorState message="No se pudieron cargar las playlists." />
 
   const playlists = data?.data ?? []
 
@@ -370,7 +379,7 @@ export function PlaylistsTab() {
                 <PlaylistCollage playlistId={pl.playlist_id} portadaUrls={pl.portada_urls} size={180} />
               </span>
               <span className={styles.cardName}>{pl.name}</span>
-              <span className={styles.cardCount}>{pl.track_count} canción{pl.track_count !== 1 ? 'es' : ''}</span>
+              <span className={styles.cardCount}>{pl.track_count} cancion{pl.track_count !== 1 ? 'es' : ''}</span>
               <span
                 className={styles.cardDelete}
                 role="button"

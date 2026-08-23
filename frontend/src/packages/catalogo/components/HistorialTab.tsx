@@ -1,5 +1,8 @@
 import { useQuery } from '@tanstack/react-query'
+import { History } from 'lucide-react'
 import { EmptyState } from '@shared/components/EmptyState'
+import { ErrorState } from '@shared/components/ErrorState'
+import { SkeletonLoader } from '@shared/components/SkeletonLoader'
 import { bibliotecaApi } from '../api/biblioteca.api'
 import { LibraryTrackRow } from './LibraryTrackRow'
 import styles from '../pages/BibliotecaPage.module.css'
@@ -22,15 +25,15 @@ export function HistorialTab() {
     queryFn:  () => bibliotecaApi.historial(50),
   })
 
-  if (isLoading) return <p className={styles.loading}>// cargando…</p>
-  if (isError) return <div className={styles.blocked} role="alert">No se pudo cargar el historial.</div>
+  if (isLoading) return <SkeletonLoader count={6} height={14} />
+  if (isError) return <ErrorState message="No se pudo cargar el historial." />
 
   const entries = data?.data ?? []
 
   if (entries.length === 0) {
     return (
       <EmptyState
-        icon="⏱"
+        icon={<History size={22} aria-hidden="true" />}
         title="Historial vacío."
         body="Las canciones que escuches aparecerán aquí."
       />

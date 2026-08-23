@@ -77,7 +77,7 @@ export function PerfilPublicoPage() {
       ) : (
         data.playlists.map((pl) => (
           <div key={pl.playlist_id} className={styles.panel} style={{ marginBottom: 'var(--space-lg)' }}>
-            <p className={styles.sectionLabel}>{pl.name} · {pl.total} canción{pl.total !== 1 ? 'es' : ''}</p>
+            <p className={styles.sectionLabel}>{pl.name} · {pl.total} cancion{pl.total !== 1 ? 'es' : ''}</p>
             {pl.data.length === 0 ? (
               <ErrorState compact message="Esta playlist está vacía." />
             ) : (

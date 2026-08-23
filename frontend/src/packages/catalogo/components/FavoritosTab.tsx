@@ -1,5 +1,8 @@
 import { useQuery } from '@tanstack/react-query'
+import { Heart } from 'lucide-react'
 import { EmptyState } from '@shared/components/EmptyState'
+import { ErrorState } from '@shared/components/ErrorState'
+import { SkeletonLoader } from '@shared/components/SkeletonLoader'
 import { bibliotecaApi } from '../api/biblioteca.api'
 import { LibraryTrackRow } from './LibraryTrackRow'
 import styles from '../pages/BibliotecaPage.module.css'
@@ -10,15 +13,15 @@ export function FavoritosTab() {
     queryFn:  () => bibliotecaApi.favoritos(),
   })
 
-  if (isLoading) return <p className={styles.loading}>// cargando…</p>
-  if (isError) return <div className={styles.blocked} role="alert">No se pudieron cargar los favoritos.</div>
+  if (isLoading) return <SkeletonLoader count={6} height={14} />
+  if (isError) return <ErrorState message="No se pudieron cargar los favoritos." />
 
   const tracks = data?.data ?? []
 
   if (tracks.length === 0) {
     return (
       <EmptyState
-        icon="♥"
+        icon={<Heart size={22} aria-hidden="true" />}
         title="Sin favoritos aún."
         body="Marca una canción como favorita para guardarla aquí."
       />
