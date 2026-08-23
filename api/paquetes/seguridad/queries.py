@@ -424,9 +424,18 @@ FROM (
 ) WHERE usado = 0
 """
 
+# El GROUP BY NO es cosmético (hotfix S16-P9): un agregado sin GROUP BY en
+# ClickHouse devuelve SIEMPRE una fila — aunque el WHERE no matchee nada —
+# con el valor default del tipo (email_verificado=0). Un usuario registrado
+# directo en PocketBase sin espejo en DIM_USUARIO aparecía así como "no
+# verificado" y require_email_verificado lo bloqueaba con 403 fantasma.
+# Agrupando por la clave, "sin espejo" = cero filas = query_one(None) → el
+# dep falla abierto, mismo criterio que _rechazar_si_cuenta_inactiva
+# (core/deps.py) cuando no hay estado: ausencia de información no bloquea.
 EMAIL_VERIFICADO_USUARIO = """
 SELECT argMax(email_verificado, actualizado_en) AS email_verificado
 FROM DIM_USUARIO WHERE usuario_id = {usuario_id:String}
+GROUP BY usuario_id
 """
 
 # ── Informe de captación y registro (objetivo táctico "Captación y registro
