@@ -189,6 +189,55 @@ def _activar_analyst_b2b(client: httpx.Client) -> None:
         print(f"  [analyst] ya tiene plan activo ({activa.get('tipo_plan')}), se omite.")
 
 
+# Tracks reales del catálogo con portada y popularidad >=85 (elegidos una vez
+# contra ClickHouse) — le dan contenido a la primera impresión B2C: sin esto,
+# `usuario@demo` abre Mi Biblioteca en blanco (0 favoritos, 0 playlists) justo
+# en la pantalla que la auditoría S16 marcó como la más visitada tras catálogo.
+TRACKS_DEMO = [5384, 43465, 87810, 7448, 83057, 27249, 20895, 50587, 55453, 55779]
+
+
+def _sembrar_biblioteca_usuario(client: httpx.Client) -> None:
+    """Favoritos y playlists de muestra para `usuario@demo` — todo vía los
+    endpoints reales de biblioteca (los mismos eventos que genera la UI:
+    `favorito_add` entra a FACT_ENGAGEMENT_USUARIO, las playlists viven en
+    PocketBase). Idempotente: si ya hay favoritos o playlists, no duplica."""
+    login = _login(client, f"usuario@{DEMO_DOMAIN}")
+    h = {"Authorization": f"Bearer {login['token']}"}
+
+    favs = client.get(f"{API_URL}/biblioteca/favoritos", headers=h).json()
+    existentes = favs.get("total", 0)
+    if existentes == 0:
+        for fact_id in TRACKS_DEMO[:8]:
+            client.post(f"{API_URL}/biblioteca/favoritos/{fact_id}", headers=h)
+        print(f"  [biblioteca] usuario@demo: 8 favoritos sembrados.")
+    else:
+        print(f"  [biblioteca] usuario@demo ya tenía {existentes} favoritos, se omite.")
+
+    pls = client.get(f"{API_URL}/biblioteca/playlists", headers=h).json().get("data", [])
+    if not pls:
+        mix = client.post(
+            f"{API_URL}/biblioteca/playlists", headers=h,
+            json={"name": "Mix demo"},
+        ).json()
+        foco = client.post(
+            f"{API_URL}/biblioteca/playlists", headers=h,
+            json={"name": "Foco total"},
+        ).json()
+        # Una pública y una privada para que la demo muestre ambos estados
+        # del toggle de visibilidad (el perfil público solo lista públicas).
+        client.patch(f"{API_URL}/biblioteca/playlists/{foco['playlist_id']}/visibilidad",
+                     headers=h, json={"es_publica": False})
+        for fact_id in TRACKS_DEMO[:5]:
+            client.post(f"{API_URL}/biblioteca/playlists/{mix['playlist_id']}/tracks", headers=h,
+                        json={"fact_id": fact_id})
+        for fact_id in TRACKS_DEMO[5:10]:
+            client.post(f"{API_URL}/biblioteca/playlists/{foco['playlist_id']}/tracks", headers=h,
+                        json={"fact_id": fact_id})
+        print("  [biblioteca] usuario@demo: 2 playlists sembradas (Mix demo pública + Foco total privada).")
+    else:
+        print(f"  [biblioteca] usuario@demo ya tenía {len(pls)} playlists, se omite.")
+
+
 def main() -> None:
     with httpx.Client(timeout=15) as client:
         print("Esperando a que la API esté saludable...")
@@ -214,6 +263,7 @@ def main() -> None:
                 _asignar_rol_admin(client, superadmin_token, usuario_id, rol_admin)
 
         _activar_analyst_b2b(client)
+        _sembrar_biblioteca_usuario(client)
 
     print("Siembra de cuentas demo completa.")
 
