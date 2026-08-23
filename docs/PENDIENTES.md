@@ -52,11 +52,10 @@
 - [ ] **A11**: Finanzas duplica paleta propia en vez de los tokens del design system
 - [x] ~~**A5**: rediseño de Perfil~~ ✅ (S16-P8: hero de identidad + paneles con iconos)
 - [x] ~~**R2**: analítica propia del artista~~ ✅ (S16-P9: `mi-analitica` + tab en el hub)
-- [ ] **Bug latente — espejo DIM_USUARIO**: usuarios creados directo en PocketBase (sin
-      pasar por `/seguridad/auth/registro`) no tienen fila espejo; `EMAIL_VERIFICADO_USUARIO`
-      (agregado sin GROUP BY) devuelve fila default con `email_verificado=0` y
-      `require_email_verificado` los bloquea con 403 aunque nunca se verificara nada. El
-      registro real de la app crea el espejo, así que solo afecta pruebas/usuarios crudos.
+- [x] ~~**Bug latente — espejo DIM_USUARIO**~~ ✅ (S16-P9 hotfix): `EMAIL_VERIFICADO_USUARIO`
+      ahora agrupa por `usuario_id` — "sin espejo" = cero filas = fail-open (mismo criterio
+      que `_rechazar_si_cuenta_inactiva`); un espejo real con `email_verificado=0` sigue
+      bloqueando igual. Verificado E2E en ambas direcciones.
 - [ ] Loaders restantes fuera del alcance A6/A8: ingesta ×3, finanzas ×5 tabs/charts,
       partners métricas, celdas admin inline *(en curso este lote)*
 - [ ] Gaps de datos que rompen realismo *(en curso este lote)*: feed con `fact_id` muertos,

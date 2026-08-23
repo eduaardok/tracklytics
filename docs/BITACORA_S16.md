@@ -780,3 +780,18 @@ Comentarios|Ganancias], deep-link `?vista=analitica`, KPIs finales exactos vs AP
 (29/1/1/0), gráfico renderizado, tabla ordenada por plays, reveal activo (los bloques bajo
 el pliegue esperan scroll), ganancias con count-up, usuario sin cuenta ve su formulario de
 solicitud, 0 errores JS. Captura en `smoke_p9/`.
+
+### Hotfix posterior al lote — el hallazgo se arregla en caliente
+
+El bug del espejo no quedó solo anotado: se arregló ese mismo día en
+`seguridad/queries.py`. `EMAIL_VERIFICADO_USUARIO` ahora agrupa por `usuario_id`, de modo
+que un usuario sin espejo produce **cero filas** y el dep falla abierto (mismo criterio que
+`_rechazar_si_cuenta_inactiva` cuando no hay estado: la ausencia de información no bloquea).
+Un espejo real con `email_verificado=0` sigue bloqueando exactamente igual — la verificación
+genuina no se afloja. Verificado E2E en ambas direcciones con usuarios frescos: sin espejo
+sube tracks OK; con espejo en 0 recibe el 403 `email_no_verificado` correcto.
+
+Observación adicional capturada durante la prueba: si una cuenta se crea y se aprueba dentro
+del MISMO segundo, `argMax(estado_cuenta, actualizado_en)` puede empatar y leer el estado
+viejo (flap pendiente/aprobada). No se tocó: DateTime tiene resolución de segundos y en uso
+real las aprobaciones ocurren minutos después; solo afecta scripts automatizados muy rápidos.
