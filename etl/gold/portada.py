@@ -554,3 +554,12 @@ def run_portada(**context):
     resolver_portadas_tracks_spotify(client)  # portada exacta por canción, vía oEmbed
     resolver_portadas_spotify(client)         # portada de álbum (vistas de detalle de álbum)
     resolver_portadas(client)                 # respaldo iTunes/Deezer: fotos de artista + lo que quede
+    # Las mutaciones `ALTER ... UPDATE imagen_url` NO reescriben las partes de
+    # las projections de FACT_TRACKS (S16-P7): sin esto, los lookups podados
+    # por fact_id/track_id servirían portadas viejas hasta la próxima
+    # materialización. mutations_sync=2 espera a que aplique en todos los
+    # replicas (aquí hay una sola, pero el modo es el correcto).
+    for proyeccion in ("p_by_fact_id", "p_by_track_id"):
+        client.command(
+            f"ALTER TABLE FACT_TRACKS MATERIALIZE PROJECTION {proyeccion} SETTINGS mutations_sync = 2"
+        )

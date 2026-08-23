@@ -243,6 +243,24 @@ DDL_STATEMENTS = [
         inserted_at         DateTime DEFAULT now()
     ) ENGINE = MergeTree()
     ORDER BY (genre_id, artist_id, load_week)
+    -- Projections por clave de lookup (S16-P7): el orden físico sirve a los
+    -- agregados por género/artistas, pero dejaba CUALQUIER lookup por
+    -- fact_id/track_id como scan completo (~1.6M filas; favoritos ~1.4-2.9s,
+    -- y bajo concurrencia ahogaba el threadpool del API). Con estas dos
+    -- proyecciones + queries reescritas con predicados IN podables, los
+    -- lookups bajan a ~0.2-0.4s. OJO: las mutaciones (`ALTER ... UPDATE` de
+    -- portada.py/recalificacion.py) NO reescriben proyecciones — esos
+    -- scripts rematerializan al final de cada corrida.
+    PROJECTION p_by_fact_id
+    (
+        SELECT *
+        ORDER BY fact_id
+    )
+    PROJECTION p_by_track_id
+    (
+        SELECT *
+        ORDER BY track_id
+    )
     """,
 
     # ── Infraestructura ETL ───────────────────────────────────────────────────

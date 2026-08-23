@@ -93,6 +93,15 @@ def run_recalificacion(**context):
     perfiles_genero    = calcular_perfiles_por_genero(client)
     tracks_corregidos  = _corregir_tracks(client, perfiles_genero) if perfiles_genero else 0
 
+    # Las mutaciones `ALTER ... UPDATE` de arriba NO reescriben las partes de
+    # las projections de FACT_TRACKS (S16-P7): rematerializar para que los
+    # lookups podados por fact_id/track_id no sirvan valores viejos.
+    if tracks_corregidos:
+        for proyeccion in ("p_by_fact_id", "p_by_track_id"):
+            client.command(
+                f"ALTER TABLE FACT_TRACKS MATERIALIZE PROJECTION {proyeccion} SETTINGS mutations_sync = 2"
+            )
+
     duracion = time.monotonic() - inicio
 
     next_log_id = int(scalar(client, "SELECT max(log_id) FROM ETL_LOGS") or 0) + 1

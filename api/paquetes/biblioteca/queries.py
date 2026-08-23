@@ -9,9 +9,24 @@
 # FACT_TRACKS por género, y el evento de favorito solo referencia UNA de
 # esas filas, así que filtrar por `fact_id` perdería los géneros de las
 # demás.
+# PERF ronda 2 (S16-P7): la tabla ahora tiene projections por fact_id y por
+# track_id (`p_by_fact_id`/`p_by_track_id`, ver init_clickhouse.py), pero una
+# projection solo pode si la lectura lleva predicado sobre su clave — el
+# `JOIN FACT_TRACKS ft ON fav.fact_id = ft.fact_id` de abajo construía el hash
+# join leyendo las 1.6M filas completas (~1.4s solo eso). Se reescribió para
+# que CADA lectura de FACT_TRACKS sea un subquery con `WHERE fact_id IN (...)`
+# / `WHERE track_id IN (...)`: el optimizador convierte el set en una lectura
+# preparada que toca 2-4 granules en vez de 200 (~0.3s total, medido).
 FAVORITOS_ACTUALES = """
+WITH fav AS (
+    SELECT fact_id
+    FROM FACT_ENGAGEMENT_USUARIO
+    WHERE user_id = {user_id:String}
+    GROUP BY fact_id
+    HAVING argMax(event_type, event_timestamp) = 'favorito_add'
+)
 SELECT
-    fav.fact_id    AS fact_id,
+    ft.fact_id     AS fact_id,
     ft.track_id    AS track_id,
     ft.track_name  AS track_name,
     a.name         AS artist_name,
@@ -21,37 +36,27 @@ SELECT
     ft.source_type AS source_type
 FROM (
     SELECT
-        fact_id,
-        argMax(event_type, event_timestamp) AS last_event
-    FROM FACT_ENGAGEMENT_USUARIO
-    WHERE user_id = {user_id:String}
-    GROUP BY fact_id
-    HAVING last_event = 'favorito_add'
-) fav
-JOIN FACT_TRACKS ft ON fav.fact_id  = ft.fact_id
-JOIN DIM_ARTISTS a  ON ft.artist_id = a.artist_id
-LEFT JOIN DIM_ALBUMS al ON ft.album_id = al.album_id
--- Sin filtro de source_type en la subquery de género (S14-P1, mismo fix ya
--- aplicado en HISTORIAL_RECIENTE): un track 100% sintético no tiene ninguna
--- fila con otro source_type que resuelva su genre_name, y el INNER JOIN
--- dejaba fuera el favorito completo (portada incluida) aunque el evento sí
--- existiera.
-JOIN (
+        fact_id, track_id, track_name, artist_id, album_id,
+        duration_ms, imagen_url, source_type
+    FROM FACT_TRACKS
+    WHERE fact_id IN (SELECT fact_id FROM fav)
+) AS ft
+INNER JOIN DIM_ARTISTS a  ON ft.artist_id = a.artist_id
+LEFT JOIN DIM_ALBUMS al   ON ft.album_id = al.album_id
+-- Sin filtro de source_type en la subquery de género (S14-P1): un track 100%
+-- sintético no tiene ninguna fila con otro source_type que resuelva su
+-- genre_name, y el INNER JOIN dejaba fuera el favorito completo.
+INNER JOIN (
     SELECT
         ft2.track_id,
         arrayStringConcat(groupUniqArray(g2.name), ' / ') AS genre_name
     FROM FACT_TRACKS ft2
-    JOIN DIM_GENRES g2 ON ft2.genre_id = g2.genre_id
+    INNER JOIN DIM_GENRES g2 ON ft2.genre_id = g2.genre_id
     WHERE ft2.track_id IN (
-        SELECT track_id FROM FACT_TRACKS WHERE fact_id IN (
-            SELECT fact_id FROM FACT_ENGAGEMENT_USUARIO
-            WHERE user_id = {user_id:String}
-            GROUP BY fact_id
-            HAVING argMax(event_type, event_timestamp) = 'favorito_add'
-        )
+        SELECT track_id FROM FACT_TRACKS WHERE fact_id IN (SELECT fact_id FROM fav)
     )
     GROUP BY ft2.track_id
-) ga ON ga.track_id = ft.track_id
+) AS ga ON ga.track_id = ft.track_id
 ORDER BY ft.fact_id
 """
 # Sin query cache a propósito (a diferencia de HISTORIAL_RECIENTE/TRACKS_BY_
@@ -67,7 +72,18 @@ ORDER BY ft.fact_id
 # eventos de reproducción por fecha SIN tocar género/FACT_TRACKS completo,
 # (2) `ga` se filtra por los track_id de esos `limit` eventos ganadores nada
 # más, no por el total de reproducciones del usuario (que puede ser miles).
+# PERF ronda 2 (S16-P7): mismo tratamiento que FAVORITOS_ACTUALES — la lectura
+# de FACT_TRACKS del join principal pasa a ser un subquery podable por
+# `fact_id IN (...)` (projection p_by_fact_id) en vez de un hash join de
+# tabla completa.
 HISTORIAL_RECIENTE = """
+WITH recientes AS (
+    SELECT fact_id, event_timestamp
+    FROM FACT_ENGAGEMENT_USUARIO
+    WHERE user_id = {user_id:String} AND event_type = 'reproduccion'
+    ORDER BY event_timestamp DESC
+    LIMIT {limit:UInt32}
+)
 SELECT
     e.event_timestamp AS event_timestamp,
     e.fact_id         AS fact_id,
@@ -79,35 +95,29 @@ SELECT
     coalesce(ft.imagen_url, al.imagen_url, a.imagen_url) AS imagen_url,
     ft.source_type    AS source_type
 FROM (
-    SELECT fact_id, event_timestamp
-    FROM FACT_ENGAGEMENT_USUARIO
-    WHERE user_id = {user_id:String} AND event_type = 'reproduccion'
-    ORDER BY event_timestamp DESC
-    LIMIT {limit:UInt32}
-) e
-JOIN FACT_TRACKS ft ON e.fact_id    = ft.fact_id
-JOIN DIM_ARTISTS a  ON ft.artist_id = a.artist_id
-LEFT JOIN DIM_ALBUMS al ON ft.album_id = al.album_id
--- Sin filtro de source_type: a diferencia de FAVORITOS_ACTUALES/TRACKS_BY_FACT_IDS
--- (que sí excluyen 'synthetic' aquí), un track 100% sintético no tiene ninguna
--- fila con otro source_type que resuelva su genre_name, y el INNER JOIN dejaba
--- fuera todo el historial de ese track aunque el evento sí existiera. Criterio
--- ya establecido en creadores: source_type no es ciudadano de segunda clase en
--- vistas de usuario, solo se excluye de promedios de audio.
-JOIN (
+    SELECT fact_id, event_timestamp FROM recientes
+) AS e
+INNER JOIN (
+    SELECT
+        fact_id, track_id, track_name, artist_id, album_id,
+        duration_ms, imagen_url, source_type
+    FROM FACT_TRACKS
+    WHERE fact_id IN (SELECT fact_id FROM recientes)
+) AS ft ON e.fact_id = ft.fact_id
+INNER JOIN DIM_ARTISTS a  ON ft.artist_id = a.artist_id
+LEFT JOIN DIM_ALBUMS al   ON ft.album_id = al.album_id
+-- Sin filtro de source_type: un track 100% sintético no tiene ninguna fila
+-- con otro source_type que resuelva su genre_name. Criterio ya establecido
+-- en creadores: source_type no es ciudadano de segunda clase en vistas de
+-- usuario, solo se excluye de promedios de audio.
+INNER JOIN (
     SELECT
         ft2.track_id,
         arrayStringConcat(groupUniqArray(g2.name), ' / ') AS genre_name
     FROM FACT_TRACKS ft2
-    JOIN DIM_GENRES g2 ON ft2.genre_id = g2.genre_id
+    INNER JOIN DIM_GENRES g2 ON ft2.genre_id = g2.genre_id
     WHERE ft2.track_id IN (
-        SELECT track_id FROM FACT_TRACKS WHERE fact_id IN (
-            SELECT fact_id
-            FROM FACT_ENGAGEMENT_USUARIO
-            WHERE user_id = {user_id:String} AND event_type = 'reproduccion'
-            ORDER BY event_timestamp DESC
-            LIMIT {limit:UInt32}
-        )
+        SELECT track_id FROM FACT_TRACKS WHERE fact_id IN (SELECT fact_id FROM recientes)
     )
     GROUP BY ft2.track_id
 ) ga ON ga.track_id = ft.track_id
