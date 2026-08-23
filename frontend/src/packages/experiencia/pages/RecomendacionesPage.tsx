@@ -8,6 +8,7 @@ import { ErrorState } from '@shared/components/ErrorState'
 import { SkeletonCard } from '@shared/components/SkeletonLoader'
 import { genreAccent } from '@shared/lib/genre-colors'
 import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
+import { useDragScroll } from '@shared/hooks/useDragScroll'
 import { experienciaApi } from '../api/experiencia.api'
 import type { Recomendacion, SeccionRecomendaciones } from '../types'
 import styles from './ExperienciaPages.module.css'
@@ -38,6 +39,8 @@ type PropsSeccion = {
 function SeccionRecos({ seccion, generoFiltro }: PropsSeccion) {
   const navigate = useNavigate()
   const { playList } = usePlayer()
+  // Arrastre con mouse idéntico al catálogo (delegación global por atributo).
+  const dragRail = useDragScroll()
 
   const items = generoFiltro
     ? seccion.data.filter((r) => r.genre_name === generoFiltro)
@@ -64,7 +67,7 @@ function SeccionRecos({ seccion, generoFiltro }: PropsSeccion) {
         </button>
       </div>
 
-      <ul className={styles.recoRail} aria-label={seccion.titulo}>
+      <ul className={styles.recoRail} aria-label={seccion.titulo} {...dragRail}>
         {items.map((r, i) => (
           <li key={r.impresion_id} className={styles.recoCardLi} style={{ animationDelay: `${Math.min(i * 60, 480)}ms` }}>
             <div className={styles.recoCard}>

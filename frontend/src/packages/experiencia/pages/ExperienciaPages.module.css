@@ -278,7 +278,12 @@
 .btnGhostSm:active { transform: scale(0.97); }
 .btnGhostSm:focus-visible { outline: none; box-shadow: 0 0 0 2px oklch(0.68 0.14 290 / 0.7); }
 
-/* Carril horizontal: scroll con snap, scrollbar discreta. */
+/* Carril horizontal: arrastre con mouse vía useDragScroll (mismo hook del
+   catálogo). Feedback S16-P8: la scrollbar visible competía con el diseño y
+   el scroll-snap re-anclaba la posición al soltar el arrastre (salto brusco)
+   — se replica el patrón de .hRow en CatalogDiscovery.module.css: scrollbar
+   oculta (cursor grab ya comunica desplazamiento), sin snap y data-dragging
+   apagando pointer-events internos mientras arrastra. */
 .recoRail {
   list-style: none;
   display: flex;
@@ -286,10 +291,13 @@
   margin: 0;
   padding: 4px 4px var(--space-sm);
   overflow-x: auto;
-  scroll-snap-type: x proximity;
-  scrollbar-width: thin;
+  scrollbar-width: none;
+  cursor: grab;
 }
-.recoRail > li { scroll-snap-align: start; flex-shrink: 0; }
+.recoRail::-webkit-scrollbar { display: none; }
+.recoRail[data-dragging] { cursor: grabbing; user-select: none; }
+.recoRail[data-dragging] * { pointer-events: none; }
+.recoRail > li { flex-shrink: 0; }
 
 @keyframes recoCardIn {
   from { opacity: 0; transform: translateY(10px); }
