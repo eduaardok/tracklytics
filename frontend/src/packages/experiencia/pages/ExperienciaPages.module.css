@@ -228,69 +228,220 @@
 }
 
 /* ── Recomendaciones ("Para ti") ──
-   Filas con portada, no tabla de texto plano — mismo lenguaje visual que
-   TrackCard/LibraryTrackRow (catálogo/biblioteca) en vez de un componente
-   nuevo desde cero. */
+   S16-P7: carriles horizontales de cards con snap — el layout vertical de
+   filas se sentía como una tabla más y no como descubrimiento. Mismo
+   vocabulario que los rails del catálogo (portada cuadrada + meta debajo). */
 .recoSeccion + .recoSeccion {
   margin-top: var(--space-xl);
 }
 
-.recoList {
+.recoHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-sm);
+}
+
+.recoCount {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 18px;
+  padding: 0 6px;
+  margin-left: 8px;
+  border-radius: 9px;
+  background: oklch(0.55 0.20 290 / 0.14);
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--color-ink);
+}
+
+.btnGhostSm {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--font-sans);
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-muted);
+  background: transparent;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 5px 10px;
+  cursor: pointer;
+  transition: color var(--duration-fast) var(--ease-standard), border-color var(--duration-fast) var(--ease-standard), transform var(--duration-fast) var(--ease-standard);
+}
+.btnGhostSm:hover { color: var(--color-ink); border-color: oklch(0.38 0.012 285); }
+.btnGhostSm:active { transform: scale(0.97); }
+.btnGhostSm:focus-visible { outline: none; box-shadow: 0 0 0 2px oklch(0.68 0.14 290 / 0.7); }
+
+/* Carril horizontal: scroll con snap, scrollbar discreta. */
+.recoRail {
   list-style: none;
+  display: flex;
+  gap: var(--space-md);
+  margin: 0;
+  padding: 4px 4px var(--space-sm);
+  overflow-x: auto;
+  scroll-snap-type: x proximity;
+  scrollbar-width: thin;
+}
+.recoRail > li { scroll-snap-align: start; flex-shrink: 0; }
+
+@keyframes recoCardIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: none; }
+}
+
+.recoCardLi {
+  animation: recoCardIn var(--duration-standard) var(--ease-standard) both;
+}
+
+.recoCard {
+  width: 150px;
+  display: flex;
+  flex-direction: column;
+}
+
+.recoCardBtn {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  margin: 0;
   padding: 0;
-}
-
-.recoRow {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 10px 12px;
+  background: transparent;
+  border: none;
   border-radius: var(--radius-md);
   cursor: pointer;
-  transition: background-color var(--duration-fast) var(--ease-standard);
+  text-align: left;
 }
-.recoRow:hover { background-color: var(--color-surface); }
-.recoRow:focus-visible { outline: none; box-shadow: inset 0 0 0 2px oklch(0.48 0.15 290 / 0.4); }
+.recoCardBtn:focus-visible { outline: none; }
+.recoCardBtn:focus-visible .recoCardArt { box-shadow: 0 0 0 2px oklch(0.68 0.14 290 / 0.7); }
 
-.recoInfo { flex: 1; min-width: 0; }
+.recoCardArt {
+  position: relative;
+  display: block;
+  width: 150px;
+  height: 150px;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  transition: transform var(--duration-standard) var(--ease-standard), box-shadow var(--duration-standard) var(--ease-standard);
+}
+.recoCardBtn:hover .recoCardArt {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 20px oklch(0 0 0 / 0.25);
+}
+/* AlbumArt llena el wrapper (mismo patrón que .cardArt en biblioteca). */
+.recoCardArt > :first-child {
+  width: 100% !important;
+  height: 100% !important;
+}
 
-.recoName {
+.recoPlayOverlay {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: none;
+  background: var(--gradient-primary);
+  color: #fff;
+  opacity: 0;
+  transform: translateY(6px);
+  transition: opacity var(--duration-fast) var(--ease-standard), transform var(--duration-fast) var(--ease-standard);
+}
+.recoCardBtn:hover .recoPlayOverlay,
+.recoPlayOverlay:focus-visible {
+  opacity: 1;
+  transform: none;
+}
+.recoPlayOverlay:hover { filter: brightness(1.12); }
+
+.recoCardName {
   font-family: var(--font-sans);
-  font-size: 0.9375rem;
+  font-size: 0.875rem;
   font-weight: 600;
   color: var(--color-ink);
-  line-height: 1.3;
+  margin-top: var(--space-xs);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.recoMeta {
-  font-family: var(--font-sans);
-  font-size: 0.8125rem;
-  color: var(--color-muted);
-  margin-top: 1px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.recoReason {
+.recoCardArtist {
   font-family: var(--font-sans);
   font-size: 0.75rem;
-  color: var(--color-accent);
-  margin-top: 2px;
+  color: var(--color-muted);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
+.recoReasonChip {
+  margin-top: 6px;
+  max-width: 100%;
+  font-family: var(--font-mono);
+  font-size: 0.6563rem;
+  line-height: 1.35;
+  padding: 3px 8px;
+  border-radius: 999px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Filtro rápido por género (client-side, sin endpoint nuevo). */
+.filtroChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: var(--space-lg);
+}
+
+@keyframes filtroChipIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: none; }
+}
+
+.filtroChip {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--color-muted);
+  background: transparent;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  padding: 4px 12px;
+  cursor: pointer;
+  animation: filtroChipIn var(--duration-fast) var(--ease-standard) both;
+  transition: color var(--duration-fast) var(--ease-standard), border-color var(--duration-fast) var(--ease-standard), background-color var(--duration-fast) var(--ease-standard), transform var(--duration-fast) var(--ease-standard);
+}
+.filtroChip:hover { color: var(--color-ink); transform: translateY(-1px); }
+.filtroChip:active { transform: scale(0.96); }
+.filtroChip:focus-visible { outline: none; box-shadow: 0 0 0 2px oklch(0.68 0.14 290 / 0.7); }
+.filtroChip--activa {
+  color: var(--color-ink);
+  border-color: oklch(0.55 0.20 290 / 0.55);
+  background: oklch(0.55 0.20 290 / 0.12);
+}
+
+.recoSkeletonRail {
+  display: flex;
+  gap: var(--space-md);
+  overflow: hidden;
+}
+.recoSkeletonRail > * { flex-shrink: 0; width: 150px; }
+
 @media (max-width: 480px) {
-  .recoRow { padding: 10px 0; gap: 10px; }
+  .recoCard, .recoCardArt { width: 128px; }
+  .recoCardArt { height: 128px; }
 }
 
 /* ── Cola de tickets (admin) ── */
