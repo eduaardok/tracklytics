@@ -1,8 +1,13 @@
 # Tracklytics — Pendientes
 
-> Última revisión: **Semana 16 (S16-P9)** — R2 entregado: analítica propia del artista
-> (endpoint `mi-analitica` + tab Analítica en el hub de creadores) y transiciones
-> transversales capa 2 (reveal-on-scroll + count-up). Detalles en `docs/BITACORA_S16.md`.
+> Última revisión: **Semana 16 (S16-P10)** — cierre de brechas P2 + hallazgos S16
+> abiertos. Auditoría previa (Explore) encontró que buena parte de lo listado como
+> pendiente ya estaba resuelto en código sin que este documento se hubiera actualizado
+> (search-all, radio/mix con similitud real de audio, export GDPR, A9/A10/A11, loaders
+> transversales, gaps de datos) — quedan tachados abajo con la evidencia. Lo que sí
+> faltaba de verdad (preferencias de notificación, email real, comprobante de
+> estudiante real, shuffle inteligente) se implementó en este lote. Detalles en
+> `docs/BITACORA_S16.md`.
 
 ## Estado de la sesión S16
 
@@ -28,6 +33,11 @@
   No tocar hasta que se desbloquee explícitamente. (El hub S16-P7/P8 solo reorganizó
   navegación/UI/validación cliente; la lógica financiera quedó intacta.)
 - ⏳ P12 (columnas cortadas en PDF de rankings anchos): abierto desde S16-P3, prioridad baja.
+- ✅ **P2 + hallazgos S16 abiertos cerrados (S16-P10)**: A9/A10/A11 y la mayoría de P2 ya
+  estaban resueltos en código (doc desactualizado); lo que faltaba de verdad —
+  preferencias de notificación (opt-out), email de verificación real (SMTP/Mailpit),
+  comprobante de estudiante real (subida+revisión admin) y shuffle inteligente— se
+  implementó y verificó E2E. Ver bitácora S16-P10.
 
 ## Deuda técnica conocida
 
@@ -47,27 +57,39 @@
 
 ## Hallazgos S16 abiertos (de las auditorías)
 
-- [ ] **A9**: funnel de conversión estático → interactivo/por cohortes
-- [ ] **A10**: Simulación con valores fijos → escenarios editables
-- [ ] **A11**: Finanzas duplica paleta propia en vez de los tokens del design system
+- [x] ~~**A9**: funnel de conversión estático → interactivo/por cohortes~~ ✅ ya resuelto
+      en código — `FunnelConversionPage.tsx` filtra por `desde`/`hasta` en vivo y renderiza
+      barras proporcionales al valor real; este documento no se había actualizado.
+- [x] ~~**A10**: Simulación con valores fijos → escenarios editables~~ ✅ ya resuelto —
+      `SimulacionPage.tsx` tiene inputs editables (streams/suscripciones/impresiones) y un
+      bloque de generación histórica con rango de fechas + checkboxes de dominio.
+- [x] ~~**A11**: Finanzas duplica paleta propia en vez de los tokens del design system~~ ✅
+      ya resuelto — `FinanzasPages.module.css` y los charts de `finanzas/components/charts/`
+      usan exclusivamente `var(--color-*)`, sin hex/rgb hardcodeado.
 - [x] ~~**A5**: rediseño de Perfil~~ ✅ (S16-P8: hero de identidad + paneles con iconos)
 - [x] ~~**R2**: analítica propia del artista~~ ✅ (S16-P9: `mi-analitica` + tab en el hub)
 - [x] ~~**Bug latente — espejo DIM_USUARIO**~~ ✅ (S16-P9 hotfix): `EMAIL_VERIFICADO_USUARIO`
       ahora agrupa por `usuario_id` — "sin espejo" = cero filas = fail-open (mismo criterio
       que `_rechazar_si_cuenta_inactiva`); un espejo real con `email_verificado=0` sigue
       bloqueando igual. Verificado E2E en ambas direcciones.
-- [ ] Loaders restantes fuera del alcance A6/A8: ingesta ×3, finanzas ×5 tabs/charts,
-      partners métricas, celdas admin inline *(en curso este lote)*
-- [ ] Gaps de datos que rompen realismo *(en curso este lote)*: feed con `fact_id` muertos,
-      portadas de artista 404/503, cuenta `analyst@demo` sin plan ni email verificado
+- [x] ~~Loaders restantes fuera del alcance A6/A8: ingesta ×3, finanzas ×5 tabs/charts,
+      partners métricas, celdas admin inline~~ ✅ resuelto en S16-P5 (`2281fe4`) — confirmado
+      en el árbol actual (`SkeletonTableRows`/`SkeletonChart` en los 21 archivos tocados).
+- [x] ~~Gaps de datos que rompen realismo: feed con `fact_id` muertos, portadas de artista
+      404/503, cuenta `analyst@demo` sin plan ni email verificado~~ ✅ resuelto en S16-P5 —
+      `TrackSocialPage` distingue 404 con `EmptyState`, portadas concluidas sin fix real
+      necesario (fallback ya existía), `analyst@demo` activada por `cb20550`.
 
 ## Ranking de mejora propuesto (post-S16)
 
 1. ~~Lote rápido: loaders + gaps de datos~~ ✅ (S16-P5)
 2. ~~Rediseño Biblioteca~~ ✅ (S16-P6)
 3. ~~R2 analítica propia del artista~~ ✅ (S16-P9)
-4. A9/A10/A11 (restos de auditoría visual de Analítica) ← **siguiente**
-5. Aparte: P12 PDF y bloque dinero (cuando se descongele)
+4. ~~A9/A10/A11 (restos de auditoría visual de Analítica)~~ ✅ ya estaban resueltos, confirmado en S16-P10
+5. ~~Brechas de producto P2 + hallazgos S16 abiertos~~ ✅ (S16-P10)
+6. Aparte: P12 PDF y bloque dinero (cuando se descongele) ← **queda esto**
+7. Siguiente candidato natural: brechas operativas P1 (ver abajo) — ciclos de vida
+   incompletos, denuncias/bloqueos, `FACT_CANCELACION_SUSCRIPCION`, ads con imagen
 
 ## Brechas operativas identificadas (P1)
 
@@ -92,14 +114,36 @@
 
 ## Brechas de producto (P2)
 
-- [ ] Búsqueda unificada "search-all"
-- [ ] Radio / Mix diario / shuffle inteligente
-- [ ] Recomendaciones por similitud real (hoy: exclusión + heurística)
-- [ ] Preferencias de notificación (opt-out por tipo)
+- [x] ~~Búsqueda unificada "search-all"~~ ✅ ya existía — `GET /catalogo/search`
+      (tracks+artistas+álbumes+playlists en una llamada, `asyncio.gather`).
+- [x] ~~Radio / Mix diario~~ ✅ ya existían — `GET /experiencia/radio/track/{fact_id}` y
+      `GET /experiencia/mix-diario`. **Shuffle inteligente**: no existía, agregado en S16-P10
+      — `shuffleQueue()` en `PlayerContext.tsx` (Fisher-Yates + declumping de artista
+      adyacente), botón "Mezclar" en `QueuePanel`.
+- [x] ~~Recomendaciones por similitud real (hoy: exclusión + heurística)~~ ✅ ya era real —
+      `RECOMENDACIONES_POR_AFINIDAD`/`RADIO_POR_TRACK`/`MIX_AFINIDAD` usan distancia
+      euclidiana sobre audio features (danceability/energy/valence/acousticness/tempo).
+- [x] ~~Preferencias de notificación (opt-out por tipo)~~ ✅ S16-P10 — tabla
+      `DIM_PREFERENCIA_NOTIFICACION` (opt-out: ausencia de fila = activo),
+      `GET/PUT /social/notificaciones/preferencias[/{tipo}]`, `notificaciones.crear*` filtra
+      antes de insertar; toggle en `NotificationBell` (ícono de engranaje).
 - [x] ~~Trial + plan estudiante~~ — trial premium (`DIAS_TRIAL_PREMIUM`) y plan `estudiante`
       existen desde S14/S15 (verificado en `PlanesPage`)
-- [ ] Verificación de email en registro (simulada; hoy bloquea comentarios/planes vía
-      `require_email_verificado`)
-- [ ] **Comprobante de estudiante real**: el wizard S16-P8 es simulación cliente — falta
-      endpoint que reciba/almacene el archivo y estado de verificación admin
-- [ ] Export de datos personales (GDPR)
+- [x] ~~Verificación de email en registro (simulada)~~ ✅ S16-P10 — `core/email.py` (SMTP
+      real vía Mailpit, `docker-compose.yml`, sin credenciales de proveedor externo) desde
+      `/auth/registro` y `/auth/reenviar-verificacion`; el token sigue viajando también en
+      la respuesta (conveniencia de demo). Verificado E2E: registro real → mensaje real en
+      Mailpit (`GET :8025/api/v1/messages`).
+- [x] ~~**Comprobante de estudiante real**~~ ✅ S16-P10 — `POST
+      /suscripciones/estudiante/comprobante` (multipart, valida dominio+tamaño+extensión,
+      guarda a disco vía el bind mount `./api:/app`), tabla
+      `SOLICITUD_VERIFICACION_ESTUDIANTE`, `GET .../mi-solicitud`,
+      `GET/PATCH /suscripciones/admin/estudiante/solicitudes[...]` (aprobar/rechazar,
+      `admin_comercial`). Sección nueva en `AdminSuscripcionesPage`. No cambia la
+      elegibilidad del checkout (sigue autoservida por dominio de email) — es un canal
+      auditable aparte. Verificado E2E con curl (subida → archivo real en disco → admin
+      aprueba).
+- [x] ~~Export de datos personales (GDPR)~~ ✅ ya existía — `api/paquetes/seguridad/
+      exportacion.py` + `GET .../exportar-mis-datos` (volcado JSON: perfil, pagos,
+      favoritos, playlists, historial, comentarios, seguimientos, tickets, denuncias,
+      bloqueos).

@@ -795,3 +795,118 @@ Observación adicional capturada durante la prueba: si una cuenta se crea y se a
 del MISMO segundo, `argMax(estado_cuenta, actualizado_en)` puede empatar y leer el estado
 viejo (flap pendiente/aprobada). No se tocó: DateTime tiene resolución de segundos y en uso
 real las aprobaciones ocurren minutos después; solo afecta scripts automatizados muy rápidos.
+
+## S16-P10 — Cierre de brechas P2 + hallazgos S16 abiertos (23 ago 2026)
+
+### Auditoría previa: la mayoría ya estaba resuelta
+
+Antes de tocar código se auditó (Explore, contra el código real, no contra `PENDIENTES.md`)
+el estado de las 8 brechas P2 y los 3 hallazgos A9/A10/A11. Resultado: **búsqueda unificada**
+(`GET /catalogo/search`, tracks+artistas+álbumes+playlists en paralelo con `asyncio.gather`),
+**radio/mix diario** (`/experiencia/radio/track/{fact_id}`, `/experiencia/mix-diario`),
+**recomendaciones por similitud real** (`RECOMENDACIONES_POR_AFINIDAD`/`RADIO_POR_TRACK`/
+`MIX_AFINIDAD` — distancia euclidiana sobre audio features, no heurística), **export GDPR**
+(`api/paquetes/seguridad/exportacion.py` + endpoint), y los tres hallazgos **A9** (funnel con
+filtros de fecha en vivo), **A10** (simulación con inputs editables) y **A11** (finanzas ya
+usa 100% tokens `var(--color-*)`) ya estaban implementados en código — `PENDIENTES.md` no se
+había actualizado tras los lotes que los cerraron. Lo mismo con "Loaders restantes" y "Gaps de
+datos": ambos resueltos en S16-P5 (`2281fe4`, `cb20550`), confirmado en el árbol de trabajo
+actual (`SkeletonTableRows`/`SkeletonChart` presentes, `TrackSocialPage` con `EmptyState` para
+404, `analyst@demo` con plan+email verificado). `docs/PENDIENTES.md` se corrigió con la
+evidencia (archivo:línea) en vez de re-implementar nada de esto.
+
+Lo que sí faltaba de verdad, y se implementó en este lote:
+
+### 1. Preferencias de notificación — opt-out por tipo
+
+Tabla nueva `DIM_PREFERENCIA_NOTIFICACION` (`ReplacingMergeTree` por `actualizado_en`,
+`ORDER BY (usuario_id, tipo)`) — modelo **opt-out**: ausencia de fila = activo, para no
+requerir que cada usuario existente "opte por entrar" a algo que ya recibía.
+`GET/PUT /social/notificaciones/preferencias[/{tipo}]` (`social/router.py`).
+`notificaciones.crear()`/`crear_para_seguidores_de_artista()` (`social/notificaciones.py`)
+ahora consultan la preferencia ANTES de insertar — `crear_para_seguidores_de_artista` filtra
+en una sola query batch (`PREFERENCIAS_DESACTIVADAS_DE_USUARIOS` con `usuario_ids IN`), no
+una consulta por seguidor. Frontend: ícono de engranaje nuevo en `NotificationBell` abre un
+mini-panel con toggle por los 3 tipos existentes (`nuevo_track_artista_seguido`,
+`comentario_en_tu_contenido`, `nuevo_colaborador_playlist`).
+
+### 2. Verificación de email — envío real (antes simulado)
+
+`docker-compose.yml` gana el servicio `mailpit` (imagen `axllent/mailpit`, SMTP sin auth en
+1025, bandeja web en `:8025`) — no requiere credenciales de un proveedor real para que el
+flujo sea real de punta a punta en local. `api/core/email.py` (`enviar()`, nunca lanza —
+un fallo de SMTP no debe tumbar un registro/login real, mismo criterio que `audit.record`).
+`/auth/registro` y `/auth/reenviar-verificacion` (`seguridad/router.py`) ahora envían el
+correo real ADEMÁS de seguir devolviendo el token en la respuesta (conveniencia de demo,
+consumida por `VerificacionEmailBanner.tsx` y por `seed_cuentas_demo.py`). Verificado E2E:
+registro real → `GET :8025/api/v1/messages` trae el mensaje real con el token correcto.
+
+### 3. Comprobante de estudiante real (antes solo el campo `email_institucional`)
+
+El checkout de `estudiante` sigue autoservido por dominio de email (regla de negocio ya
+decidida, sin tocar) — esto es un canal AUDITABLE aparte. Tabla nueva
+`SOLICITUD_VERIFICACION_ESTUDIANTE` (`MergeTree`, `estado` mutado in-place vía `ALTER
+UPDATE`, mismo patrón que `leido` en `FACT_NOTIFICACION`). `POST
+/suscripciones/estudiante/comprobante` (multipart, `admin_comercial`-adjacent pero abierto a
+cualquier usuario autenticado): valida dominio institucional, extensión (pdf/jpg/jpeg/png) y
+tamaño (≤5MB), guarda el archivo a `api/uploads/comprobantes_estudiante/` (persistido al host
+vía el bind mount `./api:/app` ya existente, gitignored). `GET .../mi-solicitud` para el
+usuario; `GET/PATCH /suscripciones/admin/estudiante/solicitudes[...]` (`admin_comercial`)
+para aprobar/rechazar. `apiClient` ganó `postForm()` (el `request()` existente fuerza
+`Content-Type: application/json` siempre, incompatible con el boundary de un `FormData`).
+`PlanesPage.tsx`: el paso 2 del wizard de estudiante ahora sube el archivo real ANTES de
+confirmar el plan (`subirComprobante.mutateAsync`, si falla no se llega a confirmar).
+`AdminSuscripcionesPage.tsx` gana una sección nueva de revisión (filtro por estado,
+aprobar/rechazar). Verificado E2E con curl: subida real → archivo confirmado en disco →
+admin lista pendientes → aprueba → estado actualizado.
+
+### 4. Shuffle inteligente (radio y mix diario ya existían; shuffle no)
+
+`shuffleQueue()` en `PlayerContext.tsx`: Fisher-Yates sobre la cola restante + una pasada de
+"declumping" que evita dos tracks consecutivos del MISMO artista (busca el próximo índice con
+artista distinto y lo intercambia) — la diferencia real entre un shuffle "inteligente" y
+`Math.random()` uniforme, que sí puede repetir artista por azar. Botón "Mezclar" nuevo en
+`QueuePanel` (visible con 2+ tracks en cola).
+
+### Verificación
+
+- `python -m py_compile` limpio en los 7 archivos backend tocados.
+- `npx tsc --noEmit` y `npm run build` limpios (31s), sin regresión en los bundles existentes.
+- DDL aplicado en vivo (`init_clickhouse.py` vía el contenedor `api`, `MSYS_NO_PATHCONV=1`
+  para la ruta `/tmp` — quirk ya documentado): las 2 tablas nuevas confirmadas con
+  `DESCRIBE TABLE`. El único error del run (`FACT_TRACKS`, sintaxis `PROJECTION` inline) es
+  preexistente y no relacionado — la tabla ya tiene las projections aplicadas en vivo desde
+  S16-P7, el script solo falla al re-parsear el `CREATE TABLE IF NOT EXISTS` completo antes
+  de comprobar que la tabla ya existe.
+- `docker compose up -d mailpit api` (recreate de `api` por las env vars SMTP nuevas) —
+  ambos `healthy`/`Up` sin tocar el resto del stack.
+- E2E real contra el stack (curl, no descrito): registro → email real en Mailpit; login →
+  preferencias por defecto (los 3 tipos `activo:true`) → PUT opt-out → GET refleja el cambio;
+  subida de comprobante → archivo real en `api/uploads/` → admin lista/aprueba.
+- Sin Playwright en este lote (instrucción explícita del prompt: no gastar tokens en
+  verificación por imágenes) — la verificación fue build limpio + curl real end-to-end.
+
+### Documentación
+
+- `docs/PENDIENTES.md`: reescrito con evidencia real de qué ya estaba resuelto (archivo:línea)
+  vs. qué se implementó en este lote; ranking de mejora actualizado.
+
+### Archivos nuevos o modificados
+
+- `init_clickhouse.py` — `DIM_PREFERENCIA_NOTIFICACION`, `SOLICITUD_VERIFICACION_ESTUDIANTE`.
+- `api/paquetes/social/queries.py`, `notificaciones.py`, `router.py` — preferencias opt-out.
+- `api/core/email.py` (nuevo), `api/core/config.py` — SMTP.
+- `api/paquetes/seguridad/router.py` — envío real en registro/reenvío.
+- `api/paquetes/suscripciones/router.py` — comprobante de estudiante (subida + admin).
+- `.gitignore` — `api/uploads/`.
+- `docker-compose.yml` — servicio `mailpit`, env SMTP en `api`.
+- `README.md` — Mailpit en la tabla de servicios.
+- `frontend/src/shared/lib/api-client.ts` — `apiClient.postForm()`.
+- `frontend/src/shared/context/PlayerContext.tsx` — `shuffleQueue()`.
+- `frontend/src/shared/components/QueuePanel.tsx`, `.module.css`, `PlayerBar.tsx` — botón Mezclar.
+- `frontend/src/packages/social/api/social.api.ts`,
+  `components/NotificationBell.tsx`, `.module.css` — preferencias de notificación.
+- `frontend/src/packages/suscripciones/api/suscripciones.api.ts`,
+  `pages/PlanesPage.tsx`, `pages/AdminSuscripcionesPage.tsx` — comprobante real.
+- `frontend/src/packages/seguridad/components/VerificacionEmailBanner.tsx` — copy actualizado.
+- `docs/PENDIENTES.md`, `docs/BITACORA_S16.md` — este cierre.
