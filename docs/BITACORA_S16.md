@@ -712,3 +712,71 @@ perfil hero · 0 errores JS. Capturas en `smoke_p8/`.
 Hallazgo operativo: el API devuelve 401 transitorio esporádico bajo carga y el api-client
 limpia sesión → redirect a /login. Los smokes ahora reintentan re-inyectando sesión;
 queda observado (no reproducible a demanda, no bloqueante).
+
+---
+
+## S16-P9 — R2: analítica propia del artista + transiciones transversales capa 2 (23 ago 2026)
+
+Feature nueva pedida por el stakeholder (R2 del ranking): el artista hoy solo ve streams
+LIQUIDADOS (regalías, con retraso de ciclo); le faltaba ver lo que pasa HOY con su música.
+Se cubre el hueco que CuentaArtistaPage tenía documentado desde F2 ("no existe endpoint de
+likes/plays por track propio").
+
+### Backend: `GET /app/v1/creadores/mi-analitica`
+
+En `creadores` (su dominio natural, no analitica — ese módulo es B2B/staff). Gating con el
+criterio de mis-ganancias: cuenta de artista aprobada o **403**. Devuelve `{data:{totales,
+serie, tracks}}`:
+
+- `ANALITICA_ARTISTA_POR_TRACK` (`queries.py`): UNA pasada por FACT_ENGAGEMENT_USUARIO con
+  `fact_id IN {fact_ids:Array(UInt64)}` (mismo patrón IN podable de S16-P7) → plays
+  (countIf reproduccion), likes, favoritos NETOS (favorito_add − favorito_remove, saldo por
+  track) y oyentes únicos (uniqIf user_id).
+- `ANALITICA_ARTISTA_SERIE`: plays por día, últimos 30 días, misma poda.
+- Solo subidas promovidas a FACT_TRACKS tienen engagement posible; sin ellas responde en
+  ceros. Tracks ordenados por plays desc.
+
+### Frontend: tab "Analítica" en el hub de creadores
+
+`ArtistaHubVista` gana `analitica` (`/creadores?vista=analitica`, deep-linkable). El panel
+nuevo (`PanelAnaliticaArtista`) muestra: 4 KPIs (streams totales, oyentes únicos, likes,
+favoritos netos), gráfico de área recharts con la serie de 30 días y tabla por track.
+Skeleton mientras carga, empty states para "sin tracks publicados" y "sin reproducciones",
+mensaje de degradación si una revalidación falla con datos ya en pantalla. El gating 403 no
+se ve nunca como error: los usuarios sin cuenta aprobada ni llegan al panel (la página solo
+monta el hub cuando hay cuenta aprobada).
+
+### Transiciones transversales — capa 2
+
+El flip 3D y los rails arrastrables eran la capa 1; esta añade dos patrones globales:
+
+- **Reveal-on-scroll**: hook compartido `useReveal.ts` (IntersectionObserver, se desconecta
+  tras revelar) + clases globales `.reveal-base` / `.reveal-in` en index.css. Con
+  prefers-reduced-motion el hook agrega la clase inmediatamente (el guard global anula la
+  transition) y el contenido nunca queda oculto. Aplicado al panel de analítica (KPIs,
+  gráfico y tabla se revelan al entrar en viewport).
+- **Count-up**: ya existía `useCountUp.ts` (S16 Fase 3, hero de catálogo/Acerca de) — NO se
+  reescribió; se reaprovechó en dos sitios nuevos: KPIs del panel de analítica y los valores
+  de MisGananciasPage (saldo disponible + total acumulado artista/sello).
+
+Nota de proceso: al crear el hook nuevo se pisó accidentalmente el `useCountUp` existente;
+detectado por tsc (AboutPage/KPICard rompían), restaurado desde git SIN cambios — los
+consumidores previos quedaron intactos y el existente ya aceptaba undefined durante carga.
+
+### Hallazgo operativo (bug latente anotado)
+
+Un usuario registrado directo en PocketBase (sin pasar por `/seguridad/auth/registro`) no
+tiene fila espejo en DIM_USUARIO; `EMAIL_VERIFICADO_USUARIO` es un agregado SIN GROUP BY y
+ClickHouse devuelve una fila igualmente (valor default 0) → `require_email_verificado` lo
+bloquea con 403 aunque jamás se haya verificado nada. Afecta a cualquier flujo de prueba con
+usuarios crudos; el registro real de la app sí crea el espejo. Quedó en PENDIENTES (no se
+arregló aquí: tocar seguridad escapa al alcance del lote).
+
+### Verificación (Playwright, smoke verde)
+
+E2E real completo antes de UI: usuario→cuenta→aprobación admin→track promovido
+(fact_id 14100017)→engagement sintético→endpoint. Smoke UI: tabs [Música|Analítica|
+Comentarios|Ganancias], deep-link `?vista=analitica`, KPIs finales exactos vs API
+(29/1/1/0), gráfico renderizado, tabla ordenada por plays, reveal activo (los bloques bajo
+el pliegue esperan scroll), ganancias con count-up, usuario sin cuenta ve su formulario de
+solicitud, 0 errores JS. Captura en `smoke_p9/`.

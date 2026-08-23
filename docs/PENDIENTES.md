@@ -1,9 +1,8 @@
 # Tracklytics — Pendientes
 
-> Última revisión: **Semana 16 (S16-P8)** — feedback de stakeholder aplicado: hub
-> invertido (Mi plan principal + Facturación acoplada), nav sin duplicados, formulario de
-> tarjeta por bloques con validaciones vivas, wizard estudiante, Para ti arrastrable,
-> Perfil hero. Detalles en `docs/BITACORA_S16.md`.
+> Última revisión: **Semana 16 (S16-P9)** — R2 entregado: analítica propia del artista
+> (endpoint `mi-analitica` + tab Analítica en el hub de creadores) y transiciones
+> transversales capa 2 (reveal-on-scroll + count-up). Detalles en `docs/BITACORA_S16.md`.
 
 ## Estado de la sesión S16
 
@@ -21,6 +20,10 @@
   "Facturación"/"Mis ganancias" duplicadas; FormMetodoPago por bloques con validaciones
   en vivo; wizard de verificación estudiante (email .edu + comprobante); Para ti con
   arrastre tipo catálogo; Perfil con hero de identidad. Verificado con smoke completo.
+- ✅ **R2 analítica propia del artista (S16-P9)**: `GET /app/v1/creadores/mi-analitica`
+  (plays/likes/favoritos netos/oyentes únicos por track promovido + serie 30 días, gating
+  cuenta aprobada) y tab "Analítica" en el hub de creadores con KPIs count-up, gráfico de
+  área y tabla por track.
 - 🧊 **Bloque dinero F3–F6/F10–F13: CONGELADO por decisión del stakeholder** (22 ago 2026).
   No tocar hasta que se desbloquee explícitamente. (El hub S16-P7/P8 solo reorganizó
   navegación/UI/validación cliente; la lógica financiera quedó intacta.)
@@ -48,7 +51,12 @@
 - [ ] **A10**: Simulación con valores fijos → escenarios editables
 - [ ] **A11**: Finanzas duplica paleta propia en vez de los tokens del design system
 - [x] ~~**A5**: rediseño de Perfil~~ ✅ (S16-P8: hero de identidad + paneles con iconos)
-- [ ] **R2**: analítica propia del artista (panel de streams/regalías propio, feature nueva)
+- [x] ~~**R2**: analítica propia del artista~~ ✅ (S16-P9: `mi-analitica` + tab en el hub)
+- [ ] **Bug latente — espejo DIM_USUARIO**: usuarios creados directo en PocketBase (sin
+      pasar por `/seguridad/auth/registro`) no tienen fila espejo; `EMAIL_VERIFICADO_USUARIO`
+      (agregado sin GROUP BY) devuelve fila default con `email_verificado=0` y
+      `require_email_verificado` los bloquea con 403 aunque nunca se verificara nada. El
+      registro real de la app crea el espejo, así que solo afecta pruebas/usuarios crudos.
 - [ ] Loaders restantes fuera del alcance A6/A8: ingesta ×3, finanzas ×5 tabs/charts,
       partners métricas, celdas admin inline *(en curso este lote)*
 - [ ] Gaps de datos que rompen realismo *(en curso este lote)*: feed con `fact_id` muertos,
@@ -58,8 +66,8 @@
 
 1. ~~Lote rápido: loaders + gaps de datos~~ ✅ (S16-P5)
 2. ~~Rediseño Biblioteca~~ ✅ (S16-P6)
-3. R2 analítica propia del artista ← **siguiente**
-4. A9/A10/A11 (restos de auditoría visual de Analítica)
+3. ~~R2 analítica propia del artista~~ ✅ (S16-P9)
+4. A9/A10/A11 (restos de auditoría visual de Analítica) ← **siguiente**
 5. Aparte: P12 PDF y bloque dinero (cuando se descongele)
 
 ## Brechas operativas identificadas (P1)
