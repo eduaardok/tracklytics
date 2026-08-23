@@ -533,3 +533,52 @@ tres gaps de datos que restaban realismo a las demos. El bloque dinero F3–F6/F
 
 - Cobertura de portadas (operativa, opcional): backfill para ampliar del 2,5% actual.
 - Resto del ranking: Biblioteca → R2 → A9/A10/A11 (ver PENDIENTES.md).
+
+## S16-P6 — Rediseño de Biblioteca (A5) + hallazgos de performance del core (23 ago 2026)
+
+### Rediseño (`449d747`)
+
+La pantalla B2C más visitada tras el catálogo era también la más plana (hallazgo A5):
+statCards anónimos sin icono arriba, barra de tabs aparte, cambio de tab sin transición y
+`// cargando…` en los tres tabs.
+
+- **Chips stat+tab**: los dos controles redundantes se fusionan en uno. Cada chip muestra
+  icono lucide con acento propio (favoritos=rojo, playlists=violeta, escuchadas=teal sobre
+  tintes `oklch` translúcidos), el conteo real (con skeleton pulsante mientras carga) y ES el
+  tab — un solo punto de decisión.
+- **Tablist WAI-ARIA completo**: roving tabindex y navegación con ←/→.
+- **Transición de panel** fade+slide al cambiar de tab (respetada por el
+  `prefers-reduced-motion` global).
+- Estados compartidos: `SkeletonLoader`/`SkeletonCard` reemplazan los tres `// cargando…`;
+  las cajas `.blocked` rojas pasan a `ErrorState` (patrón único); iconos de EmptyState
+  armonizados a lucide.
+- Fix copy: "canciónes" → "canciones" (también en PerfilPublicoPage).
+
+Verificado: tsc + build limpios; smoke Playwright como `usuario@demo` — 8 favoritos
+renderizados, chips con conteos, 2 playlists ("Mix demo" pública / "Foco total" privada) con
+collage, detalle de playlist navegable, historial 5 filas, teclado ← funciona, 0 errores JS.
+Capturas en `smoke_biblioteca/`.
+
+### Biblioteca demo con contenido (`4fd11c5`)
+
+`usuario@demo` abría Mi Biblioteca en blanco. El seed ahora siembra 8 favoritos y 2
+playlists con tracks reales del catálogo (popularidad ≥85, con portada) vía los endpoints
+reales — idempotente.
+
+### Hallazgos de performance del core (documentados, NO corregidos hoy)
+
+- `FACT_TRACKS` tiene `ORDER BY genre_id`: cualquier lookup por `fact_id` o `track_id`
+  escanea la tabla completa (~1.6M filas). Consecuencias medidas: `GET /biblioteca/favoritos`
+  ~1.4–2.9s caliente (subquery `ga` con IN vacío cuesta sola ~0.5–1s); historial ~0.9s; y
+  bajo concurrencia las agregaciones de descubrimiento (top artistas/álbumes, perfil de
+  audio) se apilan — se observaron queries de 5 minutos y el threadpool del API quedó
+  ahogado hasta reiniciar el contenedor.
+- Camino de fix recomendado (infra ETL, requiere coordinación): projection de FACT_TRACKS
+  ordenada por `fact_id` (+ otra por `track_id` o reordenar la sorting key), con backfill y
+  ajuste del CREATE TABLE del pipeline para que sobreviva recargas. Queda en PENDIENTES.
+
+### Incidente operado durante la sesión
+
+El API dejó de responder por saturación de scans concurrentes (ClickHouse en Docker Desktop,
+CPU limitada). Se mataron las 4 queries atascadas vía `KILL QUERY` y se reinició
+`tracklytics_api`; login volvió a ~0.5s. Sin pérdida de datos.
