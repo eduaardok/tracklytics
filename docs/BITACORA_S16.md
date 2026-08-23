@@ -582,3 +582,69 @@ reales — idempotente.
 El API dejó de responder por saturación de scans concurrentes (ClickHouse en Docker Desktop,
 CPU limitada). Se mataron las 4 queries atascadas vía `KILL QUERY` y se reinició
 `tracklytics_api`; login volvió a ~0.5s. Sin pérdida de datos.
+
+## S16-P7 — Hub Facturación/Mi plan, tarjeta realista, Para ti en rails y performance de experiencia resuelta (23 ago 2026)
+
+### Performance del core: fix aplicado (continuación de P6)
+
+El camino recomendado en P6 se ejecutó completo (`1b669aa`):
+
+- **DDL**: `init_clickhouse.py` ahora crea `PROJECTION p_by_fact_id` (SELECT * ORDER BY
+  fact_id) y `p_by_track_id` (ORDER BY track_id) sobre FACT_TRACKS. Aplicado en vivo con
+  `ALTER TABLE ... ADD PROJECTION` + `MATERIALIZE PROJECTION SETTINGS mutations_sync=2`
+  (32s/41s). `portada.py` y `recalificacion.py` rematerializan las projections al terminar.
+- **Queries**: FAVORITOS_ACTUALES y HISTORIAL_RECIENTE reescritas como CTEs donde toda
+  lectura de FACT_TRACKS lleva predicado IN podable. Medido: favoritos 1.4–2.9s →
+  190–440ms; historial ~0.9s → ~390ms; TRACKS_BY_FACT_IDS 314ms; FACT_ID_EXISTS 17ms.
+  EXPLAIN confirma poda: 6–7 de 200 granulas.
+
+### Performance de experiencia: Para ti / Mix diario (este lote)
+
+Hallazgo midiendo la UI: GET /experiencia/recomendaciones tardaba **~10.5s** y mix-diario
+hasta **~52s frío** — eran exactamente las agregaciones que ahogaron el threadpool en P6.
+Causas: JOINs engagement→FACT_TRACKS sin predicate podable (scan de ~1.6M filas por query,
+las projections no ayudan a un JOIN), MIX_EXPLORACION con `genre_id NOT IN` (tampoco poda)
+agregando ~900k filas, y dedup de catálogo completo para elegir 12 tracks.
+
+Fixes (`api/paquetes/experiencia/{queries,router}.py`, semántica documentada como
+equivalente en cada punto):
+
+- **SENALES_USUARIO**: UNA pasada por FACT_ENGAGEMENT_USUARIO deriva favoritos vigentes
+  (argMax), escuchados (presencia), perfil, género dominante y candidatos de Redescubre;
+  el router los separa en Python (`_senales_usuario`). Las queries viejas se eliminaron.
+- **Lookups con IN**: FEATURES_DE_FACT_IDS, GENEROS_DE_FACT_IDS,
+  GENERO_DOMINANTE_DE_FACT_IDS y TRACKS_RESUMEN_DE_FACT_IDS consultan FACT_TRACKS por
+  {fact_ids} — poda granular vía las projections de P6.
+- **POPULARIDAD_MIN_CANDIDATOS = 40**: piso de popularidad para afinidad/populares/mix
+  (conserva ~32k de ~74k tracks); la agregación baja proporcionalmente.
+- **Mix exploración**: muestreo determinista de 6 géneros ajenos con la MISMA semilla
+  (usuario+fecha) → `genre_id IN {...}` poda; el mix del día sigue estable.
+- **Paralelización**: señales independientes corren en ThreadPoolExecutor; el muro pasó
+  a ser la query más lenta, no la suma.
+
+Medido tras reiniciar el API: recomendaciones 10.5s → **~2–4.5s** (máquina ruidosa; el
+resto es la agregación de catálogo + inserts de impresiones), mix-diario 52.6s →
+**1.3–2.0s**. Smoke UI: Para ti renderiza las 3 miradas con sus carriles, 0 errores JS.
+
+### Frontend
+
+- **Para ti rediseñado** (pedido "mejóralo, organizalo mejor, agrega algo más"):
+  carriles horizontales con snap (vocabulario de rails del catálogo), tarjeta con portada,
+  overlay de play y chip de motivo con acento por género; chips de filtro por género
+  client-side; skeleton rail; stagger de entrada respetando prefers-reduced-motion.
+- **Hub Facturación ⇄ Mi plan** (pedido explícito): FacturacionPage gana tablist con dos
+  chips (icono lucide, roving tabindex con ←/→) y `?tab=plan` deep-linkable. PlanesPage se
+  monta embebida ocultando su cabecera propia — toda su lógica quedó intacta (bloque
+  dinero F3–F6/F10–F13 sin tocar).
+- **FormMetodoPago realista**: tarjeta visual en vivo sobre el formulario (marca inferida
+  visa/mastercard/amex/discover, grupos del número formateados con los ya escritos más
+  brillantes, titular/expiración reflejados al instante, flip 3D al dorso al enfocar el
+  CVV, banda magnética + franja de firma + caja CVV). Grid 2 columnas. Verificado con
+  Playwright: frente/dorso, deep-link del hub, h1 único, 0 errores JS.
+
+### Nota operativa nueva
+
+`tracklytics_frontend_react` sirve el dist COPIADO dentro de la imagen (sin volumen ni
+watcher): tras cada build hace falta
+`docker cp frontend/dist/. tracklytics_frontend_react:/usr/share/nginx/html/` o rebuild.
+Quedó anotado en PENDIENTES como brecha operativa.

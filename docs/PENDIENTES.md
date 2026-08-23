@@ -1,16 +1,23 @@
 # Tracklytics — Pendientes
 
-> Última revisión: **Semana 16 (S16-P6)** — actualizado tras las auditorías de lógica y
-> visual/completitud S16 y el lote de fixes F1/F2/F7/F8/F9 + A6/A8. Las decisiones y detalles
-> por prompt están en `docs/BITACORA_S16.md`.
+> Última revisión: **Semana 16 (S16-P7)** — actualizado tras resolver la performance del
+> core y de experiencia, y el lote de UI (hub Facturación/Mi plan, tarjeta visual, Para ti
+> en rails). Las decisiones y detalles por prompt están en `docs/BITACORA_S16.md`.
 
 ## Estado de la sesión S16
 
 - ✅ Fixes F1/F2/F7/F8/F9 entregados y verificados (ver bitácora S16-P4).
 - ✅ Glosario técnico español con patrón `InfoHint`.
 - ✅ A6 (esqueletos Monetización) y A8 (esqueletos+animaciones Analítica) cerrados.
+- ✅ **Performance del core resuelta (S16-P6/P7)**: projections por fact_id/track_id +
+  queries podables — favoritos 1.4–2.9s → ~0.2–0.4s, historial → ~0.4s.
+- ✅ **Performance de experiencia resuelta (S16-P7)**: recomendaciones 10.5s → ~2–4.5s,
+  mix-diario 52s → ~1.3–2s (señales en una pasada, IN podable, piso de popularidad,
+  muestreo de géneros, paralelización).
+- ✅ Hub Facturación ⇄ Mi plan con tabs + tarjeta de crédito visual en vivo (S16-P7).
 - 🧊 **Bloque dinero F3–F6/F10–F13: CONGELADO por decisión del stakeholder** (22 ago 2026).
-  No tocar hasta que se desbloquee explícitamente.
+  No tocar hasta que se desbloquee explícitamente. (El hub S16-P7 solo reorganizó
+  navegación/UI; la lógica financiera quedó intacta.)
 - ⏳ P12 (columnas cortadas en PDF de rankings anchos): abierto desde S16-P3, prioridad baja.
 
 ## Deuda técnica conocida
@@ -18,10 +25,12 @@
 - [ ] SQL por interpolación en `dim_create`/`dim_update` (sigue sin resolver, heredado)
 - [ ] Nav mobile en `AnalyticaShell`/`SeguridadShell` (sin drawer bajo 768px; AppShell ya lo tiene)
 - [ ] Airflow idle CPU/RAM alto
-- [ ] **Performance del core**: FACT_TRACKS ordenada físicamente por genre_id — todo
-      lookup por act_id/	rack_id escanea ~1.6M filas (favoritos ~1.4–2.9s caliente;
-      bajo concurrencia se apila y ahoga el threadpool del API). Fix recomendado: projection
-      por act_id (+ 	rack_id) con backfill y ajuste del CREATE TABLE del pipeline ETL
+- [x] ~~Performance del core: FACT_TRACKS ordenada por genre_id~~ ✅ resuelta S16-P6/P7
+      (projections p_by_fact_id/p_by_track_id + queries con IN podable)
+- [ ] Queries de experiencia fuera de la ruta caliente que mantienen el patrón JOIN/scan:
+      RADIO_POR_TRACK (radio de un track) y las legacy RECOMENDACIONES_POR_PERFIL_AUDIO /
+      RECOMENDACIONES_POR_GENERO (hoy sin uso en el router — candidatas a borrar) —
+      aplicar el mismo tratamiento SENALES+IN si se tocan
 - [ ] 2 `ComingSoonPage` en analítica (Partners, Ingestas)
 - [ ] Consistencia visual: ~24 páginas con query usan manejo de error local (`panelError`,
       texto plano) en vez del `ErrorState`/`EmptyState` compartidos — bajo impacto, la
@@ -49,6 +58,9 @@
 
 ## Brechas operativas identificadas (P1)
 
+- [ ] **Frontend sin volumen dev**: `tracklytics_frontend_react` sirve el dist copiado en
+      la imagen — cada cambio de UI exige build + `docker cp` al contenedor (o rebuild).
+      Evaluar montar `frontend/dist` como volumen o un preview con HMR.
 - [ ] Ciclos de vida incompletos: pausar campañas, revocar licencias, terminar contratos,
       takedown de tracks, CRUD de partners/API keys, listado admin de suscripciones,
       editar/pausar/finalizar anunciantes y campañas, artista editar/retirar track aprobado,
