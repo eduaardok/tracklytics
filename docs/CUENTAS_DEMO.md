@@ -36,7 +36,7 @@ automáticamente.
 | `admin_comunidad@demo.tracklytics.com` | `admin_comunidad` | `Demo12345!` | Comunidad y Soporte (C22–C25) + Producto (C28–C30: recomendaciones, A/B, notificaciones) |
 | `admin_datos@demo.tracklytics.com` | `admin_datos` | `Demo12345!` | Tecnología (C04–C06) + Ingeniería de Datos (C12–C13) + Analítica y BI (C14–C18) |
 | `admin_comercial@demo.tracklytics.com` | `admin_comercial` | `Demo12345!` | Comercial y Marketing (C01–C03) |
-| `analyst@demo.tracklytics.com` | — (cliente B2B, sin rol administrativo) | `Demo12345!` | Ninguno de los 30 informes internos — ve el panel de analítica B2B de su propio plan (`analitica`), no la capa `reportes` |
+| `analyst@demo.tracklytics.com` | — (cliente B2B, sin rol administrativo) | `Demo12345!` | Ninguno de los 30 informes internos — ve el panel de analítica B2B de su propio plan (`analitica`), no la capa `reportes`. Desde S17 el seed la deja **lista para demo B2B**: email verificado + método de pago demo + suscripción al plan `basico` activa (`_activar_analyst_b2b` en `seed_cuentas_demo.py`), sin lo cual el gate de `/analitica` la mandaba al onboarding de planes. |
 | `usuario@demo.tracklytics.com` | — (Cliente B2C simple, sin rol administrativo) | `Demo12345!` | Ninguno — catálogo, biblioteca, social, creadores, like/dislike, como cualquier usuario B2C (S16 prompt 09, para el acceso rápido de demo en `/login`) |
 
 `superadmin` es la única cuenta que ve **Seguridad** (C26–C27) — ese departamento no tiene

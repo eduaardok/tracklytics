@@ -138,6 +138,57 @@ def _asignar_rol_admin(client: httpx.Client, token: str, usuario_id: str, rol_ad
         print(f"    [rol-admin] {rol_admin} -> HTTP {resp.status_code} {resp.text[:150]}")
 
 
+def _activar_analyst_b2b(client: httpx.Client) -> None:
+    """Deja `analyst@` en estado de cliente B2B demostrable (S17): sin esto la
+    cuenta existía pero no podía entrar a `/analitica` — el gate exige email
+    verificado (`require_email_verificado`) y una suscripción activa, así que
+    cualquier demo con la cuenta analyst caía al onboarding de planes. Todo el
+    flujo pasa por los endpoints reales del producto (verificación simulada por
+    tokens, alta de método de pago y checkout), nada por atajos."""
+    email = f"analyst@{DEMO_DOMAIN}"
+    login = _login(client, email)
+    token = login["token"]
+    h = {"Authorization": f"Bearer {token}"}
+
+    perfil = client.get(f"{API_URL}/seguridad/perfil", headers=h).json()
+    if not perfil.get("email_verificado"):
+        # La verificación es simulada (sin SMTP real): `reenviar-verificacion`
+        # devuelve el token vigente en la propia respuesta, que luego consume
+        # `verificar-email` — exactamente lo que hace el banner del frontend.
+        tok = client.post(f"{API_URL}/seguridad/auth/reenviar-verificacion", json={"email": email}).json()
+        resp = client.post(f"{API_URL}/seguridad/auth/verificar-email", json={"token": tok["token_verificacion"]})
+        print(f"  [analyst] verificación de email -> HTTP {resp.status_code}")
+    else:
+        print("  [analyst] email ya verificado, se omite.")
+
+    metodos = client.get(f"{API_URL}/facturacion/metodos-pago", headers=h).json().get("data", [])
+    if not metodos:
+        # Tarjeta de prueba (pasa Luhn como las que valida FormMetodoPago);
+        # el backend solo persiste metadatos, nunca el número completo.
+        resp = client.post(
+            f"{API_URL}/facturacion/metodos-pago", headers=h,
+            json={
+                "tipo": "credito", "ultimos_4_digitos": "1111", "pais": DEMO_PAIS,
+                "nombre_titular": "Analyst Demo", "direccion": "Av. Demo 123",
+                "ciudad": "Quito", "codigo_postal": "170135",
+            },
+        )
+        print(f"  [analyst] método de pago demo -> HTTP {resp.status_code}")
+        metodos = [{"metodo_pago_id": resp.json()["metodo_pago_id"]}]
+    else:
+        print("  [analyst] método de pago ya existía, se omite.")
+
+    activa = client.get(f"{API_URL}/suscripciones/activa", headers=h).json().get("data")
+    if activa is None:
+        resp = client.post(
+            f"{API_URL}/suscripciones", headers=h,
+            json={"plan_id": "basico", "metodo_pago_id": metodos[0]["metodo_pago_id"], "email_institucional": None},
+        )
+        print(f"  [analyst] suscripción al plan básico -> HTTP {resp.status_code}")
+    else:
+        print(f"  [analyst] ya tiene plan activo ({activa.get('tipo_plan')}), se omite.")
+
+
 def main() -> None:
     with httpx.Client(timeout=15) as client:
         print("Esperando a que la API esté saludable...")
@@ -161,6 +212,8 @@ def main() -> None:
                 print(f"  [rol-admin] {email} ya tenía {rol_admin}, se omite.")
             else:
                 _asignar_rol_admin(client, superadmin_token, usuario_id, rol_admin)
+
+        _activar_analyst_b2b(client)
 
     print("Siembra de cuentas demo completa.")
 
