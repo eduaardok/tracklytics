@@ -200,6 +200,15 @@ services:
       WEEK_NUMBER:         ${WEEK_NUMBER:-1}
     volumes:
       - parquet_stage:/app/parquet_stage
+      # Bind mount del código fuente — la imagen hornea `COPY etl/ . → /app`
+      # (etl_Dockerfile), así que este overlay hace que /app SEA ./etl del host:
+      # las corridas standalone (ej. `python -u -m gold.reload_portadas_9h`)
+      # importan código vivo y, sobre todo, `portadas_cache.json` se escribe
+      # en el host (`./etl/gold/portadas_cache.json`) y no en la capa efímera
+      # del contenedor (bug real: la corrida de 9h de S14-P1 resolvió miles de
+      # portadas y el cache del host quedó congelado en jul-2026; se recuperó
+      # con `docker cp` desde el contenedor detenido).
+      - ./etl:/app
     networks:
       - tracklytics-net
 
