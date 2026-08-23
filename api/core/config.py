@@ -34,6 +34,15 @@ PB_ADMIN_PASSWORD = os.getenv("POCKETBASE_PASSWORD", "")
 # de siempre, no un error nuevo).
 YOUTUBE_API_KEY = os.getenv("YOUTUBE_API_KEY", "")
 
+# Envío real de email (P2, S16 — antes el token de verificación solo volvía
+# en la respuesta del endpoint, sin ningún transporte real). Apunta a Mailpit
+# (docker-compose, servicio `mailpit`) por defecto: SMTP sin auth en 1025,
+# bandeja inspeccionable en http://localhost:8025 — no requiere credenciales
+# de un proveedor real para que el flujo sea real de punta a punta en local.
+SMTP_HOST = os.getenv("SMTP_HOST", "mailpit")
+SMTP_PORT = int(os.getenv("SMTP_PORT", "1025"))
+SMTP_FROM = os.getenv("SMTP_FROM", "no-reply@tracklytics.local")
+
 DIM_TABLES: dict[str, str] = {
     "artists":          "DIM_ARTISTS",
     "albums":           "DIM_ALBUMS",

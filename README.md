@@ -199,6 +199,7 @@ Los volúmenes se recrean solos. No es necesario ningún paso manual adicional.
 | PocketBase Admin | http://localhost:8090/_/ | admin |
 | ClickHouse (catálogo) | localhost:8123 (HTTP) / 9000 (nativo) | `CLICKHOUSE_USER`/`CLICKHOUSE_PASSWORD` |
 | ClickHouse Gold (S13-P2, capa de agregaciones) | localhost:8124 (HTTP) / 9001 (nativo) | Mismas credenciales — sin tablas todavía, ver P3 |
+| Mailpit (P2, S16 — captura de email real) | http://localhost:8025 | - |
 
 Credenciales Airflow: `admin` / valor de `AIRFLOW_PASSWORD` en `.env` (por defecto `tracklytics2026`)
 

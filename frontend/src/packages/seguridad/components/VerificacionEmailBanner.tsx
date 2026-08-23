@@ -12,11 +12,12 @@ import styles from './VerificacionEmailBanner.module.css'
 /**
  * Banner persistente de verificación de correo (change p2-descubrimiento-comunidad).
  *
- * Flujo simulado: no hay envío real de correo, así que el enlace de
- * verificación se muestra directamente aquí — mismo patrón que la recuperación
- * de contraseña de P0. El banner se oculta solo cuando la cuenta queda
- * verificada; no es descartable a propósito, porque hay acciones del producto
- * (comentar, publicar, contratar un plan) que siguen bloqueadas hasta entonces.
+ * Desde P2/S16 el backend envía un correo real (SMTP vía Mailpit, ver
+ * `core/email.py`) además de devolver el código acá — el atajo sigue
+ * disponible para no depender de revisar una bandeja en cada demo. El banner
+ * se oculta solo cuando la cuenta queda verificada; no es descartable a
+ * propósito, porque hay acciones del producto (comentar, publicar, contratar
+ * un plan) que siguen bloqueadas hasta entonces.
  */
 export function VerificacionEmailBanner() {
   const [tokenVisible, setTokenVisible] = useState<string | null>(null)
@@ -64,7 +65,7 @@ export function VerificacionEmailBanner() {
         </span>
         {tokenVisible && (
           <span className={styles.simulado}>
-            Entorno de demostración: no se envía correo real.{' '}
+            Te enviamos un correo real (revisa Mailpit en local) — o verifica al toque:{' '}
             <button
               type="button"
               className={styles.linkBtn}

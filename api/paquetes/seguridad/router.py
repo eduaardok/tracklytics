@@ -8,6 +8,7 @@ from pydantic import BaseModel, EmailStr, Field
 
 from core.database import execute, get_client, query_one, query_rows
 from core.deps import get_current_user
+from core.email import enviar as enviar_email
 from paquetes.biblioteca import pb_playlists
 from paquetes.seguridad import audit, exportacion, pb_client, strikes
 from paquetes.seguridad.deps import require_admin, require_rol_admin, roles_admin_vigentes
@@ -218,10 +219,17 @@ async def registro(body: RegistroBody):
     )
 
     # Verificación de correo (change p2-descubrimiento-comunidad): el usuario
-    # nace con email_verificado=0 (DEFAULT de la columna) y se le emite un token.
-    # Flujo simulado: el token vuelve en la respuesta porque no hay correo real
-    # que lo transporte — mismo patrón que la recuperación de contraseña de P0.
+    # nace con email_verificado=0 (DEFAULT de la columna) y se le emite un
+    # token. El token SIGUE viajando en la respuesta (conveniencia de demo,
+    # sin credenciales de un proveedor real de por medio) pero ahora también
+    # se envía un correo real (P2, S16) vía SMTP a Mailpit — cierra el hueco
+    # "flujo simulado, no hay correo real que lo transporte".
     token_verificacion = _emitir_token_verificacion(usuario_id)
+    enviar_email(
+        body.email, "Verifica tu correo — Tracklytics",
+        f"Hola {body.nombre},\n\nUsa este código para verificar tu cuenta: {token_verificacion}\n\n"
+        "Si no creaste esta cuenta, ignora este correo.",
+    )
 
     return {
         "status": "ok", "usuario_id": usuario_id, "email": body.email, "rol": body.rol,
@@ -779,8 +787,12 @@ async def reenviar_verificacion(body: ReenviarVerificacionBody):
         usuario_id=usuario_id, accion="reenviar_verificacion_email",
         tabla_afectada="FACT_TOKEN_RECUPERACION", antes=None, despues={"email": body.email},
     )
-    # Flujo simulado: el token viaja en la respuesta porque no hay correo que lo
-    # transporte. El frontend lo muestra en el banner de verificación.
+    # El token sigue viajando en la respuesta (conveniencia de demo) y AHORA
+    # también se envía por correo real (P2, S16) — ver `registro()`.
+    enviar_email(
+        body.email, "Nuevo enlace de verificación — Tracklytics",
+        f"Usa este código para verificar tu cuenta: {token}\n\nSi no lo pediste, ignora este correo.",
+    )
     return {**respuesta, "token_verificacion": token}
 
 
