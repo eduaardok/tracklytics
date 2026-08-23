@@ -474,3 +474,62 @@ Analítica), ejecutado con la skill impeccable (registro product).
   `components/AudioRadarChart.tsx` — A8.
 - `frontend/src/packages/regalias/pages/MisGananciasPage.tsx`,
   `frontend/src/packages/suscripciones/pages/PlanesPage.tsx` — A6.
+
+## S16-P5 — Lote rápido: loaders transversales + gaps de datos de demo (23 ago 2026)
+
+### Contexto
+
+Primera entrega del ranking de mejora post-S16 (ver `docs/PENDIENTES.md` modernizado):
+consistencia de estados de carga en el resto del panel (extensión del criterio A6/A8) y los
+tres gaps de datos que restaban realismo a las demos. El bloque dinero F3–F6/F10–F13 sigue
+**congelado por decisión del stakeholder**.
+
+### Estados de carga consistentes (`2281fe4`, 21 archivos)
+
+- **Ingesta**: `EtlPage` ×3 paneles (historial, distribución, muestra), `DataQualityPage`
+  (panel + donut con animación reactivada), `CrudDimensionesPage` — mismos
+  `SkeletonChart`/paneles que Analítica.
+- **Finanzas**: `ReembolsosTab`/`GastosTab` (colSpan 6), `CuentasTab` (×2, colSpan 5) pasan de
+  celda "Cargando…" a `SkeletonTableRows`; `PresupuestoTab` muestra 3 `SkeletonCard` en el
+  grid de gauges; animaciones reactivadas en `ReembolsosScatter` (×2), `RadialGauge` e
+  `IndicadoresRadar` (captura PDF es bajo demanda, post-animación — mismo criterio A8).
+- **Partners**: `PartnersMetricasPage` panel → `SkeletonChart`.
+- **Celdas admin inline** ("Cargando…" en `<td>`): AdminSuscripciones, RegaliasAdmin,
+  AdminTracks, FamiliasReporte, AbTests, NotificacionesAdmin, Disponibilidad(distribución),
+  EmpresaConfig y ProfilePage (×2) → `SkeletonTableRows`/`SkeletonLoader`.
+- **Feed con fact_ids muertos** (fallback UI): `TrackSocialPage` distingue 404 de error real —
+  un track retirado del catálogo ahora muestra `EmptyState` "Este contenido ya no está
+  disponible" en vez de banner rojo + link roto; la conversación se conserva visible.
+
+### Gaps de datos
+
+- **Portadas 404/503**: diagnóstico con muestreo HTTP real — tracks con portada 10/10 URLs
+  vivas (spotifycdn), artistas 9/9 vivas (iTunes/Deezer; George Jones incluido); solo 2,5%
+  de los 1,61M tracks tiene imagen resuelta, y `AlbumArt` ya degrada con gradiente por
+  género + glifo ♪. Conclusión: **no hay fix que hacer** — el ruido observado fue transitorio
+  y el fallback UI existía; queda como tarea operativa opcional correr
+  `reload_portadas_dag`/`backfill_portadas.py` para ampliar cobertura.
+- **`analyst@demo` inservible para demos B2B** (`cb20550`): el gate de `/analitica` exige
+  email verificado + suscripción activa y la cuenta sembrada no tenía ninguna de las dos.
+  `_activar_analyst_b2b()` en `seed_cuentas_demo.py` ejecuta el flujo real del producto:
+  `reenviar-verificacion` → `verificar-email` (tokens simulados), alta de método de pago demo
+  (solo metadatos, pasa Luhn) y checkout del plan `basico`. Idempotente en cada compose up.
+  Verificado: login aterriza en `/analitica`, `GET /analitica/tendencias` 200, perfil
+  `email_verificado=True`, plan activo. `docs/CUENTAS_DEMO.md` actualizado.
+
+### Documentación
+
+- `docs/PENDIENTES.md` reescrito al estado S16 (`62c5d0b`): resueltos marcados (trial +
+  plan estudiante ya existían), hallazgos nuevos (A9/A10/A11, R2, gaps), bloque dinero
+  congelado anotado, ranking de mejora propuesto.
+
+### Verificación
+
+- `npx tsc --noEmit` limpio tras cada tanda; `npm run build` OK (1m07s).
+- Smoke Playwright: analyst entra a `/analitica/tendencias` y renderiza la línea (0 errores
+  JS). Capturas previas del lote A6/A8 en `smoke_s17/`.
+
+### Pendientes que quedan
+
+- Cobertura de portadas (operativa, opcional): backfill para ampliar del 2,5% actual.
+- Resto del ranking: Biblioteca → R2 → A9/A10/A11 (ver PENDIENTES.md).
