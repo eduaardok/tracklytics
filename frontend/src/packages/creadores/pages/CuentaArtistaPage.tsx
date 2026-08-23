@@ -10,6 +10,7 @@ import { useToast } from '@shared/context/ToastContext'
 import { useConfirm } from '@shared/context/ConfirmContext'
 import { creadoresApi } from '../api/creadores.api'
 import { ArtistaHubTabs, type ArtistaHubVista } from '../components/ArtistaHubTabs'
+import { PanelAnaliticaArtista } from '../components/PanelAnaliticaArtista'
 import type { EstadoCuenta, EstadoRevision, SubidaTrack } from '../types'
 import styles from './CreadoresPages.module.css'
 
@@ -150,9 +151,12 @@ export function CuentaArtistaPage() {
   // directo a `/creadores` sin pasar por ese flujo.
   const [searchParams] = useSearchParams()
   // F2: pestaña activa del hub — ?vista=comentarios muestra el índice de
-  // hilos por track publicado; Música es la vista default y Ganancias vive
+  // hilos por track publicado; S16-P9 (R2) suma ?vista=analitica con el
+  // panel de engagement propio. Música es la vista default y Ganancias vive
   // en /regalias/ganancias (ruta existente, solo se agrupa aquí).
-  const vista: ArtistaHubVista = searchParams.get('vista') === 'comentarios' ? 'comentarios' : 'musica'
+  const vistaParam = searchParams.get('vista')
+  const vista: ArtistaHubVista =
+    vistaParam === 'comentarios' || vistaParam === 'analitica' ? vistaParam : 'musica'
   // F2: el formulario de subida pasaba siempre desplegado arriba de todo,
   // empujando la gestión de tracks ya publicados (uso más frecuente) bajo
   // el pliegue. Ahora arranca colapsado y la lista manda.
@@ -200,11 +204,11 @@ export function CuentaArtistaPage() {
     enabled:  cuenta.data?.estado_cuenta === 'aprobada',
   })
 
-  // Resumen de métricas propias (F2): lo único por-track que ya expone un
-  // endpoint son los streams liquidados en regalías (mis-ganancias-artista,
-  // mismo queryKey que MisGananciasPage — cache compartida). No existe
-  // endpoint de likes/plays por track propio; se reportó en la auditoría y
-  // cuando exista, este panel es su lugar natural.
+  // Resumen de métricas propias (F2): streams LIQUIDADOS de regalías
+  // (mis-ganancias-artista, mismo queryKey que MisGananciasPage — cache
+  // compartida). El engagement EN VIVO por track propio (plays/likes/
+  // favoritos/oyentes) vive en la vista Analítica del hub — endpoint
+  // mi-analitica desde S16-P9, que cubrió el gap que esta nota reportaba.
   const ganancias = useQuery({
     queryKey: ['regalias', 'mis-ganancias-artista'],
     queryFn:  () => regaliasApi.misGananciasArtista(),
@@ -384,7 +388,15 @@ export function CuentaArtistaPage() {
             <>
               <ArtistaHubTabs activa={vista} />
 
-              {vista === 'comentarios' ? (
+              {vista === 'analitica' ? (
+                <>
+                  {/* R2 (S16-P9): engagement real sobre tracks promovidos
+                      propios — KPIs con count-up, serie de 30 días y tabla
+                      por track. El endpoint hace el gating (403 sin cuenta). */}
+                  <p className={styles.sectionLabel}>Tu audiencia</p>
+                  <PanelAnaliticaArtista aprobada />
+                </>
+              ) : vista === 'comentarios' ? (
                 <>
                   {/* F2: índice de hilos de comentarios por track publicado.
                       Reusa /social/track/:factId (UI existente) — acá solo se

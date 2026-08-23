@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
+import { useCountUp } from '@shared/hooks/useCountUp'
 import { apiErrorMessage } from '@shared/lib/api-client'
 import { useToast } from '@shared/context/ToastContext'
 import { regaliasApi } from '../api/regalias.api'
@@ -15,6 +16,14 @@ function fmtMoney(v: number, moneda = 'USD') {
 
 const ESTADO_LABEL: Record<Retiro['estado'], string> = {
   pendiente: 'Pendiente', procesado: 'Procesado', rechazado: 'Rechazado',
+}
+
+// Transición transversal (S16-P9): el total acumulado cuenta de 0 al valor
+// real al montar/refrescar la query — mismo hook que los KPIs del panel de
+// analítica del artista.
+function TotalAcumulado({ valor }: { valor: number }) {
+  const animado = useCountUp(valor)
+  return <div className={styles.totalValue}>{fmtMoney(animado)}</div>
 }
 
 // Widget de retiro (CU-O75, modelo-financiero-simulacion) — reusado tanto
@@ -46,11 +55,14 @@ function RetiroWidget({
 
   const disponible = saldo.data?.saldo_disponible ?? 0
   const retiros = saldo.data?.retiros ?? []
+  // Transición transversal (S16-P9): el saldo cuenta de 0 al valor real
+  // (useCountUp ignora undefined mientras carga).
+  const disponibleAnimado = useCountUp(disponible)
 
   return (
     <div className={styles.totalCard}>
       <div className={styles.totalLabel}>Saldo disponible para retiro</div>
-      <div className={styles.totalValue}>{saldo.isLoading ? '…' : fmtMoney(disponible)}</div>
+      <div className={styles.totalValue}>{saldo.isLoading ? '…' : fmtMoney(disponibleAnimado)}</div>
       <form
         className={styles.form}
         onSubmit={(e) => {
@@ -228,7 +240,7 @@ export function MisGananciasPage() {
           <span className={styles.subtitle}>Regalías liquidadas por tus streams reales, como artista</span>
           <div className={styles.totalCard}>
             <div className={styles.totalLabel}>Total acumulado</div>
-            <div className={styles.totalValue}>{fmtMoney(artista.data!.total)}</div>
+            <TotalAcumulado valor={artista.data!.total} />
           </div>
           <RetiroWidget
             tipo="artista"
@@ -245,7 +257,7 @@ export function MisGananciasPage() {
           </span>
           <div className={styles.totalCard}>
             <div className={styles.totalLabel}>Total acumulado</div>
-            <div className={styles.totalValue}>{fmtMoney(sello.data!.total)}</div>
+            <TotalAcumulado valor={sello.data!.total} />
           </div>
           <RetiroWidget
             tipo="sello"

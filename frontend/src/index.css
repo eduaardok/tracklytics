@@ -273,3 +273,19 @@ body {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* ── Transición transversal reveal-on-scroll (S16-P9) ─────────────────────
+   Clases globales usadas junto al hook `useReveal`: el bloque nace oculto y
+   desplazado; `useReveal` agrega `.reveal-in` la primera vez que entra al
+   viewport. Con reduced-motion el guard de arriba anula la transition y el
+   hook agrega la clase inmediatamente, así el contenido nunca queda oculto. */
+.reveal-base {
+  opacity: 0;
+  transform: translateY(14px);
+  transition: opacity var(--duration-deliberate) var(--ease-standard),
+              transform var(--duration-deliberate) var(--ease-standard);
+}
+.reveal-in {
+  opacity: 1;
+  transform: none;
+}

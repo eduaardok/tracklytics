@@ -1,5 +1,6 @@
 import { apiClient, type ApiResponse } from '@shared/lib/api-client'
 import type {
+  AnaliticaArtista,
   CuentaArtista, SubidaTrack, DashboardCreadores,
   SolicitudCuentaBody, SolicitudCuentaResultado,
   ResolverCuentaBody, ResolverCuentaResultado,
@@ -27,6 +28,13 @@ export const creadoresApi = {
 
   misTracks: () =>
     apiClient.get<ApiResponse<SubidaTrack>>('/creadores/tracks'),
+
+  // Analítica propia del artista (R2, S16-P9): engagement real sobre los
+  // tracks promovidos propios. 403 si la cuenta no está aprobada.
+  // (Sobre `ApiResponse<T>`: ese tipo modela el envelope LISTADO — data es
+  // T[]. Este endpoint devuelve UN objeto, así que va tipado explícito.)
+  miAnalitica: () =>
+    apiClient.get<{ data: AnaliticaArtista }>('/creadores/mi-analitica'),
 
   subirTrack: (body: SubidaTrackBody) =>
     apiClient.post<SubidaTrackResultado>('/creadores/tracks', body),

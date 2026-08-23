@@ -742,3 +742,17 @@
 .modalActions { display: flex; justify-content: flex-end; gap: var(--space-sm); margin-top: var(--space-sm); }
 .textarea { width: 100%; background: var(--color-bg); color: var(--color-ink); font-family: var(--font-sans); font-size: 0.875rem; padding: 8px 12px; border-radius: var(--radius-md); border: 1px solid var(--color-border); outline: none; resize: vertical; }
 .textarea:focus { border-color: var(--color-primary); }
+
+/* ── Panel de analítica propia del artista (R2, S16-P9) ────────────────── */
+.anaChartBox { height: 260px; margin-top: var(--space-md); }
+.anaTabla { width: 100%; border-collapse: collapse; font-family: var(--font-sans); font-size: 0.8125rem; }
+.anaTabla th {
+  text-align: left; padding: 8px 10px; color: var(--color-muted); font-weight: 600;
+  font-size: 0.6875rem; text-transform: uppercase; letter-spacing: 0.05em;
+  border-bottom: 1px solid var(--color-border); white-space: nowrap;
+}
+.anaTabla th:not(:first-child), .anaTabla td:not(:first-child) { text-align: right; }
+.anaTabla td { padding: 10px; border-bottom: 1px solid var(--color-border); color: var(--color-ink); white-space: nowrap; }
+.anaTabla tbody tr:last-child td { border-bottom: none; }
+.anaTabla tbody tr { transition: background var(--duration-fast) var(--ease-standard); }
+.anaTabla tbody tr:hover { background: var(--color-bg); }

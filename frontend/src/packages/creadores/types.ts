@@ -89,3 +89,28 @@ export type DashboardCreadores = {
   subidas_por_estado:    { estado: string; total: number }[]
   cuentas_artista_total: number
 }
+
+// ── Analítica propia del artista (R2, S16-P9) ────────────────────────────────
+// Engagement real sobre SOLO los tracks promovidos propios — el gap que el
+// panel tenía documentado desde F2 ("no existe endpoint de likes/plays por
+// track propio"). Fuente: GET /app/v1/creadores/mi-analitica.
+
+export type MetricasTrack = {
+  fact_id:    number
+  track_name: string
+  plays:      number
+  likes:      number
+  favoritos:  number
+  oyentes:    number
+}
+
+export type PuntoSeriePlays = {
+  dia:   string // YYYY-MM-DD
+  plays: number
+}
+
+export type AnaliticaArtista = {
+  totales: { plays: number; likes: number; favoritos: number; oyentes: number }
+  serie:   PuntoSeriePlays[]
+  tracks:  MetricasTrack[]
+}
