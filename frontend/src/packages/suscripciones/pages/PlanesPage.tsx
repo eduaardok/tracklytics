@@ -7,6 +7,7 @@ import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { apiErrorMessage } from '@shared/lib/api-client'
 import { useToast } from '@shared/context/ToastContext'
 import { useConfirm } from '@shared/context/ConfirmContext'
+import { SkeletonCard, SkeletonLoader } from '@shared/components/SkeletonLoader'
 // Import directo, no vía el barrel `@packages/facturacion` (arrastraría
 // AuditoriaFacturacionPage —con Recharts— al bundle principal, PlanesPage es
 // una ruta B2C eager; ver comentario equivalente en router.tsx).
@@ -276,7 +277,7 @@ export function PlanesPage() {
 
       <p className={styles.sectionLabel}>Plan actual</p>
       {activaQuery.isLoading ? (
-        <p className={styles.muted}>Cargando…</p>
+        <SkeletonCard height={92} />
       ) : activa ? (
         <div className={styles.currentCard}>
           <div className={styles.currentTitle}>Plan activo: {activa.tipo_plan}</div>
@@ -340,7 +341,9 @@ export function PlanesPage() {
 
       <p className={styles.sectionLabel} style={{ marginTop: 'var(--space-xl)' }}>Planes disponibles</p>
       {planesQuery.isLoading ? (
-        <p className={styles.muted}>Cargando…</p>
+        <div className={styles.plansGrid}>
+          {[0, 1, 2].map((i) => <SkeletonCard key={i} height={340} />)}
+        </div>
       ) : (
         <div className={styles.plansGrid}>
           {planes.map((p) => {
@@ -410,7 +413,7 @@ export function PlanesPage() {
             <div className={styles.field}>
               <span className={styles.fieldLabel}>Método de pago</span>
               {metodosQuery.isLoading ? (
-                <p className={styles.muted}>Cargando métodos…</p>
+                <SkeletonLoader count={2} height={12} />
               ) : metodos.length > 0 ? (
                 <div className={styles.paymentMethodsList}>
                   {metodos.map((m) => (

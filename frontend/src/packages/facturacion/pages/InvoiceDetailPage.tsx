@@ -2,6 +2,7 @@ import { Link, useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { ErrorState } from '@shared/components/ErrorState'
 import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
+import { SkeletonLoader, SkeletonTableRows } from '@shared/components/SkeletonLoader'
 import { facturacionApi } from '../api/facturacion.api'
 import styles from './InvoiceDetailPage.module.css'
 
@@ -35,7 +36,30 @@ export function InvoiceDetailPage() {
     queryFn:  () => facturacionApi.empresa(),
   })
 
-  if (invoice.isLoading) return <section className={styles.page}><p className={styles.muted}>Cargando…</p></section>
+  if (invoice.isLoading) {
+    // Esqueleto con la forma de la hoja de factura (encabezado, título,
+    // partes y tabla de conceptos) — el "Cargando…" plano no anticipaba nada.
+    return (
+      <section className={styles.page}>
+        <div className={styles.toolbar} data-print-hide="true">
+          <Link to="/facturacion" className={styles.btnGhost}>← Volver</Link>
+        </div>
+        <div className={styles.sheet}>
+          <SkeletonLoader count={3} height={10} />
+          <h1 className={styles.title}>Factura</h1>
+          <div className={styles.parties}>
+            <SkeletonLoader count={3} height={11} />
+            <SkeletonLoader count={3} height={11} />
+          </div>
+          <table className={styles.table}>
+            <tbody>
+              <SkeletonTableRows columns={3} rows={4} />
+            </tbody>
+          </table>
+        </div>
+      </section>
+    )
+  }
   if (invoice.isError || !invoice.data) {
     return (
       <section className={styles.page}>

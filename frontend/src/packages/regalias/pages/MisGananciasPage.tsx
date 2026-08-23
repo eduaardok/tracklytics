@@ -5,6 +5,7 @@ import { apiErrorMessage } from '@shared/lib/api-client'
 import { useToast } from '@shared/context/ToastContext'
 import { regaliasApi } from '../api/regalias.api'
 import { ArtistaHubTabs } from '@packages/creadores'
+import { SkeletonCard, SkeletonTableRows } from '@shared/components/SkeletonLoader'
 import type { Ganancia, Retiro } from '../types'
 import styles from './RegaliasPages.module.css'
 
@@ -157,7 +158,22 @@ export function MisGananciasPage() {
   })
 
   if (artista.isLoading || sello.isLoading) {
-    return <section className={styles.page}><p className={styles.subtitle}>Cargando…</p></section>
+    // Esqueleto que anticipa el layout final (título + card de total + widget
+    // de retiro + tabla) en vez del "Cargando…" plano que había antes.
+    return (
+      <section className={styles.page}>
+        <h1 className={styles.heading}>Mis ganancias</h1>
+        <SkeletonCard height={96} />
+        <SkeletonCard height={72} />
+        <div className={styles.tablePanel}>
+          <table className={styles.table}>
+            <tbody>
+              <SkeletonTableRows columns={6} rows={5} />
+            </tbody>
+          </table>
+        </div>
+      </section>
+    )
   }
 
   const tieneArtista = artista.isSuccess
