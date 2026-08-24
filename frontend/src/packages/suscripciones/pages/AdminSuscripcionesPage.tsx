@@ -229,7 +229,14 @@ function SolicitudesEstudiante() {
 function CobrosDetalle({ suscripcionId }: { suscripcionId: string }) {
   const q = useQuery({ queryKey: ['suscripciones', 'admin', 'detalle', suscripcionId], queryFn: () => suscripcionesApi.adminDetalle(suscripcionId) })
   const cobros = q.data?.cobros ?? []
-  if (q.isLoading) return <span className={styles.detailMuted}>Cargando historial de cobros…</span>
+  // S16-P11: "Cargando historial de cobros…" plano -> tabla shimmer con la
+  // misma estructura (header incluido) que el historial real.
+  if (q.isLoading) return (
+    <table className={styles.subTable}>
+      <thead><tr><th>Fecha</th><th>Monto</th><th>Estado</th><th>Concepto</th></tr></thead>
+      <tbody><SkeletonTableRows columns={4} rows={3} /></tbody>
+    </table>
+  )
   if (cobros.length === 0) return <span className={styles.detailMuted}>Sin cobros registrados para esta suscripción.</span>
   return (
     <table className={styles.subTable}>

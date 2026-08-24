@@ -5,6 +5,7 @@ import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { apiErrorMessage } from '@shared/lib/api-client'
 import { useToast } from '@shared/context/ToastContext'
 import { AirflowLinkButton } from '@shared/components/AirflowLinkButton'
+import { SkeletonTableRows } from '@shared/components/SkeletonLoader'
 import { simulacionApi } from '../api/simulacion.api'
 import { DOMINIOS_BAJO_DEMANDA, type DominioBajoDemanda } from '../types'
 import styles from './SimulacionPage.module.css'
@@ -208,7 +209,16 @@ export function SimulacionPage() {
           {estado.data?.ejecucion_en_curso && <span className={styles.badgeEnCurso}>en curso</span>}
         </p>
 
-        {estado.isLoading && <p className={styles.note}>Cargando estado…</p>}
+        {/* S16-P11: "Cargando estado…" plano -> tabla shimmer con la misma
+            estructura del estado real (4 columnas). */}
+        {estado.isLoading && (
+          <table className={styles.table}>
+            <thead>
+              <tr><th>Dominio</th><th>Última corrida</th><th>Filas totales</th><th>Corridas</th></tr>
+            </thead>
+            <tbody><SkeletonTableRows columns={4} rows={3} /></tbody>
+          </table>
+        )}
         {estado.isError && <p className={styles.note}>No se pudo cargar el estado.</p>}
 
         {estado.data && (

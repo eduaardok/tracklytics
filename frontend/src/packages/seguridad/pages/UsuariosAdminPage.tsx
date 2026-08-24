@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { apiErrorMessage } from '@shared/lib/api-client'
 import { useToast } from '@shared/context/ToastContext'
-import { SkeletonTableRows } from '@shared/components/SkeletonLoader'
+import { SkeletonLoader, SkeletonTableRows } from '@shared/components/SkeletonLoader'
 import { ExportPDFButton } from '@shared/components/ExportPDFButton'
 import { seguridadApi } from '../api/seguridad.api'
 import type { EstadoCuenta, UsuarioAdmin } from '../types'
@@ -180,7 +180,9 @@ export function UsuariosAdminPage() {
         {!selectedId ? (
           <div className={styles.detailEmpty}>Selecciona un usuario para ver su detalle 360°.</div>
         ) : detalle.isLoading || !d ? (
-          <div className={styles.detailEmpty}>Cargando detalle…</div>
+          /* S16-P11: "Cargando detalle…" plano -> panel shimmer con la altura
+             aproximada del detalle 360° para que el layout no salte. */
+          <div className={styles.detail}><SkeletonLoader count={6} height={16} /></div>
         ) : (
           <div className={styles.detail}>
             <div className={styles.detailHead}>

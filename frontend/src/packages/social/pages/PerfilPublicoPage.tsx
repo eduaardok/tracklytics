@@ -3,6 +3,8 @@ import { useQuery } from '@tanstack/react-query'
 import { User, Lock } from 'lucide-react'
 import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { ErrorState } from '@shared/components/ErrorState'
+// S16-P11: "Cargando perfil…" plano -> hero shimmer con la forma del subjectBar.
+import { SkeletonLoader } from '@shared/components/SkeletonLoader'
 import { ApiError } from '@shared/lib/api-client'
 import { LibraryTrackRow } from '@packages/catalogo'
 import { socialApi } from '../api/social.api'
@@ -28,7 +30,13 @@ export function PerfilPublicoPage() {
   if (isLoading) {
     return (
       <section className={styles.page}>
-        <p className={styles.emptyBody}>Cargando perfil…</p>
+        <div className={styles.subjectBar}>
+          <SkeletonLoader count={1} height={44} className={styles.skelCircle} />
+          <div style={{ flex: 1 }}>
+            <SkeletonLoader count={2} height={14} />
+          </div>
+        </div>
+        <SkeletonLoader count={3} height={14} />
       </section>
     )
   }

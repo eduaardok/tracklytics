@@ -52,6 +52,15 @@
 
 .subjectInfo { flex: 1; min-width: 0; }
 
+/* S16-P11: círculo de shimmer que ocupa el lugar del icono del subjectBar
+   mientras carga un perfil público. */
+.skelCircle {
+  display: block;
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-pill);
+}
+
 .subjectName {
   font-family: var(--font-sans);
   font-size: 1.125rem;

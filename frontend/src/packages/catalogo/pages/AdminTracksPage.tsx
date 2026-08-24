@@ -81,7 +81,8 @@ export function AdminTracksPage() {
             <thead><tr><th>Track</th><th>Artista</th><th className={styles.actionsCol}>Acción</th></tr></thead>
             <tbody>
               {resultados.isLoading ? (
-                <tr><td colSpan={3} className={styles.emptyState}>Buscando…</td></tr>
+                /* S16-P11: "Buscando…" plano -> filas shimmer (patrón admin). */
+                <SkeletonTableRows columns={3} rows={4} />
               ) : resultadosData.length === 0 ? (
                 <tr><td colSpan={3}><EmptyState icon={<SearchX size={22} aria-hidden="true" />} title={`Sin resultados para «${buscado}»`} /></td></tr>
               ) : resultadosData.map((t) => (

@@ -6,7 +6,7 @@ import { apiErrorMessage } from '@shared/lib/api-client'
 import { useToast } from '@shared/context/ToastContext'
 import { CrudModal } from '@shared/components/CrudModal'
 import { CrudActionButtons } from '@shared/components/CrudActionButtons'
-import { SkeletonTableRows } from '@shared/components/SkeletonLoader'
+import { SkeletonLoader, SkeletonTableRows } from '@shared/components/SkeletonLoader'
 import { EmptyState } from '@shared/components/EmptyState'
 import { ExportPDFButton } from '@shared/components/ExportPDFButton'
 import { partnersAdminApi, type Partner, type EditarPartnerBody } from '../api/partnersAdmin.api'
@@ -334,14 +334,23 @@ function ViewPartnerModal({ partner, onClose }: { partner: Partner; onClose: () 
         <label className={styles.fieldLabel}>Fecha de expiración</label>
         <input className={styles.input} value={partner.fecha_expiracion ? String(partner.fecha_expiracion).slice(0, 10) : 'Sin expiración'} readOnly />
       </div>
-      <div className={styles.field}>
-        <label className={styles.fieldLabel}>Último acceso API</label>
-        <input
-          className={styles.input}
-          value={metricas.isLoading ? 'Cargando…' : metrica?.ultima_llamada ? String(metrica.ultima_llamada).slice(0, 16).replace('T', ' ') : 'Sin llamadas registradas'}
-          readOnly
-        />
-      </div>
+      {/* S16-P11: el valor llegaba como texto "Cargando…" dentro del input —
+          shimmer fuera del input mientras `LOG_LLAMADAS_PARTNER` responde. */}
+      {metricas.isLoading ? (
+        <div className={styles.field}>
+          <label className={styles.fieldLabel}>Último acceso API</label>
+          <SkeletonLoader count={1} height={14} />
+        </div>
+      ) : (
+        <div className={styles.field}>
+          <label className={styles.fieldLabel}>Último acceso API</label>
+          <input
+            className={styles.input}
+            value={metrica?.ultima_llamada ? String(metrica.ultima_llamada).slice(0, 16).replace('T', ' ') : 'Sin llamadas registradas'}
+            readOnly
+          />
+        </div>
+      )}
     </CrudModal>
   )
 }
