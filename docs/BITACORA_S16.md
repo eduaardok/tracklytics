@@ -910,3 +910,77 @@ artista distinto y lo intercambia) — la diferencia real entre un shuffle "inte
   `pages/PlanesPage.tsx`, `pages/AdminSuscripcionesPage.tsx` — comprobante real.
 - `frontend/src/packages/seguridad/components/VerificacionEmailBanner.tsx` — copy actualizado.
 - `docs/PENDIENTES.md`, `docs/BITACORA_S16.md` — este cierre.
+
+---
+
+## S16-P10 ronda 2 - Producto P2: co-ocurrencia, radio en todas las superficies, shuffle persistente, suggest de busqueda y hotfix de notificaciones (23 ago 2026)
+
+Segunda pasada sobre las brechas P2 con verificacion Playwright end-to-end (esta vez si, contra
+el stack levantado tras la caida de Docker).
+
+### Backend
+
+- **Recomendaciones por co-ocurrencia** (experiencia): query nueva
+  CO_REPRODUCIDOS_DE_SEMILLAS (CTEs semillas -> colegas, dedup por track+artista quedando
+  el maximo de oyentes, excluidos/popularidad_min/synthetic iguales al resto de secciones,
+  limit_colegas = min(limit*4, 48)). Integrada en obtener_recomendaciones como seccion
+  "escuchadas_por_tu_gente" ("Escuchadas por tu gente", motivo "quienes comparten tus gustos
+  lo estan escuchando"), en paralelo con las otras via max_workers 4->5. Pipeline CTE medido
+  en 0.54s; endpoint completo con 4 secciones en ~2s.
+- **Hotfix PREFERENCIAS_DESACTIVADAS_DE_USUARIOS** (social/queries.py): llevaba
+  ORDER BY n.fecha_creacion DESC con alias inexistente (copy-paste de NOTIFICACIONES_ADMIN)
+  -> ClickHouse rechazaba la query -> sin try/except en el helper, TODA creacion de
+  notificacion/comentario devolvia 500 desde que entro el opt-out. Fix: ORDER BY fuera (queda
+  LIMIT 200). Verificado E2E: POST /social/comentarios 201 (antes 500 garantizado).
+- **Dump GDPR ampliado** (seguridad/exportacion.py): agrega 
+otificaciones (ultimas 200) y
+  preferencias_notificacion (argMax activo por tipo) a la exportacion de datos personales.
+
+### Frontend
+
+- **Shuffle persistente** (PlayerContext.tsx + PlayerBar.tsx): modo aleatorio permanente
+  (shuffleMode + ref para closures largos) que elige indice aleatorio en cada dvanceQueue
+  con anti-racha por artista; boton con ria-pressed junto al repeat. Diferencia con el
+  Mezclar one-shot de QueuePanel (Fisher-Yates puntual, ya existia).
+- **Radio en todas las superficies**: boton en TrackGridCard (overlay, esquina inferior,
+  con stopPropagation), en LibraryTrackRow y en el hero de TrackDetailPage. Todos
+  reutilizan useRadio().iniciarRadio(factId) (auth-prompt/toast/playList centralizados).
+- **Suggest del buscador global** (GlobalSearch.tsx): dropdown as-you-type con debounce
+  250ms reutilizando /search con limit chico (tracks x4, artistas x2, albumes x2, playlists
+  x1), combobox/listbox ARIA, Escape/outside-click, atajo "/" intacto, "Ver todos los
+  resultados" navega a /buscar.
+- **"Ver mas" por grupo** (SearchResultsPage.tsx): ?grupo=canciones|artistas|albumes|
+  playlists amplia ese grupo a 20 resultados con navegacion de vuelta; links "Ver mas ->"
+  por seccion en la vista completa.
+- **PreferenciasNotificacion extraido** a componente compartido
+  (social/components/PreferenciasNotificacion.tsx, exporta TIPO_LABEL): la campanita lo usa
+  igual que antes y ProfilePage gana seccion "Notificaciones" como ajuste de cuenta. Misma
+  query key -> cambiar un switch en un lugar se refleja en el otro.
+
+### Verificacion (Playwright, _smoke_p10.mjs, borrado tras correr)
+
+- PARA TI muestra las 4 secciones incluyendo "Escuchadas por tu gente" (12 items).
+- Suggest renderiza items para "love"; "Ver mas" de artistas llega con h1 correcto.
+- Detalle de track muestra "Iniciar radio"; al pulsarlo arranca reproduccion y aparece el
+  PlayerBar; toggle Aleatorio pasa a "(activado)".
+- Perfil muestra la seccion Notificaciones con los 3 tipos.
+- 0 errores JS de pagina en todo el recorrido. 	sc --noEmit + 
+pm run build limpios;
+  deploy via docker cp dist/. tracklytics_frontend_react:/usr/share/nginx/html/.
+
+Nota operativa: entrar por / con localStorage recien inyectado dispara peticiones anonimas
+cuyo interceptor 401 hace clearSession() y borra la sesion recien seteada - en smokes,
+inyectar sesion con ddInitScript (corre antes del boot en cada navegacion).
+
+### Archivos nuevos o modificados
+
+- pi/paquetes/experiencia/queries.py, outer.py - CO_REPRODUCIDOS_DE_SEMILLAS + seccion.
+- pi/paquetes/social/queries.py - hotfix ORDER BY.
+- pi/paquetes/seguridad/exportacion.py - GDPR ampliada.
+- rontend/src/shared/context/PlayerContext.tsx, components/PlayerBar.tsx - shuffle mode.
+- rontend/src/packages/catalogo/components/GlobalSearch.tsx + css,
+  pages/SearchResultsPage.tsx + css, components/TrackGridCard.tsx + css,
+  components/LibraryTrackRow.tsx, pages/TrackDetailPage.tsx.
+- rontend/src/packages/social/components/PreferenciasNotificacion.tsx (nuevo),
+  components/NotificationBell.tsx, packages/seguridad/pages/ProfilePage.tsx.
+- docs/PENDIENTES.md, docs/BITACORA_S16.md - este cierre.

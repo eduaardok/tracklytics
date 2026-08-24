@@ -38,6 +38,13 @@
   preferencias de notificación (opt-out), email de verificación real (SMTP/Mailpit),
   comprobante de estudiante real (subida+revisión admin) y shuffle inteligente— se
   implementó y verificó E2E. Ver bitácora S16-P10.
+- ✅ **Ronda 2 de P2 con Playwright E2E (S16-P10 ronda 2)**: recomendaciones por
+  co-ocurrencia ("Escuchadas por tu gente"), radio desde cards/filas/detalle, shuffle
+  persistente con anti-racha, suggest as-you-type en el buscador global, "Ver más" por grupo
+  en resultados, preferencias de notificación también en el perfil, dump GDPR ampliado y
+  **hotfix crítico**: `PREFERENCIAS_DESACTIVADAS_DE_USUARIOS` tenía un ORDER BY con alias
+  inexistente que devolvía 500 en toda creación de comentario/notificación. Ver bitácora
+  S16-P10 ronda 2.
 
 ## Deuda técnica conocida
 
@@ -119,14 +126,24 @@
 - [x] ~~Radio / Mix diario~~ ✅ ya existían — `GET /experiencia/radio/track/{fact_id}` y
       `GET /experiencia/mix-diario`. **Shuffle inteligente**: no existía, agregado en S16-P10
       — `shuffleQueue()` en `PlayerContext.tsx` (Fisher-Yates + declumping de artista
-      adyacente), botón "Mezclar" en `QueuePanel`.
+      adyacente), botón "Mezclar" en `QueuePanel`. **Shuffle persistente** (S16-P10 ronda 2):
+      modo aleatorio permanente (`shuffleMode`) que avanza a un índice aleatorio con anti-racha
+      por artista; botón con `aria-pressed` en el PlayerBar. **Radio en todas las superficies**
+      (S16-P10 ronda 2): botón en `TrackGridCard` (overlay), `LibraryTrackRow` y hero de
+      `TrackDetailPage`, todos vía `useRadio`.
 - [x] ~~Recomendaciones por similitud real (hoy: exclusión + heurística)~~ ✅ ya era real —
       `RECOMENDACIONES_POR_AFINIDAD`/`RADIO_POR_TRACK`/`MIX_AFINIDAD` usan distancia
       euclidiana sobre audio features (danceability/energy/valence/acousticness/tempo).
+      **Co-ocurrencia** (S16-P10 ronda 2): sección "Escuchadas por tu gente"
+      (`CO_REPRODUCIDOS_DE_SEMILLAS`, tracks que comparten oyentes con tus semillas) en
+      `GET /experiencia/recomendaciones`.
 - [x] ~~Preferencias de notificación (opt-out por tipo)~~ ✅ S16-P10 — tabla
       `DIM_PREFERENCIA_NOTIFICACION` (opt-out: ausencia de fila = activo),
       `GET/PUT /social/notificaciones/preferencias[/{tipo}]`, `notificaciones.crear*` filtra
-      antes de insertar; toggle en `NotificationBell` (ícono de engranaje).
+      antes de insertar; toggle en `NotificationBell` (ícono de engranaje). **S16-P10 ronda 2**:
+      componente compartido `PreferenciasNotificacion.tsx` también como sección del perfil, y
+      hotfix del ORDER BY con alias inexistente en `PREFERENCIAS_DESACTIVADAS_DE_USUARIOS`
+      (`social/queries.py`) que devolvía 500 en toda creación de comentario/notificación.
 - [x] ~~Trial + plan estudiante~~ — trial premium (`DIAS_TRIAL_PREMIUM`) y plan `estudiante`
       existen desde S14/S15 (verificado en `PlanesPage`)
 - [x] ~~Verificación de email en registro (simulada)~~ ✅ S16-P10 — `core/email.py` (SMTP
@@ -146,4 +163,9 @@
 - [x] ~~Export de datos personales (GDPR)~~ ✅ ya existía — `api/paquetes/seguridad/
       exportacion.py` + `GET .../exportar-mis-datos` (volcado JSON: perfil, pagos,
       favoritos, playlists, historial, comentarios, seguimientos, tickets, denuncias,
-      bloqueos).
+      bloqueos). **S16-P10 ronda 2**: agrega `notificaciones` (últimas 200) y
+      `preferencias_notificacion`.
+- [x] ~~Búsqueda: sugerencias as-you-type y resultados ampliados~~ ✅ S16-P10 ronda 2 —
+      dropdown de sugerencias en el buscador global (`GlobalSearch.tsx`, debounce 250ms sobre
+      `/search`, combobox ARIA) y `?grupo=` en `/buscar` para ampliar un grupo a 20
+      ("Ver más" por sección).
