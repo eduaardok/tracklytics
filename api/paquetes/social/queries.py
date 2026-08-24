@@ -335,6 +335,10 @@ FROM (
     JOIN DIM_ARTISTS a ON a.artist_id = t.artist_id
     LEFT JOIN DIM_USUARIO u ON u.usuario_id = c.usuario_id
     WHERE c.estado_moderacion = 'visible' AND c.comentario_padre_id IS NULL
+      -- S16-P11: sin este filtro el feed mostraba actividad de tracks retirados
+      -- (disponible=0) — comentarios/comparticiones de algo que ya no se puede
+      -- escuchar, y cuyo detalle da 404 al tocarlo.
+      AND t.disponible = 1
       AND a.artist_id IN (SELECT artista_id FROM BRIDGE_SEGUIMIENTO_ARTISTA WHERE usuario_id = {usuario_id:String} AND activo = 1)
 
     UNION ALL
@@ -348,6 +352,7 @@ FROM (
     JOIN DIM_ARTISTS a ON a.artist_id = t.artist_id
     LEFT JOIN DIM_USUARIO u ON u.usuario_id = s.usuario_id
     WHERE s.fact_id_track IS NOT NULL
+      AND t.disponible = 1 -- mismo criterio que la rama de comentarios (S16-P11)
       AND a.artist_id IN (SELECT artista_id FROM BRIDGE_SEGUIMIENTO_ARTISTA WHERE usuario_id = {usuario_id:String} AND activo = 1)
 )
 WHERE usuario_id NOT IN (
