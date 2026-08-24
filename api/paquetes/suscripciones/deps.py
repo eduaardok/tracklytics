@@ -1,6 +1,7 @@
 from fastapi import Depends, HTTPException
 
 from core.deps import get_current_user
+from paquetes.seguridad.deps import roles_admin_vigentes
 from paquetes.suscripciones import pb_client
 
 
@@ -22,7 +23,12 @@ def require_active_subscription(plan_minimo: str = "free"):
         # Lead Data Engineer/CTO (admin) tiene acceso completo a la plataforma
         # sin necesidad de un plan — no aplica el concepto de suscripción,
         # mismo bypass ya usado por `require_b2b_panel_access` (analitica).
+        # S16-P12: también el superadmin demo y las 6 cuentas admin_* de área
+        # (role crudo "user" + rol vigente en BRIDGE_USUARIO_ROL_ADMIN) —
+        # sin esto el gating "premium" les devolvía 403 igual que a un free.
         if user.get("record", {}).get("role") == "admin":
+            return user
+        if roles_admin_vigentes(user["record"]["id"]):
             return user
 
         user_id = user["record"]["id"]

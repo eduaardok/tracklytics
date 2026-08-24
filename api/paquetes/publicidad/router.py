@@ -25,7 +25,7 @@ from paquetes.publicidad.queries import (
     ingresos_por_campana_sql,
 )
 from paquetes.seguridad import audit
-from paquetes.seguridad.deps import require_rol_admin
+from paquetes.seguridad.deps import require_rol_admin, roles_admin_vigentes
 
 # Autorización administrativa segmentada (change roles-gestion-usuarios): los
 # anunciantes, campañas e ingresos por publicidad son una línea de ingresos que
@@ -42,8 +42,16 @@ def _es_artista_aprobado(usuario_id: str) -> bool:
 
 
 async def _usuario_exento_de_ads(user: dict) -> bool:
-    """Exento de anuncios: plan de pago activo, o cuenta de artista aprobada
-    (`creadores`) — ver requirement "Impresión de anuncio..." de `publicidad`."""
+    """Exento de anuncios: plan de pago activo, cuenta de artista aprobada
+    (`creadores`), o staff administrativo (superadmin o cualquiera de los
+    roles de área en BRIDGE_USUARIO_ROL_ADMIN) — ver requirement "Impresión
+    de anuncio..." de `publicidad`. Sin el check de staff, el superadmin demo
+    (role crudo "user" en PocketBase, plan "free" al no tener suscripción)
+    recibía intersticiales de publicidad en cada reproducción."""
+    if user.get("record", {}).get("role", "") == "admin":
+        return True
+    if roles_admin_vigentes(user["record"]["id"]):
+        return True
     if _es_artista_aprobado(user["record"]["id"]):
         return True
     activas = await pb_client.list_activas(user["token"], user["record"]["id"])
