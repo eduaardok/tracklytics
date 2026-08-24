@@ -117,6 +117,27 @@ LEFT JOIN DIM_USUARIO u ON u.usuario_id = b.bloqueado_id
 WHERE b.vigente = 1
 """
 
+# S16-P10 (gap GDPR detectado en la revisión del dominio): el dump no incluía
+# las notificaciones recibidas ni el estado de sus preferencias — ambos son
+# datos personales que la ley de portabilidad cubre.
+NOTIFICACIONES = """
+SELECT tipo, referencia_tipo, referencia_id, mensaje, leido,
+       fecha_creacion, fecha_lectura
+FROM FACT_NOTIFICACION
+WHERE usuario_destino_id = {usuario_id:String}
+ORDER BY fecha_creacion DESC
+LIMIT 200
+"""
+
+# Solo los tipos que el usuario tocó alguna vez (modelo opt-out: ausencia =
+# activo por defecto; el router de preferencias aplica la misma regla).
+PREFERENCIAS_NOTIFICACION = """
+SELECT tipo, argMax(activo, actualizado_en) AS activo
+FROM DIM_PREFERENCIA_NOTIFICACION
+WHERE usuario_id = {usuario_id:String}
+GROUP BY tipo
+"""
+
 
 def construir(usuario_id: str, playlists: list[dict], suscripcion: dict | None) -> dict:
     """Reúne todos los datos personales del usuario en un documento único.
@@ -139,4 +160,6 @@ def construir(usuario_id: str, playlists: list[dict], suscripcion: dict | None) 
         "tickets_soporte":      query_rows(TICKETS, params),
         "denuncias_emitidas":   query_rows(DENUNCIAS_EMITIDAS, params),
         "usuarios_bloqueados":  query_rows(BLOQUEOS, params),
+        "notificaciones":       query_rows(NOTIFICACIONES, params),
+        "preferencias_notificacion": query_rows(PREFERENCIAS_NOTIFICACION, params),
     }
