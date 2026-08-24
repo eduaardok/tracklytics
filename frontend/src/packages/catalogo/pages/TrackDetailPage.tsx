@@ -1,6 +1,6 @@
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { ArrowLeft, Heart, ListPlus, Lock, MessageSquare, Play, ThumbsDown, ThumbsUp } from 'lucide-react'
+import { ArrowLeft, Heart, ListPlus, Lock, MessageSquare, Play, Radio, ThumbsDown, ThumbsUp } from 'lucide-react'
 import { catalogoApi } from '../api/catalogo.api'
 import { usePlayer } from '@shared/context/PlayerContext'
 import { AlbumArt } from '@shared/components/AlbumArt'
@@ -11,6 +11,7 @@ import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { ApiError, apiClient, apiErrorMessage } from '@shared/lib/api-client'
 import { useFavoritos } from '../hooks/useFavoritos'
 import { useLikes } from '../hooks/useLikes'
+import { useRadio } from '../hooks/useRadio'
 import { AddToPlaylistMenu } from '../components/AddToPlaylistMenu'
 import { bibliotecaApi } from '../api/biblioteca.api'
 import { usePlanActivo } from '@packages/suscripciones'
@@ -48,6 +49,7 @@ export function TrackDetailPage() {
   const { pedirImpresion } = useAd()
   const { isAuthenticated, isFavorite, toggle, toggleError } = useFavoritos()
   const { esPremium, isLoading: planLoading } = usePlanActivo()
+  const { iniciarRadio, iniciando: radioIniciando } = useRadio()
 
   const id = Number(factId)
   const { likes, voto, like, dislike } = useLikes(id)
@@ -158,6 +160,18 @@ export function TrackDetailPage() {
             >
               <ListPlus size={16} aria-hidden="true" style={{ verticalAlign: '-3px', marginRight: 4 }} />
               Agregar a la cola
+            </button>
+            {/* Radio desde el detalle (S16-P10): hasta ahora solo TrackCard de
+                los listados tenía el botón — la ficha completa era la superficie
+                más natural y no lo tenía. */}
+            <button
+              type="button"
+              className={styles.btnGhost}
+              disabled={radioIniciando}
+              onClick={() => iniciarRadio(track.fact_id)}
+            >
+              <Radio size={16} aria-hidden="true" style={{ verticalAlign: '-3px', marginRight: 4 }} />
+              {radioIniciando ? 'Iniciando radio…' : 'Iniciar radio'}
             </button>
             {isAuthenticated && (
               <>

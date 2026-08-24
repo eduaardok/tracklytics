@@ -1,6 +1,6 @@
 import type { MouseEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Heart, ListPlus, Play, X } from 'lucide-react'
+import { Heart, ListPlus, Play, Radio, X } from 'lucide-react'
 import { usePlayer } from '@shared/context/PlayerContext'
 import { AlbumArt } from '@shared/components/AlbumArt'
 import { TrackName, FeaturingCaption } from '@shared/components/TrackName'
@@ -8,6 +8,7 @@ import { ErrorState } from '@shared/components/ErrorState'
 import { ApiError, apiErrorMessage } from '@shared/lib/api-client'
 import { useAd } from '@packages/publicidad'
 import { useFavoritos } from '../hooks/useFavoritos'
+import { useRadio } from '../hooks/useRadio'
 import { bibliotecaApi } from '../api/biblioteca.api'
 import type { LibraryTrack } from '../types'
 import styles from './LibraryTrackRow.module.css'
@@ -51,6 +52,7 @@ export function LibraryTrackRow({ track, position, timeAgo, onRemove, removeTitl
   const { play, playList, reportPlaybackIssue, enqueue } = usePlayer()
   const { pedirImpresion } = useAd()
   const { isFavorite, toggle, toggleError } = useFavoritos()
+  const { iniciarRadio, iniciando: radioIniciando } = useRadio()
   const favorite = isFavorite(track.fact_id)
 
   function goToDetail() {
@@ -115,6 +117,19 @@ export function LibraryTrackRow({ track, position, timeAgo, onRemove, removeTitl
           </button>
           <button type="button" className={styles.actionBtn} onClick={handleEnqueue} title="Agregar a la cola" aria-label="Agregar a la cola">
             <ListPlus size={16} aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            className={styles.actionBtn}
+            disabled={radioIniciando}
+            onClick={(e) => {
+              e.stopPropagation()
+              iniciarRadio(track.fact_id)
+            }}
+            title="Iniciar radio desde esta canción"
+            aria-label="Iniciar radio desde esta canción"
+          >
+            <Radio size={16} aria-hidden="true" />
           </button>
           <button
             type="button"

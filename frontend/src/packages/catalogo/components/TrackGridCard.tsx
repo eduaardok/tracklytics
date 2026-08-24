@@ -1,11 +1,12 @@
 import type { KeyboardEvent, MouseEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Play } from 'lucide-react'
+import { Play, Radio } from 'lucide-react'
 import { usePlayer } from '@shared/context/PlayerContext'
 import { AlbumArt } from '@shared/components/AlbumArt'
 import { TrackName, FeaturingCaption } from '@shared/components/TrackName'
 import { useAd } from '@packages/publicidad'
 import { bibliotecaApi } from '../api/biblioteca.api'
+import { useRadio } from '../hooks/useRadio'
 import { ApiError, apiErrorMessage } from '@shared/lib/api-client'
 import { isAuthenticated } from '@shared/lib/session'
 import type { Track } from '../types'
@@ -27,6 +28,7 @@ export function TrackGridCard({ track, queue, index }: Props) {
   const navigate = useNavigate()
   const { play, playList, reportPlaybackIssue } = usePlayer()
   const { pedirImpresion } = useAd()
+  const { iniciarRadio, iniciando: radioIniciando } = useRadio()
 
   function goToDetail() {
     navigate(`/catalogo/track/${track.fact_id}`)
@@ -70,6 +72,21 @@ export function TrackGridCard({ track, queue, index }: Props) {
             aria-label="Reproducir"
           >
             <Play size={20} fill="currentColor" aria-hidden="true" />
+          </button>
+          {/* Radio en rails del home (S16-P10): misma acción que TrackCard,
+              parada por el stopPropagation para no navegar al detalle. */}
+          <button
+            type="button"
+            className={styles.radioBtn}
+            disabled={radioIniciando}
+            onClick={(e) => {
+              e.stopPropagation()
+              iniciarRadio(track.fact_id)
+            }}
+            title="Iniciar radio desde esta canción"
+            aria-label="Iniciar radio desde esta canción"
+          >
+            <Radio size={13} aria-hidden="true" />
           </button>
         </div>
         <span className={styles.popBadge}>
