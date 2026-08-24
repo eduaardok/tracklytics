@@ -14,6 +14,17 @@ import styles from './SearchResultsPage.module.css'
 
 const SKELETON_ROWS = [0, 1, 2, 3, 4]
 
+// "Ver más" por grupo (S16-P10, brecha P2 search-all): la vista completa trae
+// 8 por sección; con ?grupo=canciones|artistas|albumes|playlists la misma
+// página muestra solo ese grupo ampliado (20) — un solo endpoint y una sola
+// página para ambos niveles de profundidad.
+const GRUPOS = ['canciones', 'artistas', 'albumes', 'playlists'] as const
+type Grupo = (typeof GRUPOS)[number]
+
+function grupoValido(v: string | null): Grupo | null {
+  return GRUPOS.includes(v as Grupo) ? (v as Grupo) : null
+}
+
 /**
  * Resultados de la búsqueda unificada (change p2-descubrimiento-comunidad).
  *
@@ -25,20 +36,26 @@ const SKELETON_ROWS = [0, 1, 2, 3, 4]
 export function SearchResultsPage() {
   const [params] = useSearchParams()
   const q = (params.get('q') ?? '').trim()
+  const grupo = grupoValido(params.get('grupo'))
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: ['catalogo', 'search-all', q],
-    queryFn:  () => catalogoApi.searchAll(q, 8),
+    queryKey: ['catalogo', 'search-all', q, grupo],
+    queryFn:  () => catalogoApi.searchAll(q, grupo ? 20 : 8),
     enabled:  q.length > 0,
   })
 
   return (
     <section className={styles.page}>
       <header className={styles.pageHead}>
-        <h1 className={styles.heading}>Resultados</h1>
+        <h1 className={styles.heading}>{grupo ? tituloDeGrupo(grupo) : 'Resultados'}</h1>
         <span className={styles.subtitle}>
           {q ? `// "${q}"` : '// escribe algo en la búsqueda del encabezado'}
         </span>
+        {q && grupo && (
+          <Link className={styles.verMas} to={`/buscar?q=${encodeURIComponent(q)}`}>
+            ← Volver a todos los resultados
+          </Link>
+        )}
       </header>
 
       {!q && (
@@ -64,12 +81,16 @@ export function SearchResultsPage() {
         />
       )}
 
-      {q && data && <Resultados data={data} />}
+      {q && data && <Resultados data={data} grupo={grupo} q={q} />}
     </section>
   )
 }
 
-function Resultados({ data }: { data: { tracks: SearchTrack[]; artistas: SearchArtista[]; albumes: SearchAlbum[]; playlists: SearchPlaylist[] } }) {
+function tituloDeGrupo(g: Grupo): string {
+  return g === 'canciones' ? 'Canciones' : g === 'artistas' ? 'Artistas' : g === 'albumes' ? 'Álbumes' : 'Playlists'
+}
+
+function Resultados({ data, grupo, q }: { data: { tracks: SearchTrack[]; artistas: SearchArtista[]; albumes: SearchAlbum[]; playlists: SearchPlaylist[] }; grupo: Grupo | null; q: string }) {
   const total =
     data.tracks.length + data.artistas.length + data.albumes.length + data.playlists.length
 
@@ -83,6 +104,46 @@ function Resultados({ data }: { data: { tracks: SearchTrack[]; artistas: SearchA
     )
   }
 
+  // Vista de un solo grupo ampliado (?grupo=...).
+  if (grupo) {
+    if (grupo === 'canciones') {
+      return (
+        <div className={styles.sections}>
+          <Seccion titulo="Canciones">
+            <ul className={styles.list}>
+              {data.tracks.map((t, i) => <TrackRow key={t.fact_id} track={t} queue={data.tracks} index={i} />)}
+            </ul>
+          </Seccion>
+        </div>
+      )
+    }
+    if (grupo === 'artistas') {
+      return (
+        <div className={styles.sections}>
+          <Seccion titulo="Artistas">
+            <GridArtistas artistas={data.artistas} />
+          </Seccion>
+        </div>
+      )
+    }
+    if (grupo === 'albumes') {
+      return (
+        <div className={styles.sections}>
+          <Seccion titulo="Álbumes">
+            <GridAlbumes albumes={data.albumes} />
+          </Seccion>
+        </div>
+      )
+    }
+    return (
+      <div className={styles.sections}>
+        <Seccion titulo="Playlists">
+          <GridPlaylists playlists={data.playlists} />
+        </Seccion>
+      </div>
+    )
+  }
+
   const mejor = data.tracks[0]
 
   return (
@@ -90,7 +151,7 @@ function Resultados({ data }: { data: { tracks: SearchTrack[]; artistas: SearchA
       {mejor && <MejorResultado track={mejor} queue={data.tracks} />}
 
       {data.tracks.length > 0 && (
-        <Seccion titulo="Canciones">
+        <Seccion titulo="Canciones" verMas={`/buscar?q=${encodeURIComponent(q)}&grupo=canciones`}>
           <ul className={styles.list}>
             {data.tracks.map((t, i) => <TrackRow key={t.fact_id} track={t} queue={data.tracks} index={i} />)}
           </ul>
@@ -98,65 +159,88 @@ function Resultados({ data }: { data: { tracks: SearchTrack[]; artistas: SearchA
       )}
 
       {data.artistas.length > 0 && (
-        <Seccion titulo="Artistas">
-          <div className={styles.grid}>
-            {data.artistas.map((a) => (
-              <Link key={a.artist_id} to={`/catalogo/artista/${a.artist_id}`} className={styles.gridCard}>
-                <AlbumArt src={a.imagen_url} alt="" size={56} />
-                <div className={styles.gridInfo}>
-                  <span className={styles.gridName}>{a.name}</span>
-                  <span className={styles.gridMeta}>{a.track_count} canciones</span>
-                </div>
-              </Link>
-            ))}
-          </div>
+        <Seccion titulo="Artistas" verMas={`/buscar?q=${encodeURIComponent(q)}&grupo=artistas`}>
+          <GridArtistas artistas={data.artistas} />
         </Seccion>
       )}
 
       {data.albumes.length > 0 && (
-        <Seccion titulo="Álbumes">
-          <div className={styles.grid}>
-            {data.albumes.map((al) => (
-              <Link key={al.album_id} to={`/catalogo/album/${al.album_id}`} className={styles.gridCard}>
-                <AlbumArt src={al.imagen_url} alt="" size={56} />
-                <div className={styles.gridInfo}>
-                  <span className={styles.gridName}>{al.name}</span>
-                  <span className={styles.gridMeta}>
-                    {al.artist_name}{al.release_year ? ` · ${al.release_year}` : ''}
-                  </span>
-                </div>
-              </Link>
-            ))}
-          </div>
+        <Seccion titulo="Álbumes" verMas={`/buscar?q=${encodeURIComponent(q)}&grupo=albumes`}>
+          <GridAlbumes albumes={data.albumes} />
         </Seccion>
       )}
 
       {data.playlists.length > 0 && (
-        <Seccion titulo="Playlists">
-          <div className={styles.grid}>
-            {data.playlists.map((p) => (
-              <Link key={p.playlist_id} to="/biblioteca" className={styles.gridCard}>
-                <div className={styles.playlistIcon} aria-hidden="true">♪</div>
-                <div className={styles.gridInfo}>
-                  <span className={styles.gridName}>{p.name}</span>
-                  <span className={styles.gridMeta}>
-                    {p.es_propia ? 'Tuya' : 'Pública'}
-                  </span>
-                </div>
-              </Link>
-            ))}
-          </div>
+        <Seccion titulo="Playlists" verMas={`/buscar?q=${encodeURIComponent(q)}&grupo=playlists`}>
+          <GridPlaylists playlists={data.playlists} />
         </Seccion>
       )}
     </div>
   )
 }
 
-function Seccion({ titulo, children }: { titulo: string; children: React.ReactNode }) {
+function Seccion({ titulo, verMas, children }: { titulo: string; verMas?: string; children: React.ReactNode }) {
   return (
     <div className={styles.section}>
-      <p className={styles.sectionLabel}>{titulo}</p>
+      <p className={styles.sectionLabel}>
+        {titulo}
+        {verMas && (
+          <Link className={styles.verMas} to={verMas}>Ver más →</Link>
+        )}
+      </p>
       {children}
+    </div>
+  )
+}
+
+function GridArtistas({ artistas }: { artistas: SearchArtista[] }) {
+  return (
+    <div className={styles.grid}>
+      {artistas.map((a) => (
+        <Link key={a.artist_id} to={`/catalogo/artista/${a.artist_id}`} className={styles.gridCard}>
+          <AlbumArt src={a.imagen_url} alt="" size={56} />
+          <div className={styles.gridInfo}>
+            <span className={styles.gridName}>{a.name}</span>
+            <span className={styles.gridMeta}>{a.track_count} canciones</span>
+          </div>
+        </Link>
+      ))}
+    </div>
+  )
+}
+
+function GridAlbumes({ albumes }: { albumes: SearchAlbum[] }) {
+  return (
+    <div className={styles.grid}>
+      {albumes.map((al) => (
+        <Link key={al.album_id} to={`/catalogo/album/${al.album_id}`} className={styles.gridCard}>
+          <AlbumArt src={al.imagen_url} alt="" size={56} />
+          <div className={styles.gridInfo}>
+            <span className={styles.gridName}>{al.name}</span>
+            <span className={styles.gridMeta}>
+              {al.artist_name}{al.release_year ? ` · ${al.release_year}` : ''}
+            </span>
+          </div>
+        </Link>
+      ))}
+    </div>
+  )
+}
+
+function GridPlaylists({ playlists }: { playlists: SearchPlaylist[] }) {
+  return (
+    <div className={styles.grid}>
+      {playlists.map((p) => (
+        <Link key={p.playlist_id} to="/biblioteca" className={styles.gridCard}>
+          <div className={styles.playlistIcon} aria-hidden="true">♪</div>
+          <div className={styles.gridInfo}>
+            <span className={styles.gridName}>{p.name}</span>
+            <span className={styles.gridMeta}>
+              {p.es_propia ? 'Tuya' : 'Pública'}
+            </span>
+          </div>
+        </Link>
+      ))}
     </div>
   )
 }
