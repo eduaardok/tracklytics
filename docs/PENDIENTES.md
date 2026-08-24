@@ -1,13 +1,30 @@
 # Tracklytics — Pendientes
 
-> Última revisión: **Semana 16 (S16-P10)** — cierre de brechas P2 + hallazgos S16
-> abiertos. Auditoría previa (Explore) encontró que buena parte de lo listado como
+> Última revisión: **Semana 16 (S16-P11)** — cierre de hallazgos residuales
+> (feed sin tracks muertos, loaders shimmer restantes, sweep ErrorState,
+> staff ≠ cliente free). Auditoría previa (Explore) encontró que buena parte de lo listado como
 > pendiente ya estaba resuelto en código sin que este documento se hubiera actualizado
 > (search-all, radio/mix con similitud real de audio, export GDPR, A9/A10/A11, loaders
-> transversales, gaps de datos) — quedan tachados abajo con la evidencia. Lo que sí
-> faltaba de verdad (preferencias de notificación, email real, comprobante de
-> estudiante real, shuffle inteligente) se implementó en este lote. Detalles en
+> transversales, gaps de datos) — quedan tachados abajo con la evidencia. Detalles en
 > `docs/BITACORA_S16.md`.
+
+## Dónde queda la sesión (cierre 23 ago 2026)
+
+Todo lo cerrado está commiteado y desplegado (`docker cp` al contenedor frontend);
+últimos commits: `21971eb`..`1a8945d`. **Para retomar**: levantar Docker Desktop
+(`docker compose up -d` si los contenedores no arrancan solos) y continuar con el
+lote siguiente en este orden:
+
+1. **P13 — Ads con imagen + CTR por formato** (autorizado por stakeholder dentro del
+   bloque dinero congelado; ver detalle en "Brechas operativas P1" abajo).
+2. **P12 residual — lectura de datos de dinero ya autorizada**:
+   - `GET` admin de churn por motivo + serie temporal sobre `FACT_CANCELACION_SUSCRIPCION`
+     (el evento ya se escribe desde 4 flujos de suscripciones; falta la vista de lectura).
+   - Exports CSV (`text/csv` con BOM) de regalías y finanzas, reutilizando
+     `GANANCIAS_ARTISTA` y `/finanzas/reporte` (CU-O90); botón Exportar en `MisGananciasPage`.
+3. **P12 PDF** (columnas cortadas en rankings anchos, abierto desde S16-P3) — prioridad baja.
+4. Después, a criterio del stakeholder: brechas operativas P1 (ciclos de vida, denuncias,
+   bloqueos, strikes).
 
 ## Estado de la sesión S16
 
@@ -108,9 +125,10 @@
 3. ~~R2 analítica propia del artista~~ ✅ (S16-P9)
 4. ~~A9/A10/A11 (restos de auditoría visual de Analítica)~~ ✅ ya estaban resueltos, confirmado en S16-P10
 5. ~~Brechas de producto P2 + hallazgos S16 abiertos~~ ✅ (S16-P10)
-6. Aparte: P12 PDF y bloque dinero (cuando se descongele) ← **queda esto**
-7. Siguiente candidato natural: brechas operativas P1 (ver abajo) — ciclos de vida
-   incompletos, denuncias/bloqueos, `FACT_CANCELACION_SUSCRIPCION`, ads con imagen
+6. ~~Hallazgos residuales: feed disponible=1, loaders restantes, ErrorState, staff ≠ cliente free~~ ✅ (S16-P11)
+7. **P13 — Ads con imagen + CTR por formato** ← siguiente
+8. P12 residual (churn GET + exports CSV) y P12 PDF — ver "Dónde queda la sesión"
+9. Después, a criterio del stakeholder: brechas operativas P1 (abajo)
 
 ## Brechas operativas identificadas (P1)
 
@@ -124,14 +142,23 @@
 - [ ] Denuncias/reportes de contenido por usuarios
 - [ ] Bloqueo usuario-a-usuario
 - [ ] Historial de sanciones/strikes por usuario
-- [ ] `FACT_CANCELACION_SUSCRIPCION` (evento de churn dedicado)
-- [ ] Diferenciación de formato de ads (audio vs. display)
-- [ ] **Ads con imagen (idea stakeholder, 23 ago 2026)**: permitir que las campañas de
-      publicidad carguen la URL de una imagen/banner; cuando aparezca un ad en el player,
-      mostrar ese banner en vez del solo audio. Requiere: campo `imagen_url` en
-      DIM_CAMPANA (o DIM_ANUNCIANTE), validación de URL en el CRUD admin, y render en el
-      componente de anuncios del PlayerBar.
-- [ ] Exportación agregada para `regalias`/`finanzas`
+- [x] ~~`FACT_CANCELACION_SUSCRIPCION` (evento de churn dedicado)~~ ✅ el evento existe y
+      se escribe desde los 4 flujos de suscripciones; falta solo la **vista de lectura
+      admin** — movida a "P12 residual" arriba.
+- [ ] **P13 — Ads con imagen (idea stakeholder, 23 ago 2026) + CTR por formato** —
+      siguiente lote planificado. Alcance: campo `imagen_url Nullable(String)` en
+      `DIM_CAMPANA_PUBLICITARIA` (ALTER estilo `init_clickhouse.py:1109`), validación
+      condicional (solo campañas `display`) en el CRUD Pydantic de
+      `publicidad/router.py`, render del banner en el overlay `AdContext`/`AdBanner`,
+      y desglose de CTR por formato (audio vs display) en `ingresos_por_campana_sql`
+      y `PublicidadAdminPage`.
+- [ ] **Exportación agregada para `regalias`/`finanzas` (P12 residual)** — CSV
+      (`text/csv` con BOM para Excel) reutilizando `GANANCIAS_ARTISTA` y
+      `/finanzas/reporte` (CU-O90); botón Exportar en `MisGananciasPage`. Autorizado
+      dentro del bloque dinero congelado (solo lectura/exportación).
+- [ ] **Vista admin de churn por motivo (P12 residual)** — `GET` sobre
+      `FACT_CANCELACION_SUSCRIPCION` (motivo + serie temporal); el evento ya se escribe
+      desde 4 flujos de suscripciones. Autorizada como lectura.
 
 ## Brechas de producto (P2)
 
