@@ -439,6 +439,72 @@ ORDER BY (__DISTANCIA__) ASC, track_name ASC
 LIMIT {limit:UInt32}
 """.replace("__DISTANCIA__", _DISTANCIA_AUDIO)
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Co-reproducción (S16-P10, brecha P2 "recomendaciones por similitud real"):
+# hasta acá toda la "similitud" era acústica (distancia entre atributos de
+# audio). Esta query agrega la señal COLABORATIVA que faltaba: tracks que la
+# gente que reproduce lo mismo que tú también reproduce — filtrado colaborativo
+# implícito por co-ocurrencia de reproducción (item-to-item), sin ML.
+#
+# Dos pasas sobre FACT_ENGAGEMENT_USUARIO (~1M filas, ordenada por user_id):
+#   1. `colegas`: usuarios distintos al mío con ≥1 reproducción de alguna de
+#      mis semillas (≤100 fact_ids más recientes de mi historial);
+#   2. sus reproducciones agregadas uniqExact(user_id) — el IN implícito del
+#      join poda granulas por user_id (el ORDER BY nativo de la tabla).
+# El LIMIT interno (`limit_colegas` candidatos) acota la pasada final antes de
+# resolver fichas contra FACT_TRACKS. Medido contra el usuario más pesado real
+# (bf_000000, 394 reproducciones): pipeline completo ≈0.5s.
+#
+# Excluye lo ya conocido ({excluidos} = favoritos+escuchados, mismo criterio de
+# "Hecho para ti"), piso de popularidad y source_type != synthetic iguales al
+# resto; deduplica por (track_name, artista) como todas las queries del paquete,
+# conservando max(oyentes) del grupo colapsado.
+CO_REPRODUCIDOS_DE_SEMILLAS = """
+WITH
+    semillas AS (
+        SELECT DISTINCT e1.fact_id
+        FROM FACT_ENGAGEMENT_USUARIO e1
+        WHERE e1.user_id = {usuario_id:String}
+          AND e1.event_type = 'reproduccion'
+          AND e1.fact_id IN {semillas:Array(UInt64)}
+    ),
+    colegas AS (
+        SELECT DISTINCT e1.user_id
+        FROM semillas s
+        INNER JOIN FACT_ENGAGEMENT_USUARIO e1 ON e1.fact_id = s.fact_id
+        WHERE e1.event_type = 'reproduccion'
+          AND e1.user_id != {usuario_id:String}
+    )
+SELECT
+    min(ft.fact_id)                                                      AS fact_id,
+    any(ft.track_id)                                                     AS track_id,
+    ft.track_name                                                        AS track_name,
+    a.name                                                               AS artist_name,
+    arrayStringConcat(groupUniqArray(g.name), ' / ')                     AS genre_name,
+    coalesce(any(ft.imagen_url), any(al.imagen_url), any(a.imagen_url))  AS imagen_url,
+    max(co.oyentes)                                                      AS oyentes
+FROM (
+    SELECT e2.fact_id, uniqExact(e2.user_id) AS oyentes
+    FROM colegas c
+    INNER JOIN FACT_ENGAGEMENT_USUARIO e2 ON e2.user_id = c.user_id
+    WHERE e2.event_type = 'reproduccion'
+      AND e2.fact_id NOT IN {excluidos:Array(UInt64)}
+    GROUP BY e2.fact_id
+    ORDER BY oyentes DESC
+    LIMIT {limit_colegas:UInt32}
+) AS co
+INNER JOIN FACT_TRACKS ft ON ft.fact_id = co.fact_id
+JOIN DIM_ARTISTS a ON ft.artist_id = a.artist_id
+JOIN DIM_ALBUMS al ON ft.album_id  = al.album_id
+JOIN DIM_GENRES g  ON ft.genre_id  = g.genre_id
+WHERE ft.disponible = 1
+  AND ft.popularity >= {popularidad_min:UInt8}
+  AND ft.source_type != 'synthetic'
+GROUP BY ft.track_name, a.name
+ORDER BY oyentes DESC, track_name ASC
+LIMIT {limit:UInt32}
+"""
+
 # (GENERO_DOMINANTE_USUARIO eliminado en S16-P7 — sustituido por
 # GENERO_DOMINANTE_DE_FACT_IDS, arriba, que poda con IN en vez de escanear.)
 

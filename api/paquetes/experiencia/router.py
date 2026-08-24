@@ -17,6 +17,7 @@ from paquetes.experiencia.deps import (
 )
 from paquetes.experiencia.queries import (
     AB_TESTS_RESUMEN,
+    CO_REPRODUCIDOS_DE_SEMILLAS,
     COUNT_MIEMBROS_SUSCRIPCION,
     FAMILIAS_RESUMEN,
     FEATURES_DE_FACT_IDS,
@@ -259,7 +260,7 @@ def obtener_recomendaciones(limit: int = Query(10, ge=1, le=50), user: dict = De
     # Las señales derivadas son queries independientes — corren en paralelo
     # (S16-P7): antes encadenaban secuencialmente y el endpoint completo
     # tardaba ~10.5s; el muro ahora es la query más lenta, no su suma.
-    with ThreadPoolExecutor(max_workers=4) as ex:
+    with ThreadPoolExecutor(max_workers=5) as ex:
         f_perfil    = ex.submit(query_one, FEATURES_DE_FACT_IDS, {"fact_ids": sen["perfil_ids"]})
         f_generos   = ex.submit(query_rows, GENEROS_DE_FACT_IDS, {"fact_ids": sen["escuchados"], "limit": 5})
         f_dominante = ex.submit(query_one, GENERO_DOMINANTE_DE_FACT_IDS, {"fact_ids": sen["dominante_ids"]})
@@ -269,6 +270,23 @@ def obtener_recomendaciones(limit: int = Query(10, ge=1, le=50), user: dict = De
         f_redescubre = (
             ex.submit(query_rows, TRACKS_RESUMEN_DE_FACT_IDS, {"fact_ids": ids_redescubre})
             if ids_redescubre else None
+        )
+        # Co-reproducción (S16-P10): señal colaborativa real — solo si hay
+        # historial de reproducción que hacer de semilla.
+        f_co = (
+            ex.submit(
+                query_rows,
+                CO_REPRODUCIDOS_DE_SEMILLAS,
+                {
+                    "usuario_id": usuario_id,
+                    "semillas": sen["escuchados"][:100],
+                    "excluidos": excluidos,
+                    "popularidad_min": POPULARIDAD_MIN_CANDIDATOS,
+                    "limit_colegas": min(limit * 4, 48),
+                    "limit": limit,
+                },
+            )
+            if sen["escuchados"] else None
         )
 
         perfil = f_perfil.result() or {}
@@ -312,6 +330,18 @@ def obtener_recomendaciones(limit: int = Query(10, ge=1, le=50), user: dict = De
             "id": "hecho_para_ti", "titulo": "Hecho para ti",
             "data": _registrar_impresiones(usuario_id, algoritmo, tracks, motivo),
         })
+
+        # 1b. Escuchadas por tu gente (S16-P10): co-reproducción real —
+        # ausente si el usuario no tiene reproducciones o no hay co-oyentes.
+        filas_co = (f_co.result() or []) if f_co is not None else []
+        if filas_co:
+            secciones.append({
+                "id": "escuchadas_por_tu_gente", "titulo": "Escuchadas por tu gente",
+                "data": _registrar_impresiones(
+                    usuario_id, "co_ocurrencia", filas_co,
+                    "quienes comparten tus gustos lo están escuchando",
+                ),
+            })
 
         # 2. Novedades de artistas que sigues — ausente si no sigue a nadie o no
         # hay tracks nuevos, no una sección vacía.
