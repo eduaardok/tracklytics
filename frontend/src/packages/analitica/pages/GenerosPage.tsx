@@ -6,6 +6,7 @@ import { AudioRadarChart, RADAR_COLOR_A } from '../components/AudioRadarChart'
 import { genreToAudioValues } from '../lib/audioFeatures'
 import { SkeletonChart } from '@shared/components/SkeletonLoader'
 import styles from './GenerosPage.module.css'
+import { ErrorState } from '@shared/components/ErrorState'
 
 const fmt    = (n: number)     => n.toLocaleString('es-ES')
 const fmtDec = (n: number, d = 2) => n.toFixed(d)
@@ -54,9 +55,7 @@ export function GenerosPage() {
       </div>
 
       {generosQuery.isError && (
-        <div className={styles.panel}>
-          <p className={styles.panelError}>No se pudo cargar la lista de géneros.</p>
-        </div>
+        <ErrorState message="No se pudo cargar la lista de géneros." />
       )}
 
       {generoId === null && !generosQuery.isError && (
@@ -70,9 +69,7 @@ export function GenerosPage() {
       )}
 
       {generoId !== null && perfilQuery.isError && (
-        <div className={styles.panel}>
-          <p className={styles.panelError}>No se pudo cargar el perfil de este género.</p>
-        </div>
+        <ErrorState message="No se pudo cargar el perfil de este género." />
       )}
 
       {perfil && (

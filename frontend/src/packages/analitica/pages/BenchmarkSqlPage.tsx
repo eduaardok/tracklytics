@@ -2,6 +2,7 @@ import { useMutation, useQuery } from '@tanstack/react-query'
 import { Gauge } from 'lucide-react'
 import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { EmptyState } from '@shared/components/EmptyState'
+import { ErrorState } from '@shared/components/ErrorState'
 import { KPICard } from '@shared/components/KPICard'
 import { SkeletonCard } from '@shared/components/SkeletonLoader'
 import { apiErrorMessage } from '@shared/lib/api-client'
@@ -141,9 +142,7 @@ export function BenchmarkSqlPage() {
           {Array.from({ length: 3 }).map((_, i) => <SkeletonCard key={i} height={140} />)}
         </div>
       )}
-      {informes.isError && (
-        <div className={styles.panel}><p className={styles.errorText}>No se pudieron cargar los informes disponibles.</p></div>
-      )}
+      {informes.isError && <ErrorState message="No se pudieron cargar los informes disponibles." />}
 
       {!informes.isLoading && data.length === 0 && (
         <EmptyState icon="◔" title="Sin informes de benchmark" body="No hay informes configurados para medir." />

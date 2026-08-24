@@ -7,6 +7,7 @@ import { TierUpsell } from '../components/TierUpsell'
 import { tierInsuficienteInfo } from '../lib/tierError'
 import type { ArtistSearchResult, TrackSearchResult, EngagementData, EngagementByArtist, EngagementByFact, DesempenoRelativo } from '../types'
 import styles from './EngagementPage.module.css'
+import { ErrorState } from '@shared/components/ErrorState'
 
 // ── Types ────────────────────────────────────────────────────────────────────
 type EntityType = 'artista' | 'track'
@@ -334,13 +335,19 @@ export function EngagementPage() {
       </div>
 
       {/* ── Result area ── */}
+      {/* S16-P11: caja de error local -> ErrorState compartido (el botón de
+          reintentar viaja dentro del message, que acepta ReactNode). */}
       {searchQuery.isError && !selection && (
-        <div className={styles.panel}>
-          <p className={styles.panelError}>Error al buscar — la API respondió con un error.</p>
-          <button className={styles.retryBtn} onClick={() => searchQuery.refetch()}>
-            Reintentar
-          </button>
-        </div>
+        <ErrorState
+          message={
+            <>
+              Error al buscar — la API respondió con un error.{' '}
+              <button className={styles.retryBtn} onClick={() => searchQuery.refetch()}>
+                Reintentar
+              </button>
+            </>
+          }
+        />
       )}
 
       {!selection && !searchQuery.isError && (
@@ -356,9 +363,7 @@ export function EngagementPage() {
         ranking.isLoading ? (
           <PanelSkeleton rows={6} />
         ) : ranking.isError ? (
-          <div className={styles.panel}>
-            <p className={styles.panelError}>No se pudo cargar el ranking de engagement.</p>
-          </div>
+          <ErrorState message="No se pudo cargar el ranking de engagement." />
         ) : ranking.data && ranking.data.data.length > 0 ? (
           <div className={styles.panel}>
             <div className={styles.panelHead}>
@@ -412,9 +417,7 @@ export function EngagementPage() {
       {selection && engLoading && <PanelSkeleton />}
 
       {selection && engError && (
-        <div className={styles.panel}>
-          <p className={styles.panelError}>No se pudieron cargar los datos de engagement.</p>
-        </div>
+        <ErrorState message="No se pudieron cargar los datos de engagement." />
       )}
 
       {selection && !engLoading && !engError && engagement && (

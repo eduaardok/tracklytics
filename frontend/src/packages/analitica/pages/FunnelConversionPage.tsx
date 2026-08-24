@@ -5,6 +5,7 @@ import { ExportPDFButton } from '@shared/components/ExportPDFButton'
 import { analiticaApi } from '../api/analitica.api'
 import { SkeletonChart } from '@shared/components/SkeletonLoader'
 import styles from './FunnelConversionPage.module.css'
+import { ErrorState } from '@shared/components/ErrorState'
 
 function isoMesesAtras(n: number): string {
   const d = new Date()
@@ -56,9 +57,7 @@ export function FunnelConversionPage() {
       {funnel.isLoading && <div className={styles.panel}><SkeletonChart height={160} /></div>}
 
       {funnel.isError && (
-        <div className={styles.panel}>
-          <p className={styles.panelError}>No se pudo cargar el funnel de conversión.</p>
-        </div>
+        <ErrorState message="No se pudo cargar el funnel de conversión." />
       )}
 
       {funnel.data && (

@@ -5,6 +5,7 @@ import { EmptyState } from '@shared/components/EmptyState'
 import { analiticaApi } from '../api/analitica.api'
 import { SkeletonChart } from '@shared/components/SkeletonLoader'
 import styles from './ChurnPage.module.css'
+import { ErrorState } from '@shared/components/ErrorState'
 
 function isoMesesAtras(n: number): string {
   const d = new Date()
@@ -51,9 +52,7 @@ export function ChurnPage() {
       {churn.isLoading && <div className={styles.panel}><SkeletonChart height={160} /></div>}
 
       {churn.isError && (
-        <div className={styles.panel}>
-          <p className={styles.panelError}>No se pudo cargar la tasa de churn.</p>
-        </div>
+        <ErrorState message="No se pudo cargar la tasa de churn." />
       )}
 
       {!churn.isLoading && !churn.isError && meses.length === 0 && (

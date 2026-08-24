@@ -10,6 +10,7 @@ import { analiticaApi } from '../api/analitica.api'
 import type { TendenciaSemana } from '../types'
 import { SkeletonChart } from '@shared/components/SkeletonLoader'
 import styles from './TendenciasPage.module.css'
+import { ErrorState } from '@shared/components/ErrorState'
 
 const TREND_COLOR = 'oklch(0.70 0.14 195)' // --color-accent — trend/series único, sin necesidad de la paleta categórica
 
@@ -155,9 +156,7 @@ export function TendenciasPage() {
       {tendencias.isLoading && <div className={styles.panel}><SkeletonChart height={200} /></div>}
 
       {tendencias.isError && (
-        <div className={styles.panel}>
-          <p className={styles.panelError}>No se pudieron cargar las tendencias.</p>
-        </div>
+        <ErrorState message="No se pudieron cargar las tendencias." />
       )}
 
       {!tendencias.isLoading && !tendencias.isError && data.length === 0 && (

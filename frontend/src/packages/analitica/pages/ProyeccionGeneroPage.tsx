@@ -9,6 +9,7 @@ import { TierUpsell } from '../components/TierUpsell'
 import { tierInsuficienteInfo } from '../lib/tierError'
 import { SkeletonChart } from '@shared/components/SkeletonLoader'
 import styles from './ProyeccionGeneroPage.module.css'
+import { ErrorState } from '@shared/components/ErrorState'
 
 // Panel predictivo exclusivo Enterprise (CU-O92, b2b-tier-access-analitica):
 // extrapolación estadística simple (regresión lineal) sobre la serie semanal
@@ -86,9 +87,7 @@ export function ProyeccionGeneroPage() {
         tierInfo ? (
           <TierUpsell tierRequerido={tierInfo.tierRequerido} tierActual={tierInfo.tierActual} />
         ) : (
-          <div className={styles.panel}>
-            <p className={styles.panelError}>No se pudo calcular la proyección de este género.</p>
-          </div>
+          <ErrorState message="No se pudo calcular la proyección de este género." />
         )
       )}
 

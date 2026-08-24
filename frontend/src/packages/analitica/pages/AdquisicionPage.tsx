@@ -9,6 +9,7 @@ import { EmptyState } from '@shared/components/EmptyState'
 import type { AdquisicionCanal } from '../types'
 import { SkeletonChart } from '@shared/components/SkeletonLoader'
 import styles from './AdquisicionPage.module.css'
+import { ErrorState } from '@shared/components/ErrorState'
 
 // Tabla (no gráfico de barras apiladas) — evita introducir una paleta
 // categórica nueva de 4 colores sin pasar por la validación de contraste del
@@ -113,9 +114,7 @@ export function AdquisicionPage() {
         tierInfo ? (
           <TierUpsell tierRequerido={tierInfo.tierRequerido} tierActual={tierInfo.tierActual} />
         ) : (
-          <div className={styles.panel}>
-            <p className={styles.panelError}>No se pudo cargar la adquisición de usuarios.</p>
-          </div>
+          <ErrorState message="No se pudo cargar la adquisición de usuarios." />
         )
       )}
 

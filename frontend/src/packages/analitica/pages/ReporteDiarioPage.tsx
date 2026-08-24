@@ -5,6 +5,7 @@ import { EmptyState } from '@shared/components/EmptyState'
 import { analiticaApi } from '../api/analitica.api'
 import { SkeletonChart } from '@shared/components/SkeletonLoader'
 import styles from './ReporteDiarioPage.module.css'
+import { ErrorState } from '@shared/components/ErrorState'
 
 const fmt = (n: number) => n.toLocaleString('es-ES')
 
@@ -57,9 +58,7 @@ export function ReporteDiarioPage() {
       {reporte.isLoading && <div className={styles.panel}><SkeletonChart height={160} /></div>}
 
       {reporte.isError && (
-        <div className={styles.panel}>
-          <p className={styles.panelError}>No se pudo cargar el reporte diario.</p>
-        </div>
+        <ErrorState message="No se pudo cargar el reporte diario." />
       )}
 
       {data && (

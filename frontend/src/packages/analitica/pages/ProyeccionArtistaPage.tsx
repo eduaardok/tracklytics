@@ -10,6 +10,7 @@ import { TierUpsell } from '../components/TierUpsell'
 import { tierInsuficienteInfo } from '../lib/tierError'
 import { SkeletonChart } from '@shared/components/SkeletonLoader'
 import styles from './ProyeccionArtistaPage.module.css'
+import { ErrorState } from '@shared/components/ErrorState'
 
 const TRAYECTORIA_LABEL: Record<string, string> = {
   ganando_terreno:    'Ganando terreno frente a su género',
@@ -81,11 +82,7 @@ export function ProyeccionArtistaPage() {
         tierInfo ? (
           <TierUpsell tierRequerido={tierInfo.tierRequerido} tierActual={tierInfo.tierActual} />
         ) : (
-          <div className={styles.panel}>
-            <p className={styles.panelError}>
-              No se pudo calcular la proyección — puede que el artista no tenga tracks registrados.
-            </p>
-          </div>
+          <ErrorState message="No se pudo calcular la proyección — puede que el artista no tenga tracks registrados." />
         )
       )}
 

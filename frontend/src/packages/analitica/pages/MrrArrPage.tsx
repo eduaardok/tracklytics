@@ -7,6 +7,7 @@ import { ExportPDFButton } from '@shared/components/ExportPDFButton'
 import { analiticaApi } from '../api/analitica.api'
 import { SkeletonChart } from '@shared/components/SkeletonLoader'
 import styles from './MrrArrPage.module.css'
+import { ErrorState } from '@shared/components/ErrorState'
 
 function isoMesesAtras(n: number): string {
   const d = new Date()
@@ -56,9 +57,7 @@ export function MrrArrPage() {
       {mrr.isLoading && <div className={styles.panel}><SkeletonChart height={220} /></div>}
 
       {mrr.isError && (
-        <div className={styles.panel}>
-          <p className={styles.panelError}>No se pudo cargar MRR/ARR.</p>
-        </div>
+        <ErrorState message="No se pudo cargar MRR/ARR." />
       )}
 
       {mrr.data && (

@@ -10,6 +10,7 @@ import { analiticaApi } from '../api/analitica.api'
 import type { DisponibilidadComponente } from '../types'
 import { SkeletonChart } from '@shared/components/SkeletonLoader'
 import styles from './DisponibilidadInfraPage.module.css'
+import { ErrorState } from '@shared/components/ErrorState'
 
 // Nombre del archivo/componente deliberadamente distinto de `DisponibilidadPage`
 // (capability `distribucion`, restricción geográfica de reproducción) — mismo
@@ -104,9 +105,7 @@ export function DisponibilidadInfraPage() {
       {disponibilidad.isLoading && <div className={styles.panel}><SkeletonChart height={200} /></div>}
 
       {disponibilidad.isError && (
-        <div className={styles.panel}>
-          <p className={styles.panelError}>No se pudo cargar la salud del sistema.</p>
-        </div>
+        <ErrorState message="No se pudo cargar la salud del sistema." />
       )}
 
       {!disponibilidad.isLoading && !disponibilidad.isError && componentes.length === 0 && (

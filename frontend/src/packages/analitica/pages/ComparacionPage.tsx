@@ -10,6 +10,7 @@ import { tierInsuficienteInfo } from '../lib/tierError'
 import type { ArtistAudioStats, ArtistSearchResult } from '../types'
 import { SkeletonChart } from '@shared/components/SkeletonLoader'
 import styles from './ComparacionPage.module.css'
+import { ErrorState } from '@shared/components/ErrorState'
 
 // Los `avg_*` de audio pueden ser `null` (artista sin tracks propios, ver
 // comentario en types.ts — bug real de S16 Prompt 05: esto tiraba abajo
@@ -71,9 +72,7 @@ export function ComparacionPage() {
         tierInfo ? (
           <TierUpsell tierRequerido={tierInfo.tierRequerido} tierActual={tierInfo.tierActual} />
         ) : (
-          <div className={styles.panel}>
-            <p className={styles.panelError}>No se pudo cargar la comparación.</p>
-          </div>
+          <ErrorState message="No se pudo cargar la comparación." />
         )
       )}
 

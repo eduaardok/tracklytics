@@ -10,6 +10,7 @@ import { tierInsuficienteInfo } from '../lib/tierError'
 import type { ArtistSearchResult } from '../types'
 import { SkeletonChart } from '@shared/components/SkeletonLoader'
 import styles from './ArtistaBenchmarkPage.module.css'
+import { ErrorState } from '@shared/components/ErrorState'
 
 const fmt    = (n: number)     => n.toLocaleString('es-ES')
 const fmtDec = (n: number)     => n.toFixed(4)
@@ -56,11 +57,7 @@ export function ArtistaBenchmarkPage() {
         tierInfo ? (
           <TierUpsell tierRequerido={tierInfo.tierRequerido} tierActual={tierInfo.tierActual} />
         ) : (
-          <div className={styles.panel}>
-            <p className={styles.panelError}>
-              No se pudo calcular el benchmark — puede que el artista no tenga tracks registrados.
-            </p>
-          </div>
+          <ErrorState message="No se pudo calcular el benchmark — puede que el artista no tenga tracks registrados." />
         )
       )}
 
