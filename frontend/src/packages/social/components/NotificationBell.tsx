@@ -6,52 +6,12 @@ import { isAuthenticated } from '@shared/lib/session'
 import { EmptyState } from '@shared/components/EmptyState'
 import { socialApi } from '../api/social.api'
 import type { Notificacion } from '../types'
+// Componente extraído (S16-P10): también lo usa ProfilePage como sección de
+// cuenta — ver PreferenciasNotificacion.tsx.
+import { PreferenciasNotificacion } from './PreferenciasNotificacion'
 import styles from './NotificationBell.module.css'
 
 const QUERY_KEY = ['social', 'notificaciones']
-const PREFS_QUERY_KEY = ['social', 'notificaciones', 'preferencias']
-
-// Etiqueta en español por tipo — mismo criterio del glosario técnico (S16-P4,
-// InfoHint): el `Enum8` del backend usa los nombres internos, la UI muestra
-// texto legible.
-const TIPO_LABEL: Record<string, string> = {
-  nuevo_track_artista_seguido: 'Nuevo track de un artista que sigues',
-  comentario_en_tu_contenido:  'Comentarios en tu contenido',
-  nuevo_colaborador_playlist:  'Nuevo colaborador en tu playlist',
-}
-
-function PreferenciasNotificacion() {
-  const queryClient = useQueryClient()
-  const { data, isLoading } = useQuery({
-    queryKey: PREFS_QUERY_KEY,
-    queryFn:  () => socialApi.preferenciasNotificacion(),
-  })
-  const actualizar = useMutation({
-    mutationFn: ({ tipo, activo }: { tipo: string; activo: boolean }) =>
-      socialApi.actualizarPreferenciaNotificacion(tipo, activo),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: PREFS_QUERY_KEY }),
-  })
-
-  if (isLoading) return <p className={styles.prefsHint}>Cargando preferencias…</p>
-
-  return (
-    <ul className={styles.prefsList}>
-      {(data?.data ?? []).map((p) => (
-        <li key={p.tipo} className={styles.prefsRow}>
-          <span>{TIPO_LABEL[p.tipo] ?? p.tipo}</span>
-          <label className={styles.prefsSwitch}>
-            <input
-              type="checkbox"
-              checked={p.activo}
-              onChange={(e) => actualizar.mutate({ tipo: p.tipo, activo: e.target.checked })}
-            />
-            <span className={styles.prefsSlider} aria-hidden="true" />
-          </label>
-        </li>
-      ))}
-    </ul>
-  )
-}
 
 // Campana de notificaciones (S10 ronda 2, punto 1) — montada directo en
 // AppShell.tsx por ruta explícita (no vía el barrel `@packages/social`, que

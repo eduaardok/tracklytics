@@ -15,9 +15,12 @@ import { usePlanActivo } from '@packages/suscripciones'
 import { experienciaApi } from '@packages/experiencia/api/experiencia.api'
 // Import directo, no vía el barrel `@packages/social` (arrastraría
 // ModeracionSocialPage con Recharts al bundle principal — ver router.tsx).
+// El componente de preferencias es archivo propio sin Recharts: import directo
+// seguro para una ruta eager.
 import { socialApi } from '@packages/social/api/social.api'
+import { PreferenciasNotificacion } from '@packages/social/components/PreferenciasNotificacion'
 import type { MiFamilia } from '@packages/experiencia/types'
-import { AlertTriangle, Ban, Download, Globe, ShieldCheck, Smartphone, User, Users } from 'lucide-react'
+import { AlertTriangle, Ban, Bell, Download, Globe, ShieldCheck, Smartphone, User, Users } from 'lucide-react'
 import { EmptyState } from '@shared/components/EmptyState'
 import { authApi } from '../api/auth.api'
 import { SkeletonLoader } from '@shared/components/SkeletonLoader'
@@ -550,6 +553,19 @@ export function ProfilePage() {
           p2-descubrimiento-comunidad): ambos son control del usuario sobre su
           propia cuenta, así que van justo antes de la zona de baja. */}
       <UsuariosBloqueadosSection />
+
+      {/* Preferencias de notificación como sección de cuenta (S16-P10): el
+          mismo ajuste vivía solo dentro del panel de la campanita — un ajuste
+          persistente pertenece al perfil. Componente compartido con la
+          campana: cambiar un switch en cualquiera de los dos lugares se
+          refleja en el otro (misma query key). */}
+      <div className={styles.familiaSection} style={{ animationDelay: '230ms' }}>
+        <h2 className={styles.sectionTitle}><Bell size={17} aria-hidden="true" /> Notificaciones</h2>
+        <p className={styles.note}>
+          Elige qué quieres que te avisemos. Puedes volver a activarlos cuando quieras.
+        </p>
+        <PreferenciasNotificacion />
+      </div>
 
       <div className={styles.familiaSection} style={{ animationDelay: '240ms' }}>
         <h2 className={styles.sectionTitle}><Download size={17} aria-hidden="true" /> Mis datos personales</h2>
