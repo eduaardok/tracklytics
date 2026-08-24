@@ -106,6 +106,11 @@ GROUP BY tipo
 # Usados por `notificaciones.crear*` para no insertar una notificación que el
 # destinatario desactivó. `usuario_ids` viaja como Array(String) para poder
 # filtrar en batch a los seguidores de un artista en una sola consulta.
+# Hotfix S16-P10: el ORDER BY referenciaba `n.fecha_creacion` (alias que no
+# existe acá — copy-paste de NOTIFICACIONES_ADMIN) y ClickHouse rechazaba la
+# query completa con UNKNOWN_IDENTIFIER; como no hay try/except en el helper,
+# CUALQUIER creación de notificación/comentario fallaba con 500 desde que
+# entró el opt-out. Verificado contra el servidor antes y después del fix.
 PREFERENCIAS_DESACTIVADAS_DE_USUARIOS = """
 SELECT usuario_id FROM (
     SELECT usuario_id, argMax(activo, actualizado_en) AS activo
@@ -113,7 +118,6 @@ SELECT usuario_id FROM (
     WHERE usuario_id IN {usuario_ids:Array(String)} AND tipo = {tipo:String}
     GROUP BY usuario_id
 ) WHERE activo = 0
-ORDER BY n.fecha_creacion DESC
 LIMIT 200
 """
 
