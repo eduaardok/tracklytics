@@ -1038,3 +1038,27 @@ pm run build limpios (21s); deploy
   resueltos (como hace uthApi.login) - inyectar el record crudo de PocketBase hace que
   RequireAuth redirija a /.
 
+
+### Adenda (feedback stakeholder): el staff ya no se trata como Cliente B2C free
+
+Navegando como superadmin@demo.tracklytics.com aparecian residuos del flujo B2C:
+paywall "Seccion exclusiva Premium / Actualizar a Premium" en el detalle de track,
+franja de publicidad en el home, intersticial de anuncio al reproducir, y en el
+perfil los chips "Cliente B2C" / "Plan free". Causa raiz unica: varios puntos
+decidian "admin" mirando SOLO el ole crudo de PocketBase, que para el
+superadmin demo y las 6 cuentas dmin_* vale "user" (el rol real viaja por
+BRIDGE_USUARIO_ROL_ADMIN y llega como esAdmin en la sesion).
+
+- Frontend: usePlanActivo ahora resuelve esAdmin con ole==='admin' OR
+  getUser()?.esAdmin -> tipoPlan 'admin' => sin paywall (TrackDetailPage), sin
+  franja de ads (AppShell), perfil sin chip de plan. AppShell oculta "Mi Plan"
+  tambien para staff por BRIDGE. El hero del perfil usa olesDeUsuario
+  (Superadmin / Admin <area> / Staff interno) en vez de "Cliente B2C".
+- Backend: equire_active_subscription (suscripciones/deps.py) exime al staff
+  con rol vigente en BRIDGE, no solo al bootstrap - verificado: superadmin 200
+  en /tracks/fact/{id}/audio-features, usuario free sigue en 403.
+  _usuario_exento_de_ads (publicidad/router.py) tambien exime al staff ->
+  POST /publicidad/impresion no devuelve campana.
+
+Verificacion E2E con Playwright como superadmin: 0 paywall, 0 "Cliente B2C",
+0 "Plan free", chip staff OK, sin franja de anuncios; 0 errores JS.

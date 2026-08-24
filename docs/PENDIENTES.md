@@ -51,6 +51,12 @@
   `analyst@demo` verificada sana E2E; errores de query de las 15 páginas de analítica + 3 de
   ingesta migrados a `ErrorState` (mutaciones/formularios quedan como feedback de acción).
   Ver bitácora S16-P11.
+- ✅ **El staff ya no se trata como Cliente B2C free (S16-P11 adenda, feedback stakeholder)**:
+  superadmin/admin_* ya no ven paywall "Sección exclusiva Premium", anuncios, ni
+  "Cliente B2C / Plan free" en su perfil — la causa era decidir "admin" por el `role`
+  crudo de PocketBase en `usePlanActivo`, `require_active_subscription` y
+  `_usuario_exento_de_ads`; todos resuelven ahora por BRIDGE (`esAdmin` /
+  `roles_admin_vigentes`).
 
 ## Deuda técnica conocida
 
