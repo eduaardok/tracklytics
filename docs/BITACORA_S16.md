@@ -984,3 +984,57 @@ inyectar sesion con ddInitScript (corre antes del boot en cada navegacion).
 - rontend/src/packages/social/components/PreferenciasNotificacion.tsx (nuevo),
   components/NotificationBell.tsx, packages/seguridad/pages/ProfilePage.tsx.
 - docs/PENDIENTES.md, docs/BITACORA_S16.md - este cierre.
+
+---
+
+## S16-P11 - Loaders residuales, feed sin tracks muertos y sweep ErrorState (23 ago 2026)
+
+### Hallazgo 1: feed mostraba actividad de tracks retirados
+
+FEED_ACTIVIDAD_SEGUIDOS (social/queries.py) unia FACT_COMENTARIO/FACT_COMPARTICION con
+FACT_TRACKS sin filtrar disponible = 1: el feed podia listar comentarios/comparticiones de
+tracks retirados cuyo detalle da 404. Fix en ambas ramas del UNION ALL (comentario y
+comparticion), mismo criterio que las queries de catalogo/experiencia.
+
+### Hallazgo 2: seed analyst@demo
+
+Verificado E2E (no solo en doc): PB auth OK, email_verificado=True, suscripcion activa
+(plan basico). No requirió fix - confirmado sano tras cb20550.
+
+### Hallazgo 3: loaders residuales (~9 puntos fuera del alcance de S16-P5)
+
+- EtlPage: los paneles Energy/Valence/Danceability quedaban EN BLANCO mientras cargaba
+  distribucion (solo el panel de genero tenia esqueleto); la barra "Ultima carga" no
+  existia durante la carga y el layout saltaba al llegar -> shimmer con .lastRunSkeleton.
+- Finanzas: KPIs con placeholder '...' y gauges "Calculando..." -> SkeletonLoader inline
+  (.kpiSkel, ancho fijo 96px); AlertasTab "Evaluando condiciones..." -> barras; ReporteTab
+  no mostraba NADA mientras se generaba el primer reporte -> paneles shimmer.
+- Admin: AdminTracksPage busqueda "Buscando..." plano -> SkeletonTableRows; modal de partner
+  con "Cargando..." DENTRO del input -> shimmer fuera del input; historial de cobros de
+  AdminSuscripcionesPage y detalle 360 de UsuariosAdminPage -> tabla/panel shimmer.
+- PerfilPublicoPage "Cargando perfil..." -> hero shimmer con la forma del subjectBar
+  (.skelCircle); SimulacionPage "Cargando estado..." -> tabla shimmer de 4 columnas.
+- Los labels // cargando. de CatalogPage se conservan: son parte del motivo estetico //
+  de esa pagina (los cuerpos ya tienen SkeletonTiles desde S16-P5).
+
+### Hallazgo 4: sweep ErrorState (solo errores de query)
+
+15 paginas de analitica migradas al patron unico <ErrorState> (Adquisicion, Tendencias,
+ReporteDiario, ProyeccionGenero, ProyeccionArtista, PnL, MrrArr, DisponibilidadInfra,
+Churn, Engagement, Comparacion, Generos, FunnelConversion, ArtistaBenchmark, BenchmarkSql)
++ las 3 de ingesta. Excluidos a proposito: errores de mutacion/formulario (ormError,
+feedback de acciones), y los {proyeccion.mensaje} que son avisos informativos del backend,
+no errores. El resto de paginas (~24 con manejo local) se migra cuando se toque cada una -
+deuda tecnica ya anotada.
+
+### Verificacion
+
+- python -m py_compile backend OK; 	sc --noEmit + 
+pm run build limpios (21s); deploy
+  via docker cp.
+- Playwright: feed /social carga; ChurnPage (/analitica/suscripciones) y SimulacionPage
+  (/seguridad/simulacion) renderizan contenido completo como superadmin; 0 errores JS.
+- Nota de smoke: para rutas admin hay que almacenar el usuario CON esAdmin/olesAdmin
+  resueltos (como hace uthApi.login) - inyectar el record crudo de PocketBase hace que
+  RequireAuth redirija a /.
+

@@ -45,6 +45,12 @@
   **hotfix crítico**: `PREFERENCIAS_DESACTIVADAS_DE_USUARIOS` tenía un ORDER BY con alias
   inexistente que devolvía 500 en toda creación de comentario/notificación. Ver bitácora
   S16-P10 ronda 2.
+- ✅ **Hallazgos residuales cerrados (S16-P11)**: feed de seguidos ya filtra tracks no
+  disponibles (`disponible=1` en ambas ramas); loaders residuales de EtlPage, Finanzas,
+  admin (búsqueda/modal/historial/detalle) y PerfilPublico/Simulación con shimmer;
+  `analyst@demo` verificada sana E2E; errores de query de las 15 páginas de analítica + 3 de
+  ingesta migrados a `ErrorState` (mutaciones/formularios quedan como feedback de acción).
+  Ver bitácora S16-P11.
 
 ## Deuda técnica conocida
 
@@ -59,8 +65,10 @@
       aplicar el mismo tratamiento SENALES+IN si se tocan
 - [ ] 2 `ComingSoonPage` en analítica (Partners, Ingestas)
 - [ ] Consistencia visual: ~24 páginas con query usan manejo de error local (`panelError`,
-      texto plano) en vez del `ErrorState`/`EmptyState` compartidos — bajo impacto, la
-      experiencia ya no es rota; unificar cuando se toque cada página
+      texto plano) en vez del `ErrorState`/`EmptyState` compartidos — **analítica (15) e
+      ingesta (3) ya migradas en S16-P11**; el resto son errores de mutación/formulario
+      (feedback de acción legítimo) o páginas de menor tráfico; unificar cuando se toque
+      cada una
 
 ## Hallazgos S16 abiertos (de las auditorías)
 
