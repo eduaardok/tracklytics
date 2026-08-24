@@ -1,6 +1,8 @@
 import { useQuery } from '@tanstack/react-query'
 import { ErrorState } from '@shared/components/ErrorState'
 import { apiErrorMessage } from '@shared/lib/api-client'
+// S16-P11: "Evaluando condiciones…" plano -> barras de shimmer.
+import { SkeletonLoader } from '@shared/components/SkeletonLoader'
 import { finanzasApi } from '../api/finanzas.api'
 import { ALERTA_LABEL, severidadAlerta } from '../lib/format'
 import styles from '../pages/FinanzasPages.module.css'
@@ -22,7 +24,7 @@ export function AlertasTab() {
       </p>
 
       {alertas.isLoading ? (
-        <p className={styles.kpiLabel}>Evaluando condiciones…</p>
+        <SkeletonLoader count={3} height={14} />
       ) : data.length === 0 ? (
         <div className={styles.emptyState}>Sin alertas activas — ninguna condición vigilada se cumple hoy.</div>
       ) : (

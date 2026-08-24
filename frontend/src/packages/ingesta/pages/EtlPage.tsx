@@ -9,6 +9,7 @@ import { ingestaApi, IngestaApiError } from '../api/ingesta.api'
 import type { SyntheticMode, EjecucionEstado, RecalificacionEstado } from '../types'
 import { SkeletonChart } from '@shared/components/SkeletonLoader'
 import styles from './EtlPage.module.css'
+import { ErrorState } from '@shared/components/ErrorState'
 
 // Paleta categórica validada (dataviz skill) — mismos criterios que
 // DataQualityPage.tsx (violeta principal, teal secundario) contra la
@@ -237,6 +238,14 @@ export function EtlPage() {
         <ExportPDFButton targetRef={reportRef} fileName="ingesta-etl" title="Ingesta de catálogo" />
       </div>
 
+      {/* S16-P11: la barra de "Última carga" solo existía con datos — durante
+          la carga desaparecía y el layout saltaba al llegar. */}
+      {cargas.isLoading && (
+        <div className={styles.lastRunBar}>
+          <span className={styles.lastRunLabel}>Última carga</span>
+          <SkeletonChart height={14} className={styles.lastRunSkeleton} />
+        </div>
+      )}
       {ultimaCarga && (
         <div className={styles.lastRunBar}>
           <span className={styles.lastRunLabel}>Última carga</span>
@@ -340,7 +349,7 @@ export function EtlPage() {
       <p className={styles.sectionLabel} style={{ marginTop: 'var(--space-xl)' }}>Historial de cargas</p>
       {cargas.isLoading && <div className={styles.panel}><SkeletonChart height={120} /></div>}
       {cargas.isError && (
-        <div className={styles.panel}><p className={styles.errorText}>No se pudo cargar el historial.</p></div>
+        <ErrorState message="No se pudo cargar el historial." />
       )}
       {historial.length > 0 && (
         <div className={styles.panel}>
@@ -419,6 +428,9 @@ export function EtlPage() {
             </div>
             <div className={styles.panel}>
               <p className={styles.panelTitle}>Energy (bins de 0.2)</p>
+              {/* S16-P11: sin esqueleto propio estos 3 paneles quedaban en blanco
+                  mientras cargaba la distribucion (solo el de genero tenia uno). */}
+              {distribucion.isLoading && <SkeletonChart height={160} />}
               {!distribucion.isLoading && (
                 <MiniBarChart
                   data={(distribucion.data?.atributos.energy ?? []).map((b) => ({ name: b.rango, value: b.n }))}
@@ -428,6 +440,7 @@ export function EtlPage() {
             </div>
             <div className={styles.panel}>
               <p className={styles.panelTitle}>Valence (bins de 0.2)</p>
+              {distribucion.isLoading && <SkeletonChart height={160} />}
               {!distribucion.isLoading && (
                 <MiniBarChart
                   data={(distribucion.data?.atributos.valence ?? []).map((b) => ({ name: b.rango, value: b.n }))}
@@ -437,6 +450,7 @@ export function EtlPage() {
             </div>
             <div className={styles.panel}>
               <p className={styles.panelTitle}>Danceability (bins de 0.2)</p>
+              {distribucion.isLoading && <SkeletonChart height={160} />}
               {!distribucion.isLoading && (
                 <MiniBarChart
                   data={(distribucion.data?.atributos.danceability ?? []).map((b) => ({ name: b.rango, value: b.n }))}
@@ -451,7 +465,7 @@ export function EtlPage() {
           </p>
           {muestra.isLoading && <div className={styles.panel}><SkeletonChart height={120} /></div>}
           {muestra.isError && (
-            <div className={styles.panel}><p className={styles.errorText}>No se pudo cargar la muestra.</p></div>
+            <ErrorState message="No se pudo cargar la muestra." />
           )}
           {muestra.data && muestra.data.data.length > 0 && (
             <div className={styles.panel}>

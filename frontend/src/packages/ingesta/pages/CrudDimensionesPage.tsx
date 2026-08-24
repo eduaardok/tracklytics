@@ -7,6 +7,7 @@ import { ingestaApi, IngestaApiError } from '../api/ingesta.api'
 import { DIM_TABLE_OPTIONS, type DimRow } from '../types'
 import { SkeletonChart } from '@shared/components/SkeletonLoader'
 import styles from './CrudDimensionesPage.module.css'
+import { ErrorState } from '@shared/components/ErrorState'
 
 const FACTS_OPTION = '__facts__'
 const PAGE_LIMIT = 20
@@ -291,7 +292,7 @@ export function CrudDimensionesPage() {
 
       {listQuery.isLoading && <div className={styles.panel}><SkeletonChart height={160} /></div>}
       {listQuery.isError && (
-        <div className={styles.panel}><p className={styles.errorText}>No se pudo cargar la tabla.</p></div>
+        <ErrorState message="No se pudo cargar la tabla." />
       )}
       {deleteError && <p className={styles.errorText}>{deleteError}</p>}
 

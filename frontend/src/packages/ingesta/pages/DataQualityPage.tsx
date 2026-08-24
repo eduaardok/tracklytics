@@ -5,6 +5,7 @@ import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { ingestaApi } from '../api/ingesta.api'
 import { SkeletonChart } from '@shared/components/SkeletonLoader'
 import styles from './DataQualityPage.module.css'
+import { ErrorState } from '@shared/components/ErrorState'
 
 const fmt = (n: number) => n.toLocaleString('es-ES')
 
@@ -65,7 +66,7 @@ export function DataQualityPage() {
 
       {quality.isLoading && <div className={styles.panel}><SkeletonChart height={200} /></div>}
       {quality.isError && (
-        <div className={styles.panel}><p className={styles.errorText}>No se pudo cargar la calidad de datos.</p></div>
+        <ErrorState message="No se pudo cargar la calidad de datos." />
       )}
 
       {data && (

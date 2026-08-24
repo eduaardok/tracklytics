@@ -3,6 +3,8 @@ import { useQuery } from '@tanstack/react-query'
 import { ErrorState } from '@shared/components/ErrorState'
 import { apiErrorMessage } from '@shared/lib/api-client'
 import { CHART_COLORS, STATUS_COLORS } from '@shared/components/charts/colors'
+// S16-P11: placeholder de paneles mientras se genera el primer reporte.
+import { SkeletonChart } from '@shared/components/SkeletonLoader'
 import { finanzasApi } from '../api/finanzas.api'
 import { RadialGauge } from './charts/RadialGauge'
 import { CategoriaTreemap } from './charts/CategoriaTreemap'
@@ -42,6 +44,15 @@ export function ReporteTab() {
       </form>
 
       {reporte.isError && <ErrorState message={apiErrorMessage(reporte.error, 'No se pudo generar el reporte financiero.')} />}
+
+      {/* S16-P11: durante la primera generación no había NINGÚN feedback fuera
+          del botón — el cuerpo quedaba vacío hasta que llegaba el payload. */}
+      {!r && reporte.isFetching && (
+        <div className={styles.dashboardGrid}>
+          <div className={styles.kpiPanel}><SkeletonChart height={230} /></div>
+          <div className={styles.gaugePanel}><SkeletonChart height={230} /></div>
+        </div>
+      )}
 
       {r && (
         <>

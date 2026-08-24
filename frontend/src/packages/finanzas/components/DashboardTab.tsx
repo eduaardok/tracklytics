@@ -1,8 +1,11 @@
-import { useState } from 'react'
+﻿import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { ErrorState } from '@shared/components/ErrorState'
 import { apiErrorMessage } from '@shared/lib/api-client'
 import { CHART_COLORS, STATUS_COLORS } from '@shared/components/charts/colors'
+// S16-P11: los KPIs usaban '…' y el gauge "Calculando…" como placeholder —
+// ahora shimmer del design system (mismo patrón que el resto de Finanzas).
+import { SkeletonChart, SkeletonLoader } from '@shared/components/SkeletonLoader'
 import { finanzasApi } from '../api/finanzas.api'
 import { RadialGauge } from './charts/RadialGauge'
 import { fmtMoney, fmtPct, isoDaysAgo, isoToday } from '../lib/format'
@@ -75,27 +78,27 @@ export function DashboardTab() {
           <p className={styles.panelTitle}>Ingresos y utilidad del periodo</p>
           <div className={styles.kpiGrid}>
             <div className={styles.kpiRow}>
-              <span className={styles.kpiValueSm}>{dashboard.isLoading ? '…' : fmtMoney(d?.ingreso_total)}<Delta pct={delta?.ingreso_total} /></span>
+              <span className={styles.kpiValueSm}>{dashboard.isLoading ? <SkeletonLoader count={1} height={14} className={styles.kpiSkel} /> : fmtMoney(d?.ingreso_total)}<Delta pct={delta?.ingreso_total} /></span>
               <span className={styles.kpiLabel}>Ingreso total (susc. + publicidad)</span>
             </div>
             <div className={styles.kpiRow}>
-              <span className={styles.kpiValueSm}>{dashboard.isLoading ? '…' : fmtMoney(d?.regalias_pagadas)}<Delta pct={delta?.regalias_pagadas} /></span>
+              <span className={styles.kpiValueSm}>{dashboard.isLoading ? <SkeletonLoader count={1} height={14} className={styles.kpiSkel} /> : fmtMoney(d?.regalias_pagadas)}<Delta pct={delta?.regalias_pagadas} /></span>
               <span className={styles.kpiLabel}>Regalías pagadas</span>
             </div>
             <div className={styles.kpiRow}>
-              <span className={styles.kpiValueSm}>{dashboard.isLoading ? '…' : fmtMoney(d?.gastos_operativos)}<Delta pct={delta?.gastos_operativos} /></span>
+              <span className={styles.kpiValueSm}>{dashboard.isLoading ? <SkeletonLoader count={1} height={14} className={styles.kpiSkel} /> : fmtMoney(d?.gastos_operativos)}<Delta pct={delta?.gastos_operativos} /></span>
               <span className={styles.kpiLabel}>Gastos operativos</span>
             </div>
             <div className={styles.kpiRow}>
-              <span className={styles.kpiValueSm}>{dashboard.isLoading ? '…' : fmtMoney(d?.reembolsos_procesados)}<Delta pct={delta?.reembolsos_procesados} /></span>
+              <span className={styles.kpiValueSm}>{dashboard.isLoading ? <SkeletonLoader count={1} height={14} className={styles.kpiSkel} /> : fmtMoney(d?.reembolsos_procesados)}<Delta pct={delta?.reembolsos_procesados} /></span>
               <span className={styles.kpiLabel}>Reembolsos procesados</span>
             </div>
             <div className={styles.kpiRow}>
-              <span className={styles.kpiValueSm}>{dashboard.isLoading ? '…' : fmtMoney(d?.retiros_regalia_procesados)}<Delta pct={delta?.retiros_regalia_procesados} /></span>
+              <span className={styles.kpiValueSm}>{dashboard.isLoading ? <SkeletonLoader count={1} height={14} className={styles.kpiSkel} /> : fmtMoney(d?.retiros_regalia_procesados)}<Delta pct={delta?.retiros_regalia_procesados} /></span>
               <span className={styles.kpiLabel}>Retiros de regalía procesados</span>
             </div>
             <div className={styles.kpiRow}>
-              <span className={styles.kpiValueSm}>{dashboard.isLoading ? '…' : fmtMoney(d?.utilidad_estimada)}<Delta pct={delta?.utilidad_estimada} /></span>
+              <span className={styles.kpiValueSm}>{dashboard.isLoading ? <SkeletonLoader count={1} height={14} className={styles.kpiSkel} /> : fmtMoney(d?.utilidad_estimada)}<Delta pct={delta?.utilidad_estimada} /></span>
               <span className={styles.kpiLabel}>Utilidad estimada</span>
             </div>
           </div>
@@ -104,7 +107,7 @@ export function DashboardTab() {
         <div className={styles.gaugePanel}>
           <p className={styles.panelTitle}>Margen de plataforma</p>
           {dashboard.isLoading ? (
-            <span className={styles.kpiLabel}>Calculando…</span>
+            <SkeletonChart height={140} />
           ) : (
             <RadialGauge
               pct={d?.margen ?? 0}

@@ -305,6 +305,14 @@
 
 .kpiRow { display: flex; flex-direction: column; }
 
+/* S16-P11: shimmer inline que reemplaza el placeholder '…' de los KPIs
+   (SkeletonLoader con count=1 recibe esta clase para no ocupar todo el ancho). */
+.kpiSkel {
+  display: block;
+  width: 96px;
+  margin: 6px 0;
+}
+
 .kpiValue {
   font-family: var(--font-sans);
   font-size: 1.75rem;

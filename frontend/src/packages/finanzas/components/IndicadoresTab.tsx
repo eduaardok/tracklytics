@@ -1,8 +1,10 @@
-import { useState } from 'react'
+﻿import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { ErrorState } from '@shared/components/ErrorState'
 import { apiErrorMessage } from '@shared/lib/api-client'
 import { finanzasApi } from '../api/finanzas.api'
+// S16-P11: KPIs con '…' plano -> shimmer del design system.
+import { SkeletonLoader } from '@shared/components/SkeletonLoader'
 import { IndicadoresRadar } from './charts/IndicadoresRadar'
 import { fmtMoney, fmtPct, isoDaysAgo, isoToday, CATEGORIA_LABEL } from '../lib/format'
 import styles from '../pages/FinanzasPages.module.css'
@@ -38,15 +40,15 @@ export function IndicadoresTab() {
 
       <div className={styles.kpiGrid}>
         <div className={styles.kpiRow}>
-          <span className={styles.kpiValue}>{indicadores.isLoading ? '…' : fmtMoney(d?.arpu)}</span>
+          <span className={styles.kpiValue}>{indicadores.isLoading ? <SkeletonLoader count={1} height={16} className={styles.kpiSkel} /> : fmtMoney(d?.arpu)}</span>
           <span className={styles.kpiLabel}>ARPU ({d?.usuarios_pago_activos ?? 0} usuarios de pago)</span>
         </div>
         <div className={styles.kpiRow}>
-          <span className={styles.kpiValue}>{indicadores.isLoading ? '…' : fmtMoney(d?.ingreso_promedio_por_anunciante)}</span>
+          <span className={styles.kpiValue}>{indicadores.isLoading ? <SkeletonLoader count={1} height={16} className={styles.kpiSkel} /> : fmtMoney(d?.ingreso_promedio_por_anunciante)}</span>
           <span className={styles.kpiLabel}>Ingreso promedio por anunciante ({d?.num_anunciantes_con_ingreso ?? 0})</span>
         </div>
         <div className={styles.kpiRow}>
-          <span className={styles.kpiValue}>{indicadores.isLoading ? '…' : fmtPct(d?.crecimiento_ingreso_pct)}</span>
+          <span className={styles.kpiValue}>{indicadores.isLoading ? <SkeletonLoader count={1} height={16} className={styles.kpiSkel} /> : fmtPct(d?.crecimiento_ingreso_pct)}</span>
           <span className={styles.kpiLabel}>Crecimiento de ingreso vs. periodo anterior</span>
         </div>
       </div>

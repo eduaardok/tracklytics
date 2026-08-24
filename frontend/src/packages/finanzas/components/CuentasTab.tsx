@@ -1,11 +1,11 @@
-import { useQuery } from '@tanstack/react-query'
+﻿import { useQuery } from '@tanstack/react-query'
 import { ErrorState } from '@shared/components/ErrorState'
 import { apiErrorMessage } from '@shared/lib/api-client'
 import { CHART_COLORS, STATUS_COLORS } from '@shared/components/charts/colors'
 import { finanzasApi } from '../api/finanzas.api'
 import { RadialGauge } from './charts/RadialGauge'
 import { fmtMoney, fmtDate } from '../lib/format'
-import { SkeletonTableRows } from '@shared/components/SkeletonLoader'
+import { SkeletonChart, SkeletonLoader, SkeletonTableRows } from '@shared/components/SkeletonLoader'
 import styles from '../pages/FinanzasPages.module.css'
 
 // Cuentas por cobrar / por pagar (CU-O84) — on-read sobre FACT_INVOICE +
@@ -27,22 +27,22 @@ export function CuentasTab() {
           <p className={styles.panelTitle}>Por cobrar</p>
           <div className={styles.kpiGrid}>
             <div className={styles.kpiRow}>
-              <span className={styles.kpiValueSm}>{cuentas.isLoading ? '…' : fmtMoney(cobrar?.total_por_cobrar)}</span>
+              <span className={styles.kpiValueSm}>{cuentas.isLoading ? <SkeletonLoader count={1} height={14} className={styles.kpiSkel} /> : fmtMoney(cobrar?.total_por_cobrar)}</span>
               <span className={styles.kpiLabel}>Total pendiente ({cobrar?.num_invoices_pendientes ?? 0} invoices)</span>
             </div>
             <div className={styles.kpiRow}>
-              <span className={styles.kpiValueSm}>{cuentas.isLoading ? '…' : fmtMoney(cobrar?.total_vencido)}</span>
+              <span className={styles.kpiValueSm}>{cuentas.isLoading ? <SkeletonLoader count={1} height={14} className={styles.kpiSkel} /> : fmtMoney(cobrar?.total_vencido)}</span>
               <span className={styles.kpiLabel}>Vencido ({cobrar?.num_invoices_vencidas ?? 0} invoices)</span>
             </div>
           </div>
           <p className={styles.panelTitle} style={{ marginTop: 'var(--space-md)' }}>Por pagar</p>
           <div className={styles.kpiGrid}>
             <div className={styles.kpiRow}>
-              <span className={styles.kpiValueSm}>{cuentas.isLoading ? '…' : fmtMoney(pagar?.total_por_pagar)}</span>
+              <span className={styles.kpiValueSm}>{cuentas.isLoading ? <SkeletonLoader count={1} height={14} className={styles.kpiSkel} /> : fmtMoney(pagar?.total_por_pagar)}</span>
               <span className={styles.kpiLabel}>Retiros pendientes ({pagar?.num_retiros_pendientes ?? 0})</span>
             </div>
             <div className={styles.kpiRow}>
-              <span className={styles.kpiValueSm}>{cuentas.isLoading ? '…' : fmtMoney(pagar?.regalias_liquidadas_no_retiradas)}</span>
+              <span className={styles.kpiValueSm}>{cuentas.isLoading ? <SkeletonLoader count={1} height={14} className={styles.kpiSkel} /> : fmtMoney(pagar?.regalias_liquidadas_no_retiradas)}</span>
               <span className={styles.kpiLabel}>Regalías liquidadas sin retirar (contexto)</span>
             </div>
           </div>
@@ -50,7 +50,7 @@ export function CuentasTab() {
 
         <div className={styles.gaugePanel}>
           <p className={styles.panelTitle}>% de lo por cobrar que está vencido</p>
-          {cuentas.isLoading ? <span className={styles.kpiLabel}>Calculando…</span> : (
+          {cuentas.isLoading ? <SkeletonChart height={140} /> : (
             <RadialGauge
               pct={pctVencido}
               color={pctVencido >= 0.5 ? STATUS_COLORS.error : pctVencido >= 0.2 ? STATUS_COLORS.warning : CHART_COLORS.teal}
