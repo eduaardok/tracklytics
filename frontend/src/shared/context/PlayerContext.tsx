@@ -87,6 +87,14 @@ type PlayerContextValue = {
   // uniforme (ese podía repetir artista dos veces seguidas por azar), es la
   // heurística real que distingue un shuffle "inteligente" de uno crudo.
   shuffleQueue:     () => void
+  // Shuffle PERSISTENTE (S16-P10, brecha P2): mientras está activo, cada
+  // avance AUTOMÁTICO de cola elige un track al azar del resto (con la misma
+  // heurística anti-racha respecto al track actual) en vez del primero. El
+  // `shuffleQueue` de arriba es un one-shot que reordena una vez; este modo
+  // sobrevive a encolados nuevos y no reordena nada visible — solo cambia de
+  // qué posición sale el próximo track.
+  shuffleMode:      boolean
+  setShuffleMode:   (on: boolean) => void
   volume:           number
   setVolume:        (volume: number) => void
   // 'none' (default) = se detiene al agotar la cola, igual que antes.
@@ -212,6 +220,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   const [queue, setQueue]                             = useState<PlayableTrack[]>([])
   const [volume, setVolumeState]                      = useState(0.8)
   const [repeatMode, setRepeatModeState]               = useState<RepeatMode>('none')
+  const [shuffleMode, setShuffleModeState]             = useState(false)
 
   const timerRef        = useRef<ReturnType<typeof setInterval> | null>(null)
   const ytPlayerRef      = useRef<YTPlayerInstance | null>(null)
@@ -237,6 +246,10 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   const queueRef         = useRef<PlayableTrack[]>([])
   const volumeRef        = useRef(volume)
   const repeatModeRef    = useRef<RepeatMode>('none')
+  // Espejo del shuffle persistente: `advanceQueue` corre desde closures de
+  // larga vida (ticker simulado / onStateChange de YT) — mismo motivo que
+  // `repeatModeRef`.
+  const shuffleModeRef   = useRef(false)
   // Track actualmente sonando, en ref — igual motivo que `queueRef`: leído
   // desde `advanceQueue` para `repeat-one`, que puede ejecutarse desde un
   // closure de larga vida (ticker simulado) que no ve el `currentTrack` más
@@ -253,6 +266,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   useEffect(() => { queueRef.current = queue }, [queue])
   useEffect(() => { volumeRef.current = volume }, [volume])
   useEffect(() => { repeatModeRef.current = repeatMode }, [repeatMode])
+  useEffect(() => { shuffleModeRef.current = shuffleMode }, [shuffleMode])
   useEffect(() => { currentTrackRef.current = currentTrack }, [currentTrack])
   // Historial de "anterior" — en memoria únicamente, mismo criterio que
   // `queue` (se vacía al recargar). Un ref porque solo `playPrevious` lo lee
@@ -585,6 +599,10 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     setRepeatModeState(mode)
   }, [])
 
+  const setShuffleMode = useCallback((on: boolean) => {
+    setShuffleModeState(on)
+  }, [])
+
   const removeFromQueue = useCallback((index: number) => {
     setQueue((prev) => prev.filter((_, i) => i !== index))
   }, [])
@@ -652,9 +670,24 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       return
     }
 
-    const next = queueRef.current[0]
+    const cola = queueRef.current
+    // Shuffle persistente (S16-P10): el próximo track sale de una posición al
+    // azar del resto de la cola — con la misma heurística anti-racha del
+    // `shuffleQueue` one-shot aplicada al par (actual → elegido). El avance
+    // MANUAL ("Siguiente") respeta el modo a propósito: si el usuario activó
+    // aleatorio, "Siguiente" también debería sorprender.
+    let idx = 0
+    if (shuffleModeRef.current && cola.length > 1) {
+      idx = Math.floor(Math.random() * cola.length)
+      const artistaActual = currentTrackRef.current?.artist_name
+      if (artistaActual && cola[idx].artist_name === artistaActual) {
+        const alt = cola.findIndex((t, i) => i !== idx && t.artist_name !== artistaActual)
+        if (alt !== -1) idx = alt
+      }
+    }
+    const next = cola[idx]
     if (next) {
-      setQueue((prev) => prev.slice(1))
+      setQueue((prev) => prev.filter((_, i) => i !== idx))
       play(next, { keepSession: true })
       return
     }
@@ -704,6 +737,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
         play, playList, togglePlay, seek, stop, reportPlaybackIssue,
         playNext, playPrevious, hasNext, hasPrevious: historyLength > 0,
         queue, enqueue, enqueueMany, replaceQueue, removeFromQueue, moveInQueue, shuffleQueue,
+        shuffleMode, setShuffleMode,
         volume, setVolume, repeatMode, setRepeatMode,
       }}
     >

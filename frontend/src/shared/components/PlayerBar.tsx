@@ -1,7 +1,7 @@
 import type { KeyboardEvent, MouseEvent, ReactNode } from 'react'
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Ban, ListMusic, Pause, Play, Repeat, Repeat1, SkipBack, SkipForward, Volume2, VolumeX } from 'lucide-react'
+import { Ban, ListMusic, Pause, Play, Repeat, Repeat1, Shuffle, SkipBack, SkipForward, Volume2, VolumeX } from 'lucide-react'
 import { usePlayer, type RepeatMode } from '@shared/context/PlayerContext'
 import { AlbumArt } from './AlbumArt'
 import { TrackName } from './TrackName'
@@ -44,6 +44,7 @@ export function PlayerBar({ actions }: Props) {
     playNext, playPrevious, hasNext, hasPrevious,
     queue, removeFromQueue, moveInQueue, shuffleQueue, volume, setVolume,
     repeatMode, setRepeatMode,
+    shuffleMode, setShuffleMode,
   } = usePlayer()
   const navigate = useNavigate()
   const [queueOpen, setQueueOpen] = useState(false)
@@ -123,6 +124,19 @@ export function PlayerBar({ actions }: Props) {
           title="Siguiente"
         >
           <SkipForward size={16} aria-hidden="true" />
+        </button>
+        {/* Shuffle persistente (S16-P10): mientras está activo, cada avance
+            automático (o manual) sale de una posición al azar de la cola con
+            anti-racha por artista — ver PlayerContext.advanceQueue. */}
+        <button
+          type="button"
+          className={`${styles.iconBtn} ${shuffleMode ? styles.iconBtnActive : ''}`}
+          onClick={() => setShuffleMode(!shuffleMode)}
+          aria-pressed={shuffleMode}
+          aria-label={shuffleMode ? 'Aleatorio (activado)' : 'Aleatorio (desactivado)'}
+          title={shuffleMode ? 'Aleatorio (activado)' : 'Aleatorio (desactivado)'}
+        >
+          <Shuffle size={16} aria-hidden="true" />
         </button>
         <button
           type="button"
