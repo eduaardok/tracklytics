@@ -263,3 +263,13 @@
 @media (prefers-reduced-motion: reduce) {
   .skel { animation: none; }
 }
+
+/* "Ver más" por grupo (S16-P10): link discreto junto al label de sección. */
+.verMas {
+  margin-left: 10px;
+  color: var(--color-primary);
+  font-size: 0.75rem;
+  text-decoration: none;
+}
+
+.verMas:hover { text-decoration: underline; }
