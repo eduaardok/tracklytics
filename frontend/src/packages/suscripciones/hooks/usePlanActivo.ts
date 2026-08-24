@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { getRole, isAuthenticated } from '@shared/lib/session'
+import { getRole, getUser, isAuthenticated } from '@shared/lib/session'
 import { suscripcionesApi } from '../api/suscripciones.api'
 
 export const PLAN_ACTIVO_QUERY_KEY = ['suscripciones', 'activa']
@@ -21,7 +21,12 @@ export function usePlanActivo() {
   // check, `tipoPlan` caía en 'free' por defecto (nunca hay un registro de
   // suscripción para admin), lo que además le mostraba el banner de
   // publicidad como si fuera un usuario free real.
-  const esAdmin = !sinSesion && getRole() === 'admin'
+  // S16-P12: `getRole()` solo reconoce al bootstrap con role crudo 'admin' —
+  // el superadmin demo y las 6 cuentas admin_* de área viajan por
+  // BRIDGE_USUARIO_ROL_ADMIN y llegan como `esAdmin` en la sesión (ver
+  // auth.api.ts). Sin el OR, veían el paywall "Sección exclusiva Premium",
+  // anuncios y "Cliente B2C / Plan free" en su perfil.
+  const esAdmin = !sinSesion && (getRole() === 'admin' || Boolean(getUser()?.esAdmin))
 
   const { data, isLoading } = useQuery({
     queryKey:  PLAN_ACTIVO_QUERY_KEY,
