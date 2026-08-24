@@ -22,6 +22,7 @@ import { PreferenciasNotificacion } from '@packages/social/components/Preferenci
 import type { MiFamilia } from '@packages/experiencia/types'
 import { AlertTriangle, Ban, Bell, Download, Globe, ShieldCheck, Smartphone, User, Users } from 'lucide-react'
 import { EmptyState } from '@shared/components/EmptyState'
+import { ROL_LABELS, rolesDeUsuario } from '@shared/lib/roles'
 import { authApi } from '../api/auth.api'
 import { SkeletonLoader } from '@shared/components/SkeletonLoader'
 import styles from './ProfilePage.module.css'
@@ -38,6 +39,16 @@ const ROLE_LABEL: Record<string, string> = {
   admin:   'Staff interno',
 }
 
+// S16-P12: el chip de rol del hero no puede decir "Cliente B2C" a un
+// superadmin/admin_* de área (su `role` crudo de PocketBase es "user"; el
+// rol real viaja en `rolesAdmin` por BRIDGE — mismas tablas que RoleBadge).
+function rolDelHero(user: NonNullable<ReturnType<typeof getUser>>): string {
+  if (user.esAdmin) {
+    const rol = rolesDeUsuario(user)[0]
+    return (rol && ROL_LABELS[rol]) || 'Staff interno'
+  }
+  return ROLE_LABEL[user.role] ?? user.role
+}
 const FAMILIA_QUERY_KEY = ['experiencia', 'mi-familia']
 const SESIONES_QUERY_KEY = ['seguridad', 'mis-sesiones']
 const MI_PERFIL_QUERY_KEY = ['seguridad', 'mi-perfil']
@@ -273,8 +284,10 @@ export function ProfilePage() {
           <h1 className={styles.heroNombre}>{user.name || 'Usuario'}</h1>
           <span className={styles.heroEmail}>{user.email}</span>
           <div className={styles.chipsRow}>
-            <span className={styles.rolChip}>{ROLE_LABEL[user.role] ?? user.role}</span>
-            <span className={styles.planChip}>Plan {tipoPlan}</span>
+            <span className={styles.rolChip}>{rolDelHero(user)}</span>
+            {/* El staff no tiene plan (acceso completo sin pagar) — mostrar
+                "Plan free"/"Plan admin" sería un residuo del flujo B2C. */}
+            {!user.esAdmin && <span className={styles.planChip}>Plan {tipoPlan}</span>}
           </div>
         </div>
         <div className={styles.heroStats}>

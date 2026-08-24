@@ -105,7 +105,9 @@ export function AppShell() {
   // admin (Lead Data Engineer/CTO) tiene acceso completo sin plan ni pago —
   // "Mi Plan" y "Facturación" no aplican a esa cuenta, se ocultan en vez de
   // mostrar un flujo de suscripción/cobro que el backend ahora rechaza.
-  const navPrimary   = role === 'admin' ? NAV_PRIMARY.filter((i) => i.to !== '/suscripciones') : NAV_PRIMARY
+  // S16-P12: mismo criterio para superadmin/admin_* de área (`esAdmin` por
+  // BRIDGE), no solo el bootstrap con role crudo 'admin'.
+  const navPrimary   = role === 'admin' || esAdmin ? NAV_PRIMARY.filter((i) => i.to !== '/suscripciones') : NAV_PRIMARY
   const navSecondary = NAV_SECONDARY
   // Banner display (monetizacion-retencion-mejoras): visible solo para
   // usuarios free, mismo criterio que el paywall de TrackDetailPage. Con el
