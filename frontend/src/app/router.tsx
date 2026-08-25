@@ -83,7 +83,8 @@ const BibliotecaPage       = lazyNamed(() => import('@packages/catalogo/pages/Bi
 const AnalyticaShell = lazyNamed(() => import('@app/layout/AnalyticaShell'), 'AnalyticaShell')
 const DashboardPage           = lazyNamed(() => import('@packages/analitica/pages/DashboardPage'), 'DashboardPage')
 const EngagementPage          = lazyNamed(() => import('@packages/analitica/pages/EngagementPage'), 'EngagementPage')
-const ComingSoonPage          = lazyNamed(() => import('@packages/analitica/pages/ComingSoonPage'), 'ComingSoonPage')
+const PartnersAnaliticaPage   = lazyNamed(() => import('@packages/analitica/pages/PartnersAnaliticaPage'), 'PartnersAnaliticaPage')
+const IngestasAnaliticaPage   = lazyNamed(() => import('@packages/analitica/pages/IngestasAnaliticaPage'), 'IngestasAnaliticaPage')
 const GenerosPage             = lazyNamed(() => import('@packages/analitica/pages/GenerosPage'), 'GenerosPage')
 const ComparacionPage         = lazyNamed(() => import('@packages/analitica/pages/ComparacionPage'), 'ComparacionPage')
 const ArtistaBenchmarkPage    = lazyNamed(() => import('@packages/analitica/pages/ArtistaBenchmarkPage'), 'ArtistaBenchmarkPage')
@@ -278,11 +279,18 @@ export const router = createBrowserRouter([
       { path: 'mrr-arr',                element: <RequireAuth roles={['admin']}><MrrArrPage /></RequireAuth> },
       { path: 'bsc',                    element: <RequireAuth roles={['admin']}><BalancedScorecardPage /></RequireAuth> },
       { path: 'benchmark-sql',          element: <RequireAuth roles={['admin']}><BenchmarkSqlPage /></RequireAuth> },
-      { path: 'partners',               element: <ComingSoonPage section="Partners" description="Rendimiento por partner, SLA de entrega y cobertura de catálogo." /> },
+      // S17: reemplaza el placeholder — reutiliza `GET /app/v1/partners/metricas`
+      // (mismo dato que ya mostraba `/seguridad/partners/metricas`, gate
+      // `require_partner_admin`/admin_comercial) y agrega cobertura de catálogo
+      // por tier (derivada de `ENDPOINTS`, no inventada).
+      { path: 'partners',               element: <RequireAuth roles={['admin']}><PartnersAnaliticaPage /></RequireAuth> },
       // CU-O55 (completar-modelo-base): reemplaza el placeholder — FACT_DISPONIBILIDAD ya existe.
       // No confundir con `/distribucion/disponibilidad` (restricción geográfica de reproducción).
       { path: 'disponibilidad',         element: <DisponibilidadInfraPage /> },
-      { path: 'ingestas',               element: <ComingSoonPage section="Ingestas" description="Histórico de ETL: volumen, duración, tasa de error y comparativa inter-run." /> },
+      // S17: reemplaza el placeholder — reutiliza `GET /app/v1/ingesta/cargas`
+      // (mismo dato que ya mostraba `EtlPage` como tabla operativa, gate
+      // `require_lead_data_engineer`) con una vista de tendencia entre corridas.
+      { path: 'ingestas',               element: <RequireAuth roles={['admin']}><IngestasAnaliticaPage /></RequireAuth> },
       // CU-O92/CU-O93 (b2b-tier-access-analitica): paneles predictivos
       // exclusivos Enterprise. El backend gatea con `require_tier("enterprise")`
       // (además de `require_b2b_panel_access` del shell) — no necesitan un

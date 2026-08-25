@@ -1,6 +1,5 @@
 export { DashboardPage }   from './pages/DashboardPage'
 export { EngagementPage }  from './pages/EngagementPage'
-export { ComingSoonPage }  from './pages/ComingSoonPage'
 export { GenerosPage }           from './pages/GenerosPage'
 export { ComparacionPage }       from './pages/ComparacionPage'
 export { ArtistaBenchmarkPage }  from './pages/ArtistaBenchmarkPage'

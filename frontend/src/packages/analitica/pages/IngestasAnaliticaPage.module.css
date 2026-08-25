@@ -1,0 +1,133 @@
+.page { /* fills content area */ }
+
+.headRow {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-md);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-lg);
+}
+
+.heading {
+  font-family: var(--font-sans);
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--color-ink);
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+  text-wrap: balance;
+  margin-bottom: var(--space-xs);
+}
+
+.subtitle {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  color: var(--color-muted);
+  min-height: 1em;
+}
+
+/* ── KPIs de la última corrida ── */
+.kpiRow {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: var(--space-md);
+  margin-bottom: var(--space-lg);
+}
+
+.kpiCard {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-md);
+}
+
+.kpiLabel {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  color: var(--color-muted);
+}
+
+.kpiValue {
+  font-family: var(--font-mono);
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: var(--color-ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.kpiWarn { color: var(--color-warning); }
+
+/* ── Small multiples grid ── */
+.grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--space-md);
+}
+
+.panel {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-md);
+}
+
+.panelTitle {
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--color-muted);
+  margin-bottom: var(--space-sm);
+}
+
+.chartBox {
+  height: 200px;
+}
+
+/* ── Tooltip ── */
+.tooltip {
+  background: var(--color-surface-raised);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-sm) var(--space-md);
+  box-shadow: 0 8px 24px oklch(0.03 0 0 / 0.5);
+}
+
+.tooltipLabel {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--color-muted);
+  margin-bottom: 4px;
+}
+
+.tooltipRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.tooltipKey {
+  width: 8px;
+  height: 2px;
+  border-radius: 1px;
+  background: oklch(0.70 0.14 195);
+  flex-shrink: 0;
+}
+
+.tooltipName {
+  font-family: var(--font-sans);
+  font-size: 0.75rem;
+  color: var(--color-muted);
+  flex: 1;
+}
+
+.tooltipValue {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--color-ink);
+  font-variant-numeric: tabular-nums;
+}

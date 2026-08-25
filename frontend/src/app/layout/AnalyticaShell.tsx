@@ -3,7 +3,8 @@ import { Outlet, NavLink, useLocation } from 'react-router-dom'
 import {
   LayoutDashboard, Activity, Music, GitCompare, Target, TrendingUp, ListMusic,
   UserPlus, HeartPulse, CalendarDays, UserMinus, Filter, Scale, CircleDollarSign,
-  LineChart, AreaChart, PanelLeftClose, PanelLeftOpen, LayoutGrid, Gauge, type LucideIcon,
+  LineChart, AreaChart, PanelLeftClose, PanelLeftOpen, LayoutGrid, Gauge, Building2,
+  UploadCloud, type LucideIcon,
 } from 'lucide-react'
 import { RequireSuscripcionActiva } from '@packages/analitica'
 // Import directo, no vía el barrel `@packages/seguridad` (arrastraría los
@@ -36,19 +37,12 @@ type NavItem = { to: string; label: string; icon: LucideIcon; end?: boolean }
 // existen), pasan a la nav real de arriba con el mismo gating que el resto.
 // monetizacion-retencion-mejoras: "Suscripciones" también sale — pasa a ser
 // el dashboard de churn real (admin-only), no un placeholder.
-// S13-P5: se dejaron de renderizar como enlaces del sidebar (quedaban
-// "pronto" visibles en el menú, se veían vacíos si el cursor pasaba por ahí
-// en el video — AUDITORIA_S13.md §6.3). Las rutas siguen existiendo en
-// router.tsx (`ComingSoonPage`, accesibles por URL directa) — este array
-// se conserva solo como fuente de `COMING_SOON_PATHS`, para que esas dos
-// rutas sigan bypasseando `RequireSuscripcionActiva` (no hay nada que
-// proteger en un stub sin datos).
-const COMING_SOON = [
-  { label: 'Partners',       to: '/analitica/partners'       },
-  { label: 'Ingestas',       to: '/analitica/ingestas'       },
-] as const
-
-const COMING_SOON_PATHS: string[] = COMING_SOON.map(({ to }) => to)
+// S17: "Partners" e "Ingestas" también dejaron de ser placeholders
+// (`PartnersAnaliticaPage`/`IngestasAnaliticaPage`, ambas admin-only) — pasan
+// a NAV_OPERATIVO/NAV_HERRAMIENTAS más abajo con el mismo gating que el resto
+// (RequireSuscripcionActiva normal, admin bypassa igual que cualquier otra
+// ruta de este árbol). El bypass `COMING_SOON_PATHS` que existía para estos
+// dos stubs sin datos ya no aplica — se elimina junto con ellos.
 
 // Nav base, visible para cualquier cliente con acceso al panel de analítica
 // (S13-P8: rediseño con iconos + collapse completo, igualando a AppShell).
@@ -74,6 +68,7 @@ const NAV_BASE: NavItem[] = [
 // presentación.
 const NAV_OPERATIVO: NavItem[] = [
   { to: '/analitica/reporte-diario', label: 'Reporte diario', icon: CalendarDays },
+  { to: '/analitica/partners',       label: 'Partners',       icon: Building2 },
 ]
 
 const NAV_TACTICO: NavItem[] = [
@@ -85,6 +80,7 @@ const NAV_TACTICO: NavItem[] = [
 
 const NAV_HERRAMIENTAS: NavItem[] = [
   { to: '/analitica/benchmark-sql', label: 'Benchmark SQL vs Gold', icon: Gauge },
+  { to: '/analitica/ingestas',      label: 'Ingestas',              icon: UploadCloud },
 ]
 
 // Grupo "Estratégico": BSC (`require_staff`, admin-only) + Predictivo
@@ -110,11 +106,6 @@ export function AnalyticaShell() {
   const location = useLocation()
   const { tipoPlan } = usePlanActivo()
   const [collapsed, setCollapsed] = useState(getSidebarCollapsed)
-  // Los stubs "pronto" (incluido /analitica/suscripciones, destino del
-  // redirect) no llaman a ningún endpoint gateado por `require_b2b_panel_access`
-  // — nada que proteger ahí, y gatearlos causaría un loop de redirect contra
-  // su propio destino.
-  const sinGating = COMING_SOON_PATHS.includes(location.pathname)
   const user = getUser()
   // FASE 1 (Prompt 10): NAV_STAFF replica `require_staff`/`_es_staff_interno`
   // del backend (api/paquetes/analitica/deps.py) — superadmin únicamente
@@ -216,13 +207,9 @@ export function AnalyticaShell() {
                 envolver cada `element` del route config individualmente. */}
             <Suspense fallback={<RouteLoadingFallback />}>
               <PageTransition>
-                {sinGating ? (
+                <RequireSuscripcionActiva>
                   <Outlet />
-                ) : (
-                  <RequireSuscripcionActiva>
-                    <Outlet />
-                  </RequireSuscripcionActiva>
-                )}
+                </RequireSuscripcionActiva>
               </PageTransition>
             </Suspense>
           </div>
