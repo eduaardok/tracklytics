@@ -63,4 +63,8 @@ export const finanzasApi = {
   // ── Reporte ───────────────────────────────────────────────────────────────
   reporte: (desde: string, hasta: string) =>
     apiClient.get<ReporteFinanciero>(`/finanzas/reporte?desde=${desde}&hasta=${hasta}`),
+
+  // P12 residual (S17): export CSV del mismo reporte, para Excel/contabilidad.
+  exportarReporte: (desde: string, hasta: string) =>
+    apiClient.getBlob(`/finanzas/reporte/exportar?desde=${desde}&hasta=${hasta}`),
 }

@@ -106,7 +106,40 @@ function RetiroWidget({
   )
 }
 
-function TablaGanancias({ data }: { data: Ganancia[] }) {
+// P12 residual (S17): descarga el CSV que ya generaba el backend a partir de
+// las mismas filas que esta tabla muestra — el endpoint es autenticado por
+// header, así que un <a href> directo no serviría (mismo patrón que la
+// exportación GDPR de ProfilePage).
+async function descargarCsv(
+  fetchCsv: () => Promise<Blob>,
+  filename: string,
+  toast: ReturnType<typeof useToast>,
+  setExportando: (v: boolean) => void,
+) {
+  setExportando(true)
+  try {
+    const blob = await fetchCsv()
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = filename
+    a.click()
+    URL.revokeObjectURL(url)
+    toast.success('Descarga lista')
+  } catch (err) {
+    toast.error(apiErrorMessage(err, 'No se pudo exportar el CSV.'))
+  } finally {
+    setExportando(false)
+  }
+}
+
+function TablaGanancias({
+  data, onExportar, exportando,
+}: {
+  data: Ganancia[]
+  onExportar: () => void
+  exportando: boolean
+}) {
   if (data.length === 0) {
     return (
       <div className={styles.tablePanel}>
@@ -118,6 +151,11 @@ function TablaGanancias({ data }: { data: Ganancia[] }) {
   }
   return (
     <div className={styles.tablePanel}>
+      <div className={styles.tablePanelHeader}>
+        <button type="button" className={styles.btnGhost} onClick={onExportar} disabled={exportando}>
+          {exportando ? 'Exportando…' : 'Exportar CSV'}
+        </button>
+      </div>
       <table className={styles.table}>
         <thead>
           <tr>
@@ -151,6 +189,8 @@ function TablaGanancias({ data }: { data: Ganancia[] }) {
 export function MisGananciasPage() {
   useDocumentTitle('Mis ganancias')
   const [tab, setTab] = useState<'artista' | 'sello'>('artista')
+  const [exportando, setExportando] = useState(false)
+  const toast = useToast()
 
   const artista = useQuery({
     queryKey: ['regalias', 'mis-ganancias-artista'],
@@ -248,7 +288,11 @@ export function MisGananciasPage() {
             fetchSaldo={regaliasApi.saldoArtista}
             solicitarRetiro={regaliasApi.solicitarRetiroArtista}
           />
-          <TablaGanancias data={artista.data!.data} />
+          <TablaGanancias
+            data={artista.data!.data}
+            exportando={exportando}
+            onExportar={() => descargarCsv(regaliasApi.exportarMisGananciasArtista, 'mis-ganancias-artista.csv', toast, setExportando)}
+          />
         </>
       ) : (
         <>
@@ -265,7 +309,11 @@ export function MisGananciasPage() {
             fetchSaldo={regaliasApi.saldoSello}
             solicitarRetiro={regaliasApi.solicitarRetiroSello}
           />
-          <TablaGanancias data={sello.data!.data} />
+          <TablaGanancias
+            data={sello.data!.data}
+            exportando={exportando}
+            onExportar={() => descargarCsv(regaliasApi.exportarMisGananciasSello, 'mis-ganancias-sello.csv', toast, setExportando)}
+          />
         </>
       )}
     </section>

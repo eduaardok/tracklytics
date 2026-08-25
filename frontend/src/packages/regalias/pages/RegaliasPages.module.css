@@ -77,6 +77,12 @@
   margin-bottom: var(--space-xl);
 }
 
+.tablePanelHeader {
+  display: flex;
+  justify-content: flex-end;
+  padding: var(--space-sm) var(--space-sm) 0;
+}
+
 .table { width: 100%; border-collapse: collapse; }
 .table th {
   text-align: left;

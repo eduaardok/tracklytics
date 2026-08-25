@@ -54,6 +54,13 @@ export const regaliasApi = {
   misGananciasSello: () =>
     apiClient.get<GananciasResponse>('/regalias/sello/mis-ganancias'),
 
+  // P12 residual (S17): export CSV de las mismas filas, para Excel/contabilidad.
+  exportarMisGananciasArtista: () =>
+    apiClient.getBlob('/regalias/artista/mis-ganancias/exportar'),
+
+  exportarMisGananciasSello: () =>
+    apiClient.getBlob('/regalias/sello/mis-ganancias/exportar'),
+
   // ── Retiro de ganancias (modelo-financiero-simulacion) ─────────────────────
   saldoArtista: () =>
     apiClient.get<SaldoResponse>('/regalias/artista/saldo'),

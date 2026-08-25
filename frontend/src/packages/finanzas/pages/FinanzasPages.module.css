@@ -289,6 +289,16 @@
   margin-bottom: var(--space-sm);
 }
 
+.panelHeaderRow {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-sm);
+}
+
+.panelHeaderRow .panelTitle { margin-bottom: 0; }
+
 .kpiPanel {
   display: flex;
   flex-direction: column;

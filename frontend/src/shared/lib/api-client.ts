@@ -153,6 +153,30 @@ async function requestForm<T>(path: string, form: FormData): Promise<T> {
   return res.json() as Promise<T>
 }
 
+// Descarga de archivos (export CSV, P12 residual S17): igual que `request`
+// pero devuelve el body crudo como Blob en vez de parsearlo como JSON — el
+// endpoint es autenticado por header, así que un <a href> directo no serviría.
+async function requestBlob(path: string): Promise<Blob> {
+  const hadToken = Boolean(getToken())
+  const res = await fetch(`${BASE_URL}${path}`, { headers: { ...getAuthHeaders() } })
+  if (!res.ok) {
+    if (res.status === 401) clearSession()
+    const sessionWasActive = res.status === 401 && hadToken
+    if (sessionWasActive) {
+      throw new ApiError(res.status, res.statusText, 'Tu sesión expiró — vuelve a iniciar sesión.', undefined, undefined, true)
+    }
+    let detail: string | undefined
+    try {
+      const body = await res.clone().json()
+      if (typeof body?.detail === 'string') detail = body.detail
+    } catch {
+      // Body vacío o no-JSON.
+    }
+    throw new ApiError(res.status, res.statusText, detail, undefined, undefined, false)
+  }
+  return res.blob()
+}
+
 export const apiClient = {
   get:     <T>(path: string)               => request<T>(path),
   post:    <T>(path: string, body: unknown) => request<T>(path, { method: 'POST',   body: JSON.stringify(body) }),
@@ -160,4 +184,5 @@ export const apiClient = {
   patch:   <T>(path: string, body: unknown) => request<T>(path, { method: 'PATCH',  body: JSON.stringify(body) }),
   delete:  <T>(path: string)               => request<T>(path, { method: 'DELETE' }),
   postForm: <T>(path: string, form: FormData) => requestForm<T>(path, form),
+  getBlob: (path: string) => requestBlob(path),
 }

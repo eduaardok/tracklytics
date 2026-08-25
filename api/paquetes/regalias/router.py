@@ -5,6 +5,7 @@ from typing import Literal
 from fastapi import APIRouter, Depends, HTTPException, Path, Query
 from pydantic import BaseModel, Field, field_validator, model_validator
 
+from core.csv_export import filas_a_csv_response
 from core.database import execute, get_client, query_one, query_rows
 from paquetes.creadores.queries import CUENTA_ACTUAL_POR_ID
 from paquetes.distribucion.queries import SELLO_EXISTE
@@ -520,6 +521,25 @@ def mis_ganancias_artista(user: dict = Depends(get_current_user)):
 def mis_ganancias_sello(cuenta: dict = Depends(require_cuenta_sello)):
     filas = query_rows(GANANCIAS_SELLO, {"rightsholder_id": str(cuenta["sello_id"])})
     return {"data": filas, "total": round(sum(f["monto"] for f in filas), 2)}
+
+
+# P12 residual (S17): exportación CSV de las mismas filas que ya muestra
+# MisGananciasPage — reutiliza las queries GANANCIAS_ARTISTA/GANANCIAS_SELLO,
+# ningún dato nuevo, solo otro formato de salida.
+@router.get("/artista/mis-ganancias/exportar")
+def exportar_mis_ganancias_artista(user: dict = Depends(get_current_user)):
+    from paquetes.creadores.queries import CUENTA_ACTUAL_POR_USUARIO
+    cuenta = query_one(CUENTA_ACTUAL_POR_USUARIO, {"usuario_id": user["record"]["id"]})
+    if not cuenta or cuenta["estado_cuenta"] != "aprobada":
+        raise HTTPException(status_code=403, detail="Se requiere una cuenta de artista aprobada")
+    filas = query_rows(GANANCIAS_ARTISTA, {"rightsholder_id": cuenta["cuenta_artista_id"]})
+    return filas_a_csv_response(filas, "mis-ganancias-artista.csv")
+
+
+@router.get("/sello/mis-ganancias/exportar")
+def exportar_mis_ganancias_sello(cuenta: dict = Depends(require_cuenta_sello)):
+    filas = query_rows(GANANCIAS_SELLO, {"rightsholder_id": str(cuenta["sello_id"])})
+    return filas_a_csv_response(filas, "mis-ganancias-sello.csv")
 
 
 # ─────────────────────────────────────────────────────────────────────────────

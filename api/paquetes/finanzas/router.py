@@ -1,11 +1,14 @@
 import asyncio
+import csv
+import io
 import uuid
 from datetime import date, datetime, timedelta
 from typing import Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Path, Query
+from fastapi import APIRouter, Depends, HTTPException, Path, Query, Response
 from pydantic import BaseModel, Field, field_validator
 
+from core.csv_export import BOM_UTF8
 from core.database import execute, get_client, query_one, query_rows
 from paquetes.analitica.queries import (
     INGRESO_PUBLICITARIO_EN_RANGO,
@@ -648,3 +651,44 @@ async def reporte_financiero(desde: date = Query(...), hasta: date = Query(...),
         "margen": dashboard["margen"],
         "indicadores": indicadores,
     }
+
+
+# P12 residual (S17): export CSV del mismo reporte de /reporte, sin
+# recalcular nada — dos secciones (resumen del periodo + gasto por
+# categoría) en un solo archivo, porque el reporte no es una lista de filas
+# homogénea sino un resumen compuesto (design.md, Decisión 4.2).
+@router.get("/reporte/exportar")
+async def exportar_reporte_financiero(desde: date = Query(...), hasta: date = Query(...), admin: dict = Depends(require_admin)):
+    dashboard = _calcular_metricas_periodo(desde, hasta)
+    cuentas = _cuentas_por_cobrar_y_pagar()
+    gasto_por_categoria = query_rows(GASTOS_POR_CATEGORIA_EN_RANGO, {"desde": desde, "hasta": hasta})
+
+    buffer = io.StringIO()
+    writer = csv.writer(buffer)
+    writer.writerow(["Reporte financiero", f"{desde.isoformat()} a {hasta.isoformat()}"])
+    writer.writerow([])
+    writer.writerow(["Concepto", "Monto"])
+    writer.writerow(["Ingresos por suscripciones", dashboard["ingreso_suscripciones"]])
+    writer.writerow(["Ingresos publicitarios", dashboard["ingreso_publicitario"]])
+    writer.writerow(["Ingresos totales", dashboard["ingreso_total"]])
+    writer.writerow(["Gastos operativos", dashboard["gastos_operativos"]])
+    writer.writerow(["Regalías pagadas", dashboard["regalias_pagadas"]])
+    writer.writerow(["Retiros de regalías procesados", dashboard["retiros_regalia_procesados"]])
+    writer.writerow(["Reembolsos procesados", dashboard["reembolsos_procesados"]])
+    writer.writerow(["Cuentas por cobrar (total)", cuentas["cuentas_por_cobrar"]["total_por_cobrar"]])
+    writer.writerow(["Cuentas por cobrar (vencido)", cuentas["cuentas_por_cobrar"]["total_vencido"]])
+    writer.writerow(["Cuentas por pagar (total)", cuentas["cuentas_por_pagar"]["total_por_pagar"]])
+    writer.writerow(["Utilidad estimada", dashboard["utilidad_estimada"]])
+    writer.writerow(["Margen", dashboard["margen"]])
+    writer.writerow([])
+    writer.writerow(["Gastos por categoría del periodo"])
+    writer.writerow(["Categoría", "Total"])
+    for fila in gasto_por_categoria:
+        writer.writerow([fila["categoria"], fila["total"]])
+
+    contenido = BOM_UTF8 + buffer.getvalue()
+    return Response(
+        content=contenido.encode("utf-8"),
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="reporte-financiero-{desde.isoformat()}-{hasta.isoformat()}.csv"'},
+    )

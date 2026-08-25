@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { ErrorState } from '@shared/components/ErrorState'
 import { apiErrorMessage } from '@shared/lib/api-client'
+import { useToast } from '@shared/context/ToastContext'
 import { CHART_COLORS, STATUS_COLORS } from '@shared/components/charts/colors'
 // S16-P11: placeholder de paneles mientras se genera el primer reporte.
 import { SkeletonChart } from '@shared/components/SkeletonLoader'
@@ -19,6 +20,8 @@ export function ReporteTab() {
   const [desde, setDesde] = useState(isoDaysAgo(30))
   const [hasta, setHasta] = useState(isoToday())
   const [rango, setRango] = useState({ desde, hasta })
+  const [exportando, setExportando] = useState(false)
+  const toast = useToast()
 
   const reporte = useQuery({
     queryKey: ['finanzas', 'reporte', rango.desde, rango.hasta],
@@ -26,6 +29,27 @@ export function ReporteTab() {
   })
 
   const r = reporte.data
+
+  // P12 residual (S17): mismo patrón de descarga que la exportación GDPR de
+  // ProfilePage — el endpoint es autenticado por header, un <a href> directo
+  // no serviría.
+  async function handleExportar() {
+    setExportando(true)
+    try {
+      const blob = await finanzasApi.exportarReporte(rango.desde, rango.hasta)
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `reporte-financiero-${rango.desde}-${rango.hasta}.csv`
+      a.click()
+      URL.revokeObjectURL(url)
+      toast.success('Descarga lista')
+    } catch (err) {
+      toast.error(apiErrorMessage(err, 'No se pudo exportar el reporte.'))
+    } finally {
+      setExportando(false)
+    }
+  }
 
   return (
     <>
@@ -58,7 +82,12 @@ export function ReporteTab() {
         <>
           <div className={styles.dashboardGrid}>
             <div className={styles.kpiPanel}>
-              <p className={styles.panelTitle}>Periodo {r.periodo.desde} — {r.periodo.hasta}</p>
+              <div className={styles.panelHeaderRow}>
+                <p className={styles.panelTitle}>Periodo {r.periodo.desde} — {r.periodo.hasta}</p>
+                <button type="button" className={styles.btnGhost} onClick={handleExportar} disabled={exportando}>
+                  {exportando ? 'Exportando…' : 'Exportar CSV'}
+                </button>
+              </div>
               <div className={styles.kpiGrid}>
                 <div className={styles.kpiRow}>
                   <span className={styles.kpiValueSm}>{fmtMoney(r.ingresos.total)}</span>
