@@ -18,13 +18,16 @@ lote siguiente en este orden:
 1. **P13 — Ads con imagen + CTR por formato** (autorizado por stakeholder dentro del
    bloque dinero congelado; ver detalle en "Brechas operativas P1" abajo).
 2. **P12 residual — lectura de datos de dinero ya autorizada**:
-   - `GET` admin de churn por motivo + serie temporal sobre `FACT_CANCELACION_SUSCRIPCION`
-     (el evento ya se escribe desde 4 flujos de suscripciones; falta la vista de lectura).
+   - Churn por motivo: el backend **ya existe** (`GET /analitica/churn?por_motivo=true`,
+     `analitica/router.py:522-576`); solo falta que `ChurnPage.tsx` lo consuma y muestre el
+     desglose por motivo (hoy solo pinta la tasa agregada).
    - Exports CSV (`text/csv` con BOM) de regalías y finanzas, reutilizando
-     `GANANCIAS_ARTISTA` y `/finanzas/reporte` (CU-O90); botón Exportar en `MisGananciasPage`.
-3. **P12 PDF** (columnas cortadas en rankings anchos, abierto desde S16-P3) — prioridad baja.
-4. Después, a criterio del stakeholder: brechas operativas P1 (ciclos de vida, denuncias,
-   bloqueos, strikes).
+     `GANANCIAS_ARTISTA` y `/finanzas/reporte` (CU-O90); botón Exportar en `MisGananciasPage`
+     (confirmado: no existe ningún export CSV en todo el repo hoy).
+3. **P12 PDF** y **2 `ComingSoonPage`**: resueltos (25 ago 2026) — ver "Fuera de lote (S17)"
+   más abajo para el detalle (quedaron implementados, no diferidos).
+4. Brechas operativas P1 residuales que sí quedan (self-edit de sello — CRUD de
+   partners/API keys resultó ya existir) → Lote 4.
 
 ## Estado de la sesión S16
 
@@ -77,7 +80,11 @@ lote siguiente en este orden:
 
 ## Deuda técnica conocida
 
-- [ ] SQL por interpolación en `dim_create`/`dim_update` (sigue sin resolver, heredado)
+- [x] ~~SQL por interpolación en `dim_create`/`dim_update`~~ ✅ ya resuelto (auditoría de
+      validación, `docs/auditoria_validacion/gestion_datos.md`) — `dim_create` usa `insert_row()`
+      (protocolo nativo, sin SQL de texto) y `dim_update` usa `ALTER TABLE ... UPDATE`
+      parametrizado con whitelist de columnas contra `system.columns`
+      (`api/paquetes/gestion_datos/router.py:292-379`); este doc no se había actualizado.
 - [ ] Nav mobile en `AnalyticaShell`/`SeguridadShell` (sin drawer bajo 768px; AppShell ya lo tiene)
 - [ ] Airflow idle CPU/RAM alto
 - [x] ~~Performance del core: FACT_TRACKS ordenada por genre_id~~ ✅ resuelta S16-P6/P7
@@ -86,7 +93,8 @@ lote siguiente en este orden:
       RADIO_POR_TRACK (radio de un track) y las legacy RECOMENDACIONES_POR_PERFIL_AUDIO /
       RECOMENDACIONES_POR_GENERO (hoy sin uso en el router — candidatas a borrar) —
       aplicar el mismo tratamiento SENALES+IN si se tocan
-- [ ] 2 `ComingSoonPage` en analítica (Partners, Ingestas)
+- [x] ~~2 `ComingSoonPage` en analítica (Partners, Ingestas)~~ ✅ resuelto (S17, 25 ago 2026)
+      — ver detalle en "Fuera de lote (S17)" (ya no está fuera de lote, quedó implementado)
 - [ ] Consistencia visual: ~24 páginas con query usan manejo de error local (`panelError`,
       texto plano) en vez del `ErrorState`/`EmptyState` compartidos — **analítica (15) e
       ingesta (3) ya migradas en S16-P11**; el resto son errores de mutación/formulario
@@ -118,7 +126,25 @@ lote siguiente en este orden:
       `TrackSocialPage` distingue 404 con `EmptyState`, portadas concluidas sin fix real
       necesario (fallback ya existía), `analyst@demo` activada por `cb20550`.
 
-## Ranking de mejora propuesto (post-S16)
+## Housekeeping detectado en la auditoría S17 (no funcional)
+
+- [ ] `frontend/src/shared/design-system/index.ts` y `tokens.ts` son placeholders (`// TODO:
+      exportar componentes base...`, `// TODO: define design tokens...`) de un design system
+      que nunca se construyó — el resto del código usa CSS modules directos. Decidir: completarlo
+      o borrar la carpeta para no dejar código muerto/confuso de cara a la demo.
+- [ ] 5 changes de OpenSpec de S14 (`2026-08-05-s14-p2-granularidad-gold`,
+      `s14-p3-datos-reales-cuentas-rol`, `s14-p4-correcciones-generacion-bajo-demanda`,
+      `2026-08-09-s14-p5-gating-admin-y-granularidad-ui`, `2026-08-10-s14-final-polish-bsc-roles`)
+      están implementados pero nunca se archivaron (`openspec archive`) — quedan viviendo en
+      `openspec/changes/` en vez de `openspec/changes/archive/`.
+- [ ] `openspec/changes/2026-08-10-s14-final-polish-bsc-roles/tasks.md` tiene 2 tareas sin
+      marcar: "Playwright: login real por rol..." y "Clon limpio + `npm run build`" — quedaron
+      sin verificación explícita registrada.
+- [ ] Ningún change de S16 se registró en OpenSpec (todo el tracking de S16 vivió solo en
+      `BITACORA_S16.md`/este doc) — evaluar si vale la pena retomar el flujo OpenSpec en S17
+      para mantener specs/`tasks.md` sincronizados con lo shippeado.
+
+## Ranking de mejora propuesto (post-S16 / plan S17)
 
 1. ~~Lote rápido: loaders + gaps de datos~~ ✅ (S16-P5)
 2. ~~Rediseño Biblioteca~~ ✅ (S16-P6)
@@ -126,25 +152,108 @@ lote siguiente en este orden:
 4. ~~A9/A10/A11 (restos de auditoría visual de Analítica)~~ ✅ ya estaban resueltos, confirmado en S16-P10
 5. ~~Brechas de producto P2 + hallazgos S16 abiertos~~ ✅ (S16-P10)
 6. ~~Hallazgos residuales: feed disponible=1, loaders restantes, ErrorState, staff ≠ cliente free~~ ✅ (S16-P11)
-7. **P13 — Ads con imagen + CTR por formato** ← siguiente
-8. P12 residual (churn GET + exports CSV) y P12 PDF — ver "Dónde queda la sesión"
-9. Después, a criterio del stakeholder: brechas operativas P1 (abajo)
+
+Plan S17 (definido 25 ago 2026, auditoría estática de pendientes reales vs. doc desactualizado):
+
+7. **Lote 1 — Cierre P12 residual** ✅ implementado en código (25 ago 2026), **sin verificar
+   en runtime** (sin Docker levantado en esta sesión):
+   - `ChurnPage.tsx` ahora tiene checkbox "Desglosar por motivo" que llama
+     `?por_motivo=true` y agrega una columna por motivo encontrado.
+   - `GET /regalias/artista/mis-ganancias/exportar` y `/sello/mis-ganancias/exportar`
+     (CSV con BOM, reutiliza `GANANCIAS_ARTISTA`/`GANANCIAS_SELLO`) + botón "Exportar CSV"
+     en `MisGananciasPage.tsx`.
+   - `GET /finanzas/reporte/exportar` (CSV con BOM, dos secciones: resumen del periodo +
+     gasto por categoría) + botón "Exportar CSV" en `ReporteTab.tsx`.
+   - Helper nuevo compartido: `api/core/csv_export.py` (`filas_a_csv_response`) y
+     `apiClient.getBlob` en el frontend (mismo patrón de descarga autenticada que la
+     exportación GDPR de `ProfilePage`).
+   - Verificado: `python -m py_compile` limpio en los 2 routers tocados; `tsc --noEmit`
+     limpio. **Pendiente**: probar con `curl`/Playwright contra el stack real (churn con
+     datos, export CSV abre bien en Excel, permisos admin/artista/sello correctos).
+8. **Lote 2 — P13: Ads con imagen + CTR por formato** (mandato explícito del stakeholder).
+9. **Lote 3 — Polish estructural**: nav mobile drawer en `AnalyticaShell`/`SeguridadShell`,
+   sweep `ErrorState`/`EmptyState` en las páginas restantes, borrar queries de experiencia
+   muertas + fix `RADIO_POR_TRACK`, housekeeping de OpenSpec/`design-system` huérfano.
+10. **Lote 4 — Brechas operativas P1 residuales**: self-edit de sello (CRUD de partners/API
+    keys resultó ya existir, ver corrección abajo).
+11. Ver "Fuera de lote (S17)" abajo — deliberadamente no agendado todavía.
+
+## Fuera de lote (S17) → resuelto (revisado y priorizado a pedido del stakeholder, 25 ago 2026)
+
+Estos dos ítems se habían marcado inicialmente como diferidos (requerían una decisión de
+diseño/alcance antes de tocar código) — el stakeholder pidió resolverlos primero, así que se
+tomaron las decisiones de alcance (ver preguntas respondidas) y se implementaron los dos:
+
+- [x] ~~**P12 PDF — columnas cortadas en rankings anchos**~~ ✅ resuelto — causa raíz real:
+      `html2canvas` clona el DOM tal cual está pintado, así que respeta el `overflow-x: auto`
+      de los wraps de tabla (`RankingTable.module.css`/`.tableScroll` en varias páginas) y solo
+      captura el ancho VISIBLE, recortando columnas fuera de vista. Fix en
+      `ExportPDFButton.tsx` (`ensancharOverflowHorizontal`/`anchoTotalNecesario`): antes de
+      capturar, se detectan los contenedores con overflow-x real, se fuerza su `width` al
+      ancho completo del contenido + `overflow-x: visible`, y se le pide a html2canvas un
+      lienzo tan ancho como el punto más a la derecha de cualquier descendiente — no solo el
+      ancho renderizado de `el`. Todo se revierte tras la captura. Beneficia a los 30 informes
+      compuestos + 27 simples + paneles con tabla de una sola vez (un solo archivo tocado).
+      Verificado: `tsc --noEmit` y `npm run build` limpios. **Pendiente**: probar visualmente
+      contra un PDF real generado desde un ranking ancho (sin stack levantado en esta sesión).
+- [x] ~~**2 `ComingSoonPage` en analítica**~~ ✅ resueltas — decisión de alcance tomada con el
+      stakeholder (ver preguntas respondidas 25 ago 2026):
+      - **`/analitica/partners`** (`PartnersAnaliticaPage.tsx`): reutiliza
+        `GET /app/v1/partners/metricas` (mismo dato que ya mostraba
+        `/seguridad/partners/metricas`, cero backend nuevo) para rendimiento/SLA por partner, y
+        agrega "cobertura de catálogo por tier" como una matriz de capacidades derivada de
+        `ENDPOINTS` (`partners/api/partners.api.ts` — la misma lista que ya usa la consola de
+        prueba, no una tabla inventada): Básico/Pro acceden al catálogo paginado (100
+        filas/página), Enterprise además desbloquea export masivo (5.000 filas/llamada). Se
+        descartó instrumentar logging real de recursos consultados por ser una migración de
+        esquema + 8 endpoints, no justificada para esta demo.
+      - **`/analitica/ingestas`** (`IngestasAnaliticaPage.tsx`): reutiliza
+        `GET /app/v1/ingesta/cargas` (mismo endpoint que ya usa `EtlPage` como tabla
+        operativa, cero backend nuevo) y agrega el valor real que faltaba: 3 gráficos de
+        tendencia (small multiples, mismo patrón que `TendenciasPage`) de volumen/duración/tasa
+        de rechazo a través de las últimas 20 corridas — la "comparativa inter-run" que pedía
+        la descripción original del placeholder.
+      - `ComingSoonPage.tsx`/`.module.css` (ya sin ningún uso) y el bypass
+        `COMING_SOON_PATHS` en `AnalyticaShell.tsx` se eliminaron; ambas rutas ahora navegan
+        normal (`RequireSuscripcionActiva`, admin bypassa igual que el resto del árbol) y
+        aparecen en la nav real (grupos Operativo/Herramientas).
+      Verificado: `tsc --noEmit` y `npm run build` limpios (chunks separados, 5.3kB/5.2kB).
+      **Pendiente**: verificar visualmente en el navegador (sin stack levantado en esta sesión).
 
 ## Brechas operativas identificadas (P1)
 
 - [ ] **Frontend sin volumen dev**: `tracklytics_frontend_react` sirve el dist copiado en
       la imagen — cada cambio de UI exige build + `docker cp` al contenedor (o rebuild).
       Evaluar montar `frontend/dist` como volumen o un preview con HMR.
-- [ ] Ciclos de vida incompletos: pausar campañas, revocar licencias, terminar contratos,
-      takedown de tracks, CRUD de partners/API keys, listado admin de suscripciones,
-      editar/pausar/finalizar anunciantes y campañas, artista editar/retirar track aprobado,
-      sello editar su propia info
-- [ ] Denuncias/reportes de contenido por usuarios
-- [ ] Bloqueo usuario-a-usuario
-- [ ] Historial de sanciones/strikes por usuario
+- [x] ~~Ciclos de vida: pausar/reanudar/finalizar campañas y anunciantes, revocar licencias,
+      terminar contratos, takedown de tracks, listado admin de suscripciones, artista
+      editar/retirar su propio track aprobado~~ ✅ ya existían (change `p1-ciclos-vida`, este
+      doc no se había actualizado) — evidencia: `publicidad/router.py` (pausar/reanudar/
+      finalizar campaña, editar/desactivar anunciante), `distribucion/router.py:399-424`
+      (`revocar_licencia`), `regalias/router.py:260-324` (`editar_contrato`/`terminar_contrato`),
+      `suscripciones/router.py:490` (`GET /admin/suscripciones`), `creadores/router.py:332,386`
+      (editar/retirar track propio), `catalogo/router.py:272,277` (ocultar/restaurar track admin).
+      **Corrección (S17)**: el CRUD de partners/API keys que se creía pendiente **ya existe**
+      — `partners/router.py` tiene DOS routers en el mismo archivo: el público de consumo
+      (`/partners/v1`, líneas 232+, lo único que se había revisado) y uno interno de staff
+      (`v1_router`, prefix `/app/v1/partners`, líneas 52-200) con `POST /admin` (crear),
+      `GET /admin` (listar), `PATCH /admin/{partner_id}` (editar), `POST .../rotar-key`,
+      `POST .../desactivar`. **Sigue pendiente de verdad**: que un sello edite su propia info
+      (solo admin puede, `distribucion/router.py:132-159`, `crear_sello`/`editar_sello` ambos
+      con `require_admin`, sin ningún endpoint self-service para el propio sello).
+- [x] ~~Denuncias/reportes de contenido por usuarios~~ ✅ ya existía —
+      `social/router.py:358-405` (`POST /denuncias` con `tipo_objeto: "track"`, valida
+      existencia real del track), `:408,453` (`GET/PUT /admin/denuncias`).
+- [x] ~~Bloqueo usuario-a-usuario~~ ✅ ya existía — `social/router.py:260,277,297`
+      (`POST/DELETE/GET /bloqueos`).
+- [x] ~~Historial de sanciones/strikes por usuario~~ ✅ ya existía —
+      `seguridad/router.py:1048` (`GET /admin/usuarios/{usuario_id}/strikes`).
 - [x] ~~`FACT_CANCELACION_SUSCRIPCION` (evento de churn dedicado)~~ ✅ el evento existe y
-      se escribe desde los 4 flujos de suscripciones; falta solo la **vista de lectura
-      admin** — movida a "P12 residual" arriba.
+      se escribe desde los 4 flujos de suscripciones; la **vista de lectura admin YA existe
+      en backend** (`analitica/router.py:522-576`, `GET /analitica/churn?por_motivo=true` +
+      `CANCELACIONES_POR_MES_Y_MOTIVO`) — lo que falta de verdad es que
+      `ChurnPage.tsx` (frontend) consuma `por_motivo=true`; hoy solo muestra la tasa agregada.
+      Ver "P12 residual" arriba (alcance reducido: solo falta el consumo en frontend).
 - [ ] **P13 — Ads con imagen (idea stakeholder, 23 ago 2026) + CTR por formato** —
       siguiente lote planificado. Alcance: campo `imagen_url Nullable(String)` en
       `DIM_CAMPANA_PUBLICITARIA` (ALTER estilo `init_clickhouse.py:1109`), validación
