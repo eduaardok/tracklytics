@@ -55,6 +55,48 @@ function aplicarTemaClaro(el: HTMLElement): () => void {
   }
 }
 
+// Fix de columnas cortadas en rankings anchos (P12, abierto desde S16-P3):
+// `RankingTable`/tablas similares envuelven la tabla en un div con
+// `overflow-x: auto` (scroll horizontal en pantalla) — html2canvas clona y
+// renderiza el DOM tal cual está pintado, así que respeta ese overflow y
+// solo captura el ancho VISIBLE del contenedor, recortando las columnas que
+// hoy requieren scroll para verse. La paginación vertical (más abajo) nunca
+// tocaba esto porque el problema es horizontal, no de alto de página.
+//
+// Fix: antes de capturar, se detectan los contenedores con overflow-x real
+// (scrollWidth > clientWidth) dentro de `el`, se fuerza su `width` inline al
+// ancho completo del contenido y `overflow-x: visible` (así la tabla se
+// pinta entera, sin clip) — y se le pide a html2canvas capturar un lienzo
+// tan ancho como el punto más a la derecha de cualquier descendiente
+// (`anchoTotalNecesario`), no solo el ancho renderizado de `el`. Todo se
+// revierte apenas termina la captura, nunca queda aplicado a la UI real.
+function ensancharOverflowHorizontal(el: HTMLElement): () => void {
+  const restauraciones: Array<() => void> = []
+  for (const nodo of el.querySelectorAll<HTMLElement>('*')) {
+    if (nodo.scrollWidth > nodo.clientWidth + 1) {
+      const overflowXPrevio = nodo.style.overflowX
+      const widthPrevio = nodo.style.width
+      nodo.style.overflowX = 'visible'
+      nodo.style.width = `${nodo.scrollWidth}px`
+      restauraciones.push(() => {
+        nodo.style.overflowX = overflowXPrevio
+        nodo.style.width = widthPrevio
+      })
+    }
+  }
+  return () => restauraciones.forEach((fn) => fn())
+}
+
+function anchoTotalNecesario(el: HTMLElement): number {
+  const izquierda = el.getBoundingClientRect().left
+  let maxDerecha = el.getBoundingClientRect().right
+  for (const nodo of el.querySelectorAll<HTMLElement>('*')) {
+    const derecha = nodo.getBoundingClientRect().right
+    if (derecha > maxDerecha) maxDerecha = derecha
+  }
+  return Math.ceil(maxDerecha - izquierda)
+}
+
 function fmtGeneradoEn(d: Date): string {
   const fecha = d.toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' })
   const hora  = d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', hour12: false })
@@ -129,25 +171,35 @@ async function exportarComoPdf(el: HTMLElement, fileName: string, title: string 
     import('jspdf'),
   ])
 
-  const revertir = aplicarTemaClaro(el)
-  // Deja que el navegador aplique las custom properties antes de capturar
-  // (sin este frame, html2canvas a veces lee los estilos previos al cambio).
+  const revertirTema = aplicarTemaClaro(el)
+  const revertirOverflow = ensancharOverflowHorizontal(el)
+  // Deja que el navegador aplique las custom properties/anchos antes de
+  // capturar (sin este frame, html2canvas a veces lee los estilos previos al
+  // cambio).
   await new Promise((resolve) => requestAnimationFrame(resolve))
 
   let canvas: HTMLCanvasElement
   try {
+    const anchoCaptura = Math.max(el.clientWidth, anchoTotalNecesario(el))
     canvas = await html2canvas(el, {
       backgroundColor: '#ffffff',
       scale: 2,
       useCORS: true,
       logging: false,
+      // Ancho de lienzo/ventana de renderizado ampliado al punto más a la
+      // derecha de cualquier descendiente (ver `ensancharOverflowHorizontal`
+      // arriba) — sin esto, html2canvas seguiría recortando al ancho
+      // renderizado normal de `el` aunque el overflow-x ya esté neutralizado.
+      width: anchoCaptura,
+      windowWidth: anchoCaptura,
       // El propio botón vive dentro del contenedor que captura (misma fila
       // que el título, arriba a la derecha) — sin esto, el PDF se
       // fotografiaría a sí mismo pidiendo generarse.
       ignoreElements: (node) => node.getAttribute?.('data-pdf-export-ignore') === 'true',
     })
   } finally {
-    revertir()
+    revertirOverflow()
+    revertirTema()
   }
 
   const aspect = canvas.width / canvas.height
