@@ -7,7 +7,8 @@ from fastapi import APIRouter, Depends, HTTPException, Path, Query
 from pydantic import BaseModel, Field, field_validator
 
 from core.database import execute, get_client, query_one, query_rows
-from core.deps import require_b2c_user
+from core.deps import get_current_user, require_b2c_user
+from paquetes.regalias.deps import require_cuenta_sello
 from paquetes.seguridad import audit
 from paquetes.seguridad.deps import require_rol_admin
 
@@ -159,6 +160,43 @@ def editar_sello(body: SelloBody, sello_id: int = Path(..., ge=1), admin: dict =
     )
     audit.record(
         usuario_id=admin["record"]["id"], accion="editar_sello", tabla_afectada="DIM_SELLO_DISCOGRAFICO",
+        antes={"sello_id": sello_id, "nombre": sello["nombre"], "pais": sello.get("pais", "")},
+        despues={"sello_id": sello_id, "nombre": body.nombre, "pais": body.pais},
+    )
+    return {"status": "ok", "sello_id": sello_id, "nombre": body.nombre, "pais": body.pais}
+
+
+# ── Self-edit de sello (S17, brecha operativa P1): un sello puede editar su
+# propia información (nombre, país) sin pasar por admin — misma lógica de
+# validación que `editar_sello`, pero gateada por "es dueño de este sello"
+# en vez de `require_admin`. Requiere que el usuario tenga cuenta de sello
+# (DIM_CUENTA_SELLO).
+# ─────────────────────────────────────────────────────────────────────────────
+
+@router.get("/sello/mi-perfil")
+def mi_perfil_sello(cuenta: dict = Depends(require_cuenta_sello)):
+    sello_id = cuenta["sello_id"]
+    sello = query_one(SELLO_POR_ID, {"sello_id": sello_id})
+    if not sello:
+        raise HTTPException(status_code=404, detail="Sello no encontrado")
+    return {"sello_id": sello_id, "nombre": sello["nombre"], "pais": sello.get("pais", "")}
+
+
+@router.patch("/sello/mi-perfil")
+def editar_mi_perfil(body: SelloBody, cuenta: dict = Depends(require_cuenta_sello)):
+    sello_id = cuenta["sello_id"]
+    sello = query_one(SELLO_POR_ID, {"sello_id": sello_id})
+    if not sello:
+        raise HTTPException(status_code=404, detail="Sello no encontrado")
+    if not body.nombre.strip():
+        raise HTTPException(status_code=422, detail="El nombre del sello no puede estar vacío")
+    execute(
+        "ALTER TABLE DIM_SELLO_DISCOGRAFICO UPDATE nombre = {nombre:String}, pais = {pais:String} "
+        "WHERE sello_id = {sello_id:UInt32}",
+        {"nombre": body.nombre, "pais": body.pais, "sello_id": sello_id},
+    )
+    audit.record(
+        usuario_id=cuenta["usuario_id"], accion="editar_sello_self", tabla_afectada="DIM_SELLO_DISCOGRAFICO",
         antes={"sello_id": sello_id, "nombre": sello["nombre"], "pais": sello.get("pais", "")},
         despues={"sello_id": sello_id, "nombre": body.nombre, "pais": body.pais},
     )

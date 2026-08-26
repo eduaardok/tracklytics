@@ -122,6 +122,13 @@ export const distribucionApi = {
     return apiClient.get<DisponibilidadListaResponse>(`/distribucion/disponibilidad?${qs.toString()}`)
   },
 
+  // ── Self-edit de sello (S17) ────────────────────────────────────────────────
+  miPerfilSello: () =>
+    apiClient.get<{ sello_id: number; nombre: string; pais: string }>('/distribucion/sello/mi-perfil'),
+
+  editarMiPerfil: (body: SelloBody) =>
+    apiClient.patch<{ status: string; sello_id: number; nombre: string; pais: string }>('/distribucion/sello/mi-perfil', body),
+
   dashboard: () =>
     apiClient.get<DashboardDistribucion>('/distribucion/admin/dashboard'),
 }

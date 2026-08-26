@@ -1,10 +1,11 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { useCountUp } from '@shared/hooks/useCountUp'
 import { apiErrorMessage } from '@shared/lib/api-client'
 import { useToast } from '@shared/context/ToastContext'
 import { regaliasApi } from '../api/regalias.api'
+import { distribucionApi } from '@packages/distribucion'
 import { ArtistaHubTabs } from '@packages/creadores'
 import { SkeletonCard, SkeletonTableRows } from '@shared/components/SkeletonLoader'
 import type { Ganancia, Retiro } from '../types'
@@ -180,6 +181,92 @@ function TablaGanancias({
   )
 }
 
+// Self-edit de sello (S17, brecha operativa P1): permite al sello editar su
+// nombre y país sin pasar por admin. Card colapsable, solo lectura por defecto.
+function SelloPerfilCard({ selloId }: { selloId?: number }) {
+  const [editando, setEditando] = useState(false)
+  const [nombre, setNombre] = useState('')
+  const [pais, setPais] = useState('')
+  const toast = useToast()
+  const queryClient = useQueryClient()
+
+  const perfil = useQuery<{ sello_id: number; nombre: string; pais: string }>({
+    queryKey: ['distribucion', 'mi-perfil-sello'],
+    queryFn: () => distribucionApi.miPerfilSello(),
+    enabled: !!selloId,
+  })
+
+  useEffect(() => {
+    if (perfil.data) { setNombre(perfil.data.nombre); setPais(perfil.data.pais) }
+  }, [perfil.data])
+
+  const guardar = useMutation({
+    mutationFn: () => distribucionApi.editarMiPerfil({ nombre, pais }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['distribucion', 'mi-perfil-sello'] })
+      queryClient.invalidateQueries({ queryKey: ['regalias', 'mi-cuenta-sello'] })
+      setEditando(false)
+      toast.success('Perfil del sello actualizado')
+    },
+    onError: (err) => toast.error(apiErrorMessage(err, 'No se pudo guardar.')),
+  })
+
+  if (!selloId || perfil.isLoading) return null
+
+  return (
+    <div className={styles.totalCard}>
+      <div className={styles.sectionLabel}>Mi perfil de sello</div>
+      {editando ? (
+        <div className={styles.form}>
+          <div className={styles.field}>
+            <label className={styles.fieldLabel} htmlFor="sello-nombre">Nombre</label>
+            <input
+              id="sello-nombre"
+              className={styles.input}
+              value={nombre}
+              onChange={(e) => setNombre(e.target.value)}
+              maxLength={150}
+            />
+          </div>
+          <div className={styles.field}>
+            <label className={styles.fieldLabel} htmlFor="sello-pais">País</label>
+            <input
+              id="sello-pais"
+              className={styles.input}
+              value={pais}
+              onChange={(e) => setPais(e.target.value)}
+              maxLength={100}
+            />
+          </div>
+          <div style={{ display: 'flex', gap: 'var(--space-sm)' }}>
+            <button
+              type="button"
+              className={styles.btnPrimary}
+              disabled={guardar.isPending || !nombre.trim()}
+              onClick={() => guardar.mutate()}
+            >
+              {guardar.isPending ? 'Guardando…' : 'Guardar'}
+            </button>
+            <button type="button" className={styles.btnPrimary} onClick={() => { setEditando(false); setNombre(perfil.data?.nombre ?? ''); setPais(perfil.data?.pais ?? '') }}>
+              Cancelar
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-md)' }}>
+          <div>
+            <div style={{ fontSize: '0.875rem', fontWeight: 500 }}>{perfil.data?.nombre}</div>
+            {perfil.data?.pais && <div style={{ fontSize: '0.75rem', color: 'var(--color-muted)' }}>{perfil.data.pais}</div>}
+          </div>
+          <button type="button" className={styles.btnPrimary} onClick={() => setEditando(true)}>
+            Editar
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // CU-O64/CU-O65: un usuario puede tener cuenta de artista Y cuenta de sello
 // al mismo tiempo (nada en el modelo lo impide) — las dos consultas corren
 // siempre en paralelo, sin depender una de la otra, y se muestran ambas
@@ -299,6 +386,7 @@ export function MisGananciasPage() {
           <span className={styles.subtitle}>
             Regalías liquidadas por los streams reales de todos los artistas firmados a{nombreSello ? ` ${nombreSello}` : ' tu sello'}
           </span>
+          <SelloPerfilCard selloId={cuentaSello.data?.sello_id} />
           <div className={styles.totalCard}>
             <div className={styles.totalLabel}>Total acumulado</div>
             <TotalAcumulado valor={sello.data!.total} />
