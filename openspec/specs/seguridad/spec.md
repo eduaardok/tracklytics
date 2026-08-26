@@ -282,19 +282,38 @@ El sistema SHALL permitir a un usuario con rol `superadmin` listar usuarios de f
 - **THEN** el sistema rechaza la operación con 403
 
 ### Requirement: Asignación y revocación de roles administrativos
-El sistema SHALL permitir a un usuario con rol `superadmin` asignar un rol administrativo a un usuario (registrando en `BRIDGE_USUARIO_ROL_ADMIN` quién lo asignó y cuándo) y revocarlo. El rol asignado SHALL pertenecer al catálogo `DIM_ROL_ADMINISTRATIVO`. Cada asignación o revocación SHALL quedar registrada en `FACT_AUDIT_LOG`.
+
+El sistema SHALL permitir a un usuario con rol `superadmin` asignar un rol administrativo a
+un usuario (registrando en `BRIDGE_USUARIO_ROL_ADMIN` quién lo asignó y cuándo) y revocarlo.
+El rol asignado SHALL pertenecer al catálogo `DIM_ROL_ADMINISTRATIVO`. Cada asignación o
+revocación SHALL quedar registrada en `FACT_AUDIT_LOG`. El sistema SHALL permitir crear una
+cuenta de referencia por cada rol del catálogo usando exclusivamente los endpoints reales de
+registro y asignación (nunca escritura directa a la base de datos), de forma que la cuenta
+quede sincronizada entre PocketBase (autenticación) y `DIM_USUARIO` (espejo analítico) desde
+su creación.
 
 #### Scenario: Asignar un rol administrativo
 - **WHEN** un usuario con rol `superadmin` asigna el rol `admin_finanzas` a un usuario
-- **THEN** el sistema registra la asignación en `BRIDGE_USUARIO_ROL_ADMIN` con el autor y la fecha, la audita, y el usuario objetivo pasa a acceder a los endpoints administrativos de finanzas
+- **THEN** el sistema registra la asignación en `BRIDGE_USUARIO_ROL_ADMIN` con el autor y la
+  fecha, la audita, y el usuario objetivo pasa a acceder a los endpoints administrativos de
+  finanzas
 
 #### Scenario: Revocar un rol administrativo
 - **WHEN** un usuario con rol `superadmin` revoca un rol administrativo previamente asignado
-- **THEN** el sistema deja de considerar ese rol vigente para el usuario y audita la revocación
+- **THEN** el sistema deja de considerar ese rol vigente para el usuario y audita la
+  revocación
 
 #### Scenario: Asignar un rol fuera del catálogo
-- **WHEN** un usuario con rol `superadmin` intenta asignar un rol administrativo que no existe en `DIM_ROL_ADMINISTRATIVO`
+- **WHEN** un usuario con rol `superadmin` intenta asignar un rol administrativo que no
+  existe en `DIM_ROL_ADMINISTRATIVO`
 - **THEN** el sistema rechaza la operación con un error de validación
+
+#### Scenario: Crear una cuenta de referencia por cada rol administrativo
+- **WHEN** se crea una cuenta por cada uno de los roles de `DIM_ROL_ADMINISTRATIVO` usando
+  `POST /auth/registro` seguido de `POST /admin/usuarios/{id}/rol-admin`
+- **THEN** cada cuenta resultante accede exclusivamente a los endpoints administrativos de
+  su propio rol (y `superadmin` accede a todos), verificable con una petición autenticada
+  por cuenta contra un endpoint de cada área
 
 ### Requirement: Suspensión y reactivación de cuentas
 El sistema SHALL permitir a un usuario con rol `superadmin` suspender una cuenta (fijando `estado_cuenta = 'suspendido'` en `DIM_USUARIO`) y reactivarla (`estado_cuenta = 'activa'`). Ambas operaciones SHALL quedar registradas en `FACT_AUDIT_LOG`.
@@ -518,6 +537,69 @@ El sistema SHALL mostrar, en el panel de marca de las páginas de login y regist
 #### Scenario: Bloque de estadísticas sin ningún dato disponible
 - **WHEN** un visitante sin sesión iniciada abre la página de login o registro y ninguna consulta del bloque de estadísticas del catálogo responde correctamente
 - **THEN** el sistema omite el bloque de estadísticas por completo y muestra igualmente el resto del panel de marca
+
+### Requirement: Credenciales de servicio por variable de entorno
+
+El sistema SHALL leer toda credencial de una cuenta de servicio (usada por procesos internos
+para autenticarse contra la propia API, no credenciales de usuarios finales) desde variables
+de entorno, nunca hardcodeada en texto plano en el código fuente. Un valor por defecto
+explícito para entornos de demostración SHALL declararse en la configuración de despliegue
+(`docker-compose.yml`), no en el código de la aplicación, para que el sistema siga
+funcionando sin configuración manual en un entorno de desarrollo/demostración.
+
+#### Scenario: Proceso interno se autentica con una cuenta de servicio
+- **WHEN** un proceso interno (por ejemplo, el backfill de negocio liquidando regalías)
+  necesita autenticarse contra la API con una cuenta de servicio
+- **THEN** el sistema toma esas credenciales de variables de entorno, con un default de
+  demostración declarado en la configuración de despliegue, nunca de una constante en el
+  código fuente
+
+### Requirement: Siembra automática de cuentas de referencia por rol
+
+El sistema SHALL crear, en el arranque de un entorno nuevo (sin intervención manual), una
+cuenta de referencia por cada rol de `DIM_ROL_ADMINISTRATIVO` y una cuenta de cliente B2B,
+usando los mismos endpoints reales de registro y asignación de rol que usaría un
+administrador humano. La siembra SHALL ser idempotente: si una cuenta ya existe, el sistema
+no la duplica ni falla, y SHALL ejecutarse solo después de que la API esté saludable
+(verificado por health check, no por una espera fija).
+
+#### Scenario: Arrancar un entorno nuevo desde cero
+- **WHEN** se levanta el sistema completo en una máquina donde ninguna cuenta administrativa
+  existe todavía
+- **THEN** al terminar el arranque, las cuentas de referencia de los 6 roles administrativos
+  y la cuenta B2B existen y pueden autenticarse, sin que nadie las haya creado a mano
+
+#### Scenario: Reiniciar un entorno donde las cuentas ya existen
+- **WHEN** se levanta el sistema en un entorno donde las cuentas de referencia ya fueron
+  sembradas en un arranque anterior
+- **THEN** el sistema detecta que ya existen y no falla ni las duplica
+
+### Requirement: El frontend reconoce el modelo real de autorización administrativa
+
+El sistema SHALL exponer, en el autoservicio de perfil del usuario autenticado
+(`GET /seguridad/perfil`), sus roles administrativos vigentes (`BRIDGE_USUARIO_ROL_ADMIN`).
+Los guards de navegación del frontend que restringen una ruta a usuarios administrativos
+SHALL autorizar el acceso si el usuario tiene `record.role == 'admin'` en PocketBase O al
+menos un rol administrativo vigente — no SHALL depender exclusivamente del campo `role`
+crudo de PocketBase, que no refleja los roles de área asignados por
+`BRIDGE_USUARIO_ROL_ADMIN`.
+
+#### Scenario: Cuenta con rol de área accede al panel administrativo desde el navegador
+- **WHEN** un usuario cuyo único rol administrativo es `admin_finanzas` (asignado por
+  `BRIDGE_USUARIO_ROL_ADMIN`, con `record.role == 'user'` en PocketBase) navega a una ruta
+  administrativa del frontend
+- **THEN** el sistema permite el acceso a la ruta (la autorización fina de cada endpoint
+  sigue siendo responsabilidad del backend)
+
+#### Scenario: Cuenta sin ningún rol administrativo intenta acceder
+- **WHEN** un usuario sin `record.role == 'admin'` y sin ningún rol vigente en
+  `BRIDGE_USUARIO_ROL_ADMIN` navega a una ruta administrativa del frontend
+- **THEN** el sistema lo redirige fuera del panel administrativo
+
+#### Scenario: Un usuario consulta su propio perfil
+- **WHEN** cualquier usuario autenticado solicita `GET /seguridad/perfil`
+- **THEN** la respuesta incluye la lista de sus roles administrativos vigentes, sin importar
+  cuántos tenga (incluida una lista vacía)
 
 ## Entradas
 

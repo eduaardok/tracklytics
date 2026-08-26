@@ -36,9 +36,7 @@ liquidación, dejando el resultado visible de inmediato en los paneles ya existe
 | Nivel empresarial | Departamento | Paquete | Caso de uso | Historia de usuario |
 |---|---|---|---|---|
 | Operativo | Lead Data Engineer / CTO | Simulación | CU-O78 Generar actividad de negocio simulada | Como Lead Data Engineer/CTO, quiero generar reproducciones, suscripciones e impresiones publicitarias de forma conjunta y liquidar el período resultante, para demostrar y auditar el flujo de dinero de la plataforma sin operarla manualmente a gran escala |
-
 ## Requirements
-
 ### Requirement: Generación conjunta de actividad de negocio simulada
 El sistema SHALL permitir exclusivamente a un usuario con rol `admin` generar, en una sola
 operación, una cantidad configurable de reproducciones, nuevas suscripciones de pago y
@@ -64,6 +62,70 @@ creadas.
 #### Scenario: Usuario sin rol admin intenta generar actividad simulada
 - **WHEN** un usuario autenticado con un rol distinto de `admin` intenta generar actividad de negocio simulada
 - **THEN** el sistema rechaza la operación indicando que es exclusiva de `admin`
+
+### Requirement: Backfill histórico de actividad de negocio
+
+El sistema SHALL soportar la generación de actividad de negocio reproducible sobre una
+ventana histórica de 24 meses (no solo la última hora), cubriendo usuarios, suscripciones,
+publicidad, engagement, regalías, disponibilidad, llamadas de partners, comunidad,
+producto y contenido — los dominios que agregan los 30 informes compuestos de la capability
+`reportes`. El backfill SHALL ser idempotente por dominio: correrlo dos veces no SHALL
+duplicar eventos. Las liquidaciones de regalías generadas por el backfill SHALL calcularse
+con la misma fórmula real ya usada por la liquidación bajo demanda (mismo pool
+rightsholders/plataforma, mismo split master/publishing), no una reimplementación separada.
+
+#### Scenario: Ejecutar el backfill histórico
+- **WHEN** un Lead Data Engineer/CTO dispara el backfill histórico de negocio
+- **THEN** el sistema genera eventos reproducibles en las tablas `FACT_*` correspondientes
+  para los 24 meses de ventana, con crecimiento progresivo y estacionalidad, sin tocar el
+  catálogo musical
+
+#### Scenario: Reintentar el backfill ya generado
+- **WHEN** el backfill histórico se ejecuta una segunda vez sobre un dominio que ya fue
+  generado
+- **THEN** el sistema detecta que ese dominio ya tiene datos y no genera eventos duplicados
+
+#### Scenario: Liquidar regalías sobre el período del backfill
+- **WHEN** el backfill genera transacciones, ingresos publicitarios y reproducciones para
+  un mes calendario dentro de la ventana histórica
+- **THEN** el sistema liquida las regalías de ese mes usando la misma fórmula real de
+  liquidación bajo demanda, no un monto generado por semilla fija
+
+### Requirement: Generación bajo demanda con relleno de huecos
+
+El sistema SHALL permitir disparar la generación de actividad de negocio para un rango de
+períodos explícito (`periodo_inicio`/`periodo_fin`), rellenando ÚNICAMENTE los períodos
+dentro de ese rango que todavía no tengan datos generados para el dominio pedido — un
+período ya cubierto SHALL omitirse, no duplicarse. La operación SHALL encadenar, al
+finalizar la generación, un refresco completo de la capa Gold (los 30 informes compuestos)
+para que el resultado sea visible sin un paso manual aparte. El sistema SHALL exponer el
+estado de la última corrida por dominio de negocio y por tabla Gold, y si hay una ejecución
+en curso en este momento.
+
+#### Scenario: Rellenar un hueco dentro de un rango ya parcialmente generado
+- **WHEN** un Lead Data Engineer dispara la generación para un rango de períodos donde
+  algunos meses ya tienen datos generados y otros no
+- **THEN** el sistema genera actividad únicamente para los meses sin datos, deja los ya
+  cubiertos sin tocar, y al finalizar dispara el refresco de la capa Gold
+
+#### Scenario: Disparar la generación mientras otra corrida está en curso
+- **WHEN** un Lead Data Engineer dispara la generación bajo demanda y ya hay una ejecución
+  de la misma operación en curso
+- **THEN** el sistema rechaza la nueva ejecución en vez de superponerla con la que sigue
+  corriendo
+
+#### Scenario: Consultar el estado de generación
+- **WHEN** un Lead Data Engineer o superadmin consulta el estado de generación
+- **THEN** el sistema responde con la última corrida registrada por cada dominio de negocio,
+  la última corrida real de cada tabla Gold (con su resultado), y si hay una ejecución en
+  curso ahora mismo
+
+#### Scenario: Panel interno, nunca en superficies de negocio
+- **WHEN** cualquier usuario (con o sin rol administrativo) navega por las superficies de
+  negocio de la plataforma (informes compuestos, catálogo, biblioteca, panel B2B)
+- **THEN** el sistema no expone en ningún punto el concepto de generación de actividad
+  simulada, semillas, marcadores de origen sintético, ni nombres de DAGs — esa información
+  queda exclusivamente en el panel interno de operaciones gateado por rol administrativo
 
 ## Entradas
 
