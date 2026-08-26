@@ -12,12 +12,13 @@ from paquetes.catalogo.queries import (
     ARTIST_DETAIL, ARTISTS_SEARCH, ARTISTS_TOP,
     CATALOG_STATS,
     GENRE_DETAIL, GENRES_LIST,
-    SEARCH_ALBUMES_GRUPO, SEARCH_ARTISTAS_GRUPO, SEARCH_TRACKS_GRUPO,
+    SEARCH_ALBUMES_GRUPO, SEARCH_ARTISTAS_GRUPO,
     TRACK_DETAIL, TRACK_DETAIL_BY_FACT_ID,
     TRACK_DISPONIBILIDAD_POR_FACT,
     TRACKS_OCULTOS,
     TRACKS_BY_ALBUM, TRACKS_BY_ARTIST, TRACKS_BY_GENRE, TRACKS_TOP,
     RELEVANCIA_TEXTO_EXPR,
+    search_tracks_grupo_sql,
     tracks_search_count_sql, tracks_search_sql,
 )
 from paquetes.seguridad import audit
@@ -49,6 +50,16 @@ logger = logging.getLogger(__name__)
 async def search_all(
     q: str = Query("", description="Término de búsqueda"),
     limit: int = Query(5, ge=1, le=20, description="Máximo de resultados por grupo"),
+    # Filtros de búsqueda (S17, paridad con apps de música) — solo afectan al
+    # grupo "canciones": género/año/duración no tienen el mismo significado
+    # para artistas, álbumes o playlists (un álbum sí tiene release_year,
+    # pero mezclar criterios de filtro distintos por grupo en una sola
+    # llamada agregaría complejidad sin un caso de uso real todavía).
+    genero: str = Query("", description="Filtra canciones por género (nombre exacto)"),
+    anio_desde: int | None = Query(None, ge=1900, le=2100, description="release_year del álbum, mínimo"),
+    anio_hasta: int | None = Query(None, ge=1900, le=2100, description="release_year del álbum, máximo"),
+    duracion_min: int | None = Query(None, ge=0, description="Milisegundos"),
+    duracion_max: int | None = Query(None, ge=0, description="Milisegundos"),
     user: dict | None = Depends(get_current_user_optional),
 ):
     """Búsqueda unificada multi-entidad (change p2-descubrimiento-comunidad).
@@ -67,6 +78,24 @@ async def search_all(
     pattern = f"%{termino}%"
     params = {"pattern": pattern, "limit": limit}
     usuario_id = (user or {}).get("record", {}).get("id")
+
+    condiciones_extra: list[str] = []
+    params_tracks = dict(params)
+    if genero.strip():
+        params_tracks["genero"] = genero.strip()
+        condiciones_extra.append("g2.name = {genero:String}")
+    if anio_desde is not None:
+        params_tracks["anio_desde"] = anio_desde
+        condiciones_extra.append("al2.release_year >= {anio_desde:UInt16}")
+    if anio_hasta is not None:
+        params_tracks["anio_hasta"] = anio_hasta
+        condiciones_extra.append("al2.release_year <= {anio_hasta:UInt16}")
+    if duracion_min is not None:
+        params_tracks["duracion_min"] = duracion_min
+        condiciones_extra.append("ft.duration_ms >= {duracion_min:UInt32}")
+    if duracion_max is not None:
+        params_tracks["duracion_max"] = duracion_max
+        condiciones_extra.append("ft.duration_ms <= {duracion_max:UInt32}")
 
     # Las playlists viven en PocketBase, no en ClickHouse (design.md, Decisión
     # 9). Un fallo de PocketBase degrada ese grupo a vacío en vez de tumbar toda
@@ -99,7 +128,7 @@ async def search_all(
     # única vista de tracks que se saltaba `enriquecer_featuring` (brecha
     # verificada en AUDITORIA_S13.md, no una precaución preventiva).
     tracks_rows, artistas, albumes, playlists = await asyncio.gather(
-        asyncio.to_thread(query_rows, SEARCH_TRACKS_GRUPO, params),
+        asyncio.to_thread(query_rows, search_tracks_grupo_sql(condiciones_extra), params_tracks),
         asyncio.to_thread(query_rows, SEARCH_ARTISTAS_GRUPO, params),
         asyncio.to_thread(query_rows, SEARCH_ALBUMES_GRUPO, params),
         _playlists(),

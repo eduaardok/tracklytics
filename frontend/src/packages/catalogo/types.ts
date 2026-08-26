@@ -220,6 +220,16 @@ export type SearchPlaylist = {
   es_propia:   boolean
 }
 
+// Filtros de "canciones" en la búsqueda unificada (S17, paridad con apps de
+// música) — solo afectan al grupo tracks, ver nota en `search_all` (backend).
+export type SearchFiltros = {
+  genero?:       string
+  anioDesde?:    number
+  anioHasta?:    number
+  duracionMinMs?: number
+  duracionMaxMs?: number
+}
+
 export type SearchAllResultado = {
   tracks:    SearchTrack[]
   artistas:  SearchArtista[]

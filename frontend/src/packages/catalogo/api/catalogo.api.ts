@@ -1,13 +1,19 @@
 import { apiClient, type ApiResponse } from '@shared/lib/api-client'
-import type { Track, TrackDetail, AudioFeatures, Artist, Album, Genre, TracksSearchParams, SearchAllResultado } from '../types'
+import type { Track, TrackDetail, AudioFeatures, Artist, Album, Genre, TracksSearchParams, SearchAllResultado, SearchFiltros } from '../types'
 
 export const catalogoApi = {
   // ── Búsqueda unificada (change p2-descubrimiento-comunidad) ─────────────────
   // Una sola llamada para los 4 grupos, en vez de tres endpoints por entidad.
-  searchAll: (q: string, limit = 5) =>
-    apiClient.get<SearchAllResultado>(
-      `/search?q=${encodeURIComponent(q)}&limit=${limit}`,
-    ),
+  // Filtros (S17): solo afectan al grupo "canciones" en el backend.
+  searchAll: (q: string, limit = 5, filtros: SearchFiltros = {}) => {
+    const params = new URLSearchParams({ q, limit: String(limit) })
+    if (filtros.genero)                        params.set('genero', filtros.genero)
+    if (filtros.anioDesde != null)              params.set('anio_desde', String(filtros.anioDesde))
+    if (filtros.anioHasta != null)              params.set('anio_hasta', String(filtros.anioHasta))
+    if (filtros.duracionMinMs != null)          params.set('duracion_min', String(filtros.duracionMinMs))
+    if (filtros.duracionMaxMs != null)          params.set('duracion_max', String(filtros.duracionMaxMs))
+    return apiClient.get<SearchAllResultado>(`/search?${params.toString()}`)
+  },
 
   // Contadores reales del catálogo (S16 Fase 3) — hero de CatalogPage.
   catalogStats: () =>

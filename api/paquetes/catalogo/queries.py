@@ -452,7 +452,27 @@ SETTINGS use_query_cache = 1, query_cache_ttl = 120, query_cache_share_between_u
 # PERF: mismo fix de dos pasos que tracks_search_sql -- la sub-consulta
 # interna solo necesita DIM_ARTISTS (para el LIKE sobre a.name), nunca
 # DIM_ALBUMS/DIM_GENRES ni groupUniqArray.
-SEARCH_TRACKS_GRUPO = """
+#
+# Filtros de búsqueda (S17, paridad con apps de música): género/año/duración
+# — como función, no string estático, porque el JOIN a DIM_GENRES/DIM_ALBUMS
+# en la sub-consulta interna solo vale la pena pagarlo cuando el filtro
+# correspondiente está activo (mismo criterio de la nota PERF de arriba:
+# nunca meter esos joins "por si acaso"). `condiciones_extra` ya viene
+# formateado por el router (p. ej. "g2.name = {genero:String}") — esta
+# función solo decide qué JOINs adicionales hacen falta según qué alias
+# (`g2`/`al2`) aparecen ahí. El género filtra sobre la fila repetida por
+# género (mismo criterio que `tracks_search_sql`); el año usa
+# `DIM_ALBUMS.release_year` (no existe columna de año en FACT_TRACKS); la
+# duración no necesita join nuevo (`ft.duration_ms` ya está en el FROM de
+# la sub-consulta).
+def search_tracks_grupo_sql(condiciones_extra: list[str]) -> str:
+    joins_extra = ""
+    if any("g2." in c for c in condiciones_extra):
+        joins_extra += "\n    JOIN DIM_GENRES g2 ON ft.genre_id = g2.genre_id"
+    if any("al2." in c for c in condiciones_extra):
+        joins_extra += "\n    JOIN DIM_ALBUMS al2 ON ft.album_id = al2.album_id"
+    where_extra = "".join(f"\n       AND {c}" for c in condiciones_extra)
+    return f"""
 SELECT
     min(ft.fact_id)                                   AS fact_id,
     ft.track_id                                       AS track_id,
@@ -471,12 +491,12 @@ JOIN DIM_GENRES  g  ON ft.genre_id  = g.genre_id
 WHERE ft.track_id IN (
     SELECT ft.track_id
     FROM (SELECT * FROM FACT_TRACKS WHERE disponible = 1) ft
-    JOIN DIM_ARTISTS a ON ft.artist_id = a.artist_id
-    WHERE lower(ft.track_name) LIKE lower({pattern:String})
-       OR lower(a.name)        LIKE lower({pattern:String})
+    JOIN DIM_ARTISTS a ON ft.artist_id = a.artist_id{joins_extra}
+    WHERE (lower(ft.track_name) LIKE lower({{pattern:String}})
+       OR lower(a.name)        LIKE lower({{pattern:String}})){where_extra}
     GROUP BY ft.track_id
     ORDER BY max(ft.popularity) DESC
-    LIMIT {limit:UInt32}
+    LIMIT {{limit:UInt32}}
 )
 GROUP BY ft.track_id, ft.track_name, ft.artist_id, a.name, a.imagen_url
 ORDER BY any(ft.popularity) DESC, ft.track_id ASC

@@ -7,9 +7,10 @@ import { TrackName, FeaturingCaption } from '@shared/components/TrackName'
 import { EmptyState } from '@shared/components/EmptyState'
 import { ErrorState } from '@shared/components/ErrorState'
 import { usePlayer } from '@shared/context/PlayerContext'
+import { genreAccent } from '@shared/lib/genre-colors'
 
 import { catalogoApi } from '../api/catalogo.api'
-import type { SearchAlbum, SearchArtista, SearchPlaylist, SearchTrack } from '../types'
+import type { SearchAlbum, SearchArtista, SearchFiltros, SearchPlaylist, SearchTrack } from '../types'
 import styles from './SearchResultsPage.module.css'
 
 const SKELETON_ROWS = [0, 1, 2, 3, 4]
@@ -33,16 +34,61 @@ function grupoValido(v: string | null): Grupo | null {
  * secciones vacías no se renderizan — una lista de encabezados sin contenido
  * hace parecer que la búsqueda falló.
  */
+const DURACION_MIN_STEP_MS = 60_000 // los inputs se muestran/reciben en minutos
+
+function filtrosDesdeParams(params: URLSearchParams): SearchFiltros {
+  const genero = params.get('genero') ?? ''
+  const anioDesde = params.get('anio_desde')
+  const anioHasta = params.get('anio_hasta')
+  const duracionMinMin = params.get('duracion_min') // minutos, no ms — nombre de param URL corto
+  const duracionMaxMin = params.get('duracion_max')
+  return {
+    genero: genero || undefined,
+    anioDesde: anioDesde ? Number(anioDesde) : undefined,
+    anioHasta: anioHasta ? Number(anioHasta) : undefined,
+    duracionMinMs: duracionMinMin ? Number(duracionMinMin) * DURACION_MIN_STEP_MS : undefined,
+    duracionMaxMs: duracionMaxMin ? Number(duracionMaxMin) * DURACION_MIN_STEP_MS : undefined,
+  }
+}
+
+function hayFiltrosActivos(f: SearchFiltros): boolean {
+  return !!(f.genero || f.anioDesde != null || f.anioHasta != null || f.duracionMinMs != null || f.duracionMaxMs != null)
+}
+
 export function SearchResultsPage() {
-  const [params] = useSearchParams()
+  const [params, setParams] = useSearchParams()
   const q = (params.get('q') ?? '').trim()
   const grupo = grupoValido(params.get('grupo'))
+  const filtros = filtrosDesdeParams(params)
+
+  const { data: genresData } = useQuery({
+    queryKey: ['genres', 'list'],
+    queryFn:  () => catalogoApi.genresList(),
+    staleTime: 5 * 60_000,
+  })
+  const genres = genresData?.data ?? []
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: ['catalogo', 'search-all', q, grupo],
-    queryFn:  () => catalogoApi.searchAll(q, grupo ? 20 : 8),
+    queryKey: ['catalogo', 'search-all', q, grupo, filtros],
+    queryFn:  () => catalogoApi.searchAll(q, grupo ? 20 : 8, filtros),
     enabled:  q.length > 0,
   })
+
+  // Filtros reflejados en la URL (bookmarkeable/compartible, mismo criterio
+  // que `grupo`) — cada setter reemplaza solo su propia clave, sin pisar el
+  // resto de los params (q, grupo).
+  function setFiltro(clave: 'genero' | 'anio_desde' | 'anio_hasta' | 'duracion_min' | 'duracion_max', valor: string) {
+    const next = new URLSearchParams(params)
+    if (valor) next.set(clave, valor)
+    else next.delete(clave)
+    setParams(next, { replace: true })
+  }
+
+  function limpiarFiltros() {
+    const next = new URLSearchParams(params)
+    for (const clave of ['genero', 'anio_desde', 'anio_hasta', 'duracion_min', 'duracion_max']) next.delete(clave)
+    setParams(next, { replace: true })
+  }
 
   return (
     <section className={styles.page}>
@@ -57,6 +103,15 @@ export function SearchResultsPage() {
           </Link>
         )}
       </header>
+
+      {q && (
+        <FiltrosCanciones
+          genres={genres}
+          filtros={filtros}
+          onCambiar={setFiltro}
+          onLimpiar={limpiarFiltros}
+        />
+      )}
 
       {!q && (
         <EmptyState
@@ -83,6 +138,95 @@ export function SearchResultsPage() {
 
       {q && data && <Resultados data={data} grupo={grupo} q={q} />}
     </section>
+  )
+}
+
+// Filtros de "canciones" (S17) — género vía los mismos chips que
+// CatalogPage.tsx (misma fuente `genresList()`/`genreAccent`, sin
+// reinventar el selector), año y duración vía el mismo panel de inputs
+// numéricos que sus "filtros avanzados". Solo afectan al grupo canciones
+// (nota visible en el subtítulo) — el backend no filtra artistas/álbumes/
+// playlists por estos criterios.
+function FiltrosCanciones({
+  genres, filtros, onCambiar, onLimpiar,
+}: {
+  genres: { genre_id: number; name: string }[]
+  filtros: SearchFiltros
+  onCambiar: (clave: 'genero' | 'anio_desde' | 'anio_hasta' | 'duracion_min' | 'duracion_max', valor: string) => void
+  onLimpiar: () => void
+}) {
+  const activos = hayFiltrosActivos(filtros)
+  const duracionMinMin = filtros.duracionMinMs != null ? String(filtros.duracionMinMs / DURACION_MIN_STEP_MS) : ''
+  const duracionMaxMin = filtros.duracionMaxMs != null ? String(filtros.duracionMaxMs / DURACION_MIN_STEP_MS) : ''
+
+  return (
+    <div>
+      {genres.length > 0 && (
+        <div className={styles.genreChips} aria-label="Filtrar canciones por género">
+          {genres.map((g) => {
+            const active = filtros.genero === g.name
+            const accent = genreAccent(g.name)
+            return (
+              <button
+                key={g.genre_id}
+                type="button"
+                className={active ? `${styles.genreChip} ${styles.genreChipActive}` : styles.genreChip}
+                style={active ? { background: accent, borderColor: accent } : { borderColor: genreAccent(g.name, 0.35), color: accent }}
+                onClick={() => onCambiar('genero', active ? '' : g.name)}
+                aria-pressed={active}
+              >
+                {g.name}
+              </button>
+            )
+          })}
+        </div>
+      )}
+
+      <div className={styles.filtersPanel}>
+        <label className={styles.filterField}>
+          Año desde
+          <input
+            type="number" min={1900} max={2100} placeholder="1990"
+            value={filtros.anioDesde ?? ''}
+            onChange={(e) => onCambiar('anio_desde', e.target.value)}
+          />
+        </label>
+        <label className={styles.filterField}>
+          Año hasta
+          <input
+            type="number" min={1900} max={2100} placeholder="2026"
+            value={filtros.anioHasta ?? ''}
+            onChange={(e) => onCambiar('anio_hasta', e.target.value)}
+          />
+        </label>
+        <label className={styles.filterField}>
+          Duración mín. (min)
+          <input
+            type="number" min={0} step={0.5} placeholder="0"
+            value={duracionMinMin}
+            onChange={(e) => onCambiar('duracion_min', e.target.value)}
+          />
+        </label>
+        <label className={styles.filterField}>
+          Duración máx. (min)
+          <input
+            type="number" min={0} step={0.5} placeholder="10"
+            value={duracionMaxMin}
+            onChange={(e) => onCambiar('duracion_max', e.target.value)}
+          />
+        </label>
+        {activos && (
+          <button type="button" className={styles.filtersClear} onClick={onLimpiar}>
+            Limpiar filtros
+          </button>
+        )}
+      </div>
+      {activos && (
+        <span className={styles.subtitle} style={{ display: 'block', marginTop: `calc(-1 * var(--space-md))`, marginBottom: 'var(--space-md)' }}>
+          // los filtros solo aplican a la sección Canciones
+        </span>
+      )}
+    </div>
   )
 }
 
