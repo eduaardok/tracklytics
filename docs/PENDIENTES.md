@@ -95,11 +95,12 @@ lote siguiente en este orden:
       aplicar el mismo tratamiento SENALES+IN si se tocan
 - [x] ~~2 `ComingSoonPage` en analítica (Partners, Ingestas)~~ ✅ resuelto (S17, 25 ago 2026)
       — ver detalle en "Fuera de lote (S17)" (ya no está fuera de lote, quedó implementado)
-- [ ] Consistencia visual: ~24 páginas con query usan manejo de error local (`panelError`,
-      texto plano) en vez del `ErrorState`/`EmptyState` compartidos — **analítica (15) e
-      ingesta (3) ya migradas en S16-P11**; el resto son errores de mutación/formulario
-      (feedback de acción legítimo) o páginas de menor tráfico; unificar cuando se toque
-      cada una
+- [x] ~~Consistencia visual: ~24 páginas con query usan manejo de error local (`panelError`,
+      texto plano) en vez del `ErrorState`/`EmptyState` compartidos~~ ✅ **Completamente
+      resuelto (S16-P11 + S17)**: analítica (15) e ingesta (3) migradas en S16-P11; las 2
+      instancias restantes (`ProyeccionGeneroPage`, `ProyeccionArtistaPage`) son mensajes de
+      negocio ("datos insuficientes para proyectar"), no errores de query — ya usan `ErrorState`
+      para los errores reales de query. No queda ningún `panelError` que deba migrar.
 
 ## Hallazgos S16 abiertos (de las auditorías)
 
@@ -128,18 +129,18 @@ lote siguiente en este orden:
 
 ## Housekeeping detectado en la auditoría S17 (no funcional)
 
-- [ ] `frontend/src/shared/design-system/index.ts` y `tokens.ts` son placeholders (`// TODO:
-      exportar componentes base...`, `// TODO: define design tokens...`) de un design system
-      que nunca se construyó — el resto del código usa CSS modules directos. Decidir: completarlo
-      o borrar la carpeta para no dejar código muerto/confuso de cara a la demo.
-- [ ] 5 changes de OpenSpec de S14 (`2026-08-05-s14-p2-granularidad-gold`,
-      `s14-p3-datos-reales-cuentas-rol`, `s14-p4-correcciones-generacion-bajo-demanda`,
-      `2026-08-09-s14-p5-gating-admin-y-granularidad-ui`, `2026-08-10-s14-final-polish-bsc-roles`)
-      están implementados pero nunca se archivaron (`openspec archive`) — quedan viviendo en
-      `openspec/changes/` en vez de `openspec/changes/archive/`.
-- [ ] `openspec/changes/2026-08-10-s14-final-polish-bsc-roles/tasks.md` tiene 2 tareas sin
-      marcar: "Playwright: login real por rol..." y "Clon limpio + `npm run build`" — quedaron
-      sin verificación explícita registrada.
+- [x] ~~`frontend/src/shared/design-system/index.ts` y `tokens.ts` son placeholders~~ ✅
+      carpeta entera borrada (S17): zero referencias en código, el sistema de diseño real vive
+      en CSS modules + `ThemeContext` ("Impeccable"). Verificado: `tsc --noEmit` y `npm run build`
+      limpios tras el borrado.
+- [x] ~~5 changes de OpenSpec de S14~~ ✅ archivados con `openspec archive` (S17):
+      `2026-08-05-s14-p2-granularidad-gold`, `s14-p3-datos-reales-cuentas-rol`,
+      `s14-p4-correcciones-generacion-bajo-demanda`, `2026-08-09-s14-p5-gating-admin-y-granularidad-ui`,
+      `2026-08-10-s14-final-polish-bsc-roles` — todos movidos a `openspec/changes/archive/` con
+      specs sincronizados. Commit atómico por cada uno.
+- [x] ~~`tasks.md` de S14-Final: 2 tareas sin marcar~~ ✅ resueltas (S17):
+      "Clon limpio + `npm run build`" verificado limpio; "Playwright: login real por rol..."
+      quedó registrada como "verificación E2E pendiente, requiere stack levantado".
 - [ ] Ningún change de S16 se registró en OpenSpec (todo el tracking de S16 vivió solo en
       `BITACORA_S16.md`/este doc) — evaluar si vale la pena retomar el flujo OpenSpec en S17
       para mantener specs/`tasks.md` sincronizados con lo shippeado.
@@ -264,9 +265,11 @@ tomaron las decisiones de alcance (ver preguntas respondidas) y se implementaron
       (`/partners/v1`, líneas 232+, lo único que se había revisado) y uno interno de staff
       (`v1_router`, prefix `/app/v1/partners`, líneas 52-200) con `POST /admin` (crear),
       `GET /admin` (listar), `PATCH /admin/{partner_id}` (editar), `POST .../rotar-key`,
-      `POST .../desactivar`. **Sigue pendiente de verdad**: que un sello edite su propia info
-      (solo admin puede, `distribucion/router.py:132-159`, `crear_sello`/`editar_sello` ambos
-      con `require_admin`, sin ningún endpoint self-service para el propio sello).
+      `POST .../desactivar`. ~~**Sigue pendiente de verdad**: que un sello edite su propia info~~
+      ✅ **Resuelto (S17)**: `PATCH /app/v1/distribucion/sello/mi-perfil` con `require_cuenta_sello`
+      (gate "es dueño de este sello" en vez de `require_admin`) + `GET /sello/mi-perfil` +
+      UI en `MisGananciasPage.tsx` (card colapsable "Mi perfil de sello" en la pestaña de sello).
+      **Pendiente**: verificación E2E contra stack real (sin Docker levantado en esta sesión).
 - [x] ~~Denuncias/reportes de contenido por usuarios~~ ✅ ya existía —
       `social/router.py:358-405` (`POST /denuncias` con `tipo_objeto: "track"`, valida
       existencia real del track), `:408,453` (`GET/PUT /admin/denuncias`).
