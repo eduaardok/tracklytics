@@ -251,7 +251,16 @@ tomaron las decisiones de alcance (ver preguntas respondidas) y se implementaron
 
 - [ ] **Frontend sin volumen dev**: `tracklytics_frontend_react` sirve el dist copiado en
       la imagen — cada cambio de UI exige build + `docker cp` al contenedor (o rebuild).
-      Evaluar montar `frontend/dist` como volumen o un preview con HMR.
+      Evaluar montar `frontend/dist` como volumen o un preview con HMR. **Mitigado (S17,
+      cierre pre-demo)**: esta brecha fue justo la causa raíz de que el container sirviera
+      un build de varios commits atrás durante una verificación E2E — `docker compose up -d`
+      no reconstruye una imagen ya existente aunque el código cambió. `scripts/
+      rebuild-frontend.sh` hace el build con el commit actual como fingerprint (`VITE_GIT_COMMIT`
+      → `<meta name="build-commit">` en el HTML servido) y se autoverifica contra
+      `http://localhost:8082`, fallando con mensaje claro si no coincide. README actualizado
+      para que sea el paso explícito tras cada `git pull` con cambios de frontend. No resuelve
+      la brecha de fondo (seguir sin HMR/volumen), pero sí el riesgo de que la mañana de la
+      demo el jurado vea una versión vieja sin que nadie lo note.
 - [x] ~~Ciclos de vida: pausar/reanudar/finalizar campañas y anunciantes, revocar licencias,
       terminar contratos, takedown de tracks, listado admin de suscripciones, artista
       editar/retirar su propio track aprobado~~ ✅ ya existían (change `p1-ciclos-vida`, este
@@ -269,7 +278,19 @@ tomaron las decisiones de alcance (ver preguntas respondidas) y se implementaron
       ✅ **Resuelto (S17)**: `PATCH /app/v1/distribucion/sello/mi-perfil` con `require_cuenta_sello`
       (gate "es dueño de este sello" en vez de `require_admin`) + `GET /sello/mi-perfil` +
       UI en `MisGananciasPage.tsx` (card colapsable "Mi perfil de sello" en la pestaña de sello).
-      **Pendiente**: verificación E2E contra stack real (sin Docker levantado en esta sesión).
+      **Verificado E2E (S17, sesión de cierre pre-demo)**: cuenta `artista@demo.tracklytics.com`
+      (vinculada a "Sello Test Retencion 2", `sello_id=1`) — `GET /distribucion/sello/mi-perfil`
+      devuelve `{"sello_id":1,"nombre":"Sello Test Retencion 2","pais":"EC"}` (200); `PATCH`
+      con nombre/país nuevos devuelve 200 y el `GET` posterior confirma el cambio persistido;
+      revertido al valor original tras la prueba. Aislamiento por diseño (confirmado leyendo
+      el código, no hace falta un ataque real): ni el `GET` ni el `PATCH` aceptan un `sello_id`
+      por parámetro — `sello_id` sale siempre de `require_cuenta_sello` (derivado del token),
+      así que un sello no puede editar el registro de otro aunque lo intentara. Permisos:
+      `usuario@demo.tracklytics.com` (B2C, sin cuenta de sello) recibe 403 en ambos endpoints
+      ("Se requiere una cuenta de sello asociada a este usuario"); sin token, 401. En el
+      navegador (Playwright): login real como `artista@demo`, pestaña "Como sello" →
+      "Editar" → cambio de nombre/país → "Guardar" → recarga completa de página → el cambio
+      sigue visible (nombre del tab y card actualizados), cero errores de consola.
 - [x] ~~Denuncias/reportes de contenido por usuarios~~ ✅ ya existía —
       `social/router.py:358-405` (`POST /denuncias` con `tipo_objeto: "track"`, valida
       existencia real del track), `:408,453` (`GET/PUT /admin/denuncias`).
