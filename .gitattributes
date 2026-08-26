@@ -1,0 +1,5 @@
+# Los scripts de shell necesitan LF real (shebang) — `core.autocrlf=true`
+# (default de este repo en Windows) los convertiría a CRLF en un clon fresco
+# y rompería el shebang justo en `scripts/rebuild-frontend.sh`, el script
+# pensado para que el rebuild del frontend no se olvide antes de la demo.
+*.sh text eol=lf
