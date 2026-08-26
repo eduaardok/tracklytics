@@ -171,6 +171,7 @@ async function exportarComoPdf(el: HTMLElement, fileName: string, title: string 
     import('jspdf'),
   ])
 
+  const anchoOriginal = el.clientWidth
   const revertirTema = aplicarTemaClaro(el)
   const revertirOverflow = ensancharOverflowHorizontal(el)
   // Deja que el navegador aplique las custom properties/anchos antes de
@@ -180,18 +181,28 @@ async function exportarComoPdf(el: HTMLElement, fileName: string, title: string 
 
   let canvas: HTMLCanvasElement
   try {
-    const anchoCaptura = Math.max(el.clientWidth, anchoTotalNecesario(el))
+    const anchoCaptura = Math.max(anchoOriginal, anchoTotalNecesario(el))
+    // `windowWidth` clona TODO el documento (sidebar de navegación incluida,
+    // no solo `el`) a esa medida — pasarle directamente `anchoCaptura` (el
+    // ancho que necesita el CONTENIDO, sin la sidebar) hacía que html2canvas
+    // renderizara el documento entero como si la ventana fuera esa medida
+    // más angosta, encogiendo `el` de nuevo y recortando columnas reales
+    // (confirmado con Playwright a 1100px: los botones Historial/Exportar/
+    // Editar/Terminar de la tabla de regalías, visibles en pantalla,
+    // desaparecían del PDF). Fix: mantener el ancho de ventana real y
+    // sumarle solo el excedente que `el` necesitó de más.
+    const windowWidthCaptura = window.innerWidth + (anchoCaptura - anchoOriginal)
     canvas = await html2canvas(el, {
       backgroundColor: '#ffffff',
       scale: 2,
       useCORS: true,
       logging: false,
-      // Ancho de lienzo/ventana de renderizado ampliado al punto más a la
-      // derecha de cualquier descendiente (ver `ensancharOverflowHorizontal`
-      // arriba) — sin esto, html2canvas seguiría recortando al ancho
-      // renderizado normal de `el` aunque el overflow-x ya esté neutralizado.
+      // Ancho de lienzo ampliado al punto más a la derecha de cualquier
+      // descendiente (ver `ensancharOverflowHorizontal` arriba) — sin esto,
+      // html2canvas seguiría recortando al ancho renderizado normal de `el`
+      // aunque el overflow-x ya esté neutralizado.
       width: anchoCaptura,
-      windowWidth: anchoCaptura,
+      windowWidth: windowWidthCaptura,
       // El propio botón vive dentro del contenedor que captura (misma fila
       // que el título, arriba a la derecha) — sin esto, el PDF se
       // fotografiaría a sí mismo pidiendo generarse.
