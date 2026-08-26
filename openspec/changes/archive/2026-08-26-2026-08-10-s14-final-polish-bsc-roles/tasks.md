@@ -8,5 +8,5 @@
 - [x] Landing post-login por rol en `LoginPage.tsx`, sin romper el flujo de onboarding B2B.
 - [x] `GET /analitica/bsc/resumen` (backend) + `BalancedScorecardPage.tsx` (frontend).
 - [x] Verificar con `curl` real: superadmin 200, analyst/admin_finanzas 403.
-- [ ] Playwright: login real por rol, landing correcta, sidebar diferenciado, export PDF.
-- [ ] Clon limpio + `npm run build`.
+- [ ] Playwright: login real por rol, landing correcta, sidebar diferenciado, export PDF — verificación E2E pendiente, requiere stack levantado (Docker + Playwright).
+- [x] Clon limpio + `npm run build` — verificado en S17 (26 ago 2026) sin Docker levantado.

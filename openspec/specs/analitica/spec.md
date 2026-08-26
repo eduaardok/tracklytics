@@ -133,6 +133,7 @@ El sistema SHALL permitir generar un reporte diario que agregue ingestas y engag
 - **THEN** el navegador abre el diálogo de impresión con una vista limpia (sin sidebar ni controles), lista para guardar como PDF
 
 ### Requirement: Acceso a paneles analíticos condicionado a suscripción activa
+
 El acceso a los paneles analíticos B2B SHALL requerir una suscripción activa (ver capability
 `suscripciones`); un Cliente B2B sin plan activo no puede consultar estos dashboards. Además, el
 acceso SHALL graduarse según el tier de la suscripción activa (`básico < pro < enterprise`): los
@@ -142,9 +143,12 @@ base (dashboard ejecutivo, perfil de audio por género, tendencias temporales, d
 infraestructura, engagement de un track/artista, y la búsqueda de artista que lo soporta) SHALL
 permanecer accesibles desde tier Básico. Los paneles predictivos/estratégicos (proyección de
 tendencia de género, proyección de trayectoria de artista) SHALL requerir tier Enterprise. Esta
-graduación por tier es independiente del gating de `role == admin` (reporte diario operativo,
+graduación por tier es independiente del gating de staff interno (reporte diario operativo,
 churn, funnel de conversión, P&L, MRR/ARR), que SHALL seguir siendo exclusivo de Data Analyst/BI
-Lead o Lead Data Engineer/CTO sin relación con el tier de ningún Cliente B2B.
+Lead o Lead Data Engineer/CTO sin relación con el tier de ningún Cliente B2B. Staff interno SHALL
+reconocerse por `record.role == 'admin'` de PocketBase O por un rol `superadmin` vigente en
+`BRIDGE_USUARIO_ROL_ADMIN` — el mismo criterio que usa `require_rol_admin` en `seguridad`, no un
+chequeo más estricto exclusivo de este paquete.
 
 #### Scenario: Acceso sin suscripción activa
 - **WHEN** un Cliente B2B sin una suscripción activa intenta acceder a cualquier panel analítico
@@ -170,6 +174,12 @@ Lead o Lead Data Engineer/CTO sin relación con el tier de ningún Cliente B2B.
 - **WHEN** un Cliente B2B con tier Pro (no Enterprise) intenta consultar la proyección de
   tendencia de un género o la proyección de trayectoria de un artista
 - **THEN** el sistema le niega el acceso indicando que ese panel requiere tier Enterprise
+
+#### Scenario: Superadmin por BRIDGE (sin `record.role == 'admin'`) accede como staff interno
+- **WHEN** una cuenta tiene un rol `superadmin` vigente en `BRIDGE_USUARIO_ROL_ADMIN` pero su
+  `record.role` en PocketBase no es literalmente `admin`
+- **THEN** el sistema la trata como staff interno: acceso sin suscripción a los paneles
+  analíticos y al reporte diario operativo
 
 ### Requirement: Legibilidad de los gráficos analíticos
 Todos los gráficos SHALL mantener proporciones legibles, sin miniaturas ilegibles ni gráficos alargados que distorsionen la lectura de los datos.
@@ -322,6 +332,36 @@ sistema SHALL señalarlo explícitamente como alerta temprana dentro de la misma
   su serie en el horizonte proyectado
 - **THEN** el sistema incluye una señal de alerta temprana en la respuesta, indicando la pérdida
   de tracción
+
+### Requirement: Balanced Scorecard estratégico
+
+El sistema SHALL exponer `GET /analitica/bsc/resumen` con 4 perspectivas (Financiera, Cliente,
+Procesos Internos, Aprendizaje y Crecimiento), cada una con 2 indicadores. Cada indicador SHALL
+incluir el valor actual, la unidad, una meta de referencia, el porcentaje de esa meta alcanzado,
+un semáforo (verde ≥80%, amarillo 50-79%, rojo <50%) y una serie de tendencia de hasta 6 períodos
+mensuales — todo calculado desde tablas Gold reales (`GOLD_FINANCIERO_PERIODO`,
+`GOLD_ADQUISICION_PERIODO`, `GOLD_INFRAESTRUCTURA_PERIODO`, `GOLD_PIPELINE_PERIODO`,
+`GOLD_PRODUCTO_PERIODO`, `GOLD_CONTENIDO_PERIODO`), nunca con valores sintéticos. El acceso SHALL
+estar restringido a staff interno (`require_staff`) — el mismo criterio que ya usan reporte
+diario operativo, churn, funnel de conversión, P&L y MRR/ARR; un Cliente B2B (`analyst`) SHALL
+recibir 403, sin excepción para este endpoint.
+
+#### Scenario: Superadmin consulta el Balanced Scorecard
+- **WHEN** una cuenta con `record.role == 'admin'` o un rol `superadmin` vigente en
+  `BRIDGE_USUARIO_ROL_ADMIN` solicita `GET /analitica/bsc/resumen`
+- **THEN** el sistema devuelve las 4 perspectivas con sus KPIs, semáforos y tendencias calculados
+  sobre datos reales
+
+#### Scenario: Cliente B2B intenta acceder al Balanced Scorecard
+- **WHEN** una cuenta `analyst` (Cliente B2B, sin rol administrativo) solicita
+  `GET /analitica/bsc/resumen`
+- **THEN** el sistema responde 403, igual que para reporte diario/churn/funnel/P&L/MRR-ARR
+
+#### Scenario: Rol de área (no superadmin) intenta acceder al Balanced Scorecard
+- **WHEN** una cuenta con un rol de `BRIDGE_USUARIO_ROL_ADMIN` distinto de `superadmin` (ej.
+  `admin_finanzas`) solicita `GET /analitica/bsc/resumen`
+- **THEN** el sistema responde 403 — el Balanced Scorecard es una herramienta de staff interno
+  (`require_staff`), no de un área administrativa específica
 
 ## Entradas
 
