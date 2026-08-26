@@ -1,4 +1,4 @@
-import { useParams } from 'react-router-dom'
+import { Link, useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { User, Lock } from 'lucide-react'
 import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
@@ -8,6 +8,7 @@ import { SkeletonLoader } from '@shared/components/SkeletonLoader'
 import { ApiError } from '@shared/lib/api-client'
 import { LibraryTrackRow } from '@packages/catalogo'
 import { socialApi } from '../api/social.api'
+import type { TopArtista, TrackConReproducciones } from '../types'
 import styles from './SocialPages.module.css'
 
 // Perfil público (S10 ronda 2, punto 2) — accesible sin sesión: el backend
@@ -73,6 +74,10 @@ export function PerfilPublicoPage() {
         </div>
       </div>
 
+      {(data.top_tracks.length > 0 || data.top_artistas.length > 0) && (
+        <QueEscucha topTracks={data.top_tracks} topArtistas={data.top_artistas} />
+      )}
+
       {data.playlists.length === 0 ? (
         <div className={styles.emptyState}>
           <span className={styles.emptyTitle}>Sin playlists públicas todavía</span>
@@ -99,5 +104,41 @@ export function PerfilPublicoPage() {
         ))
       )}
     </section>
+  )
+}
+
+// "Qué escucha" (S17, paridad con apps de música) — top 5 tracks / top 3
+// artistas de los últimos 30 días. Reusa `LibraryTrackRow` (mismo componente
+// que ya pinta las playlists de esta página, arriba) para las canciones;
+// los artistas siguen el mismo patrón visual `followedList`/`followedRow`
+// que ya usa `SeguidosSocialPage` para su lista de artistas seguidos.
+function QueEscucha({ topTracks, topArtistas }: { topTracks: TrackConReproducciones[]; topArtistas: TopArtista[] }) {
+  return (
+    <div className={styles.panel} style={{ marginBottom: 'var(--space-lg)' }}>
+      {topTracks.length > 0 && (
+        <>
+          <p className={styles.sectionLabel}>Top canciones · últimos 30 días</p>
+          <ul className={styles.followedList} style={{ border: 'none', marginBottom: topArtistas.length > 0 ? 'var(--space-lg)' : 0 }}>
+            {topTracks.map((t, i) => (
+              <LibraryTrackRow key={t.fact_id} track={t} position={i + 1} queue={topTracks} />
+            ))}
+          </ul>
+        </>
+      )}
+
+      {topArtistas.length > 0 && (
+        <>
+          <p className={styles.sectionLabel}>Top artistas · últimos 30 días</p>
+          <ul className={styles.followedList}>
+            {topArtistas.map((a) => (
+              <Link key={a.artist_id} to={`/catalogo/artista/${a.artist_id}`} className={styles.followedRow}>
+                <span className={styles.followedName}>{a.name}</span>
+                <span className={styles.followedMeta}>{a.reproducciones} reproducci{a.reproducciones === 1 ? 'ón' : 'ones'}</span>
+              </Link>
+            ))}
+          </ul>
+        </>
+      )}
+    </div>
   )
 }

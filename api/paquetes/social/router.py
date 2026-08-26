@@ -40,6 +40,8 @@ from paquetes.social.queries import (
     PERFIL_PUBLICO_USUARIO,
     PREFERENCIAS_NOTIFICACION_USUARIO,
     SEGUIMIENTO_ACTIVO_EXISTE,
+    TOP_ARTISTAS_USUARIO_30D,
+    TOP_TRACKS_USUARIO_30D,
     TRACK_EXISTE,
     USUARIO_EXISTE,
     comentarios_admin_count_sql,
@@ -709,10 +711,28 @@ async def perfil_publico(usuario_id: str, viewer: dict | None = Depends(_usuario
         tracks  = [tracks_by_fact[it["fact_id"]] for it in ordered if it["fact_id"] in tracks_by_fact]
         playlists.append({"playlist_id": pl["id"], "name": pl["name"], "data": tracks, "total": len(tracks)})
 
+    # "Qué escucha" (S17, paridad con apps de música): top 5 tracks / top 3
+    # artistas de los últimos 30 días — mismo gate `perfil_publico` que ya
+    # protege el resto del endpoint (si el perfil es privado, esta función ni
+    # se llega a ejecutar por el `raise` de arriba), así que no hace falta un
+    # flag de visibilidad aparte para la actividad. Mismo patrón de 2 pasos
+    # que las playlists de arriba: rankear barato sobre FACT_ENGAGEMENT_USUARIO
+    # y enriquecer solo los ganadores.
+    top_conteo = query_rows(TOP_TRACKS_USUARIO_30D, {"usuario_id": usuario_id})
+    top_fact_ids = [r["fact_id"] for r in top_conteo]
+    top_tracks_by_fact = {r["fact_id"]: r for r in enriquecer_featuring(query_rows(TRACKS_BY_FACT_IDS, {"fact_ids": top_fact_ids}))} if top_fact_ids else {}
+    top_tracks = [
+        {**top_tracks_by_fact[r["fact_id"]], "reproducciones": r["reproducciones"]}
+        for r in top_conteo if r["fact_id"] in top_tracks_by_fact
+    ]
+    top_artistas = query_rows(TOP_ARTISTAS_USUARIO_30D, {"usuario_id": usuario_id})
+
     return {
         "usuario_id":     usuario_id,
         "nombre":         fila["nombre"],
         "perfil_publico": bool(fila["perfil_publico"]),
         "es_propio":      es_propio_dueno,
         "playlists":      playlists,
+        "top_tracks":     top_tracks,
+        "top_artistas":   top_artistas,
     }

@@ -130,6 +130,46 @@ SELECT usuario_id, nombre, perfil_publico
 FROM DIM_USUARIO WHERE usuario_id = {usuario_id:String} LIMIT 1
 """
 
+# "Qué escucha" en el perfil público (S17, paridad con apps de música) — no
+# recalcula RN-ANA-001 (engagement_score global, ponderado por favorito/like):
+# esto es un ranking personal simple (conteo de reproducciones propias en
+# 30 días) sobre la misma FACT_ENGAGEMENT_USUARIO que ya alimenta esa fórmula
+# y HISTORIAL_RECIENTE — mismo dato de origen, cálculo distinto y más simple
+# a propósito (no tiene sentido ponderar "lo que escuchaste" por favoritos de
+# TODOS los usuarios). `ORDER BY (user_id, event_timestamp)` de la tabla hace
+# que el filtro por user_id sea barato (mismo criterio de projections ya
+# documentado en biblioteca/analitica). Solo trae fact_id + conteo — el
+# router enriquece los 5 ganadores con `TRACKS_BY_FACT_IDS` (mismo patrón de
+# 2 pasos que ya usa este mismo endpoint para las playlists, y que da el
+# shape `LibraryTrack` completo para reusar `LibraryTrackRow` en el frontend).
+TOP_TRACKS_USUARIO_30D = """
+SELECT fact_id, count(*) AS reproducciones
+FROM FACT_ENGAGEMENT_USUARIO
+WHERE user_id = {usuario_id:String}
+  AND event_type = 'reproduccion'
+  AND event_timestamp >= now() - INTERVAL 30 DAY
+GROUP BY fact_id
+ORDER BY reproducciones DESC
+LIMIT 5
+"""
+
+TOP_ARTISTAS_USUARIO_30D = """
+SELECT
+    a.artist_id             AS artist_id,
+    any(a.name)              AS name,
+    any(a.imagen_url)        AS imagen_url,
+    count(*)                 AS reproducciones
+FROM FACT_ENGAGEMENT_USUARIO e
+INNER JOIN FACT_TRACKS ft ON ft.fact_id = e.fact_id
+INNER JOIN DIM_ARTISTS a  ON a.artist_id = ft.artist_id
+WHERE e.user_id = {usuario_id:String}
+  AND e.event_type = 'reproduccion'
+  AND e.event_timestamp >= now() - INTERVAL 30 DAY
+GROUP BY a.artist_id
+ORDER BY reproducciones DESC
+LIMIT 3
+"""
+
 # Puerta de entrada al descubrimiento de perfiles públicos: sin esta query no
 # hay forma de llegar a GET /usuarios/{usuario_id}/perfil salvo ya conocer el
 # id (S16, "descubrimiento de perfiles públicos"). El filtro perfil_publico=1

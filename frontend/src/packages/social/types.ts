@@ -123,12 +123,25 @@ export type PerfilPublicoResultado = {
   nombre:     string
 }
 
+export type TrackConReproducciones = LibraryTrack & { reproducciones: number }
+
+export type TopArtista = {
+  artist_id:      number
+  name:           string
+  imagen_url:     string | null
+  reproducciones: number
+}
+
 export type PerfilPublico = {
   usuario_id:      string
   nombre:          string
   perfil_publico:  boolean
   es_propio:       boolean
   playlists:       PlaylistPublica[]
+  // "Qué escucha" (S17) — top 5 tracks / top 3 artistas de los últimos 30
+  // días, ya filtrados por el mismo gate de privacidad del resto del perfil.
+  top_tracks:      TrackConReproducciones[]
+  top_artistas:    TopArtista[]
 }
 
 // ── Denuncias de contenido (change p1-ciclos-vida) ───────────────────────────
