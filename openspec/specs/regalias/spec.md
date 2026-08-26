@@ -219,6 +219,29 @@ El sistema SHALL permitir a un `admin_finanzas` exportar en formato JSON estruct
 - **WHEN** un `admin_finanzas` solicita la exportación del resumen de un contrato
 - **THEN** el sistema devuelve el resumen estructurado de sus liquidaciones
 
+### Requirement: Cobertura de contratos sobre contrapartes reales del catálogo
+
+El sistema SHALL permitir que la base de contratos de regalías (`DIM_CONTRATO_REGALIA`)
+cubra una porción representativa de las contrapartes reales ya existentes en el catálogo
+(sellos discográficos, cuentas de artista, productores) — un contrato NUNCA SHALL
+referenciar una contraparte (`sello_id`, `cuenta_artista_id`, `productor_id`) que no exista
+como fila real en su dimensión correspondiente. La vigencia de los contratos SHALL
+distribuirse en el tiempo (no concentrada en una única fecha), para que la liquidación por
+período tenga cobertura histórica real en vez de un puñado de contratos aislados en una
+ventana angosta.
+
+#### Scenario: Ampliar la base de contratos
+- **WHEN** se agregan contratos nuevos a la base para dar cobertura histórica a la
+  liquidación de regalías
+- **THEN** cada contrato nuevo referencia un sello, cuenta de artista o productor que ya
+  existe como fila real en su dimensión — ninguno se inventa sin contraparte real
+
+#### Scenario: Liquidar un período con cobertura de contratos distribuida
+- **WHEN** se liquida un período histórico dentro de la ventana de contratos vigentes
+- **THEN** el sistema encuentra al menos un contrato vigente para ese período (si hubo
+  streams reales de algún track contratado), en vez de depender de una ventana de vigencia
+  angosta que deja la mayoría de los períodos sin ningún contrato aplicable
+
 ## Entradas
 
 - Nombre del productor; identificador de track y de productor (asignación).
