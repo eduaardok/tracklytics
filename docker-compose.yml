@@ -418,6 +418,12 @@ services:
         # la interna `AIRFLOW_URL` de red Docker que usa el backend arriba —
         # override si se accede desde otra IP/host que no sea localhost.
         VITE_AIRFLOW_PUBLIC_URL: ${AIRFLOW_PUBLIC_URL:-http://localhost:8080}
+        # Fingerprint de commit horneado en el HTML servido (ver
+        # frontend/Dockerfile e index.html) — `scripts/rebuild-frontend.sh`
+        # lo pasa automáticamente; si se corre `docker compose build` a
+        # mano sin exportar la variable, queda "sin-commit" (rastro visible
+        # de que no se usó el script).
+        VITE_GIT_COMMIT: ${VITE_GIT_COMMIT:-sin-commit}
     container_name: tracklytics_frontend_react
     restart: unless-stopped
     depends_on:

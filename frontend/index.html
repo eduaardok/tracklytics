@@ -4,6 +4,11 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="icon" type="image/png" href="/logo.png" />
+    <!-- Fingerprint de build (ver frontend/Dockerfile) — confirma con
+         `curl -s http://localhost:8082/ | grep build-commit` qué commit
+         está sirviendo realmente el container, sin depender de que alguien
+         reconozca visualmente si una página cambió. -->
+    <meta name="build-commit" content="%VITE_GIT_COMMIT%" />
     <title>Tracklytics</title>
     <script>
       // Aplica el tema guardado antes del primer paint — sin esto, una

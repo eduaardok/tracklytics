@@ -15,6 +15,16 @@ COPY . .
 ARG VITE_AIRFLOW_PUBLIC_URL=http://localhost:8080
 ENV VITE_AIRFLOW_PUBLIC_URL=$VITE_AIRFLOW_PUBLIC_URL
 
+# Fingerprint del commit horneado en el HTML servido (ver <meta name="build-commit">
+# en index.html) — permite confirmar con un solo `curl` si el container está
+# sirviendo el código actual sin necesidad de comparar visualmente páginas
+# (S17: se encontró un `frontend-react` sirviendo un build de varios commits
+# atrás porque `docker compose up -d` sin `--build` no reconstruye imágenes
+# ya existentes). Default "sin-commit" si nadie pasa el build arg — deja
+# rastro explícito de que no se siguió el flujo de `scripts/rebuild-frontend.sh`.
+ARG VITE_GIT_COMMIT=sin-commit
+ENV VITE_GIT_COMMIT=$VITE_GIT_COMMIT
+
 RUN npm run build
 
 # ── Stage 2: production ───────────────────────────────────────────────────────

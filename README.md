@@ -128,10 +128,24 @@ Docker Compose levanta automáticamente todos los servicios en el orden correcto
 > **Nota:** en la primera ejecución espera ~5–7 minutos a que `pb-init` termine antes de lanzar
 > el ETL. Puedes monitorear con: `docker logs tracklytics_pb_init -f`
 
+> **⚠️ Tras hacer `git pull` con cambios de frontend, el paso 3 NO alcanza.**
+> `docker compose up -d` reutiliza la imagen de `frontend-react` si ya existe — no
+> reconstruye aunque el código fuente haya cambiado (Compose solo invoca `docker build`
+> si la imagen no existe o si se pasa `--build`/`build` explícitamente). Corré:
+> ```bash
+> ./scripts/rebuild-frontend.sh
+> ```
+> Reconstruye la imagen con el commit actual y se autoverifica contra
+> `http://localhost:8082` (fingerprint `<meta name="build-commit">` en el HTML servido,
+> ver `frontend/Dockerfile`) — falla con un mensaje claro si el container terminó
+> sirviendo otra cosa, en vez de quedar "andando" con código viejo en silencio.
+
 ### 4. (Opcional) Frontend React en modo desarrollo
 
-El paso 3 ya deja el frontend vigente corriendo en `http://localhost:8082` (build de producción
-servido por Nginx). Para desarrollo con hot reload:
+El paso 3 ya deja el frontend corriendo en `http://localhost:8082` (build de producción
+servido por Nginx) — usá `./scripts/rebuild-frontend.sh` después de cada `git pull` con
+cambios de frontend para que sea el build *vigente* (ver nota arriba). Para desarrollo con
+hot reload:
 
 ```bash
 cd frontend
