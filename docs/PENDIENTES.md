@@ -155,21 +155,29 @@ lote siguiente en este orden:
 
 Plan S17 (definido 25 ago 2026, auditoría estática de pendientes reales vs. doc desactualizado):
 
-7. **Lote 1 — Cierre P12 residual** ✅ implementado en código (25 ago 2026), **sin verificar
-   en runtime** (sin Docker levantado en esta sesión):
-   - `ChurnPage.tsx` ahora tiene checkbox "Desglosar por motivo" que llama
-     `?por_motivo=true` y agrega una columna por motivo encontrado.
-   - `GET /regalias/artista/mis-ganancias/exportar` y `/sello/mis-ganancias/exportar`
-     (CSV con BOM, reutiliza `GANANCIAS_ARTISTA`/`GANANCIAS_SELLO`) + botón "Exportar CSV"
-     en `MisGananciasPage.tsx`.
-   - `GET /finanzas/reporte/exportar` (CSV con BOM, dos secciones: resumen del periodo +
-     gasto por categoría) + botón "Exportar CSV" en `ReporteTab.tsx`.
-   - Helper nuevo compartido: `api/core/csv_export.py` (`filas_a_csv_response`) y
-     `apiClient.getBlob` en el frontend (mismo patrón de descarga autenticada que la
-     exportación GDPR de `ProfilePage`).
-   - Verificado: `python -m py_compile` limpio en los 2 routers tocados; `tsc --noEmit`
-     limpio. **Pendiente**: probar con `curl`/Playwright contra el stack real (churn con
-     datos, export CSV abre bien en Excel, permisos admin/artista/sello correctos).
+7. **Lote 1 — Cierre P12 residual** ✅ implementado y **verificado E2E contra el stack real
+   (S17, sesión del 25 ago 2026 con Docker levantado)**:
+   - `ChurnPage.tsx`: checkbox "Desglosar por motivo" confirmado con Playwright — llama
+     `?por_motivo=true`, agrega columnas `competencia`/`no_uso`/`otro`/`precio` con datos
+     reales que coinciden con el `curl` directo (ej. `GET /analitica/churn?desde=2026-03-01&
+     hasta=2026-08-25&por_motivo=true`). Nota aparte: `activas_al_inicio`/`tasa_churn` dan
+     0/`—` en todos los meses del rango probado — no es un bug de esta sesión, es que las
+     suscripciones reales en PocketBase fueron sembradas en agosto 2026 mientras
+     `FACT_CANCELACION_SUSCRIPCION` está backfillado desde marzo; `contar_altas_antes_de`
+     no encuentra altas previas a esos meses. Preexistente, fuera del alcance de este lote
+     (el propio docstring del endpoint ya advierte la limitación, aunque en la dirección
+     opuesta).
+   - `GET /regalias/artista/mis-ganancias/exportar` y `/sello/mis-ganancias/exportar`:
+     verificado con `curl` (cuenta `artista@demo.tracklytics.com`, BOM `EF BB BF` confirmado
+     con `xxd`, `Content-Type: text/csv`, contenido idéntico al que muestra
+     `MisGananciasPage`) y con el botón real "Exportar CSV" en el navegador (Playwright,
+     descarga byte-a-byte idéntica al `curl`). Permisos: `usuario@demo.tracklytics.com`
+     (B2C) recibe 403 en los tres endpoints de export (artista/sello/finanzas).
+   - `GET /finanzas/reporte/exportar`: verificado con `curl` (BOM, dos secciones —resumen +
+     gasto por categoría—, valores no vacíos).
+   - Helper `api/core/csv_export.py` (`filas_a_csv_response`): funciona correctamente con
+     datos; nota de borde no crítica — si `filas` viene vacío no escribe ni siquiera la fila
+     de encabezados (CSV queda solo con el BOM), no se dio el caso en los datasets probados.
 8. **Lote 2 — P13: Ads con imagen + CTR por formato** (mandato explícito del stakeholder).
 9. **Lote 3 — Polish estructural**: nav mobile drawer en `AnalyticaShell`/`SeguridadShell`,
    sweep `ErrorState`/`EmptyState` en las páginas restantes, borrar queries de experiencia
@@ -194,8 +202,19 @@ tomaron las decisiones de alcance (ver preguntas respondidas) y se implementaron
       lienzo tan ancho como el punto más a la derecha de cualquier descendiente — no solo el
       ancho renderizado de `el`. Todo se revierte tras la captura. Beneficia a los 30 informes
       compuestos + 27 simples + paneles con tabla de una sola vez (un solo archivo tocado).
-      Verificado: `tsc --noEmit` y `npm run build` limpios. **Pendiente**: probar visualmente
-      contra un PDF real generado desde un ranking ancho (sin stack levantado en esta sesión).
+      **Verificado E2E (S17, sesión con Docker levantado)**: exportación real de
+      `/seguridad/regalias`, `/seguridad/usuarios`, `/seguridad/publicidad` y 2 informes
+      compuestos (`/reportes/comercial/suscripciones`, `/reportes/financiero/regalias`),
+      PDFs inspeccionados página por página con PyMuPDF. **Bug real encontrado y corregido**:
+      `windowWidth` se pasaba como el ancho que necesitaba el contenido (`anchoCaptura`, sin
+      la sidebar) directo a html2canvas — que clona el DOCUMENTO COMPLETO a esa medida —, así
+      que en viewports angostos (probado a 1100px) encogía la sidebar+contenido por debajo
+      del ancho real y recortaba columnas que sí se veían en pantalla (los botones
+      Historial/Exportar/Editar/Terminar de la tabla de regalías desaparecían del PDF pese a
+      estar visibles en pantalla sin scroll). Fix: `windowWidth` ahora es `window.innerWidth`
+      más solo el excedente real que necesitó el contenido, no el ancho del contenido a
+      secas. Reverificado tras el fix: las 4 páginas wide-table + 2 informes compuestos
+      exportan todas las columnas completas.
 - [x] ~~**2 `ComingSoonPage` en analítica**~~ ✅ resueltas — decisión de alcance tomada con el
       stakeholder (ver preguntas respondidas 25 ago 2026):
       - **`/analitica/partners`** (`PartnersAnaliticaPage.tsx`): reutiliza
@@ -218,7 +237,14 @@ tomaron las decisiones de alcance (ver preguntas respondidas) y se implementaron
         normal (`RequireSuscripcionActiva`, admin bypassa igual que el resto del árbol) y
         aparecen en la nav real (grupos Operativo/Herramientas).
       Verificado: `tsc --noEmit` y `npm run build` limpios (chunks separados, 5.3kB/5.2kB).
-      **Pendiente**: verificar visualmente en el navegador (sin stack levantado en esta sesión).
+      **Verificado E2E en navegador (S17, sesión con Docker levantado)**: encontrado el
+      contenedor `tracklytics_frontend_react` sirviendo un `dist` de antes de estos commits
+      (nunca se hizo `docker cp` tras el build — mismo patrón de brecha operativa "Frontend
+      sin volumen dev" ya documentado abajo); tras rebuild + redeploy, `/analitica/partners`
+      muestra las 6 tarjetas de partners reales (`GET /app/v1/partners/metricas`) y la matriz
+      de cobertura por tier, y `/analitica/ingestas` muestra los 3 gráficos de tendencia con
+      20 corridas reales (`GET /app/v1/ingesta/cargas`) — cero errores de consola/red en
+      ambas.
 
 ## Brechas operativas identificadas (P1)
 
@@ -261,13 +287,10 @@ tomaron las decisiones de alcance (ver preguntas respondidas) y se implementaron
       `publicidad/router.py`, render del banner en el overlay `AdContext`/`AdBanner`,
       y desglose de CTR por formato (audio vs display) en `ingresos_por_campana_sql`
       y `PublicidadAdminPage`.
-- [ ] **Exportación agregada para `regalias`/`finanzas` (P12 residual)** — CSV
-      (`text/csv` con BOM para Excel) reutilizando `GANANCIAS_ARTISTA` y
-      `/finanzas/reporte` (CU-O90); botón Exportar en `MisGananciasPage`. Autorizado
-      dentro del bloque dinero congelado (solo lectura/exportación).
-- [ ] **Vista admin de churn por motivo (P12 residual)** — `GET` sobre
-      `FACT_CANCELACION_SUSCRIPCION` (motivo + serie temporal); el evento ya se escribe
-      desde 4 flujos de suscripciones. Autorizada como lectura.
+- [x] ~~**Exportación agregada para `regalias`/`finanzas` (P12 residual)**~~ ✅ resuelto y
+      verificado E2E (S17, ver "Lote 1 — Cierre P12 residual" arriba).
+- [x] ~~**Vista admin de churn por motivo (P12 residual)**~~ ✅ resuelto y verificado E2E
+      (S17, ver "Lote 1 — Cierre P12 residual" arriba).
 
 ## Brechas de producto (P2)
 
