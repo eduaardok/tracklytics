@@ -8,6 +8,33 @@
 > transversales, gaps de datos) — quedan tachados abajo con la evidencia. Detalles en
 > `docs/BITACORA_S16.md`.
 
+## Paridad con apps de música (S17, sesión de 4 mejoras)
+
+Auditoría comparando contra funciones esperables de una app tipo Spotify. Cada punto se
+re-verificó contra el código real antes de implementar (no se asumió el diagnóstico previo).
+
+- [x] ~~**Notificación de lanzamiento de artista seguido**~~ — **ya existía, premisa del prompt
+      era falsa**: `api/paquetes/creadores/router.py:294-300` (dentro del endpoint de
+      resolución de subida de track) ya llama
+      `notificaciones.crear_para_seguidores_de_artista(artist_id, "nuevo_track_artista_seguido",
+      "track", str(fact_id), mensaje)` desde **S10 ronda 2** — muy anterior a esta sesión.
+      El filtro de opt-out (`PREFERENCIAS_DESACTIVADAS_DE_USUARIOS`) ya se aplica dentro de esa
+      función, no hace falta aplicarlo aparte. **Verificado E2E de nuevo esta sesión** (no solo
+      lectura de código): cuenta `artista@demo.tracklytics.com` subió 2 tracks reales vía
+      `POST /creadores/tracks` (el primero crea el `artist_id` en `DIM_ARTISTS` si no existía
+      — no tenía track previo en el catálogo real); `usuario@demo.tracklytics.com` siguió ese
+      `artist_id` (`POST /social/seguimiento/{id}`); superadmin aprobó el segundo track
+      (`POST /creadores/admin/tracks/{subida_id}/resolver`); la campana del seguidor mostró
+      "Nuevo track de Artista Demo S10: E2E Notificacion Real" en tiempo real (Playwright,
+      captura verificada). **Decisión de alcance sobre el ETL masivo** (flujo de ingesta
+      regular/sintética, `etl/gold/synthetic.py`): deliberadamente **no** se engancha a este
+      trigger — cada corrida del DAG inserta 50k-100k filas vía `insert_df` (pandas, no fila
+      por fila), en su mayoría artist_id del dataset original sin cuentas de artista reales;
+      llamar la notificación por fila sería impráctico (miles de queries síncronas) y
+      generaría ruido masivo sin valor real para una demo o para usuarios reales. Si en el
+      futuro se necesita cubrir ese caso, debe ser un paso post-ingesta separado que agrupe
+      por `artist_id` con seguidores reales, nunca dentro del loop de inserción.
+
 ## Dónde queda la sesión (cierre 23 ago 2026)
 
 Todo lo cerrado está commiteado y desplegado (`docker cp` al contenedor frontend);
