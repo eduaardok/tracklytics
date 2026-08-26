@@ -34,6 +34,49 @@ re-verificó contra el código real antes de implementar (no se asumió el diagn
       generaría ruido masivo sin valor real para una demo o para usuarios reales. Si en el
       futuro se necesita cubrir ese caso, debe ser un paso post-ingesta separado que agrupe
       por `artist_id` con seguidores reales, nunca dentro del loop de inserción.
+- [x] ~~**Perfil público con top tracks/artistas**~~ ✅ implementado y verificado E2E —
+      `GET /social/usuarios/{id}/perfil` ahora devuelve `top_tracks` (5) y `top_artistas` (3)
+      de los últimos 30 días, sin recalcular RN-ANA-001 (conteo simple de reproducciones
+      propias sobre `FACT_ENGAGEMENT_USUARIO`, mismo dato de origen que esa fórmula y que
+      `HISTORIAL_RECIENTE`, cálculo distinto a propósito). Mismo patrón de 2 pasos que ya usa
+      este endpoint para las playlists (rankear barato, enriquecer solo los ganadores vía
+      `TRACKS_BY_FACT_IDS`) — da el shape `LibraryTrack` completo para reusar
+      `LibraryTrackRow` en el frontend sin inventar un tipo nuevo. Privacidad: reusa el flag
+      `perfil_publico` ya existente (no se creó uno aparte) — si el perfil es privado el
+      endpoint entero devuelve 404 antes de calcular nada. Verificado con `curl` (cuenta
+      `usuario@demo.tracklytics.com` con historial real: top tracks coincide con
+      `GET /biblioteca/historial` de la misma cuenta — Sam Smith arriba con 2 reproducciones;
+      perfil privado → 404 para otro visitante; el dueño sigue viendo su propio top) y en el
+      navegador (Playwright, `LibraryTrackRow`/lista de artistas reales renderizados).
+- [x] ~~**Filtros de búsqueda (género/año/duración)**~~ ✅ implementado y verificado E2E —
+      `GET /search` acepta `genero`, `anio_desde`/`anio_hasta` (contra `DIM_ALBUMS.release_year`,
+      no existe columna de año en `FACT_TRACKS`) y `duracion_min`/`duracion_max` (ms), aplicados
+      solo al grupo "canciones" (género/año no tienen el mismo significado para artistas/
+      álbumes/playlists en una sola llamada). `search_tracks_grupo_sql()` solo suma los JOINs a
+      `DIM_GENRES`/`DIM_ALBUMS` cuando el filtro correspondiente está activo, preservando el
+      camino sin filtros tal como estaba optimizado (nota PERF ya existente en el archivo).
+      Frontend: mismos chips de género + panel de inputs numéricos que ya usa `CatalogPage`
+      (mismo `genresList()`/`genreAccent()`, sin reinventar el selector), reflejados en la URL
+      vía `useSearchParams` (bookmarkeable/compartible). Verificado con `curl` (género=pop,
+      duración máxima, año desde, y combinados — todos 200 con resultados coherentes) y en el
+      navegador (Playwright: chip de género activo filtra la sección Canciones a ese género,
+      duración máxima recorta resultados, recargar la URL con el filtro en la query string
+      restaura el valor del input).
+- [x] ~~**Compartir en el reproductor principal**~~ ✅ implementado y verificado E2E — botón
+      nuevo en `PlayerBarActions.tsx` (`catalogo/components/`, no en `PlayerBar.tsx` de
+      `shared/` — mismo patrón de aislamiento ya usado para favoritos/agregar a playlist),
+      import directo de `socialApi`/tipos desde `@packages/social/api/social.api` (nunca vía
+      el barrel `@packages/social`, que arrastraría `TrackSocialPage`/`ModeracionSocialPage`
+      —Recharts/moderación— al bundle principal; mismo criterio ya documentado en
+      `AppShell.tsx` para `NotificationBell`/`UserMenu`/`AdBanner`). Reusa la misma llamada
+      backend que `TrackSocialPage` (`socialApi.compartir`, `FACT_COMPARTICION`) pero copia al
+      portapapeles la ruta real del frontend en vez del dominio simulado del backend
+      (`https://tracklytics.app/...`, que no resuelve en ningún entorno real) — el objetivo
+      explícito era que el enlace funcionara al abrirlo. Verificado en el navegador
+      (Playwright con permisos de portapapeles): reproducir un track real, click en el botón,
+      portapapeles con `http://localhost:8082/catalogo/track/47616` (HTTP 200 real), toast
+      "Enlace copiado", e insert en `FACT_COMPARTICION` confirmado por query directa. Bundle
+      principal: +1.26kB gzip, sin arrastrar ninguna página de `social/`.
 
 ## Dónde queda la sesión (cierre 23 ago 2026)
 
