@@ -229,15 +229,22 @@ const MOTIVO_LABEL: Record<string, string> = {
   spam: 'Spam', contenido_inapropiado: 'Contenido inapropiado', derechos_de_autor: 'Derechos de autor', otro: 'Otro',
 }
 
+const DENUNCIAS_PAGE_SIZE = 20
+
 // Bandeja de denuncias de contenido (change p1-ciclos-vida, rol admin_comunidad).
 function DenunciasPanel() {
   const queryClient = useQueryClient()
   const toast = useToast()
   const [estado, setEstado] = useState('pendiente')
+  // Fix S17 (auditoría, sección 3.2): backend y cliente ya soportan
+  // page/limit/total (mismo contrato que `comentariosAdmin`, arriba), pero
+  // este panel nunca mantenía estado de página — siempre pedía la página 1,
+  // dejando cualquier denuncia más allá de la fila 20 inalcanzable.
+  const [page, setPage] = useState(1)
 
   const denuncias = useQuery({
-    queryKey: ['social', 'admin', 'denuncias', estado],
-    queryFn: () => socialApi.denunciasAdmin({ estado: estado || undefined }),
+    queryKey: ['social', 'admin', 'denuncias', estado, page],
+    queryFn: () => socialApi.denunciasAdmin({ estado: estado || undefined, page, limit: DENUNCIAS_PAGE_SIZE }),
   })
   // Strike al resolver (change p2-descubrimiento-comunidad): se arma por
   // denuncia, no global, porque la decisión de sancionar es de cada caso.
@@ -269,14 +276,20 @@ function DenunciasPanel() {
   })
 
   const data: Denuncia[] = denuncias.data?.data ?? []
+  const totalDenuncias = denuncias.data?.total ?? 0
+  const totalPages = Math.max(1, Math.ceil(totalDenuncias / DENUNCIAS_PAGE_SIZE))
 
   return (
     <div className={styles.queuePanel} style={{ marginTop: 'var(--space-xl)' }}>
       <div className={styles.queueHeader}>
-        <span className={styles.queueTitle}>Denuncias ({denuncias.data?.total ?? 0})</span>
+        <span className={styles.queueTitle}>Denuncias ({totalDenuncias})</span>
         <div className={styles.queueFilters} data-pdf-export-ignore="true">
           {DEN_FILTROS.map((f) => (
-            <button key={f.value} className={`${styles.filterChip} ${estado === f.value ? styles['filterChip--active'] : ''}`} onClick={() => setEstado(f.value)}>
+            <button
+              key={f.value}
+              className={`${styles.filterChip} ${estado === f.value ? styles['filterChip--active'] : ''}`}
+              onClick={() => { setEstado(f.value); setPage(1) }}
+            >
               {f.label}
             </button>
           ))}
@@ -329,6 +342,18 @@ function DenunciasPanel() {
             )
           })}
         </ul>
+      )}
+
+      {totalPages > 1 && (
+        <div className={styles.queueHeader} data-pdf-export-ignore="true">
+          <button className={styles.btnGhost} type="button" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
+            ← Anterior
+          </button>
+          <span className={styles.queueRowMeta}>Página {page} / {totalPages}</span>
+          <button className={styles.btnGhost} type="button" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>
+            Siguiente →
+          </button>
+        </div>
       )}
     </div>
   )
