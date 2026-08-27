@@ -1,7 +1,60 @@
 # Tracklytics — Pendientes
 
-> Última revisión: **Semana 17 (S17, 26 ago 2026)** — selector de área "Viendo como" para
-> superadmin en paneles admin.
+> Última revisión: **Semana 17 (S17, 26 ago 2026)** — tooltips de ayuda en KPIs, CrudModal
+> `wide`/secciones, preview en vivo de subida de track y de campaña publicitaria.
+
+## Tooltips de ayuda + formularios densos (S17, sesión 2)
+
+- [x] ✅ **Tooltips de ayuda en KPIs** — `KPICard`/`Kpi` (`reportes/KpiCards.tsx`) ganan
+      `helpText?: string`, renderizado con `InfoHint` (componente ya existente, hover + foco
+      por teclado — no se construyó un tooltip nuevo). Wireado en: `DashboardPage.tsx`
+      (Popularidad, Energy, Danceability, Valence, Tempo), `PnlPage.tsx` (P&L, Margen neto),
+      `MrrArrPage.tsx` (MRR, ARR), `ChurnPage.tsx` (Tasa de churn) y 2 de los 30 informes
+      compuestos que usan jerga real (`comercial.tsx` CAC, `financiero.tsx` MRR/ARR) — el resto
+      de los 30 informes usa etiquetas ya autoexplicativas en español, así que no se les agregó
+      texto de relleno. Verificado: build shippeado al contenedor, `grep` sobre el JS servido
+      confirma el texto de ayuda presente en los bundles (`DashboardPage-*.js`,
+      `InformeCompuestoPage-*.js`).
+- [x] ✅ **Rango de fechas en Dashboard/BenchmarkSql — decisión: no se tocó**.
+      `BenchmarkSqlPage` no es una vista de datos históricos: cada card mide en vivo ("Medir
+      ahora") SQL directo vs. Gold para el mismo informe — un rango de fechas no tiene sentido
+      ahí. `DashboardPage` (`/analitica/dashboard/executive`) agrega **todo el catálogo**
+      (totales, promedios de audio, top géneros/artistas) más 2 series de tendencia con ventana
+      fija propia — no hay un "período" único aplicable a los ~10 sub-queries del endpoint sin
+      un rediseño de esa API que excede el alcance de esta sesión; se documenta como pendiente
+      real, no se improvisó un filtro que solo afectaría 2 de 10 widgets.
+  - Pendiente real para una sesión futura: si se quiere rango de fechas en `DashboardPage`,
+    diseñar primero qué significa "catálogo en una fecha" antes de tocar el frontend.
+- [x] ✅ **Rango de fechas en los 30 informes compuestos — ya existía, premisa falsa**:
+      `useCompoundReport`/`ReportLayout.tsx` ya traen `periodoInicio`/`periodoFin` (selects
+      "Desde"/"Hasta" sobre los períodos disponibles) **además** de la granularidad — no hacía
+      falta agregar nada. Confirmado con `curl` autenticado (`superadmin@demo.tracklytics.com`):
+      `/app/v1/analitica/pnl?desde=2026-07-01&hasta=2026-08-01` → margen neto \$73,952.95;
+      mismo endpoint con `desde=2026-01-01&hasta=2026-02-01` → \$29,771.97 (rangos distintos,
+      valores distintos, filtro real).
+- [x] ✅ **`CrudModal` con modo `wide` y secciones** — prop opcional `wide` (440px→640px,
+      grid 2 columnas en el fieldset), sin cambiar el contrato de los llamadores existentes
+      (`TicketsAdminPage`, `AdminPartnersPage` siguen sin pasar `wide`, sin cambios visuales).
+      Nuevo named export `CrudModalSection` para agrupar campos con encabezado. Aplicado al
+      modal de "Nueva campaña" de `PublicidadAdminPage.tsx` (7 campos).
+- [x] ✅ **Preview en vivo — campaña publicitaria**: el mismo modal `wide` de nueva campaña
+      agrega una card de vista previa (formato + anunciante + CPM) que se actualiza con cada
+      campo.
+- [x] ✅ **Preview en vivo — subida de track** (`CuentaArtistaPage.tsx`): card "cómo se verá en
+      el catálogo" que se actualiza con nombre/álbum/géneros/duración/explícito. Reusa
+      `AlbumArt` (mismo fallback de degradado por género ya usado en el catálogo real, sin
+      inventar un placeholder nuevo) — no se reusó `TrackGridCard` completo porque ese
+      componente está atado a `PlayerContext`/navegación al detalle, que no aplican a un track
+      que todavía no existe en `FACT_TRACKS`.
+  - Verificación de runtime: build (`tsc --noEmit` + `npm run build`, ambos limpios) shippeado
+    al contenedor vía `scripts/rebuild-frontend.sh`; `grep` sobre los bundles servidos por nginx
+    confirma que "Vista previa en el catálogo" y "Vista previa" (publicidad) están en el código
+    desplegado. Verificación interactiva completa en navegador (Playwright) **no se pudo hacer
+    esta sesión** — no había un MCP de navegador disponible; la evidencia de esta sesión es
+    build limpio + contrato de API verificado por `curl` + strings confirmados en el bundle
+    servido, no una captura de pantalla real. Recomendado como siguiente paso: correr con
+    Playwright disponible para el check visual final (foco de teclado en `InfoHint`, layout de
+    2 columnas del modal `wide`, preview actualizándose en tiempo real).
 
 ## Paridad con apps de música (S17, sesión de 4 mejoras)
 
