@@ -15,7 +15,7 @@ importables entre contenedores.
 
 import random
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import httpx
 
@@ -108,6 +108,18 @@ def run_facturacion_recurrente(**context) -> None:
                 [(invoice_id, usuario_id, transaccion_id, monto, iva, "emitido")],
                 column_names=["invoice_id", "usuario_id", "transaccion_id", "monto", "iva", "estado"],
             )
+            # Fin del período ya pagado (S17): corre 30 días desde ESTE cobro
+            # exitoso — mismo campo que actualiza `POST /procesar-cobro` en la
+            # API (`api/paquetes/suscripciones/router.py`), para que ambos
+            # caminos de renovación queden consistentes con lo que
+            # `list_activas` usa para decidir acceso tras una cancelación.
+            nueva_fecha_fin_periodo = ahora + timedelta(days=DIAS_CICLO)
+            httpx.patch(
+                f"{cfg['pb_url']}/api/collections/suscripciones/records/{suscripcion_id}",
+                json={"fecha_fin_periodo": nueva_fecha_fin_periodo.isoformat(sep=" ")},
+                headers={"Authorization": f"Bearer {pb_token}"},
+                timeout=30,
+            ).raise_for_status()
             renovadas += 1
         else:
             # Cobro fallido en la renovación (modelo-financiero-completar-

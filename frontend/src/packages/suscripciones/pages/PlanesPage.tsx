@@ -404,6 +404,21 @@ export function PlanesPage({ embebido = false }: { embebido?: boolean }) {
               En período de prueba — termina el {fmtFecha(activa.fecha_fin_trial ?? undefined)}
             </p>
           )}
+          {/* Cancelada con acceso hasta fin de período (S17): la cancelación
+              corta el cobro futuro de inmediato, pero el usuario ya pagó
+              este ciclo — no debe parecer que sigue "simplemente activa" sin
+              contexto, ni que perdió el acceso ya. */}
+          {activa.estado === 'cancelada' && (
+            <div className={styles.canceladaBanner} role="status">
+              <p className={styles.canceladaText}>
+                Suscripción cancelada — conservas el acceso hasta el{' '}
+                {fmtFecha(activa.fecha_fin_periodo ?? undefined)}.
+              </p>
+              <p className={styles.canceladaSub}>
+                No se realizarán más cobros. Puedes suscribirte de nuevo cuando quieras.
+              </p>
+            </div>
+          )}
           {activa.estado === 'pago_pendiente' && (
             <div className={styles.dunningBanner} role="alert">
               <p className={styles.dunningText}>
@@ -424,7 +439,11 @@ export function PlanesPage({ embebido = false }: { embebido?: boolean }) {
               </button>
             </div>
           )}
-          {activa.tipo_plan !== 'free' && (
+          {/* Ya cancelada (S17): no tiene sentido ni motivo ni botón de
+              cancelar de nuevo — la suscripción solo sigue apareciendo acá
+              porque aún conserva acceso hasta `fecha_fin_periodo` (banner
+              arriba). */}
+          {activa.estado !== 'cancelada' && activa.tipo_plan !== 'free' && (
             <div className={styles.field}>
               <label className={styles.fieldLabel} htmlFor="motivo-cancelacion">Motivo (si cancelas)</label>
               <select
@@ -437,17 +456,19 @@ export function PlanesPage({ embebido = false }: { embebido?: boolean }) {
               </select>
             </div>
           )}
-          <button
-            type="button"
-            className={styles.btnDanger}
-            disabled={cancelar.isPending}
-            onClick={async () => {
-              const ok = await confirm('¿Cancelar tu suscripción activa?', { danger: true, confirmLabel: 'Cancelar suscripción' })
-              if (ok) cancelar.mutate({ suscripcionId: activa.id, motivo: motivoCancelacion })
-            }}
-          >
-            {cancelar.isPending ? 'Cancelando…' : 'Cancelar suscripción'}
-          </button>
+          {activa.estado !== 'cancelada' && (
+            <button
+              type="button"
+              className={styles.btnDanger}
+              disabled={cancelar.isPending}
+              onClick={async () => {
+                const ok = await confirm('¿Cancelar tu suscripción activa?', { danger: true, confirmLabel: 'Cancelar suscripción' })
+                if (ok) cancelar.mutate({ suscripcionId: activa.id, motivo: motivoCancelacion })
+              }}
+            >
+              {cancelar.isPending ? 'Cancelando…' : 'Cancelar suscripción'}
+            </button>
+          )}
           {cancelar.isError && <p className={styles.formError}>No se pudo cancelar la suscripción.</p>}
         </div>
       ) : (

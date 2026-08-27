@@ -267,6 +267,36 @@
   flex-shrink: 0;
 }
 
+/* Cancelada-pero-con-acceso (S17): tono neutro/informativo, no de alerta —
+   distinto del dunning (que sí pide una acción del usuario). Mismo patrón
+   visual (fondo tenue + borde del mismo tono) que .dunningBanner, con el
+   color de acento del tema en vez de warning. */
+.canceladaBanner {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  margin: var(--space-sm) 0;
+  padding: var(--space-md);
+  background: var(--color-accent-soft, oklch(0.7 0.05 260 / 0.1));
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.canceladaText {
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+  color: var(--color-text);
+  margin: 0;
+}
+
+.canceladaSub {
+  font-family: var(--font-sans);
+  font-size: 0.75rem;
+  color: var(--color-muted);
+  margin: 0;
+}
+
 .planFeatures {
   list-style: none;
   padding: 0;

@@ -50,6 +50,12 @@ export type SuscripcionActiva = {
   // ser 'pago_pendiente' mientras no se agoten los reintentos de cobro.
   intentos_fallidos?: number
   metodo_pago_id?:    string
+  // Fin del período ya pagado (S17) — al cancelar, `estado` pasa a
+  // "cancelada" de inmediato pero el acceso se mantiene hasta esta fecha
+  // (ver `pb_client.list_activas` en el backend). `estado === 'cancelada'`
+  // con esta fecha en el futuro es la señal de "cancelada, con acceso
+  // hasta [fecha]" que debe mostrar la UI.
+  fecha_fin_periodo?: string | null
 }
 
 export type CambiarPlanResponse = {

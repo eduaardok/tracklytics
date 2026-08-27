@@ -406,6 +406,14 @@ def main() -> None:
             # Extensión administrativa de cortesía (change p1-ciclos-vida): fecha
             # de vencimiento que el área comercial puede desplazar N días.
             {"name": "fecha_vencimiento", "type": "date", "required": False},
+            # Fin del período ya pagado (S17): `created + DIAS_CICLO_FACTURACION`
+            # al confirmar, actualizado a `ahora + DIAS_CICLO_FACTURACION` en cada
+            # renovación exitosa (`etl/gold/facturacion_recurrente.py`). Al
+            # cancelar, `estado` pasa a "cancelada" de inmediato (sigue
+            # alimentando churn sin cambios) pero este campo NO se toca — el
+            # usuario conserva acceso premium hasta esta fecha, ver
+            # `list_activas`/`list_activas_admin`.
+            {"name": "fecha_fin_periodo", "type": "date", "required": False},
         ],
     }
     try:
@@ -423,6 +431,7 @@ def main() -> None:
     ensure_collection_field(token, "suscripciones", {"name": "metodo_pago_id", "type": "text", "required": False})
     ensure_collection_field(token, "suscripciones", {"name": "intentos_fallidos", "type": "number", "required": False})
     ensure_collection_field(token, "suscripciones", {"name": "fecha_vencimiento", "type": "date", "required": False})
+    ensure_collection_field(token, "suscripciones", {"name": "fecha_fin_periodo", "type": "date", "required": False})
 
     try:
         # No se define deleteRule: las suscripciones no se eliminan, solo se

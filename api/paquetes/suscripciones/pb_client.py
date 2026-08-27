@@ -8,6 +8,21 @@ from core.config import PB_ADMIN_EMAIL, PB_ADMIN_PASSWORD, PB_URL
 COLLECTION = "suscripciones"
 
 
+def _filtro_vigentes(prefijo: str = "") -> str:
+    """Criterio de "vigente" compartido por `list_activas`/`list_activas_admin`
+    (S17, cancelación mantiene acceso hasta fin del período pagado):
+    `activa`/`pago_pendiente` siempre cuentan, y una `cancelada` también
+    cuenta mientras `fecha_fin_periodo` no haya pasado — el usuario ya pagó
+    ese ciclo, no se le corta el acceso al instante de cancelar. `@now` es la
+    función de fecha nativa de PocketBase (siempre UTC, mismo criterio de
+    comparación de texto ISO que ya usa el resto del filtro `created`/
+    `fecha_desde` en este archivo)."""
+    return (
+        f'{prefijo}estado="activa" || {prefijo}estado="pago_pendiente" || '
+        f'({prefijo}estado="cancelada" && {prefijo}fecha_fin_periodo != "" && {prefijo}fecha_fin_periodo > @now)'
+    )
+
+
 async def list_activas(token: str, user_id: str) -> list[dict]:
     # `pago_pendiente` (dunning, CU-O95) SHALL contar como "vigente" acá, no
     # solo `activa` — es la suscripción que `GET /activa` debe seguir
@@ -19,7 +34,12 @@ async def list_activas(token: str, user_id: str) -> list[dict]:
     # antes de este fix, `estado="pago_pendiente"` hacía que esta función no
     # devolviera nada, dejando al usuario sin plan visible ni acceso B2B
     # desde el primer cobro fallido, no solo al agotar los 3 intentos).
-    filtro = f'usuario_o_cliente="{user_id}" && (estado="activa" || estado="pago_pendiente")'
+    #
+    # S17: una `cancelada` con `fecha_fin_periodo` futura también cuenta —
+    # el usuario canceló pero ya pagó ese ciclo, mantiene acceso hasta esa
+    # fecha (ver `_filtro_vigentes`). El churn (`FACT_CANCELACION_SUSCRIPCION`)
+    # no se toca: sigue registrándose en el instante real de la cancelación.
+    filtro = f'usuario_o_cliente="{user_id}" && ({_filtro_vigentes()})'
     async with httpx.AsyncClient(timeout=5) as client:
         resp = await client.get(
             f"{PB_URL}/api/collections/{COLLECTION}/records",
@@ -50,12 +70,19 @@ async def obtener_por_id(token: str, user_id: str, record_id: str) -> dict | Non
 async def crear(
     token: str, user_id: str, tipo_plan: str, monto: float, moneda: str,
     en_prueba: bool = False, fecha_fin_trial: datetime | None = None,
-    metodo_pago_id: str | None = None,
+    metodo_pago_id: str | None = None, fecha_fin_periodo: datetime | None = None,
 ) -> dict:
     """`en_prueba`/`fecha_fin_trial`/`metodo_pago_id` (monetizacion-retencion-
     mejoras): soportan el período de prueba gratuito — `metodo_pago_id` se
     guarda para poder cobrar automáticamente al expirar el trial sin volver a
-    pedirlo (ver design.md, decisión 6)."""
+    pedirlo (ver design.md, decisión 6).
+
+    `fecha_fin_periodo` (S17): fin del ciclo ya pagado — el llamador
+    (`router.py::confirmar_suscripcion`) lo calcula como
+    `datetime.utcnow() + DIAS_CICLO_FACTURACION días` para no duplicar esa
+    constante acá. Se guarda desde el alta (incluso en trial y en el plan
+    free) para que `list_activas`/`_filtro_vigentes` siempre tengan un valor
+    consistente si el usuario cancela."""
     body = {
         "usuario_o_cliente": user_id,
         "tipo_plan": tipo_plan,
@@ -68,6 +95,8 @@ async def crear(
         body["fecha_fin_trial"] = fecha_fin_trial.isoformat(sep=" ")
     if metodo_pago_id is not None:
         body["metodo_pago_id"] = metodo_pago_id
+    if fecha_fin_periodo is not None:
+        body["fecha_fin_periodo"] = fecha_fin_periodo.isoformat(sep=" ")
 
     async with httpx.AsyncClient(timeout=5) as client:
         resp = await client.post(
@@ -169,7 +198,7 @@ async def list_activas_admin(user_id: str) -> list[dict]:
     360° de gestión de usuarios (change roles-gestion-usuarios) — el token del
     propio usuario objetivo no está disponible en una sesión administrativa."""
     token = await _get_admin_token()
-    filtro = f'usuario_o_cliente="{user_id}" && (estado="activa" || estado="pago_pendiente")'
+    filtro = f'usuario_o_cliente="{user_id}" && ({_filtro_vigentes()})'
     async with httpx.AsyncClient(timeout=10) as client:
         resp = await client.get(
             f"{PB_URL}/api/collections/{COLLECTION}/records",

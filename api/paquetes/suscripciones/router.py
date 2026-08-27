@@ -182,17 +182,26 @@ async def confirmar_suscripcion(
         historial_premium = await pb_client.list_historial_por_plan(token, user_id, "premium")
         en_trial = len(historial_premium) == 0
 
+    # Fin del período ya pagado (S17, RN-SUS-002 extendida): mismo ciclo de
+    # 30 días que el prorrateo de `cambiar_plan` (DIAS_CICLO_FACTURACION) —
+    # se fija desde el alta para que una cancelación posterior sepa hasta
+    # cuándo el usuario ya pagó (ver `pb_client._filtro_vigentes`).
+    fecha_fin_periodo = datetime.utcnow() + timedelta(days=DIAS_CICLO_FACTURACION)
+
     if en_trial:
         fecha_fin_trial = datetime.utcnow() + timedelta(days=DIAS_TRIAL_PREMIUM)
         nueva = await pb_client.crear(
             token, user_id, body.plan_id, precio, plan["moneda"],
             en_prueba=True, fecha_fin_trial=fecha_fin_trial, metodo_pago_id=body.metodo_pago_id,
+            fecha_fin_periodo=fecha_fin_periodo,
         )
         # No se llama a `procesar_pago` durante el trial — el cobro se
         # difiere hasta que expire (ver `plan_activo` / GET /activa).
         return {"data": nueva, "pago": None}
 
-    nueva = await pb_client.crear(token, user_id, body.plan_id, precio, plan["moneda"])
+    nueva = await pb_client.crear(
+        token, user_id, body.plan_id, precio, plan["moneda"], fecha_fin_periodo=fecha_fin_periodo,
+    )
 
     pago = None
     if precio > 0:
@@ -403,8 +412,14 @@ async def procesar_cobro(
     pago = procesar_pago(user_id, metodo_pago_id, sus, forzar_resultado=body.forzar_resultado)
 
     if pago["estado"] == "exitosa":
+        # Renovación exitosa (S17): corre el fin del período pagado 30 días
+        # más — mismo constante que el alta (`confirmar_suscripcion`) y que
+        # el DAG `etl/gold/facturacion_recurrente.py` para no divergir entre
+        # los dos caminos que pueden renovar una suscripción.
+        nueva_fecha_fin_periodo = datetime.utcnow() + timedelta(days=DIAS_CICLO_FACTURACION)
         actualizada = await pb_client.actualizar_campos(token, suscripcion_id, {
             "estado": "activa", "intentos_fallidos": 0,
+            "fecha_fin_periodo": nueva_fecha_fin_periodo.isoformat(sep=" "),
         })
         return {"data": actualizada, "pago": pago, "degradado": False}
 
