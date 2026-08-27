@@ -1,8 +1,68 @@
 # Tracklytics — Pendientes
 
-> Última revisión: **Semana 17 (S17, 26 ago 2026)** — cancelación mantiene acceso hasta fin
-> de período pagado, terminología "Canciones", celebración de pago + factura, beneficios de
-> artista, avatares en comentarios.
+> Última revisión: **Semana 17 (S17, 26 ago 2026)** — ThemeToggle en SeguridadShell, rango de
+> fechas customizable en 4 dashboards, `denseDates` en la serie diaria que faltaba.
+
+## ThemeToggle + rango de fechas en dashboards + denseDates (S17, sesión 5)
+
+- [x] ✅ **TASK 1 — ThemeToggle faltante en SeguridadShell**. `AnalyticaShell` tenía
+      `<ThemeToggle />` en el `brandBar` (entre `ZoneSwitcher` y `UserMenu`) pero
+      `SeguridadShell` no — el panel de administración no tenía forma de cambiar entre modo
+      claro/oscuro. 1 import + 1 línea JSX, misma posición relativa. Verificado con
+      `tsc --noEmit` + `npm run build`; **sin navegador esta sesión** (no hay herramienta de
+      browser disponible, igual que 3 sesiones previas — solo build/tsc, no captura visual).
+
+- [x] ✅ **TASK 2 — Rango de fechas customizable en dashboards con ventana fija**. 4 queries
+      (no 7 — 2 de las 3 originalmente listadas en `social/queries.py`,
+      `TOP_TRACKS_USUARIO_30D`/`TOP_ARTISTAS_USUARIO_30D`, resultaron ser un snapshot
+      personal fijo de "qué escuchaste" para el perfil público, no un gráfico de serie
+      temporal — se dejaron sin tocar a propósito) tenían `INTERVAL 14/30 DAY` fijo sin
+      parámetro:
+  - `social/queries.py::ACTIVIDAD_SOCIAL_POR_DIA` (14d) → `GET /social/admin/dashboard` →
+    `ModeracionSocialPage.tsx`.
+  - `facturacion/queries.py::INGRESO_POR_DIA` (14d) → `GET /facturacion/admin/dashboard` →
+    `AuditoriaFacturacionPage.tsx`.
+  - `seguridad/queries.py::ACCIONES_POR_DIA` (14d) → `GET /seguridad/admin/dashboard` →
+    `AuditoriaPage.tsx`.
+  - `creadores/queries.py::ANALITICA_ARTISTA_SERIE` (30d) → `GET /creadores/mi-analitica` →
+    `PanelAnaliticaArtista.tsx` (dentro de `CuentaArtistaPage.tsx`, pestaña "Analítica").
+  - Las 4 queries pasan a aceptar `{desde:DateTime}`/`{hasta:DateTime}` en vez del
+    `INTERVAL` fijo. Cada router agrega un helper local `_rango_dias(desde, hasta,
+    dias_default, max_dias=366)` — mismo patrón que `_rango_dt`/`_calcular_metricas_periodo`
+    ya usado en `analitica`/`finanzas` (`desde`/`hasta` opcionales, default = la ventana
+    fija anterior para no romper compatibilidad, 422 si `desde > hasta`, 422 si el rango
+    supera 366 días — tope elegido por el volumen de `FACT_AUDIT_LOG`/`FACT_COMENTARIO`/
+    `FACT_TRANSACCION_PAGO`/`FACT_ENGAGEMENT_USUARIO`, todas append-only y sin límite de
+    crecimiento). No se implementó un endpoint de "fecha mínima con datos" — se decidió un
+    tope práctico de 366 días en vez de un `MIN(fecha)` costoso sobre tablas grandes.
+  - Las 4 páginas ganan un selector `desde`/`hasta` (`<input type="date">` × 2), mismo
+    patrón visual que `ChurnPage.tsx`/`MrrArrPage.tsx` (analítica) — no se inventó un
+    componente nuevo. El título de cada gráfico ("... por día (N días)") ahora calcula `N`
+    del rango real en vez de un número fijo en el string.
+  - **Verificación real (curl contra la API Dockerizada, `superadmin@demo.tracklytics.com`
+    y `r2artista78092@demo.tracklytics.com` para `mi-analitica`)**: los 4 endpoints
+    devuelven distinto número de filas para rango de 7d/14d(default)/60d/90d; 422 en
+    `desde > hasta` y en rango > 366 días en los 4. Frontend: `tsc --noEmit` + `npm run
+    build` limpios, `scripts/rebuild-frontend.sh` confirma el container sirviendo el commit
+    reconstruido. **Sin navegador esta sesión** — no se pudo confirmar visualmente que el
+    selector actualiza el gráfico en pantalla, solo que el backend responde distinto y el
+    build no tiene errores.
+
+- [x] ✅ **TASK 3 — `denseDates` faltante en series diarias**. De los usos reales de
+      `MiniLineChart` (7, no 8 — `PlanesPage.tsx` no usa el componente, era un falso
+      positivo del reporte inicial), solo `AuditoriaFacturacionPage.tsx`/`AuditoriaPage.tsx`
+      ya tenían `denseDates`. Se agregó a:
+  - `ModeracionSocialPage.tsx` (serie diaria real, agregado junto con TASK 2).
+  - `analitica/DashboardPage.tsx`, gráfico "Ingresos vs. regalías pagadas (diario)"
+    (`xKey="dia"`) — el otro gráfico de la misma página, "Altas de suscripción por plan
+    (semanal)" (`xKey="semana"`), se dejó sin tocar.
+  - Se dejaron **sin tocar a propósito** (no son series diarias, pocos puntos):
+    `MrrArrPage.tsx` (mensual — el propio comentario de `MiniLineChart.tsx` usa MRR/ARR
+    como ejemplo de "no usar denseDates"), `ProyeccionGeneroPage.tsx` y
+    `ProyeccionArtistaPage.tsx` (`xKey="semana"`, semanal).
+  - Verificación: `tsc --noEmit` + `npm run build` limpios. **Sin navegador esta sesión** —
+    no se pudo confirmar visualmente a 1280px/1024px que las etiquetas no se superponen,
+    solo que el prop se pasa correctamente y el build compila.
 
 ## Cancelación mantiene acceso + polish de suscripciones/social (S17, sesión 4)
 
