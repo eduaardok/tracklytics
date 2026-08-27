@@ -1,7 +1,60 @@
 # Tracklytics — Pendientes
 
-> Última revisión: **Semana 17 (S17, 26 ago 2026)** — ThemeToggle en SeguridadShell, rango de
-> fechas customizable en 4 dashboards, `denseDates` en la serie diaria que faltaba.
+> Última revisión: **Semana 17 (S17, 26 ago 2026)** — Animaciones/UX polish, transiciones en 4
+> módulos CSS de baja cobertura, EmptyState compartido en regalías, padding B2C, SidebarSection.
+
+## Animaciones/UX polish (S17, sesión 6)
+
+- [x] ✅ **TASK 1 — Transitions en 4 módulos CSS de baja cobertura**. `RegaliasPages.module.css`,
+      `AdminPartnersPage.module.css`, `FinanzasPages.module.css` e `InvoiceDetailPage.module.css`
+      tenían entre 1 y 5 reglas de transición (la mayoría un `transition` inline en
+      `:hover` de tabla). Se elevó el patrón a transiciones en la regla base (`.table tbody tr`
+      en vez de `.table tbody tr:hover`), usando tokens del design system
+      (`--duration-standard`, `--ease-standard`). Agregado a cada archivo:
+      - `.btnPrimary` → transición `background-color` + `opacity` + `focus-visible` ring
+      - `.btnGhost`/`.btnGhostDanger` → transición `border-color` + `background-color` +
+        `focus-visible` ring
+      - `.input`/`.select` → transición `border-color` + regla `:hover`
+      - `.badge`/`.statusOk`/`.statusPending` → transición `background-color` + `color`
+      - `.linkBtn` → transición `color`
+      - `@keyframes skelPulse` + `.skel` para shimmer de skeleton (donde existía patron
+        de carga)
+      - `@media (prefers-reduced-motion: reduce)` que desactiva todas las transiciones +
+        animación del skeleton — patrón de `CrudModal.module.css`
+      Verificado: `tsc --noEmit` y `npm run build` limpios.
+
+- [x] ✅ **TASK 2 — EmptyState + SkeletonLoader compartidos en RegaliasAdminPage**.
+      `RegaliasAdminPage.tsx` usaba texto plano (`'Sin contratos todavía.'`,
+      `'Sin liquidaciones todavía para este contrato.'`,
+      `'Sin solicitudes de retiro todavía.'`) con clase CSS local `.emptyState` en vez del
+      componente `EmptyState` compartido, y `'…'` como placeholder de carga en KPIs en vez de
+      `SkeletonLoader`. Migrado a:
+      - 3 empty states → `<EmptyState icon={...} title="..." body="..." />` dentro de
+        `<td colSpan>` (mismo patrón que `AdminTracksPage`)
+      - 3 KPI loading → `<SkeletonLoader count={1} height={14} className={styles.skel} />`
+        (reusa la clase `.skel` agregada en TASK 1)
+      - Iconos: `FileX`, `Receipt`, `Wallet` de lucide-react (ya en el bundle)
+      Verificado: `tsc --noEmit` y `npm run build` limpios.
+
+- [x] ✅ **TASK 3 — Whitespace denso en B2C**. Los empty states en CreadoresPages usaban
+      `padding: var(--space-xl) var(--space-lg)` (40px 24px), que combinado con el
+      `padding-bottom: var(--space-2xl)` (64px) de AppShell creaba ~124px de whitespace
+      vertical en pantallas vacías — excesivo para un espacio de presentación sin datos
+      reales. Reducido a `var(--space-lg) var(--space-md)` (24px 16px). Afecta
+      `CuentaArtistaPage`, `RevisionCreadoresPage` y `PanelAnaliticaArtista` (los 3 usan
+      el mismo CSS module compartido).
+      Verificado: `tsc --noEmit` y `npm run build` limpios.
+
+- [x] ✅ **TASK 4 — SidebarSection micro-interactions**. El header del accordion solo
+      cambiaba `color` en `:hover` sin transición ni feedback visual de fondo. Agregado:
+      - Transición `color` + `background-color` en `.sectionHeader` (tokens del design
+        system)
+      - Regla `.sectionHeader:hover` con `background: var(--color-surface-raised)`
+      - `.sectionHeader:focus-visible` con `box-shadow` inset ring (mismo patrón que
+        botones del admin)
+      - `@media (prefers-reduced-motion: reduce)` que desactiva las 3 transiciones
+        (header, chevron, sectionLinks)
+      Verificado: `tsc --noEmit` y `npm run build` limpios.
 
 ## ThemeToggle + rango de fechas en dashboards + denseDates (S17, sesión 5)
 
