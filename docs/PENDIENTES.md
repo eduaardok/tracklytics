@@ -1,7 +1,35 @@
 # Tracklytics — Pendientes
 
-> Última revisión: **Semana 17 (S17, 26 ago 2026)** — Animaciones/UX polish, transiciones en 4
-> módulos CSS de baja cobertura, EmptyState compartido en regalías, padding B2C, SidebarSection.
+> Última revisión: **Semana 17 (S17, 27 ago 2026)** — QA visual real con Playwright (sesión 7):
+> confirmadas en navegador las 6 sesiones previas que solo tenían verificación de build/curl.
+
+## QA visual real con Playwright (S17, sesión 7)
+
+- [x] ✅ Las últimas 4-6 sesiones (S17 sesiones 3-6) se habían verificado solo con
+      `tsc --noEmit`/`npm run build`/curl, nunca en un navegador real (no había herramienta
+      de browser disponible en esas sesiones). Esta sesión levantó Docker Desktop (estaba
+      apagado), confirmó que `@playwright/test` ya era devDependency del frontend con
+      Chromium ya descargado, y corrió un script Playwright ad-hoc contra el stack
+      Dockerizado real (`http://localhost:8082`) con las cuentas demo documentadas en
+      `docs/CUENTAS_DEMO.md` + una cuenta de artista de prueba nueva
+      (`qa-s17-artista@demo.tracklytics.com`, registrada y aprobada vía API real para poder
+      capturar `PanelAnaliticaArtista`). 32 capturas guardadas en `docs/qa-visual-s17/`.
+- [x] ✅ **AreaSwitcher ("Viendo como") en SeguridadShell/AnalyticaShell** — confirmado en
+      ambos shells: filtra la sidebar al área elegida, "Ver todo" restaura la vista completa,
+      la elección persiste tras refrescar (`localStorage`, sin llamada al backend). Con
+      `admin_finanzas@demo.tracklytics.com` (rol de área único, no superadmin) el selector
+      correctamente NO aparece. Ver `docs/qa-visual-s17/13-*`, `14-*`, `15-*`.
+- **Ningún bug visual real encontrado** — layout, hover, focus-visible, reduced-motion,
+  denseDates y rango de fechas se ven y funcionan como se documentó en las sesiones 3-6, en
+  1280px y 1024px. Detalle de qué se confirmó dónde queda anotado en cada TASK de las
+  secciones de abajo.
+- **Hallazgo funcional (no visual, no corregido — fuera de alcance de este QA)**: las 4
+  páginas con rango de fechas customizable (`ModeracionSocialPage`,
+  `AuditoriaFacturacionPage`, `AuditoriaPage`, `PanelAnaliticaArtista`) no manejan el 422 de
+  "rango > 366 días" — la query del gráfico no expone `isError`, así que un rango inválido
+  se ve igual que "no hay datos en este rango" (`Sin datos todavía.`), sin mensaje de error.
+  Confirmado con `page.on('response')` capturando el 422 real. Ver detalle en la sección de
+  "Rango de fechas customizable" más abajo.
 
 ## Animaciones/UX polish (S17, sesión 6)
 
@@ -21,7 +49,11 @@
         de carga)
       - `@media (prefers-reduced-motion: reduce)` que desactiva todas las transiciones +
         animación del skeleton — patrón de `CrudModal.module.css`
-      Verificado: `tsc --noEmit` y `npm run build` limpios.
+      Verificado: `tsc --noEmit` y `npm run build` limpios. **Confirmado visualmente (S17
+      sesión 7, QA visual)**: hover suave en tablas/botones de Regalías, Partners y
+      Finanzas (ver `docs/qa-visual-s17/07-regalias-admin-hover.png`,
+      `08-admin-partners-hover.png`, `09-finanzas-admin-hover.png`); focus-visible por
+      teclado con ring visible (`07-regalias-admin-focus-visible.png`).
 
 - [x] ✅ **TASK 2 — EmptyState + SkeletonLoader compartidos en RegaliasAdminPage**.
       `RegaliasAdminPage.tsx` usaba texto plano (`'Sin contratos todavía.'`,
@@ -34,7 +66,11 @@
       - 3 KPI loading → `<SkeletonLoader count={1} height={14} className={styles.skel} />`
         (reusa la clase `.skel` agregada en TASK 1)
       - Iconos: `FileX`, `Receipt`, `Wallet` de lucide-react (ya en el bundle)
-      Verificado: `tsc --noEmit` y `npm run build` limpios.
+      Verificado: `tsc --noEmit` y `npm run build` limpios. **Verificación visual (S17
+      sesión 7)**: se revisó el código en vez de provocar los 3 estados vacíos con datos
+      reales (los datos demo siempre traen contratos/liquidaciones/retiros) — el patrón
+      `<EmptyState>` dentro de `<td colSpan>` es el mismo ya confirmado visualmente en
+      `AdminTracksPage` (sesiones previas), sin diferencias de markup.
 
 - [x] ✅ **TASK 3 — Whitespace denso en B2C**. Los empty states en CreadoresPages usaban
       `padding: var(--space-xl) var(--space-lg)` (40px 24px), que combinado con el
@@ -43,7 +79,10 @@
       reales. Reducido a `var(--space-lg) var(--space-md)` (24px 16px). Afecta
       `CuentaArtistaPage`, `RevisionCreadoresPage` y `PanelAnaliticaArtista` (los 3 usan
       el mismo CSS module compartido).
-      Verificado: `tsc --noEmit` y `npm run build` limpios.
+      Verificado: `tsc --noEmit` y `npm run build` limpios. **Confirmado visualmente (S17
+      sesión 7, QA visual)**: padding proporcionado, ni apretado ni con exceso de aire
+      (ver `docs/qa-visual-s17/12-b2c-creadores-emptystate-padding.png`, cuenta
+      `usuario@demo.tracklytics.com`).
 
 - [x] ✅ **TASK 4 — SidebarSection micro-interactions**. El header del accordion solo
       cambiaba `color` en `:hover` sin transición ni feedback visual de fondo. Agregado:
@@ -54,7 +93,11 @@
         botones del admin)
       - `@media (prefers-reduced-motion: reduce)` que desactiva las 3 transiciones
         (header, chevron, sectionLinks)
-      Verificado: `tsc --noEmit` y `npm run build` limpios.
+      Verificado: `tsc --noEmit` y `npm run build` limpios. **Confirmado visualmente (S17
+      sesión 7, QA visual)**: abrir/cerrar sección sin salto brusco (ver
+      `docs/qa-visual-s17/10-sidebarsection-hover.png`/`-toggled.png`); con
+      `prefers-reduced-motion: reduce` emulado, hover de tabla sin transición visible
+      (`11-reduced-motion-regalias-hover.png`).
 
 ## ThemeToggle + rango de fechas en dashboards + denseDates (S17, sesión 5)
 
@@ -62,8 +105,9 @@
       `<ThemeToggle />` en el `brandBar` (entre `ZoneSwitcher` y `UserMenu`) pero
       `SeguridadShell` no — el panel de administración no tenía forma de cambiar entre modo
       claro/oscuro. 1 import + 1 línea JSX, misma posición relativa. Verificado con
-      `tsc --noEmit` + `npm run build`; **sin navegador esta sesión** (no hay herramienta de
-      browser disponible, igual que 3 sesiones previas — solo build/tsc, no captura visual).
+      `tsc --noEmit` + `npm run build`. **Confirmado visualmente (S17 sesión 7, QA visual)**:
+      brandBar balanceado en claro y oscuro, ver `docs/qa-visual-s17/01-theme-toggle-seguridad-light.png`
+      y `01-theme-toggle-seguridad-dark.png`.
 
 - [x] ✅ **TASK 2 — Rango de fechas customizable en dashboards con ventana fija**. 4 queries
       (no 7 — 2 de las 3 originalmente listadas en `social/queries.py`,
@@ -97,9 +141,17 @@
     devuelven distinto número de filas para rango de 7d/14d(default)/60d/90d; 422 en
     `desde > hasta` y en rango > 366 días en los 4. Frontend: `tsc --noEmit` + `npm run
     build` limpios, `scripts/rebuild-frontend.sh` confirma el container sirviendo el commit
-    reconstruido. **Sin navegador esta sesión** — no se pudo confirmar visualmente que el
-    selector actualiza el gráfico en pantalla, solo que el backend responde distinto y el
-    build no tiene errores.
+    reconstruido. **Confirmado visualmente (S17 sesión 7, QA visual)**: el selector sí
+    actualiza el gráfico en las 4 páginas (14d/90d, ver `docs/qa-visual-s17/02-*`,
+    `03-*`, `04-*`, `05-*`); título refleja el rango real; inputs sin overflow a 1024px
+    (`*-1024w.png`). **Hallazgo real no visual**: las 4 páginas manejan el 422 de
+    "rango > 366 días" en silencio — el backend responde 422 (confirmado con
+    `page.on('response')`), pero como ninguna de las 4 páginas expone `isError`/`error`
+    de la query del gráfico (solo `comentarios`/`transacciones`/etc. lo hacen), el
+    usuario ve "Sin datos todavía." en vez de un mensaje de error — indistinguible de un
+    rango real sin actividad. Documentado como hallazgo funcional, no corregido: está
+    fuera del alcance de este QA (solo bugs visuales/de layout, no de lógica) — ver
+    `docs/qa-visual-s17/02-moderacion-social-rango-invalido-366d.png`.
 
 - [x] ✅ **TASK 3 — `denseDates` faltante en series diarias**. De los usos reales de
       `MiniLineChart` (7, no 8 — `PlanesPage.tsx` no usa el componente, era un falso
@@ -113,9 +165,13 @@
     `MrrArrPage.tsx` (mensual — el propio comentario de `MiniLineChart.tsx` usa MRR/ARR
     como ejemplo de "no usar denseDates"), `ProyeccionGeneroPage.tsx` y
     `ProyeccionArtistaPage.tsx` (`xKey="semana"`, semanal).
-  - Verificación: `tsc --noEmit` + `npm run build` limpios. **Sin navegador esta sesión** —
-    no se pudo confirmar visualmente a 1280px/1024px que las etiquetas no se superponen,
-    solo que el prop se pasa correctamente y el build compila.
+  - Verificación: `tsc --noEmit` + `npm run build` limpios. **Confirmado visualmente (S17
+    sesión 7, QA visual)** a 1280px y 1024px: las etiquetas rotadas ~35° no se superponen
+    en `ModeracionSocialPage`/`analitica/DashboardPage` (ver
+    `docs/qa-visual-s17/02-moderacion-social-densedates-1024w.png`,
+    `06-densedates-dashboard-analitica-1280w.png`/`-1024w.png`); el gráfico semanal de la
+    misma página de `DashboardPage` (sin `denseDates`) sigue con etiquetas horizontales
+    sin rotar, confirmando que no se tocó por error.
 
 ## Cancelación mantiene acceso + polish de suscripciones/social (S17, sesión 4)
 
