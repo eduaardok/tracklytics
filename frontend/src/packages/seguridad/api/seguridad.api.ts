@@ -1,7 +1,7 @@
 import { apiClient, type ApiResponse } from '@shared/lib/api-client'
 import type {
   Permiso, AuditLogEntry, ErrorSistemaEntry, AsignarPermisoBody, DashboardSeguridad, CatalogoPermisos,
-  UsuarioAdmin, RolAdmin, Usuario360, Strike, StrikeEmitidoResultado,
+  UsuarioAdmin, RolAdmin, RolAdminResumen, Usuario360, Strike, StrikeEmitidoResultado,
   UsuarioReporte, StrikeGlobal, SesionActiva,
 } from '../types'
 
@@ -39,6 +39,10 @@ export const seguridadApi = {
   // ── Gestión administrativa de usuarios (change roles-gestion-usuarios) ───────
   rolesAdmin: () =>
     apiClient.get<ApiResponse<RolAdmin>>('/seguridad/admin/roles-admin'),
+
+  // Landing de /seguridad (S17): mismo catálogo + usuarios_asignados.
+  rolesAdminResumen: () =>
+    apiClient.get<ApiResponse<RolAdminResumen>>('/seguridad/admin/roles-admin/resumen'),
 
   usuarios: (f: UsuariosAdminFiltros = {}) => {
     const p = new URLSearchParams()

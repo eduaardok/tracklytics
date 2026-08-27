@@ -57,6 +57,7 @@ function RedirigeArtistaSocial() {
 // sesión, o que son admin-only — no tenían por qué viajar en el bundle que
 // descarga cualquiera que solo entra a `/login` o navega el catálogo público.
 const SeguridadShell      = lazyNamed(() => import('@app/layout/SeguridadShell'), 'SeguridadShell')
+const AdminHomePage       = lazyNamed(() => import('@packages/seguridad/pages/AdminHomePage'), 'AdminHomePage')
 const PermisosPage        = lazyNamed(() => import('@packages/seguridad/pages/PermisosPage'), 'PermisosPage')
 const ErroresPage         = lazyNamed(() => import('@packages/seguridad/pages/ErroresPage'), 'ErroresPage')
 const RegisterPage        = lazyNamed(() => import('@packages/seguridad/pages/RegisterPage'), 'RegisterPage')
@@ -315,7 +316,7 @@ export const router = createBrowserRouter([
       </RequireAuth>
     ),
     children: [
-      { index: true,        element: <PermisosPage /> },
+      { index: true,        element: <AdminHomePage /> },
       { path: 'usuarios',   element: <UsuariosAdminPage /> },
       { path: 'permisos',   element: <PermisosPage /> },
       { path: 'auditoria',  element: <AuditoriaPage /> },

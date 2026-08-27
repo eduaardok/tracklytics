@@ -68,6 +68,12 @@ export type RolAdmin = {
   descripcion:  string
 }
 
+// Landing de /seguridad (S17): mismo catálogo + cuántos usuarios tienen cada
+// rol vigente hoy — ver `GET /admin/roles-admin/resumen`.
+export type RolAdminResumen = RolAdmin & {
+  usuarios_asignados: number
+}
+
 export type RolAdminAsignado = {
   rol_admin:    string
   nombre:       string | null

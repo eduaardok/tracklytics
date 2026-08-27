@@ -1,0 +1,109 @@
+import { useQuery } from '@tanstack/react-query'
+import { Link } from 'react-router-dom'
+import { ShieldCheck, Users, KeyRound, ArrowRight } from 'lucide-react'
+import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
+import { SkeletonLoader } from '@shared/components/SkeletonLoader'
+import { InfoHint } from '@shared/components/InfoHint'
+import { seguridadApi } from '../api/seguridad.api'
+import { CapabilityChips } from './CapabilityChips'
+import shell from './SeguridadPages.module.css'
+import styles from './AdminHomePage.module.css'
+
+export function AdminHomePage() {
+  useDocumentTitle('Seguridad')
+
+  const roles = useQuery({
+    queryKey: ['seguridad', 'roles-admin', 'resumen'],
+    queryFn:  () => seguridadApi.rolesAdminResumen(),
+  })
+
+  const dashboard = useQuery({
+    queryKey: ['seguridad', 'dashboard'],
+    queryFn:  () => seguridadApi.dashboard(),
+  })
+
+  const rolesData = roles.data?.data ?? []
+
+  return (
+    <section className={shell.page}>
+      <h1 className={shell.heading}>Seguridad</h1>
+      <span className={shell.subtitle}>
+        Roles administrativos por área, salud del sistema y accesos rápidos a la gestión de usuarios.
+      </span>
+
+      {/* Salud rápida (reusa GET /admin/dashboard, ya usado en AuditoriaPage). */}
+      <div className={styles.statsRow}>
+        <div className={styles.statCard}>
+          <span className={shell.kpiValue}>
+            {dashboard.isLoading ? '—' : dashboard.data?.errores_24h ?? '—'}
+          </span>
+          <span className={shell.kpiLabel}>Errores de sistema (24h)</span>
+        </div>
+        <div className={styles.statCard}>
+          <span className={shell.kpiValue}>
+            {dashboard.isLoading ? '—' : dashboard.data?.sesiones_abiertas_total ?? '—'}
+          </span>
+          <span className={shell.kpiLabel}>Sesiones abiertas ahora</span>
+        </div>
+        <div className={styles.statCard}>
+          <span className={shell.kpiValue}>
+            {roles.isLoading ? '—' : rolesData.reduce((acc, r) => acc + r.usuarios_asignados, 0)}
+          </span>
+          <span className={shell.kpiLabel}>
+            Asignaciones de rol administrativo
+            <InfoHint text="Suma de usuarios_asignados de los 6 roles — un mismo usuario con dos roles cuenta dos veces." />
+          </span>
+        </div>
+      </div>
+
+      {/* Accesos directos. */}
+      <div className={styles.shortcutRow}>
+        <Link to="/seguridad/usuarios" className={styles.shortcut}>
+          <Users size={18} aria-hidden="true" />
+          <span>
+            <strong>Gestionar usuarios y roles</strong>
+            <small>Buscar cuentas, asignar/revocar rol administrativo, suspender o reactivar.</small>
+          </span>
+          <ArrowRight size={16} aria-hidden="true" />
+        </Link>
+        <Link to="/seguridad/permisos" className={styles.shortcut}>
+          <KeyRound size={18} aria-hidden="true" />
+          <span>
+            <strong>Permisos avanzados</strong>
+            <small>Ajuste puntual de un permiso (recurso, acción) para un usuario — excepciones, no el flujo principal.</small>
+          </span>
+          <ArrowRight size={16} aria-hidden="true" />
+        </Link>
+      </div>
+
+      {/* Roles administrativos. */}
+      <p className={styles.sectionHeading}>
+        <ShieldCheck size={16} aria-hidden="true" />
+        Roles administrativos por área
+      </p>
+
+      {roles.isError && (
+        <div className={shell.errorBox}>No se pudieron cargar los roles administrativos (¿sesión de admin?).</div>
+      )}
+
+      {roles.isLoading ? (
+        <SkeletonLoader count={3} height={110} />
+      ) : (
+        <div className={styles.roleGrid}>
+          {rolesData.map((r) => (
+            <div key={r.rol_admin} className={styles.roleCard}>
+              <div className={styles.roleCardHead}>
+                <span className={styles.roleName}>{r.nombre}</span>
+                <span className={styles.roleCount}>
+                  {r.usuarios_asignados} usuario{r.usuarios_asignados !== 1 ? 's' : ''}
+                </span>
+              </div>
+              <p className={styles.roleDescripcion}>{r.descripcion}</p>
+              <CapabilityChips capabilities={r.capabilities} />
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
+  )
+}

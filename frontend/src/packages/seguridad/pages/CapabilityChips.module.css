@@ -1,0 +1,30 @@
+/* Chips de área (capabilities traducidas) — compartido entre AdminHomePage
+   (tarjetas de rol) y UsuariosAdminPage (qué cubre el rol antes de asignar),
+   S17. Archivo propio para que ninguna de las dos páginas importe a la otra
+   solo por esto (ambas son chunks lazy independientes en router.tsx). */
+
+.chipRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.capChip {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 8px;
+  border-radius: var(--radius-sm);
+  background: oklch(0.62 0.19 300 / 0.10);
+  border: 1px solid oklch(0.62 0.19 300 / 0.22);
+  color: var(--color-ink);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+
+.miniMuted {
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+  color: var(--color-muted);
+}
