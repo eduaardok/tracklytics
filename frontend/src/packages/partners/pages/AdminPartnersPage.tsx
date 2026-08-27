@@ -9,6 +9,7 @@ import { CrudActionButtons } from '@shared/components/CrudActionButtons'
 import { SkeletonLoader, SkeletonTableRows } from '@shared/components/SkeletonLoader'
 import { EmptyState } from '@shared/components/EmptyState'
 import { ExportPDFButton } from '@shared/components/ExportPDFButton'
+import { Breadcrumb } from '@shared/components/Breadcrumb'
 import { partnersAdminApi, type Partner, type EditarPartnerBody } from '../api/partnersAdmin.api'
 import { metricasApi } from '../api/metricas.api'
 import type { PartnerTier } from '../types'
@@ -93,6 +94,7 @@ export function AdminPartnersPage() {
 
   return (
     <section className={styles.page} ref={reportRef}>
+      <Breadcrumb />
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--space-md)', flexWrap: 'wrap' }}>
         <h1 className={styles.heading}>Partners B2B</h1>
         <ExportPDFButton targetRef={reportRef} fileName="partners-gestion" title="Partners B2B" />

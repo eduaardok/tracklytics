@@ -6,6 +6,7 @@ import { ExportPDFButton } from '@shared/components/ExportPDFButton'
 import { ingestaApi, IngestaApiError } from '../api/ingesta.api'
 import { DIM_TABLE_OPTIONS, type DimRow } from '../types'
 import { SkeletonChart } from '@shared/components/SkeletonLoader'
+import { Breadcrumb } from '@shared/components/Breadcrumb'
 import styles from './CrudDimensionesPage.module.css'
 import { ErrorState } from '@shared/components/ErrorState'
 
@@ -252,6 +253,7 @@ export function CrudDimensionesPage() {
 
   return (
     <section className={styles.page} ref={reportRef}>
+      <Breadcrumb />
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--space-md)', flexWrap: 'wrap' }}>
         <h1 className={styles.heading}>Dimensiones del catálogo</h1>
         <ExportPDFButton targetRef={reportRef} fileName="dimensiones-catalogo" title="Dimensiones del catálogo" />

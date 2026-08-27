@@ -4,6 +4,7 @@ import { EmptyState } from '@shared/components/EmptyState'
 import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { ingestaApi } from '../api/ingesta.api'
 import { SkeletonChart } from '@shared/components/SkeletonLoader'
+import { Breadcrumb } from '@shared/components/Breadcrumb'
 import styles from './DataQualityPage.module.css'
 import { ErrorState } from '@shared/components/ErrorState'
 
@@ -62,6 +63,7 @@ export function DataQualityPage() {
 
   return (
     <section className={styles.page}>
+      <Breadcrumb />
       <h1 className={styles.heading}>Calidad de datos</h1>
 
       {quality.isLoading && <div className={styles.panel}><SkeletonChart height={200} /></div>}

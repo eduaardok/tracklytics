@@ -7,6 +7,7 @@ import { ErrorState } from '@shared/components/ErrorState'
 import { EmptyState } from '@shared/components/EmptyState'
 import { ExportPDFButton } from '@shared/components/ExportPDFButton'
 import { SkeletonChart } from '@shared/components/SkeletonLoader'
+import { Breadcrumb } from '@shared/components/Breadcrumb'
 import styles from './PartnersMetricasPage.module.css'
 
 // CU-O56: agregación de `LOG_LLAMADAS_PARTNER` por partner — vista de solo
@@ -31,6 +32,7 @@ export function PartnersMetricasPage() {
 
   return (
     <section className={styles.page} ref={reportRef}>
+      <Breadcrumb />
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--space-md)', flexWrap: 'wrap' }}>
         <h1 className={styles.heading}>Métricas de partners</h1>
         <ExportPDFButton targetRef={reportRef} fileName="partners-metricas" title="Métricas de partners" />

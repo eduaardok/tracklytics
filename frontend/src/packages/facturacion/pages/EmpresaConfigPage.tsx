@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { apiErrorMessage } from '@shared/lib/api-client'
+import { Breadcrumb } from '@shared/components/Breadcrumb'
 import { facturacionApi } from '../api/facturacion.api'
 import type { EmpresaInfo } from '../types'
 import { SkeletonLoader } from '@shared/components/SkeletonLoader'
@@ -34,6 +35,7 @@ export function EmpresaConfigPage() {
 
   return (
     <section className={styles.page}>
+      <Breadcrumb />
       <h1 className={styles.heading}>Información de la empresa</h1>
       <p className={styles.sectionLabel}>
         Aparece en el encabezado de cada factura emitida.
