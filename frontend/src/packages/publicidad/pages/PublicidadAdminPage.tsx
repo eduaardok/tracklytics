@@ -480,6 +480,7 @@ function CampanaCreateModal({ anunciantesData, pending, onClose, onSave }: {
   return (
     <CrudModal
       isOpen
+      wide
       mode="create"
       title="Nueva campaña"
       confirmLabel="Crear campaña"
@@ -491,16 +492,19 @@ function CampanaCreateModal({ anunciantesData, pending, onClose, onSave }: {
         tipo_anuncio: tipoAnuncio, url_destino: urlDestino,
       })}
     >
+      {/* S17: modal `wide` con preview en vivo — el formulario (7 campos, 2
+          columnas) queda a la izquierda de la vista previa del anuncio tal
+          como se vería en contexto (formato + anunciante + CPM). */}
+      <div className={styles.field} style={{ gridColumn: '1 / -1' }}>
+        <label className={styles.fieldLabel} htmlFor="camp-nombre">Nombre</label>
+        <input id="camp-nombre" className={styles.input} maxLength={200} value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Verano 2026" />
+      </div>
       <div className={styles.field}>
         <label className={styles.fieldLabel} htmlFor="camp-anunciante">Anunciante</label>
         <select id="camp-anunciante" className={styles.select} value={anuncianteId} onChange={(e) => setAnuncianteId(e.target.value)}>
           <option value="">Selecciona…</option>
           {anunciantesData.map((a) => <option key={a.anunciante_id} value={a.anunciante_id}>{a.nombre}</option>)}
         </select>
-      </div>
-      <div className={styles.field}>
-        <label className={styles.fieldLabel} htmlFor="camp-nombre">Nombre</label>
-        <input id="camp-nombre" className={styles.input} maxLength={200} value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Verano 2026" />
       </div>
       <div className={styles.field}>
         <label className={styles.fieldLabel} htmlFor="camp-tipo">Tipo de anuncio</label>
@@ -527,6 +531,19 @@ function CampanaCreateModal({ anunciantesData, pending, onClose, onSave }: {
           <input id="camp-url" className={styles.input} type="url" maxLength={2048} value={urlDestino} onChange={(e) => setUrlDestino(e.target.value)} placeholder="https://anunciante.com/promo" />
         </div>
       )}
+
+      <div className={styles.adPreview} style={{ gridColumn: '1 / -1' }}>
+        <p className={styles.adPreviewLabel}>Vista previa</p>
+        <div className={styles.adPreviewCard}>
+          <span className={styles.adPreviewBadge}>{tipoAnuncio === 'audio' ? 'Audio · entre canciones' : 'Display · banner'}</span>
+          <p className={styles.adPreviewNombre}>{nombre.trim() || 'Nombre de la campaña'}</p>
+          <p className={styles.adPreviewMeta}>
+            {anunciantesData.find((a) => String(a.anunciante_id) === anuncianteId)?.nombre ?? 'Anunciante sin seleccionar'}
+            {' · '}
+            CPM {cpm ? `$${Number(cpm).toFixed(2)}` : '—'}
+          </p>
+        </div>
+      </div>
     </CrudModal>
   )
 }
