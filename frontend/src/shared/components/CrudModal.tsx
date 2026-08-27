@@ -20,6 +20,13 @@ type Props = {
   // resto sigue funcionando igual que antes.
   error?:        string | null
   children:      ReactNode
+  // S17 (formularios densos, ej. campaña de Publicidad ~7 campos): opcional,
+  // NO cambia el contrato para llamadores existentes. En `wide`, el modal
+  // pasa de 440px a 640px y el fieldset habilita un grid de 2 columnas para
+  // campos cortos (fecha, número, select de una palabra) — un campo que deba
+  // ocupar todo el ancho (textarea, texto largo) usa `.wide` en su propio
+  // wrapper (ver `CrudModal.Section`/uso directo de `gridColumn: '1 / -1'`).
+  wide?:         boolean
 }
 
 // Base compartida de todo el CRUD administrativo (S13-P2) — antes cada
@@ -31,7 +38,7 @@ type Props = {
 // readonly (`view`), el tono del botón de confirmar (`delete` → rojo) y qué
 // botones mostrar.
 export function CrudModal({
-  isOpen, onClose, title, mode, onConfirm, confirmLabel, cancelLabel = 'Cancelar', loading = false, error, children,
+  isOpen, onClose, title, mode, onConfirm, confirmLabel, cancelLabel = 'Cancelar', loading = false, error, children, wide = false,
 }: Props) {
   const modalRef = useRef<HTMLDivElement>(null)
 
@@ -83,7 +90,7 @@ export function CrudModal({
     <div className={styles.backdrop} onMouseDown={onClose}>
       <div
         ref={modalRef}
-        className={styles.modal}
+        className={`${styles.modal} ${wide ? styles.modalWide : ''}`}
         role="dialog"
         aria-modal="true"
         aria-label={title}
@@ -94,7 +101,7 @@ export function CrudModal({
         {/* `disabled` en un <fieldset> deshabilita TODOS los controles internos
             de un solo golpe — así "Ver detalle" queda readonly sin que cada
             página tenga que marcar cada input individualmente. */}
-        <fieldset className={styles.body} disabled={isView} aria-disabled={isView}>
+        <fieldset className={`${styles.body} ${wide ? styles.bodyWide : ''}`} disabled={isView} aria-disabled={isView}>
           {children}
         </fieldset>
 
@@ -119,3 +126,23 @@ export function CrudModal({
     </div>
   )
 }
+
+// Agrupación opcional de campos dentro de un `CrudModal` `wide` (S17) — un
+// encabezado de sección + sus campos como `children`. `CrudModal` sigue sin
+// conocer los campos: esto es puro wrapper visual que el llamador arma en su
+// propio `children`, igual que ya hacía con divs sueltos. En `wide`, una
+// sección ocupa las 2 columnas del grid (`grid-column: 1 / -1`) y sus campos
+// internos vuelven a su propio grid de 2 columnas.
+export function CrudModalSection({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <div className={styles.section}>
+      <p className={styles.sectionTitle}>{title}</p>
+      <div className={styles.sectionGrid}>{children}</div>
+    </div>
+  )
+}
+
+// Nota: se exporta como `CrudModalSection` (named export) en vez de
+// `CrudModal.Section` — adjuntar un miembro estático a una function
+// declaration rompe su tipo inferido para TS; un named export es igual de
+// simple de importar (`import { CrudModal, CrudModalSection } from ...`).
