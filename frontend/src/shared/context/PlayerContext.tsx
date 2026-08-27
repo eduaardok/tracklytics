@@ -724,6 +724,64 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => () => { clearTimer(); destroyYtPlayer(); stopSimulated() }, [clearTimer, destroyYtPlayer, stopSimulated])
 
+  // ── Atajos de teclado globales del reproductor ─────────────────────────
+  // Espacio (play/pause), ←/→ (anterior/siguiente), ↑/↓ (volumen),
+  // M (mute/unmute). Se omiten cuando el foco está en un input, textarea,
+  // select o elemento contentEditable para no interferir con la escritura.
+  const savedVolumeRef = useRef(0.8)
+  useEffect(() => {
+    function isEditable(el: Element | null): boolean {
+      if (!el || !(el instanceof HTMLElement)) return false
+      if (el.isContentEditable) return true
+      const tag = el.tagName
+      return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT'
+    }
+
+    function onKeyDown(e: KeyboardEvent) {
+      if (isEditable(document.activeElement)) return
+
+      const key = e.key
+
+      if (key === ' ') {
+        e.preventDefault()
+        togglePlay()
+        return
+      }
+      if (key === 'ArrowRight' && !e.shiftKey && !e.ctrlKey && !e.altKey) {
+        e.preventDefault()
+        playNext()
+        return
+      }
+      if (key === 'ArrowLeft' && !e.shiftKey && !e.ctrlKey && !e.altKey) {
+        e.preventDefault()
+        playPrevious()
+        return
+      }
+      if (key === 'ArrowUp' && !e.shiftKey && !e.ctrlKey && !e.altKey) {
+        e.preventDefault()
+        setVolume(Math.min(1, volumeRef.current + 0.05))
+        return
+      }
+      if (key === 'ArrowDown' && !e.shiftKey && !e.ctrlKey && !e.altKey) {
+        e.preventDefault()
+        setVolume(Math.max(0, volumeRef.current - 0.05))
+        return
+      }
+      if (key === 'm' || key === 'M') {
+        e.preventDefault()
+        if (volumeRef.current > 0) {
+          savedVolumeRef.current = volumeRef.current
+          setVolume(0)
+        } else {
+          setVolume(savedVolumeRef.current || 0.8)
+        }
+      }
+    }
+
+    document.addEventListener('keydown', onKeyDown)
+    return () => document.removeEventListener('keydown', onKeyDown)
+  }, [togglePlay, playNext, playPrevious, setVolume])
+
   // Con repeat-all, "Siguiente" sigue teniendo a dónde ir aunque la cola en
   // vivo esté vacía (reencola la sesión) — sin esto el botón se veía
   // deshabilitado justo cuando repeat-all garantiza que SÍ hay siguiente.

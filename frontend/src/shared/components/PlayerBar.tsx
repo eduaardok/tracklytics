@@ -95,7 +95,7 @@ export function PlayerBar({ actions }: Props) {
           onClick={playPrevious}
           disabled={!hasPrevious}
           aria-label="Anterior"
-          title="Anterior"
+          title="Anterior (←)"
         >
           <SkipBack size={16} aria-hidden="true" />
         </button>
@@ -104,7 +104,7 @@ export function PlayerBar({ actions }: Props) {
           className={styles.playBtn}
           onClick={togglePlay}
           disabled={playbackUnavailable}
-          title={playbackUnavailable ? (playbackUnavailableReason ?? 'No disponible') : undefined}
+          title={playbackUnavailable ? (playbackUnavailableReason ?? 'No disponible') : isPlaying ? 'Pausar (Espacio)' : 'Reproducir (Espacio)'}
           aria-label={playbackUnavailable ? (playbackUnavailableReason ?? 'No disponible') : isPlaying ? 'Pausar' : 'Reproducir'}
         >
           {playbackUnavailable ? (
@@ -121,7 +121,7 @@ export function PlayerBar({ actions }: Props) {
           onClick={playNext}
           disabled={!hasNext}
           aria-label="Siguiente"
-          title="Siguiente"
+          title="Siguiente (→)"
         >
           <SkipForward size={16} aria-hidden="true" />
         </button>
@@ -185,7 +185,7 @@ export function PlayerBar({ actions }: Props) {
             className={styles.iconBtn}
             onClick={() => setVolume(volume > 0 ? 0 : 0.8)}
             aria-label={volume > 0 ? 'Silenciar' : 'Activar sonido'}
-            title={volume > 0 ? 'Silenciar' : 'Activar sonido'}
+            title={volume > 0 ? 'Silenciar (M)' : 'Activar sonido (M)'}
           >
             {volume > 0 ? <Volume2 size={16} aria-hidden="true" /> : <VolumeX size={16} aria-hidden="true" />}
           </button>
