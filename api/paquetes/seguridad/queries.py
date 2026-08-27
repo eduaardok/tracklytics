@@ -374,6 +374,38 @@ WHERE activo = 1
 ORDER BY rol_admin
 """
 
+# Landing administrativa (S17, "vs. PermisosPage como página raíz de
+# /seguridad"): el catálogo de arriba no dice a cuántos usuarios reales tiene
+# asignado cada rol hoy — sin ese dato la landing sería 6 tarjetas estáticas
+# de catálogo, no información operativa. Cuenta usuarios distintos con el rol
+# VIGENTE (mismo criterio de revocación = borrado lógico que
+# ROLES_ADMIN_VIGENTES/ROLES_ADMIN_VIGENTES_DETALLE: argMax(revocado, fecha)
+# por (usuario_id, rol_admin), filtrando los no revocados antes de contar).
+# LEFT JOIN desde el catálogo (no desde el bridge) para que un rol sin ningún
+# usuario asignado siga apareciendo con usuarios_asignados=0 en vez de
+# desaparecer de la lista.
+CATALOGO_ROLES_ADMIN_CON_CONTEO = """
+SELECT
+    r.rol_admin    AS rol_admin,
+    r.nombre       AS nombre,
+    r.capabilities AS capabilities,
+    r.descripcion  AS descripcion,
+    ifNull(c.usuarios, 0) AS usuarios_asignados
+FROM DIM_ROL_ADMINISTRATIVO r
+LEFT JOIN (
+    SELECT rol_admin, count() AS usuarios
+    FROM (
+        SELECT usuario_id, rol_admin, argMax(revocado, fecha) AS revocado
+        FROM BRIDGE_USUARIO_ROL_ADMIN
+        GROUP BY usuario_id, rol_admin
+    )
+    WHERE revocado = 0
+    GROUP BY rol_admin
+) c ON c.rol_admin = r.rol_admin
+WHERE r.activo = 1
+ORDER BY r.rol_admin
+"""
+
 ROL_ADMIN_EXISTE = """
 SELECT rol_admin FROM DIM_ROL_ADMINISTRATIVO WHERE rol_admin = {rol_admin:String} AND activo = 1 LIMIT 1
 """

@@ -16,6 +16,7 @@ from paquetes.seguridad.queries import (
     ACCIONES_POR_DIA,
     AUDIT_LOG_RECIENTES,
     CATALOGO_ROLES_ADMIN,
+    CATALOGO_ROLES_ADMIN_CON_CONTEO,
     DISPOSITIVO_EXISTE,
     ERRORES_RECIENTES,
     ERRORES_ULTIMAS_24H,
@@ -895,6 +896,15 @@ class AsignarRolAdminBody(BaseModel):
 def catalogo_roles_admin(admin: dict = Depends(require_admin)):
     """Catálogo cerrado de roles administrativos (DIM_ROL_ADMINISTRATIVO)."""
     return {"data": query_rows(CATALOGO_ROLES_ADMIN)}
+
+
+@router.get("/admin/roles-admin/resumen")
+def catalogo_roles_admin_resumen(admin: dict = Depends(require_admin)):
+    """Mismo catálogo que arriba, con `usuarios_asignados` (conteo de usuarios
+    con el rol vigente hoy) — alimenta las tarjetas de rol de la landing de
+    `/seguridad` (S17), sin duplicar la lógica de vigencia ya usada por
+    ROLES_ADMIN_VIGENTES/ROLES_ADMIN_VIGENTES_DETALLE."""
+    return {"data": query_rows(CATALOGO_ROLES_ADMIN_CON_CONTEO)}
 
 
 @router.get("/admin/usuarios")
