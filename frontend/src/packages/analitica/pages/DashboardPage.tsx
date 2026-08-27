@@ -131,7 +131,7 @@ export function DashboardPage() {
         <div>
           <p className={styles.sectionLabel}>Escala del catálogo</p>
           <div className={styles.kpiSubGrid}>
-            <KPICard title="Tracks" value={fmtKpi(totals.tracks)} icon={Disc3} />
+            <KPICard title="Canciones" value={fmtKpi(totals.tracks)} icon={Disc3} />
             <KPICard title="Artistas" value={fmtKpi(totals.artists)} icon={Mic2} />
             <KPICard title="Géneros" value={totals.genres} icon={Tags} />
           </div>

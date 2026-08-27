@@ -166,12 +166,12 @@ export function TendenciasPage() {
       {data.length > 0 && (
         <div className={styles.grid}>
           <TrendPanel
-            title="Volumen de tracks"
+            title="Volumen de canciones"
             data={data}
             dataKey="track_count"
             domain={['auto', 'auto']}
             formatValue={(n) => n.toLocaleString('es-ES')}
-            seriesLabel="Tracks"
+            seriesLabel="Canciones"
           />
           <TrendPanel
             title="Popularidad promedio"
