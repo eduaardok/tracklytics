@@ -12,6 +12,7 @@ import {
 // Import directo, no vía el barrel `@packages/seguridad` (arrastraría los
 // dashboards con Recharts de ese paquete al bundle principal — ver router.tsx).
 import { UserMenu } from '@packages/seguridad/components/UserMenu'
+import { ThemeToggle } from '@shared/components/ThemeToggle'
 import { RouteLoadingFallback } from '@shared/components/RouteLoadingFallback'
 import { PageTransition } from '@shared/components/PageTransition'
 import { ZoneSwitcher } from '@shared/components/ZoneSwitcher'
@@ -311,6 +312,7 @@ export function SeguridadShell() {
     <div className={styles.shell}>
       <header className={styles.brandBar}>
         <ZoneSwitcher currentZone="administracion" badge="admin" />
+        <ThemeToggle />
         <UserMenu />
       </header>
 
