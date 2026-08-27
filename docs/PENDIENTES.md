@@ -1,7 +1,96 @@
 # Tracklytics — Pendientes
 
-> Última revisión: **Semana 17 (S17, 26 ago 2026)** — landing de `/seguridad` con roles
-> administrativos, capabilities visibles al asignar rol, aclaración roles vs. permisos.
+> Última revisión: **Semana 17 (S17, 26 ago 2026)** — cancelación mantiene acceso hasta fin
+> de período pagado, terminología "Canciones", celebración de pago + factura, beneficios de
+> artista, avatares en comentarios.
+
+## Cancelación mantiene acceso + polish de suscripciones/social (S17, sesión 4)
+
+- [x] ✅ **TASK 1 — Cancelación mantiene acceso hasta fin del período pagado** (máxima
+      prioridad). Problema real verificado: `POST /{id}/cancelar` marcaba
+      `estado="cancelada"` de inmediato y `list_activas` dejaba de devolver la
+      suscripción en el mismo instante, cortando el acceso premium/B2B sin importar
+      cuánto ciclo pagado quedara — sin relación con el churn (que sí debía seguir
+      contando desde el instante real de cancelación).
+  - Campo nuevo `fecha_fin_periodo` en la colección PocketBase `suscripciones`
+    (`pb_init.py`, `ensure_collection_field` — sin migración formal, mismo patrón que los
+    campos de trial/dunning ya existentes). Se fija en `confirmar_suscripcion` como
+    `created + DIAS_CICLO_FACTURACION` (30 días, la MISMA constante que ya usaba el
+    prorrateo de `cambiar_plan` — no se duplicó), y se extiende en cada renovación
+    exitosa desde los DOS caminos reales que renuevan una suscripción: `POST
+    /{id}/procesar-cobro` (`api/paquetes/suscripciones/router.py`) y el DAG
+    `etl/gold/facturacion_recurrente.py`.
+  - `pb_client.cancelar` sigue marcando `estado="cancelada"` de inmediato — sin cambios —
+    pero ya NO se toca/limpia `fecha_fin_periodo`. `list_activas`/`list_activas_admin`
+    (`pb_client.py`, función nueva `_filtro_vigentes`) ahora también cuentan como
+    vigente una suscripción `cancelada` cuya `fecha_fin_periodo` sea futura (filtro
+    PocketBase con la macro `@now`, mismo criterio de fecha ISO que el resto del
+    archivo).
+  - `PlanesPage.tsx` ya no oculta ni muestra "activa sin contexto" una suscripción
+    cancelada con acceso vigente: banner nuevo "Suscripción cancelada — conservas el
+    acceso hasta el [fecha]" + oculta el botón de cancelar/motivo (ya no aplica).
+  - **Verificación real (curl contra la API Dockerizada, cuenta demo
+    `usuario@demo.tracklytics.com`)**:
+    1. Se registró un método de pago real (`POST /facturacion/metodos-pago`) y se
+       confirmó el plan `premium` (trial, primera vez) → respuesta con
+       `fecha_fin_periodo: "2026-09-26 01:25:46.103Z"` (created + 30 días exactos).
+    2. `POST /{id}/cancelar?motivo=precio` → respuesta `estado: "cancelada"`,
+       `fecha_fin_periodo` intacto.
+    3. `GET /suscripciones/activa` inmediatamente después → **sigue devolviendo la
+       misma suscripción** (`estado: "cancelada"`, `fecha_fin_periodo` futuro visible)
+       — antes de este fix habría devuelto `null`.
+    4. Simulación de expiración: se parcheó `fecha_fin_periodo` a `2020-01-01` vía
+       `pb_client._get_admin_token()` dentro del contenedor `api` (sin leer `.env`,
+       usando la config de la app ya cargada) → `GET /activa` devolvió `{"data": null}`,
+       confirmando que la comparación de fechas realmente corta el acceso al expirar.
+       Se restauró `fecha_fin_periodo` a la fecha futura real después de la prueba.
+    5. Churn verificado en ClickHouse: `FACT_CANCELACION_SUSCRIPCION.fecha` para esa
+       cancelación quedó con el instante real (`2026-08-27 01:25:52`), NO con
+       `fecha_fin_periodo` — se borró después el registro sintético de prueba
+       (`ALTER TABLE ... DELETE`) para no ensuciar el dashboard de Churn real.
+  - **Abierto, decidido no tocar**: `sumar_montos_activos` (MRR/ARR,
+    `pb_client.py`) sigue filtrando solo `estado="activa"` — una suscripción
+    cancelada-con-acceso ya no cuenta para el MRR proyectado del próximo mes (correcto,
+    no se le volverá a cobrar), pero no se auditó a fondo si el MES EN CURSO debería
+    seguir contándola como ingreso reconocido o no. Se dejó sin tocar por instrucción
+    explícita de priorizar no romper esa métrica.
+  - Estado dejado en la cuenta demo: `usuario@demo.tracklytics.com` quedó con una
+    suscripción `premium` cancelada con acceso hasta 2026-09-26 (antes: plan `free`) —
+    demuestra el nuevo banner de la UI en vivo; documentado acá para quien la use de demo.
+- [x] ✅ **TASK 2 — Terminología "Canciones"** — `DashboardPage.tsx` (KPICard) y
+      `TendenciasPage.tsx` (`seriesLabel` + título del panel) mostraban "Tracks"/"tracks"
+      en inglés; cambiado a "Canciones"/"canciones" (solo texto visible, sin tocar claves
+      de API/DB). Grep previo confirmó que ningún test/snapshot depende del string literal.
+- [x] ✅ **TASK 3 — Celebración de pago + factura directa** — el banner de "Suscripción
+      confirmada" era texto de 0.875rem sin animación con un link subrayado. Nuevo
+      `PaymentSuccessCelebration` (`shared/components/` — no había un patrón de éxito de
+      pago en `regalias`/`finanzas` para reutilizar, primer uso, promovido a compartido a
+      propósito): entrada fade+scale y check animado vía `@keyframes` (mismo patrón que
+      `CrudModal.module.css`), resumen real del pago (plan/monto/próximo cobro desde la
+      respuesta real de `confirmar.mutate`), botón (no link) a `InvoiceDetailPage`. Respeta
+      `prefers-reduced-motion`. No se tocó la lógica de la mutación ni el banner de pago
+      fallido.
+- [x] ✅ **TASK 4 — Beneficios antes de solicitar cuenta de artista**
+      (`CuentaArtistaPage.tsx`, solo la sección `applyPanel`, sin tocar el formulario de
+      subida ya rediseñado en sesión previa) — 3 puntos breves con icono ANTES del
+      formulario: regalías por reproducción (paquete `regalias`, visible en "Tus
+      ganancias"), panel de audiencia propio (`PanelAnaliticaArtista`, ya usado más abajo
+      en esta misma página para cuentas aprobadas), alcance del catálogo compartido — sin
+      inventar cifras. Cambio aditivo, el flujo de solicitud no cambió.
+- [x] ✅ **TASK 5 — Avatares en comentarios de track** (`TrackSocialPage.tsx`) — los
+      comentarios eran solo texto. No existe foto de perfil real en el modelo de usuario;
+      nuevo `UserAvatar` (`shared/components/`) con iniciales + color determinístico por
+      `usuario_id` (hash simple, no aleatorio), mismo patrón de iniciales que ya usaba
+      `ProfilePage.tsx` para el avatar propio, extendido con color por usuario porque un
+      hilo muestra a varios usuarios a la vez.
+- **Verificación real transversal**: `tsc --noEmit` y `npm run build` limpios en cada
+  commit; `python -m py_compile` sobre los 3 archivos backend tocados
+  (`suscripciones/router.py`, `pb_client.py`, `etl/gold/facturacion_recurrente.py`);
+  rebuild real de contenedor (`scripts/rebuild-frontend.sh`) tras cada cambio de frontend,
+  sirviendo el commit vigente. **Sin navegador real disponible en esta sesión** (no hay
+  herramienta Playwright/browser cargada) — las Tasks 2-5 se verificaron por build +
+  lectura de código + (Task 1) curl real de extremo a extremo; no se afirma verificación
+  visual en el DOM para ninguna de las 5.
 
 ## Landing de `/seguridad` + claridad roles/permisos (S17, sesión 3)
 
