@@ -1,7 +1,38 @@
 # Tracklytics — Pendientes
 
-> Última revisión: **Semana 17 (S17, 27 ago 2026)** — QA visual real con Playwright (sesión 7):
-> confirmadas en navegador las 6 sesiones previas que solo tenían verificación de build/curl.
+> Última revisión: **Semana 17 (S17, 27 ago 2026)** — 2 fixes reales de la pasada de QA visual
+> (sesión 8): AdminHomePage para admins de área, mensaje claro en rango de fecha inválido.
+
+## Fixes de la QA visual (S17, sesión 8)
+
+- [x] ✅ **AdminHomePage para admins de área — sin el error rojo**. `GET /admin/roles-admin*`
+      y `GET /admin/dashboard` son `require_admin` (exclusivo de superadmin, correcto: son
+      datos de todas las áreas) pero `AdminHomePage` los pedía sin importar el rol de quien
+      mira — un admin de área (`admin_finanzas`) veía el banner rojo "No se pudieron cargar
+      los roles administrativos" y KPIs en `—` (hallazgo real de
+      `docs/qa-visual-s17/15-areaswitcher-ausente-admin-finanzas.png`). Nuevo endpoint `GET
+      /seguridad/mis-roles-admin` (solo `get_current_user`, reusa `roles_admin_vigentes`) —
+      devuelve únicamente el/los rol(es) propios de quien llama, sin abrir el catálogo
+      completo. `AdminHomePage` detecta `esSuperadmin()` antes de elegir qué pedir: superadmin
+      sigue exactamente igual; un admin de área ve solo su propio rol, sin los 2 accesos
+      directos ("Gestionar usuarios y roles"/"Permisos avanzados" — confirmado por curl que
+      ambos son también `require_admin`, así que ninguno le serviría igual). Verificado con
+      `admin_finanzas` real + Playwright: sin banner de error
+      (`docs/qa-visual-s17/16-adminhomepage-admin-finanzas-fix.png`), superadmin sin cambios
+      (`16b-adminhomepage-superadmin-unchanged.png`).
+- [x] ✅ **Mensaje claro en rango de fecha inválido (>366 días)**. Las 4 páginas con rango
+      customizable (`ModeracionSocialPage`, `AuditoriaFacturacionPage`, `AuditoriaPage`,
+      `PanelAnaliticaArtista`) no exponían `isError` de la query del dashboard — un 422 real
+      del backend se veía igual que "Sin datos todavía." (hallazgo real de
+      `docs/qa-visual-s17/02-moderacion-social-rango-invalido-366d.png`). El backend ya
+      devuelve un `detail` legible ("El rango no puede superar 366 días" / "desde no puede ser
+      mayor que hasta") — ahora se renderiza con `apiErrorMessage` + el `ErrorState`
+      compartido, en el mismo lugar donde antes aparecía el gráfico vacío.
+      `PanelAnaliticaArtista` tenía un bug extra: el return temprano de error ocultaba también
+      los inputs de fecha, sin forma de corregir el rango que causó el error — ahora el error
+      se muestra junto a los filtros. Verificado con Playwright: mensaje real del backend
+      visible (`docs/qa-visual-s17/17-rango-invalido-mensaje-claro.png`); un rango válido sin
+      actividad real sigue mostrando "Sin datos todavía." sin romperse.
 
 ## QA visual real con Playwright (S17, sesión 7)
 
@@ -23,13 +54,13 @@
   denseDates y rango de fechas se ven y funcionan como se documentó en las sesiones 3-6, en
   1280px y 1024px. Detalle de qué se confirmó dónde queda anotado en cada TASK de las
   secciones de abajo.
-- **Hallazgo funcional (no visual, no corregido — fuera de alcance de este QA)**: las 4
-  páginas con rango de fechas customizable (`ModeracionSocialPage`,
-  `AuditoriaFacturacionPage`, `AuditoriaPage`, `PanelAnaliticaArtista`) no manejan el 422 de
-  "rango > 366 días" — la query del gráfico no expone `isError`, así que un rango inválido
-  se ve igual que "no hay datos en este rango" (`Sin datos todavía.`), sin mensaje de error.
-  Confirmado con `page.on('response')` capturando el 422 real. Ver detalle en la sección de
-  "Rango de fechas customizable" más abajo.
+- **Hallazgo funcional (no visual, no corregido en esta sesión — fuera de alcance de este QA,
+  ver fix en "Fixes de la QA visual" arriba, sesión 8)**: las 4 páginas con rango de fechas
+  customizable (`ModeracionSocialPage`, `AuditoriaFacturacionPage`, `AuditoriaPage`,
+  `PanelAnaliticaArtista`) no manejan el 422 de "rango > 366 días" — la query del gráfico no
+  expone `isError`, así que un rango inválido se ve igual que "no hay datos en este rango"
+  (`Sin datos todavía.`), sin mensaje de error. Confirmado con `page.on('response')`
+  capturando el 422 real.
 
 ## Animaciones/UX polish (S17, sesión 6)
 
