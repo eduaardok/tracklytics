@@ -1,6 +1,7 @@
 import { memo } from 'react'
 import type { LucideIcon } from 'lucide-react'
 import { TrendingDown, TrendingUp } from 'lucide-react'
+import { InfoHint } from '../InfoHint'
 import styles from './KpiCards.module.css'
 
 export type Kpi = {
@@ -8,6 +9,10 @@ export type Kpi = {
   value: string | number
   trend?: number
   icon?: LucideIcon
+  // S17: texto de ayuda opcional (mismo InfoHint que KPICard) — usado cuando
+  // el registro de un informe compuesto trae `ayuda`/`descripcion` para uno
+  // de sus KPIs de cabecera.
+  helpText?: string
 }
 
 // Grid de tarjetas de resumen (S13-P3b) — usado por los 30 informes
@@ -26,6 +31,7 @@ export const KpiCards = memo(function KpiCards({ kpis }: { kpis: Kpi[] }) {
             <div className={styles.cardHead}>
               {Icon && <Icon size={16} className={styles.icon} aria-hidden="true" />}
               <span className={styles.label}>{kpi.label}</span>
+              {kpi.helpText && <InfoHint text={kpi.helpText} />}
             </div>
             <div className={styles.valueRow}>
               <span className={styles.value}>{kpi.value}</span>

@@ -8,6 +8,7 @@ import { analiticaApi } from '../api/analitica.api'
 import { SkeletonChart } from '@shared/components/SkeletonLoader'
 import styles from './PnlPage.module.css'
 import { ErrorState } from '@shared/components/ErrorState'
+import { InfoHint } from '@shared/components/InfoHint'
 
 function isoMesesAtras(n: number): string {
   const d = new Date()
@@ -46,7 +47,10 @@ export function PnlPage() {
   return (
     <section className={styles.page} ref={reportRef}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--space-md)', flexWrap: 'wrap' }}>
-        <h1 className={styles.heading}>P&L consolidado</h1>
+        <h1 className={styles.heading} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          P&L consolidado
+          <InfoHint text="Estado de pérdidas y ganancias: ingresos por suscripciones y publicidad, menos regalías pagadas a artistas, igual a margen neto del período." />
+        </h1>
         <ExportPDFButton targetRef={reportRef} fileName="analitica-pnl" title="P&L consolidado" />
       </div>
       <span className={styles.subtitle}>// ingresos, regalías pagadas y margen neto del período</span>
@@ -89,7 +93,10 @@ export function PnlPage() {
             </div>
             <div className={styles.kpiTile}>
               <span className={styles.kpiValue}>{fmt(pnl.data.margen_neto)}</span>
-              <span className={styles.kpiLabel}>Margen neto</span>
+              <span className={styles.kpiLabel} style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                Margen neto
+                <InfoHint text="Ingreso total (suscripciones + publicidad) menos las regalías pagadas en el período seleccionado." />
+              </span>
             </div>
           </div>
         </>

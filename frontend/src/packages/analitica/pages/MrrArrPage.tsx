@@ -8,6 +8,7 @@ import { analiticaApi } from '../api/analitica.api'
 import { SkeletonChart } from '@shared/components/SkeletonLoader'
 import styles from './MrrArrPage.module.css'
 import { ErrorState } from '@shared/components/ErrorState'
+import { InfoHint } from '@shared/components/InfoHint'
 
 function isoMesesAtras(n: number): string {
   const d = new Date()
@@ -65,11 +66,17 @@ export function MrrArrPage() {
           <div className={styles.kpiRow}>
             <div className={styles.kpiTile}>
               <span className={styles.kpiValue}>{fmt(mrr.data.mrr)}</span>
-              <span className={styles.kpiLabel}>MRR — ingreso mensual recurrente</span>
+              <span className={styles.kpiLabel} style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                MRR — ingreso mensual recurrente
+                <InfoHint text="Monthly Recurring Revenue: ingreso predecible que generan las suscripciones activas en un mes, sin contar publicidad ni cargos únicos." />
+              </span>
             </div>
             <div className={styles.kpiTile}>
               <span className={styles.kpiValue}>{fmt(mrr.data.arr)}</span>
-              <span className={styles.kpiLabel}>ARR — proyección anual</span>
+              <span className={styles.kpiLabel} style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                ARR — proyección anual
+                <InfoHint text="Annual Recurring Revenue: el MRR proyectado a 12 meses (MRR × 12), como estimación del ingreso recurrente anual." />
+              </span>
             </div>
           </div>
 

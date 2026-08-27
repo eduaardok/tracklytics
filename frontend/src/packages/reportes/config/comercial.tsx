@@ -17,7 +17,7 @@ export const COMERCIAL_INFORMES: InformeConfig[] = [
         <>
           <KpiCards kpis={[
             { label: 'Registros nuevos', value: fmtNum(num(resumen.registros_nuevos_total)), icon: Users },
-            { label: 'CAC promedio', value: fmtMoneda(num(resumen.cac_promedio)), icon: CreditCard },
+            { label: 'CAC promedio', value: fmtMoneda(num(resumen.cac_promedio)), icon: CreditCard, helpText: 'Costo de Adquisición de Cliente: cuánto se gasta en promedio (marketing/comisiones) para conseguir un registro nuevo.' },
             { label: 'Deserciones', value: fmtNum(num(resumen.deserciones_total)), icon: TrendingDown },
           ]} />
           <TrendChart datos={porPeriodo} series={[{ key: 'registros_nuevos', label: 'Registros nuevos', color: CHART_COLORS.violeta, type: 'bar' }]} />

@@ -12,8 +12,8 @@ export const FINANCIERO_INFORMES: InformeConfig[] = [
     render: (datos, resumen) => (
       <>
         <KpiCards kpis={[
-          { label: 'MRR actual', value: fmtMoneda(num(resumen.mrr_actual)), icon: DollarSign },
-          { label: 'ARR actual', value: fmtMoneda(num(resumen.arr_actual)), icon: TrendingUp },
+          { label: 'MRR actual', value: fmtMoneda(num(resumen.mrr_actual)), icon: DollarSign, helpText: 'Monthly Recurring Revenue: ingreso recurrente que generan las suscripciones activas en el mes.' },
+          { label: 'ARR actual', value: fmtMoneda(num(resumen.arr_actual)), icon: TrendingUp, helpText: 'Annual Recurring Revenue: el MRR proyectado a 12 meses (MRR × 12).' },
           { label: 'Margen neto acumulado', value: fmtMoneda(num(resumen.margen_neto_acumulado)), icon: Receipt },
         ]} />
         <TrendChart datos={datos} series={[

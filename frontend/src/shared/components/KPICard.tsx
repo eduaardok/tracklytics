@@ -3,6 +3,7 @@ import type { LucideIcon } from 'lucide-react'
 import { TrendingDown, TrendingUp } from 'lucide-react'
 import { useCountUp } from '@shared/hooks/useCountUp'
 import { Sparkline } from './charts/Sparkline'
+import { InfoHint } from './InfoHint'
 import styles from './KPICard.module.css'
 
 type Props = {
@@ -20,6 +21,10 @@ type Props = {
   // cada frame.
   animate?:       boolean
   formatValue?:   (n: number) => string
+  // S17: texto de ayuda opcional — se muestra con el mismo InfoHint (ⓘ,
+  // hover/foco por teclado) que ya se usaba en TrackDetailPage, para KPIs con
+  // términos no obvios (Danceability, Valence, Energy, Tempo, Churn, MRR/ARR).
+  helpText?:      string
 }
 
 // Card de KPI premium (S14-FINAL) — número grande + delta con flecha +
@@ -27,7 +32,7 @@ type Props = {
 // sparkline, usado por los 30 informes compuestos con datos ya agregados a
 // un solo valor); este componente es para superficies con serie temporal
 // disponible (BSC, dashboards nuevos).
-export const KPICard = memo(function KPICard({ title, value, delta, deltaLabel, sparklineData, icon: Icon, animate, formatValue }: Props) {
+export const KPICard = memo(function KPICard({ title, value, delta, deltaLabel, sparklineData, icon: Icon, animate, formatValue, helpText }: Props) {
   const esPositivo = (delta ?? 0) >= 0
   const numericTarget = animate && typeof value === 'number' ? value : undefined
   const counted = useCountUp(numericTarget)
@@ -40,6 +45,7 @@ export const KPICard = memo(function KPICard({ title, value, delta, deltaLabel, 
       <div className={styles.head}>
         {Icon && <Icon size={16} className={styles.icon} aria-hidden="true" />}
         <span className={styles.title}>{title}</span>
+        {helpText && <InfoHint text={helpText} />}
       </div>
       <div className={styles.value}>{displayValue}</div>
       <div className={styles.footRow}>

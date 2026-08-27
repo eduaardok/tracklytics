@@ -140,11 +140,26 @@ export function DashboardPage() {
         <div>
           <p className={styles.sectionLabel}>Audio promedio</p>
           <div className={styles.kpiSubGrid}>
-            <KPICard title="Popularidad" value={fmtDec(audio.avg_popularity, 2)} icon={Gauge} />
-            <KPICard title="Energía (Energy)" value={fmtDec(audio.avg_energy)} icon={Zap} />
-            <KPICard title="Baile (Danceability)" value={fmtDec(audio.avg_danceability)} icon={Music4} />
-            <KPICard title="Valencia (Valence)" value={fmtDec(audio.avg_valence)} icon={Smile} />
-            <KPICard title="Tempo" value={`${fmtDec(audio.avg_tempo, 2)} bpm`} icon={Timer} />
+            <KPICard
+              title="Popularidad" value={fmtDec(audio.avg_popularity, 2)} icon={Gauge}
+              helpText="Puntaje de popularidad del track (0 a 100), calculado a partir de reproducciones recientes y su ritmo de crecimiento."
+            />
+            <KPICard
+              title="Energía (Energy)" value={fmtDec(audio.avg_energy)} icon={Zap}
+              helpText="De 0 a 1: qué tan intenso y activo suena el track (volumen, ruido percibido, timbre). Un valor alto no implica tempo alto."
+            />
+            <KPICard
+              title="Baile (Danceability)" value={fmtDec(audio.avg_danceability)} icon={Music4}
+              helpText="De 0 a 1: qué tan apto es el track para bailar, según tempo, estabilidad rítmica y regularidad del compás."
+            />
+            <KPICard
+              title="Valencia (Valence)" value={fmtDec(audio.avg_valence)} icon={Smile}
+              helpText="De 0 a 1: qué tan positivo o alegre suena el track. Valores bajos suenan más tristes o tensos; altos, más felices o eufóricos."
+            />
+            <KPICard
+              title="Tempo" value={`${fmtDec(audio.avg_tempo, 2)} bpm`} icon={Timer}
+              helpText="Velocidad estimada del track en pulsos por minuto (BPM)."
+            />
           </div>
         </div>
       </div>

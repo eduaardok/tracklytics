@@ -6,6 +6,7 @@ import { analiticaApi } from '../api/analitica.api'
 import { SkeletonChart } from '@shared/components/SkeletonLoader'
 import styles from './ChurnPage.module.css'
 import { ErrorState } from '@shared/components/ErrorState'
+import { InfoHint } from '@shared/components/InfoHint'
 
 function isoMesesAtras(n: number): string {
   const d = new Date()
@@ -79,7 +80,12 @@ export function ChurnPage() {
                     <th key={motivo} className={styles.th}>{motivo}</th>
                   ))}
                   <th className={styles.th}>Activas al inicio</th>
-                  <th className={styles.th}>Tasa de churn</th>
+                  <th className={styles.th} style={{ display: 'table-cell' }}>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                      Tasa de churn
+                      <InfoHint text="Churn: porcentaje de suscripciones activas al inicio del mes que se cancelaron durante ese mes." />
+                    </span>
+                  </th>
                 </tr>
               </thead>
               <tbody>
