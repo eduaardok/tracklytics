@@ -353,18 +353,29 @@ Pensando en los días que quedan antes de la presentación — realista sobre qu
 sin arriesgar lo que ya funciona:
 
 ### Alto impacto, bajo riesgo de romper algo (candidatos para atacar primero)
-- Agregar `useConfirm()`/`CrudModal` a las 11 acciones sin confirmación de §3.3 — cada una
-  es un cambio mecánico de copiar el patrón ya usado en la página hermana, no hay diseño
-  nuevo que inventar. `SimulacionPage` es la más urgente por el efecto real (dinero +
-  infraestructura).
-- Agregar `LIMIT`/paginación real a `GET /seguridad/admin/usuarios-reporte` y `GET
-  /finanzas/gastos` (§3.2) — son cambios de backend acotados (una query SQL cada uno) con
-  paginación en frontend siguiendo el patrón ya usado en `UsuariosAdminPage`.
-- Conectar `DenunciasPanel` (`ModeracionSocialPage.tsx`) al `page`/`limit` que el backend
-  ya soporta — el trabajo real (backend + cliente) ya existe, falta solo el estado de
-  página en el componente.
-- Los 9 casos de query secundaria sin `isError` (§3.1) — cada uno es agregar una condición
-  ya usada en la misma página para la query principal.
+
+**Estado: cerrado completo, S17 sesión 10 (27 ago 2026).** Los 4 puntos de este bloque están
+resueltos, verificados en runtime con Docker + Playwright, y commiteados en 4 commits
+atómicos (`0da0926`, `de11ced`, `8d3fb45`, `045d18a`). Detalle:
+
+- ✅ **`useConfirm()`/`CrudModal` en las 11 acciones sin confirmación de §3.3** — las 11
+  ganaron confirmación real, incluida `SimulacionPage` (con el mensaje mostrando el efecto
+  real calculado, no un genérico). `Revocar licencia` (`LicenciasTab.tsx`) resultó ya tener
+  fricción real (un modal propio con motivo obligatorio) al revisar el código con más
+  cuidado — no necesitaba el fix, era un falso positivo del grep original. `Desactivar
+  restricción/país` se dejó sin tocar a propósito (reversibles, efecto positivo).
+- ✅ **`LIMIT`/paginación real en `GET /seguridad/admin/usuarios-reporte` y `GET
+  /finanzas/gastos`** (§3.2) — ambos convertidos a `LIMIT`/`OFFSET` reales (o rango de
+  fecha por defecto + tope de seguridad, para gastos). `pais`/`estado_cuenta` filtran
+  server-side en usuarios-reporte; `rol`/`plan` siguen filtrando solo la página actual,
+  documentado como decisión consciente (plan no vive en ClickHouse, tocar el modelo de
+  datos estaba fuera de alcance de un fix de paginación).
+- ✅ **`DenunciasPanel` conectado a la paginación que el backend ya soportaba** — estado de
+  página agregado, denuncias más allá de la fila 20 ya son alcanzables.
+- ✅ **Los 9 casos de query secundaria sin `isError`** — 8 corregidos; el 9º
+  (`EmpresaConfigPage.tsx`) resultó, al revisar el código, ser funcionalmente correcto (usa
+  `isSuccess`/`isError` de la mutación, patrón distinto pero sin bug real) — documentado
+  como discrepancia entre la auditoría original y el estado real del código, no se tocó.
 
 ### Medio impacto, vale la pena si sobra tiempo
 - Rediseñar `AdminTracksPage.tsx` con `TrackCard`/grid en vez de tabla (§3.5) — mayor

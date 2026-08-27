@@ -1,8 +1,31 @@
 # Tracklytics — Pendientes
 
-> Última revisión: **Semana 17 (S17, 27 ago 2026)** — auditoría de navegación/UX de las 77
-> páginas reales (sesión 9): sin código nuevo, solo diagnóstico priorizado. Ver
-> `docs/AUDITORIA_NAVEGACION_UX_S17.md`.
+> Última revisión: **Semana 17 (S17, 27 ago 2026)** — cerrado el bloque "alto impacto, bajo
+> riesgo" de la auditoría de navegación/UX (sesión 10): 11 confirmaciones, 2 endpoints sin
+> LIMIT, paginación de denuncias, 8 isError. Ver `docs/AUDITORIA_NAVEGACION_UX_S17.md`.
+
+## Cierre del bloque "alto impacto, bajo riesgo" (S17, sesión 10)
+
+- [x] ✅ **11 acciones destructivas/financieras ganan confirmación real** (`useConfirm()`/
+      `CrudModal`) — `SimulacionPage` (liquidación real + refresh de Airflow),
+      `RegaliasAdminPage` (procesar/rechazar retiro), `AdminPartnersPage` (rotar key),
+      `UsuariosAdminPage` (suspender), `RevisionCreadoresPage` (aprobar/rechazar cuenta y
+      track), `DistribucionAdminPage` (aprobar solicitud de licencia, actualizar precio de
+      plan), `FamiliaAdminPage` (quitar miembro), `ReembolsosTab` (procesar reembolso).
+      Hallazgo real durante la implementación: "Revocar licencia" resultó ya tener fricción
+      (modal propio con motivo obligatorio) — la auditoría original lo marcó sin confirmar
+      por un falso positivo del grep, no era un bug real.
+- [x] ✅ **`GET /seguridad/admin/usuarios-reporte`** (13,109 usuarios reales sin `LIMIT`) y
+      **`GET /finanzas/gastos`** ganan paginación/rango de fecha real en el backend, no solo
+      en el frontend. `ReporteUsuariosPage` gana controles de página reales.
+- [x] ✅ **`DenunciasPanel`** (`ModeracionSocialPage.tsx`) conectado a la paginación
+      `page`/`limit` que el backend y el cliente ya soportaban.
+- [x] ✅ **8 de 9 queries secundarias ganan `isError` real** — el 9º
+      (`EmpresaConfigPage.tsx`) resultó funcionalmente correcto al revisar el código, no se
+      tocó.
+- Verificado en runtime con Docker + Playwright para cada tarea; `tsc --noEmit`/`npm run
+  build`/`python -m py_compile` limpios en cada commit. `reload_portadas_9h` (lanzado en la
+  sesión 9) siguió corriendo sano durante todo el trabajo, sin interferencia.
 
 ## Auditoría de navegación/UX — 77 páginas (S17, sesión 9)
 
