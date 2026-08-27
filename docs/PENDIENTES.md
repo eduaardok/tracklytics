@@ -1,12 +1,7 @@
 # Tracklytics — Pendientes
 
-> Última revisión: **Semana 16 (S16-P11)** — cierre de hallazgos residuales
-> (feed sin tracks muertos, loaders shimmer restantes, sweep ErrorState,
-> staff ≠ cliente free). Auditoría previa (Explore) encontró que buena parte de lo listado como
-> pendiente ya estaba resuelto en código sin que este documento se hubiera actualizado
-> (search-all, radio/mix con similitud real de audio, export GDPR, A9/A10/A11, loaders
-> transversales, gaps de datos) — quedan tachados abajo con la evidencia. Detalles en
-> `docs/BITACORA_S16.md`.
+> Última revisión: **Semana 17 (S17, 26 ago 2026)** — selector de área "Viendo como" para
+> superadmin en paneles admin.
 
 ## Paridad con apps de música (S17, sesión de 4 mejoras)
 
@@ -199,6 +194,14 @@ lote siguiente en este orden:
 
 ## Housekeeping detectado en la auditoría S17 (no funcional)
 
+- [x] ~~Navegación por área ("Viendo como") en paneles admin~~ ✅ implementado (S17, prompt
+      paralelo de navegación). Selector `AreaSwitcher` en `SeguridadShell` y `AnalyticaShell`
+      que filtra la sidebar a un área de negocio a vez, solo para la cuenta superadmin.
+      Persiste la elección en `localStorage` (`ui_superadmin_area` via `ui-prefs.ts`).
+      Cuentas de un solo rol de área (`admin_finanzas`, etc.) no ven el selector — su rol ya
+      las limita. No toca contenido de página ni gating de backend. **Verificación:**
+      `tsc --noEmit` y `npm run build` limpios; verificación visual pendiente (requiere Docker
+      levantado).
 - [x] ~~`frontend/src/shared/design-system/index.ts` y `tokens.ts` son placeholders~~ ✅
       carpeta entera borrada (S17): zero referencias en código, el sistema de diseño real vive
       en CSS modules + `ThemeContext` ("Impeccable"). Verificado: `tsc --noEmit` y `npm run build`

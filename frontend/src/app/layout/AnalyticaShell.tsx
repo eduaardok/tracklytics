@@ -1,4 +1,4 @@
-import { Suspense, useState } from 'react'
+import { Suspense, useMemo, useState } from 'react'
 import { Outlet, NavLink, useLocation } from 'react-router-dom'
 import {
   LayoutDashboard, Activity, Music, GitCompare, Target, TrendingUp, ListMusic,
@@ -23,8 +23,9 @@ import { RouteLoadingFallback } from '@shared/components/RouteLoadingFallback'
 import { PageTransition } from '@shared/components/PageTransition'
 import { ZoneSwitcher } from '@shared/components/ZoneSwitcher'
 import { SidebarSection } from '@shared/components/SidebarSection'
+import { AreaSwitcher } from '@shared/components/AreaSwitcher'
 import { useExclusiveAccordion } from '@shared/hooks/useExclusiveAccordion'
-import { getSidebarCollapsed, setSidebarCollapsed } from '@shared/lib/ui-prefs'
+import { getSidebarCollapsed, setSidebarCollapsed, getSuperadminArea, setSuperadminArea } from '@shared/lib/ui-prefs'
 import styles from './AnalyticaShell.module.css'
 
 const ACTIVE_CLS    = `${styles.navItem} ${styles.navActive}`
@@ -116,20 +117,31 @@ export function AnalyticaShell() {
   const superadmin = esSuperadmin(user)
   const esEnterprise = tipoPlan === 'enterprise' || superadmin
   const esAdmin = superadmin
+  const [superadminArea, setSuperadminAreaState] = useState(getSuperadminArea)
+
+  function handleAreaSelect(area: string | null) {
+    setSuperadminAreaState(area)
+    setSuperadminArea(area)
+  }
 
   // Nivel 2: grupos colapsables visibles según el mismo gating que ya tenían
   // sus ítems (esAdmin para Operativo/Táctico/Herramientas). "Estratégico" se
   // muestra con esAdmin || esEnterprise, pero BSC dentro del grupo sigue
   // exigiendo esAdmin en particular (ver comentario de `ITEM_BSC`) — sin
   // este filtro por ítem, un cliente Enterprise no-admin vería un link a BSC
-  // que el backend rechaza con 403.
-  const itemsEstrategico = [...(esAdmin ? [ITEM_BSC] : []), ...NAV_PREDICTIVO]
-  const groups = [
-    { key: 'operativo',    label: 'Operativo',    items: NAV_OPERATIVO,      visible: esAdmin },
-    { key: 'tactico',      label: 'Táctico',      items: NAV_TACTICO,        visible: esAdmin },
-    { key: 'estrategico',  label: 'Estratégico',  items: itemsEstrategico,   visible: esAdmin || esEnterprise },
-    { key: 'herramientas', label: 'Herramientas', items: NAV_HERRAMIENTAS,   visible: esAdmin },
-  ].filter((g) => g.visible)
+  // que el backend rechaza con 403. Para superadmin, additionally filtra
+  // por área seleccionada en el selector "Viendo como".
+  const groups = useMemo(() => {
+    const allGroups = [
+      { key: 'operativo',    label: 'Operativo',    items: NAV_OPERATIVO,      visible: esAdmin },
+      { key: 'tactico',      label: 'Táctico',      items: NAV_TACTICO,        visible: esAdmin },
+      { key: 'estrategico',  label: 'Estratégico',  items: [...(esAdmin ? [ITEM_BSC] : []), ...NAV_PREDICTIVO], visible: esAdmin || esEnterprise },
+      { key: 'herramientas', label: 'Herramientas', items: NAV_HERRAMIENTAS,   visible: esAdmin },
+    ]
+    return allGroups
+      .filter((g) => g.visible)
+      .filter((g) => !superadmin || !superadminArea || g.label === superadminArea)
+  }, [esAdmin, esEnterprise, superadmin, superadminArea])
 
   const activeGroupKey = groups.find((g) => g.items.some((i) => location.pathname === i.to || location.pathname.startsWith(`${i.to}/`)))?.key ?? null
   const { openGroup, toggle } = useExclusiveAccordion('analitica-sidebar-open-group', activeGroupKey)
@@ -172,6 +184,14 @@ export function AnalyticaShell() {
             {/* Consumo diario, siempre visible sin colapsar (nivel 2, grupo
                 base) — el resto de los grupos son acciones ocasionales. */}
             {NAV_BASE.map(renderNavItem)}
+
+            {superadmin && !collapsed && (
+              <AreaSwitcher
+                areas={['Operativo', 'Táctico', 'Estratégico', 'Herramientas']}
+                selected={superadminArea}
+                onSelect={handleAreaSelect}
+              />
+            )}
 
             {groups.map((g) => (
               <SidebarSection

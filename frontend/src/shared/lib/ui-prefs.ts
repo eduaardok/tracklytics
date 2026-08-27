@@ -57,3 +57,18 @@ export function setSidebarOpenGroup(shellKey: string, group: string | null): voi
   if (group) localStorage.setItem(`ui_${shellKey}`, group)
   else localStorage.removeItem(`ui_${shellKey}`)
 }
+
+// Preferencia de área visible para superadmin en los paneles admin
+// (SeguridadShell/AnalyticaShell) — selector "Viendo como" que filtra
+// la sidebar a un área de negocio a la vez, solo para superadmin.
+// Persiste en localStorage para que no se resetee entre sesiones.
+const SUPERADMIN_AREA_KEY = 'ui_superadmin_area'
+
+export function getSuperadminArea(): string | null {
+  return localStorage.getItem(SUPERADMIN_AREA_KEY)
+}
+
+export function setSuperadminArea(area: string | null): void {
+  if (area) localStorage.setItem(SUPERADMIN_AREA_KEY, area)
+  else localStorage.removeItem(SUPERADMIN_AREA_KEY)
+}

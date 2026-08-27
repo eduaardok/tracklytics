@@ -16,14 +16,15 @@ import { RouteLoadingFallback } from '@shared/components/RouteLoadingFallback'
 import { PageTransition } from '@shared/components/PageTransition'
 import { ZoneSwitcher } from '@shared/components/ZoneSwitcher'
 import { SidebarSection } from '@shared/components/SidebarSection'
+import { AreaSwitcher } from '@shared/components/AreaSwitcher'
 import { useExclusiveAccordion } from '@shared/hooks/useExclusiveAccordion'
-import { setAdminSectionOpen, getSidebarCollapsed, setSidebarCollapsed } from '@shared/lib/ui-prefs'
+import { setAdminSectionOpen, getSidebarCollapsed, setSidebarCollapsed, getSuperadminArea, setSuperadminArea } from '@shared/lib/ui-prefs'
 // SOLO metadata de navegación (sin `render`/plantillas/Recharts) — importar
 // `@packages/reportes/config` (el registro completo) desde acá arrastraría
 // Recharts al bundle principal, porque `SeguridadShell` se importa eager en
 // `router.tsx` (no es lazy). Ver docs/BITACORA_S13.md, "bug de bundle 1MB".
 import { DEPARTAMENTOS_NAV } from '@packages/reportes/config/informesNav'
-import { rolesDeUsuario, puedeVer } from '@shared/lib/roles'
+import { rolesDeUsuario, puedeVer, esSuperadmin } from '@shared/lib/roles'
 import { RoleBadge } from '@shared/components/RoleBadge'
 import styles from './SeguridadShell.module.css'
 
@@ -252,12 +253,20 @@ export function SeguridadShell() {
   const [collapsed, setCollapsed] = useState(getSidebarCollapsed)
   const user = getUser()
   const userRoles = useMemo(() => rolesDeUsuario(user), [user])
+  const superadmin = esSuperadmin(user)
+  const [superadminArea, setSuperadminAreaState] = useState(getSuperadminArea)
+
+  function handleAreaSelect(area: string | null) {
+    setSuperadminAreaState(area)
+    setSuperadminArea(area)
+  }
 
   // Filtra sidebar por rol (Fase 4.1, S14-FINAL) — generaliza el mecanismo
   // que antes solo cubría "Simulación" (`usePuedeVerSimulacion`) a TODOS los
   // links con `roles` declarado arriba. Una sección sin links visibles se
   // omite entera (ej. "Datos y Partners" completa para `admin_finanzas`) en
-  // vez de quedar como grupo vacío.
+  // vez de quedar como grupo vacío. Para superadmin, additionally filtra
+  // por área seleccionada en el selector "Viendo como".
   const seccionesVisibles = useMemo(() => {
     return SECCIONES
       .map((s) => ({
@@ -265,7 +274,8 @@ export function SeguridadShell() {
         links: s.links.filter((l) => puedeVer(l.roles, userRoles)),
       }))
       .filter((s) => puedeVer(s.roles, userRoles) && s.links.length > 0)
-  }, [userRoles])
+      .filter((s) => !superadmin || !superadminArea || s.label === superadminArea)
+  }, [userRoles, superadmin, superadminArea])
 
   // Mismo criterio para los 9 departamentos de informes compuestos — el
   // mapeo real de `DEPTO_ROLES` calca `api/paquetes/reportes/deps.py`
@@ -307,6 +317,13 @@ export function SeguridadShell() {
       <div className={styles.body}>
         <nav className={[styles.sidebar, collapsed ? styles.sidebarCollapsed : ''].join(' ').trim()} aria-label="Navegación de seguridad">
           <div className={styles.navGroups}>
+            {superadmin && !collapsed && (
+              <AreaSwitcher
+                areas={SECCIONES.map((s) => s.label)}
+                selected={superadminArea}
+                onSelect={handleAreaSelect}
+              />
+            )}
             {seccionesVisibles.map((seccion) => (
               <SidebarSection
                 key={seccion.label}
