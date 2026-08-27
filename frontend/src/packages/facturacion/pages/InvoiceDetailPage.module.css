@@ -28,10 +28,12 @@
   padding: 9px var(--space-md);
   height: 36px;
   cursor: pointer;
+  transition: background-color var(--duration-standard) var(--ease-standard), opacity var(--duration-fast) var(--ease-standard);
 }
 
 .btnPrimary:hover { filter: brightness(1.1); }
 .btnPrimary:active { transform: scale(0.98); }
+.btnPrimary:focus-visible { outline: none; box-shadow: 0 0 0 2px oklch(0.48 0.15 290 / 0.5); }
 
 .btnGhost {
   display: inline-flex;
@@ -46,7 +48,10 @@
   padding: 9px var(--space-md);
   height: 36px;
   text-decoration: none;
+  transition: border-color var(--duration-fast) var(--ease-standard), background-color var(--duration-fast) var(--ease-standard);
 }
+.btnGhost:hover { background: var(--color-surface-raised); }
+.btnGhost:focus-visible { outline: none; box-shadow: 0 0 0 2px oklch(0.48 0.15 290 / 0.5); }
 
 .sheet {
   background: var(--color-surface);
@@ -124,7 +129,8 @@
   color: var(--color-ink);
 }
 
-.table tbody tr:hover { background: var(--color-surface-raised); transition: background-color 150ms ease; }
+.table tbody tr { transition: background-color var(--duration-standard) var(--ease-standard); }
+.table tbody tr:hover { background: var(--color-surface-raised); }
 
 .table th { font-size: 0.6875rem; font-weight: 600; color: var(--color-muted); }
 .right { text-align: right; }
@@ -136,6 +142,7 @@
   font-family: var(--font-sans);
   font-size: 0.75rem;
   font-weight: 600;
+  transition: background-color var(--duration-fast) var(--ease-standard), color var(--duration-fast) var(--ease-standard);
 }
 .statusOk      { background: oklch(0.70 0.14 195 / 0.15); color: var(--color-accent); }
 .statusPending { background: oklch(0.78 0.18 70 / 0.14);  color: var(--color-warning); }
@@ -165,6 +172,21 @@
   color: var(--color-muted);
   text-align: center;
   margin-top: var(--space-lg);
+}
+
+/* ── Skeleton pulse ── */
+@keyframes skelPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+/* ── Reduced motion ── */
+@media (prefers-reduced-motion: reduce) {
+  .table tbody tr,
+  .btnPrimary,
+  .btnGhost,
+  .statusOk,
+  .statusPending { transition: none; }
 }
 
 @media print {

@@ -180,6 +180,7 @@
 .btnGhostDanger:hover:not(:disabled) { color: var(--color-error); border-color: oklch(0.65 0.22 25 / 0.4); }
 .btnGhostDanger:focus-visible { outline: none; box-shadow: 0 0 0 2px oklch(0.65 0.22 25 / 0.4); }
 .btnGhostDanger:disabled { opacity: 0.38; cursor: not-allowed; }
+.btnGhostDanger:focus-visible { outline: none; box-shadow: 0 0 0 2px oklch(0.65 0.22 25 / 0.4); }
 
 /* ── Tabla ── */
 .tablePanel {
@@ -210,10 +211,45 @@
   vertical-align: middle;
 }
 
+.table tbody tr { transition: background-color var(--duration-standard) var(--ease-standard); }
 .table tbody tr + tr td { border-top: 1px solid var(--color-border); }
 .table tbody tr:hover { background: var(--color-surface-raised); }
 
 .tableActions { display: flex; gap: 6px; justify-content: flex-end; }
+
+/* ── Skeleton pulse ── */
+@keyframes skelPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+.skel {
+  background: var(--color-border);
+  border-radius: var(--radius-sm);
+  animation: skelPulse 1.5s var(--ease-standard) infinite;
+}
+.kpiSkel {
+  display: block;
+  width: 96px;
+  margin: 6px 0;
+  background: var(--color-border);
+  border-radius: var(--radius-sm);
+  animation: skelPulse 1.5s var(--ease-standard) infinite;
+}
+
+/* ── Reduced motion ── */
+@media (prefers-reduced-motion: reduce) {
+  .skel,
+  .kpiSkel { animation: none; }
+  .table tbody tr,
+  .btnPrimary,
+  .btnGhost,
+  .btnGhostDanger,
+  .input,
+  .select,
+  .textarea,
+  .tab,
+  .badge { transition: none; }
+}
 
 /* ── Badges ── */
 .badge {
@@ -227,6 +263,7 @@
   border-radius: var(--radius-pill);
   white-space: nowrap;
   flex-shrink: 0;
+  transition: background-color var(--duration-fast) var(--ease-standard), color var(--duration-fast) var(--ease-standard);
 }
 .badgeOk       { background: oklch(0.70 0.14 195 / 0.15); color: var(--color-accent); }
 .badgeError    { background: oklch(0.65 0.22 25 / 0.12);  color: var(--color-error); }

@@ -100,7 +100,8 @@
   padding: 10px var(--space-md);
 }
 
-.table tbody tr:hover { background: var(--color-surface-raised); transition: background-color 150ms ease; }
+.table tbody tr { transition: background-color var(--duration-standard) var(--ease-standard); }
+.table tbody tr:hover { background: var(--color-surface-raised); }
 .table tbody tr + tr td { border-top: 1px solid var(--color-border); }
 
 .emptyState {
@@ -137,7 +138,9 @@
   border-radius: var(--radius-md);
   border: 1px solid var(--color-border);
   outline: none;
+  transition: border-color var(--duration-standard) var(--ease-standard);
 }
+.input:hover, .select:hover { border-color: oklch(0.30 0.012 285); }
 .input:focus, .select:focus { border-color: var(--color-primary); }
 
 .btnPrimary {
@@ -155,9 +158,11 @@
   height: 36px;
   cursor: pointer;
   white-space: nowrap;
+  transition: background-color var(--duration-standard) var(--ease-standard), opacity var(--duration-fast) var(--ease-standard);
 }
 .btnPrimary:hover:not(:disabled) { filter: brightness(1.1); }
 .btnPrimary:active:not(:disabled) { transform: scale(0.98); }
+.btnPrimary:focus-visible { outline: none; box-shadow: 0 0 0 2px oklch(0.48 0.15 290 / 0.5); }
 .btnPrimary:disabled { opacity: 0.4; cursor: not-allowed; }
 
 .bannerOk {
@@ -192,6 +197,7 @@
   padding: 0;
   cursor: pointer;
   text-decoration: underline;
+  transition: color var(--duration-fast) var(--ease-standard);
 }
 .linkBtn:hover { color: var(--color-ink); }
 
@@ -237,17 +243,20 @@
 /* ── Ciclo de vida de contrato (change p1-ciclos-vida) ─────────────────────── */
 .actionsCol { text-align: right; white-space: nowrap; }
 .actions { display: inline-flex; gap: var(--space-xs); justify-content: flex-end; flex-wrap: wrap; align-items: center; }
-.badge { display: inline-block; font-family: var(--font-sans); font-size: 0.6875rem; font-weight: 600; padding: 2px 8px; border-radius: 999px; border: 1px solid transparent; }
+.badge { display: inline-block; font-family: var(--font-sans); font-size: 0.6875rem; font-weight: 600; padding: 2px 8px; border-radius: 999px; border: 1px solid transparent; transition: background-color var(--duration-fast) var(--ease-standard), color var(--duration-fast) var(--ease-standard); }
 .badgeOk  { color: var(--color-success); background: color-mix(in srgb, var(--color-success) 14%, transparent); border-color: color-mix(in srgb, var(--color-success) 30%, transparent); }
 .badgeOff { color: var(--color-muted); background: color-mix(in srgb, var(--color-muted) 12%, transparent); border-color: var(--color-border); }
 .btnGhost, .btnGhostDanger {
   font-family: var(--font-sans); font-size: 0.75rem; font-weight: 600; padding: 5px 10px; height: 30px;
   border-radius: var(--radius-md); background: transparent; border: 1px solid var(--color-border); color: var(--color-ink); cursor: pointer; white-space: nowrap;
+  transition: border-color var(--duration-fast) var(--ease-standard), background-color var(--duration-fast) var(--ease-standard);
 }
 .btnGhost:hover:not(:disabled) { border-color: var(--color-primary); }
+.btnGhost:focus-visible { outline: none; box-shadow: 0 0 0 2px oklch(0.48 0.15 290 / 0.5); }
 .btnGhost:disabled { opacity: 0.4; cursor: not-allowed; }
 .btnGhostDanger { color: var(--color-error); border-color: color-mix(in srgb, var(--color-error) 35%, var(--color-border)); }
 .btnGhostDanger:hover:not(:disabled) { border-color: var(--color-error); background: color-mix(in srgb, var(--color-error) 10%, transparent); }
+.btnGhostDanger:focus-visible { outline: none; box-shadow: 0 0 0 2px oklch(0.65 0.22 25 / 0.4); }
 .btnGhostDanger:disabled { opacity: 0.4; cursor: not-allowed; }
 .modalBackdrop { position: fixed; inset: 0; z-index: 1000; display: grid; place-items: center; padding: var(--space-lg); background: color-mix(in srgb, #000 62%, transparent); backdrop-filter: blur(2px); }
 .modal { width: min(520px, 100%); max-height: 90vh; overflow-y: auto; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-lg, 12px); padding: var(--space-lg); box-shadow: 0 24px 60px -12px rgba(0,0,0,0.6); }
@@ -257,3 +266,28 @@
 .modalRow { display: grid; grid-template-columns: repeat(auto-fit, minmax(90px, 1fr)); gap: var(--space-sm); }
 .modalWarn { font-family: var(--font-sans); font-size: 0.8125rem; color: var(--color-error); }
 .modalActions { display: flex; justify-content: flex-end; gap: var(--space-sm); margin-top: var(--space-sm); }
+
+/* ── Skeleton pulse ── */
+@keyframes skelPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+.skel {
+  background: var(--color-border);
+  border-radius: var(--radius-sm);
+  animation: skelPulse 1.5s var(--ease-standard) infinite;
+}
+
+/* ── Reduced motion ── */
+@media (prefers-reduced-motion: reduce) {
+  .skel { animation: none; }
+  .table tbody tr,
+  .btnPrimary,
+  .btnGhost,
+  .btnGhostDanger,
+  .linkBtn,
+  .input,
+  .select,
+  .badge,
+  .tab { transition: none; }
+}
