@@ -5,8 +5,10 @@ import { apiErrorMessage } from '@shared/lib/api-client'
 import { useToast } from '@shared/context/ToastContext'
 import { SkeletonLoader, SkeletonTableRows } from '@shared/components/SkeletonLoader'
 import { ExportPDFButton } from '@shared/components/ExportPDFButton'
+import { InfoHint } from '@shared/components/InfoHint'
 import { seguridadApi } from '../api/seguridad.api'
 import type { EstadoCuenta, UsuarioAdmin } from '../types'
+import { CapabilityChips } from './CapabilityChips'
 import shell from './SeguridadPages.module.css'
 import styles from './UsuariosAdminPage.module.css'
 
@@ -95,6 +97,13 @@ export function UsuariosAdminPage() {
   const rolesDisponibles = rolesCatalogo.filter(
     (r) => !(d?.roles_admin ?? []).some((asig) => asig.rol_admin === r.rol_admin),
   )
+  // Detalle del rol resaltado en el <select> (Task 2, S17): antes de confirmar
+  // "Asignar" el admin necesita ver qué áreas cubre ese rol — el <select>
+  // original solo mostraba `nombre`, descartando `capabilities`/`descripcion`
+  // que ya trae el catálogo (GET /admin/roles-admin).
+  const rolResaltado = rolesCatalogo.find((r) => r.rol_admin === nuevoRol)
+  // Para el InfoHint de los chips YA asignados: cada rol del catálogo, por id.
+  const catalogoPorId = new Map(rolesCatalogo.map((r) => [r.rol_admin, r]))
 
   return (
     <section className={shell.page} ref={reportRef}>
@@ -217,14 +226,24 @@ export function UsuariosAdminPage() {
               <span className={styles.sectionTitle}>Roles administrativos</span>
               <div className={styles.chipRow}>
                 {d.roles_admin.length === 0 && <span className={styles.miniMuted}>Sin roles asignados.</span>}
-                {d.roles_admin.map((r) => (
-                  <span key={r.rol_admin} className={styles.rolChip}>
-                    {r.nombre ?? r.rol_admin}
-                    <button className={styles.rolChipRevoke} type="button" title="Revocar"
-                            aria-label={`Revocar ${r.rol_admin}`} disabled={revocarRol.isPending}
-                            onClick={() => revocarRol.mutate(r.rol_admin)}>×</button>
-                  </span>
-                ))}
+                {d.roles_admin.map((r) => {
+                  const info = catalogoPorId.get(r.rol_admin)
+                  return (
+                    <span key={r.rol_admin} className={styles.rolChip}>
+                      {r.nombre ?? r.rol_admin}
+                      {/* Qué cubre este rol ya asignado, sin ocupar espacio permanente
+                          (Task 2.3): decisión — un InfoHint discreto alcanza acá, un
+                          panel siempre visible por cada chip ya asignado saturaría la
+                          vista 360° (que además muestra suscripción/strikes/etc. debajo). */}
+                      {info && (
+                        <InfoHint text={`${info.descripcion} — Áreas: ${info.capabilities.join(', ')}`} />
+                      )}
+                      <button className={styles.rolChipRevoke} type="button" title="Revocar"
+                              aria-label={`Revocar ${r.rol_admin}`} disabled={revocarRol.isPending}
+                              onClick={() => revocarRol.mutate(r.rol_admin)}>×</button>
+                    </span>
+                  )
+                })}
               </div>
               <div className={styles.actionRow} style={{ marginTop: 'var(--space-xs)' }} data-pdf-export-ignore="true">
                 <div className={shell.field}>
@@ -240,6 +259,15 @@ export function UsuariosAdminPage() {
                   Asignar
                 </button>
               </div>
+              {/* Qué cubrirá el rol resaltado ANTES de confirmar "Asignar" (Task 2.1,
+                  S17) — visible por defecto en cuanto se elige una opción, no detrás
+                  de un tooltip: es justo la información que decide si asignar o no. */}
+              {rolResaltado && (
+                <div className={styles.rolPreview}>
+                  <p className={styles.rolPreviewDescripcion}>{rolResaltado.descripcion}</p>
+                  <CapabilityChips capabilities={rolResaltado.capabilities} />
+                </div>
+              )}
             </div>
 
             {/* Suscripción + último login */}

@@ -164,6 +164,24 @@
 }
 .ghostBtn:hover { border-color: var(--color-primary); }
 
+/* Vista previa del rol resaltado en el <select> "Asignar rol" (Task 2, S17):
+   qué áreas cubre, visible en cuanto se elige, antes de confirmar. */
+.rolPreview {
+  margin-top: var(--space-xs);
+  padding: var(--space-sm);
+  background: var(--color-surface-raised);
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.rolPreviewDescripcion {
+  margin: 0 0 4px;
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+  color: var(--color-muted);
+  line-height: 1.4;
+}
+
 .rowSelected { background: oklch(0.62 0.19 300 / 0.08); }
 .clickableRow { cursor: pointer; }
 .clickableRow:hover { background: var(--color-surface-hover, oklch(0.62 0.19 300 / 0.05)); }
