@@ -476,7 +476,7 @@
   align-items: center;
   text-align: center;
   gap: var(--space-xs);
-  padding: var(--space-xl) var(--space-lg);
+  padding: var(--space-lg) var(--space-md);
   color: var(--color-muted);
 }
 
