@@ -1,5 +1,5 @@
 import { lazy, Suspense, useState, type FormEvent } from 'react'
-import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { AlertTriangle, Check, CreditCard, Crown, FileText, GraduationCap } from 'lucide-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { getUser } from '@shared/lib/session'
@@ -8,6 +8,7 @@ import { apiErrorMessage } from '@shared/lib/api-client'
 import { useToast } from '@shared/context/ToastContext'
 import { useConfirm } from '@shared/context/ConfirmContext'
 import { SkeletonCard, SkeletonLoader } from '@shared/components/SkeletonLoader'
+import { PaymentSuccessCelebration } from '@shared/components/PaymentSuccessCelebration'
 // Import directo, no vía el barrel `@packages/facturacion` (arrastraría
 // AuditoriaFacturacionPage —con Recharts— al bundle principal, PlanesPage es
 // una ruta B2C eager; ver comentario equivalente en router.tsx).
@@ -698,21 +699,46 @@ export function PlanesPage({ embebido = false }: { embebido?: boolean }) {
       )}
 
       {confirmar.isSuccess && !onboarding && (
-        <div className={confirmar.data?.pago?.estado === 'fallida' ? styles.formError : styles.bannerOk}>
-          {confirmar.data?.pago?.estado === 'fallida' && (
+        confirmar.data?.pago?.estado === 'fallida' ? (
+          <div className={styles.formError}>
             <AlertTriangle size={14} className={styles.warnIcon} aria-hidden="true" />
-          )}
-          {confirmar.data?.pago?.estado === 'fallida'
-            ? 'El plan se activó pero el cobro fue rechazado — verifica tu método de pago.'
-            : confirmar.data?.data?.en_prueba
-            ? 'Suscripción confirmada — período de prueba de 7 días, sin cobro por ahora.'
-            : 'Suscripción confirmada' + (confirmar.data?.pago ? ' y cobro procesado.' : '.')}
-          {/* Factura visible de inmediato (S16), no solo buscándola después
-              en Facturación. */}
-          {confirmar.data?.pago?.estado === 'exitosa' && confirmar.data.pago.invoice_id && (
-            <> <Link to={`/facturacion/${confirmar.data.pago.invoice_id}`}>Ver factura</Link></>
-          )}
-        </div>
+            El plan se activó pero el cobro fue rechazado — verifica tu método de pago.
+          </div>
+        ) : (
+          // Momento de éxito real (S17, TASK 3) — antes era un banner de
+          // texto de 0.875rem con un link subrayado; se reemplaza por un
+          // estado prominente (componente compartido, ver
+          // `shared/components/PaymentSuccessCelebration`) con resumen real
+          // del pago y un botón (no un link de texto) a la factura.
+          <PaymentSuccessCelebration
+            plan={
+              planes.find((p) => p.id === confirmar.data?.data?.tipo_plan)?.nombre
+              ?? confirmar.data?.data?.tipo_plan
+              ?? ''
+            }
+            monto={confirmar.data?.data?.monto ?? 0}
+            moneda={confirmar.data?.data?.moneda ?? 'USD'}
+            notaCobro={
+              confirmar.data?.data?.en_prueba
+                ? `Período de prueba de ${DIAS_TRIAL_PREMIUM} días — sin cobro por ahora`
+                : !confirmar.data?.pago
+                ? 'Plan gratuito activado — sin cobro'
+                : undefined
+            }
+            proximoCobro={
+              confirmar.data?.data?.en_prueba
+                ? fmtFecha(confirmar.data.data.fecha_fin_trial ?? undefined)
+                : confirmar.data?.data?.fecha_fin_periodo
+                ? fmtFecha(confirmar.data.data.fecha_fin_periodo)
+                : undefined
+            }
+            invoiceHref={
+              confirmar.data?.pago?.estado === 'exitosa' && confirmar.data.pago.invoice_id
+                ? `/facturacion/${confirmar.data.pago.invoice_id}`
+                : undefined
+            }
+          />
+        )
       )}
     </section>
   )

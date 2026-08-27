@@ -1,0 +1,115 @@
+.card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 4px;
+  padding: var(--space-lg);
+  background: var(--color-surface-raised);
+  border: 1px solid oklch(0.72 0.16 150 / 0.3);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 12px 32px -12px oklch(0.72 0.16 150 / 0.35);
+  animation: cardIn 420ms var(--ease-standard);
+}
+
+.iconWrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 64px;
+  height: 64px;
+  margin-bottom: var(--space-xs);
+  border-radius: 50%;
+  background: oklch(0.72 0.16 150 / 0.12);
+  animation: ringPop 480ms var(--ease-standard);
+}
+
+.icon {
+  color: var(--color-success);
+  animation: checkPop 480ms 80ms var(--ease-standard) backwards;
+}
+
+.title {
+  font-family: var(--font-sans);
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--color-ink);
+  margin: 0;
+}
+
+.subtitle {
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  color: var(--color-muted);
+  margin: 0 0 var(--space-sm);
+}
+
+.summary {
+  width: 100%;
+  max-width: 320px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0 0 var(--space-md);
+  padding: var(--space-sm) var(--space-md);
+  background: var(--color-surface);
+  border-radius: var(--radius-md);
+}
+
+.summaryRow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+}
+
+.summaryRow dt {
+  color: var(--color-muted);
+}
+
+.summaryRow dd {
+  margin: 0;
+  color: var(--color-ink);
+  font-weight: 600;
+  text-align: right;
+}
+
+.invoiceBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px var(--space-lg);
+  background: var(--color-success);
+  color: oklch(0.99 0 0);
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  font-weight: 600;
+  border-radius: var(--radius-md);
+  text-decoration: none;
+  transition: filter var(--duration-fast) var(--ease-standard);
+}
+
+.invoiceBtn:hover { filter: brightness(1.08); }
+.invoiceBtn:active { transform: scale(0.98); }
+
+@keyframes cardIn {
+  from { opacity: 0; transform: translateY(10px) scale(0.96); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes ringPop {
+  0%   { transform: scale(0.4); opacity: 0; }
+  60%  { transform: scale(1.08); opacity: 1; }
+  100% { transform: scale(1); }
+}
+
+@keyframes checkPop {
+  from { opacity: 0; transform: scale(0.5); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card, .iconWrap, .icon { animation: none; }
+}
