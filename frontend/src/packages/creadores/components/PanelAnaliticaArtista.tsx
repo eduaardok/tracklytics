@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { ErrorState } from '@shared/components/ErrorState'
+import { apiErrorMessage } from '@shared/lib/api-client'
 import { useCountUp } from '@shared/hooks/useCountUp'
 import { useReveal } from '@shared/hooks/useReveal'
 import { creadoresApi } from '../api/creadores.api'
@@ -82,9 +83,23 @@ export function PanelAnaliticaArtista({ aprobada }: { aprobada: boolean }) {
     </div>
   )
 
-  if (!aprobada || q.isError) {
+  if (!aprobada) {
     return (
       <ErrorState message="No se pudo cargar tu analítica — se requiere una cuenta de artista aprobada." />
+    )
+  }
+
+  // El rango de fechas customizable (S17) puede rechazarse con un 422 (rango
+  // inválido, ej. > 366 días) — antes este `isError` compartía el return
+  // temprano de arriba, así que el usuario perdía los inputs de fecha justo
+  // cuando más los necesitaba para corregir el rango (hallazgo QA visual
+  // S17). Se mantienen visibles junto al error real del backend.
+  if (q.isError) {
+    return (
+      <>
+        {filtros}
+        <ErrorState message={apiErrorMessage(q.error, 'No se pudo cargar tu analítica.')} />
+      </>
     )
   }
 

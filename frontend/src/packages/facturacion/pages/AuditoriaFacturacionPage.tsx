@@ -2,6 +2,7 @@ import { useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { ErrorState } from '@shared/components/ErrorState'
 import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
+import { apiErrorMessage } from '@shared/lib/api-client'
 import { UserPicker, type UserSearchResult } from '@shared/components/UserPicker'
 import { MiniLineChart } from '@shared/components/charts/MiniLineChart'
 import { CHART_COLORS } from '@shared/components/charts/colors'
@@ -132,28 +133,32 @@ export function AuditoriaFacturacionPage() {
         </label>
       </div>
 
-      <div className={styles.dashboardGrid}>
-        <div className={styles.chartPanel}>
-          <p className={styles.panelTitle}>Ingreso real por día ({diasEntre(desde, hasta)} días)</p>
-          <MiniLineChart
-            data={dashboard.data?.ingreso_por_dia ?? []}
-            xKey="dia"
-            series={[{ key: 'total', label: 'Ingreso (USD)', color: CHART_COLORS.teal }]}
-            denseDates
-          />
-        </div>
-        <div className={styles.kpiPanel}>
-          <p className={styles.panelTitle}>Resumen</p>
-          <div className={styles.kpiRow}>
-            <span className={styles.kpiValue}>{fmt(dashboard.data?.ingreso_total_historico ?? 0, 'USD')}</span>
-            <span className={styles.kpiLabel}>Ingreso histórico total</span>
+      {dashboard.isError ? (
+        <ErrorState message={apiErrorMessage(dashboard.error, 'No se pudo cargar el rango seleccionado.')} />
+      ) : (
+        <div className={styles.dashboardGrid}>
+          <div className={styles.chartPanel}>
+            <p className={styles.panelTitle}>Ingreso real por día ({diasEntre(desde, hasta)} días)</p>
+            <MiniLineChart
+              data={dashboard.data?.ingreso_por_dia ?? []}
+              xKey="dia"
+              series={[{ key: 'total', label: 'Ingreso (USD)', color: CHART_COLORS.teal }]}
+              denseDates
+            />
           </div>
-          <div className={styles.kpiRow}>
-            <span className={styles.kpiValue}>{dashboard.data?.transacciones_24h ?? '—'}</span>
-            <span className={styles.kpiLabel}>Transacciones últimas 24h</span>
+          <div className={styles.kpiPanel}>
+            <p className={styles.panelTitle}>Resumen</p>
+            <div className={styles.kpiRow}>
+              <span className={styles.kpiValue}>{fmt(dashboard.data?.ingreso_total_historico ?? 0, 'USD')}</span>
+              <span className={styles.kpiLabel}>Ingreso histórico total</span>
+            </div>
+            <div className={styles.kpiRow}>
+              <span className={styles.kpiValue}>{dashboard.data?.transacciones_24h ?? '—'}</span>
+              <span className={styles.kpiLabel}>Transacciones últimas 24h</span>
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       <div className={styles.searchForm} data-pdf-export-ignore="true">
         <UserPicker

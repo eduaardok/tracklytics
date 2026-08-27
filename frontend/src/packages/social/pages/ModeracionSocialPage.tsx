@@ -4,6 +4,7 @@ import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { MiniLineChart } from '@shared/components/charts/MiniLineChart'
 import { MiniBarChart } from '@shared/components/charts/MiniBarChart'
 import { CHART_COLORS } from '@shared/components/charts/colors'
+import { ErrorState } from '@shared/components/ErrorState'
 import { apiErrorMessage } from '@shared/lib/api-client'
 import { useToast } from '@shared/context/ToastContext'
 import { ExportPDFButton } from '@shared/components/ExportPDFButton'
@@ -112,27 +113,31 @@ export function ModeracionSocialPage() {
         </label>
       </div>
 
-      <div className={styles.dashboardGrid}>
-        <div className={styles.chartPanel}>
-          <p className={styles.panelTitle}>Actividad social real por día ({diasEntre(desde, hasta)} días)</p>
-          <MiniLineChart
-            data={actividadPorDia}
-            xKey="dia"
-            series={[
-              { key: 'comentario', label: 'Comentarios', color: CHART_COLORS.violeta },
-              { key: 'comparticion', label: 'Comparticiones', color: CHART_COLORS.teal },
-            ]}
-            denseDates
-          />
+      {dashboard.isError ? (
+        <ErrorState message={apiErrorMessage(dashboard.error, 'No se pudo cargar el rango seleccionado.')} />
+      ) : (
+        <div className={styles.dashboardGrid}>
+          <div className={styles.chartPanel}>
+            <p className={styles.panelTitle}>Actividad social real por día ({diasEntre(desde, hasta)} días)</p>
+            <MiniLineChart
+              data={actividadPorDia}
+              xKey="dia"
+              series={[
+                { key: 'comentario', label: 'Comentarios', color: CHART_COLORS.violeta },
+                { key: 'comparticion', label: 'Comparticiones', color: CHART_COLORS.teal },
+              ]}
+              denseDates
+            />
+          </div>
+          <div className={styles.chartPanel}>
+            <p className={styles.panelTitle}>Artistas más seguidos</p>
+            <MiniBarChart
+              data={(dashboard.data?.artistas_mas_seguidos ?? []).map((a) => ({ name: a.nombre, value: a.seguidores }))}
+              color={CHART_COLORS.ambar}
+            />
+          </div>
         </div>
-        <div className={styles.chartPanel}>
-          <p className={styles.panelTitle}>Artistas más seguidos</p>
-          <MiniBarChart
-            data={(dashboard.data?.artistas_mas_seguidos ?? []).map((a) => ({ name: a.nombre, value: a.seguidores }))}
-            color={CHART_COLORS.ambar}
-          />
-        </div>
-      </div>
+      )}
 
       <div className={styles.queuePanel}>
         <div className={styles.queueHeader}>

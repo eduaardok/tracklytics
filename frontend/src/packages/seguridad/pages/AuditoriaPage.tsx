@@ -6,7 +6,9 @@ import { MiniLineChart } from '@shared/components/charts/MiniLineChart'
 import { CHART_COLORS } from '@shared/components/charts/colors'
 import { SkeletonTableRows } from '@shared/components/SkeletonLoader'
 import { EmptyState } from '@shared/components/EmptyState'
+import { ErrorState } from '@shared/components/ErrorState'
 import { ExportPDFButton } from '@shared/components/ExportPDFButton'
+import { apiErrorMessage } from '@shared/lib/api-client'
 import { seguridadApi } from '../api/seguridad.api'
 import styles from './SeguridadPages.module.css'
 
@@ -62,28 +64,32 @@ export function AuditoriaPage() {
         </label>
       </div>
 
-      <div className={styles.dashboardGrid}>
-        <div className={styles.chartPanel}>
-          <p className={styles.panelTitle}>Acciones administrativas por día ({diasEntre(desde, hasta)} días)</p>
-          <MiniLineChart
-            data={dashboard.data?.acciones_por_dia ?? []}
-            xKey="dia"
-            series={[{ key: 'total', label: 'Acciones', color: CHART_COLORS.violeta }]}
-            denseDates
-          />
-        </div>
-        <div className={styles.kpiPanel}>
-          <p className={styles.panelTitle}>Últimas 24 horas</p>
-          <div className={styles.kpiRow}>
-            <span className={styles.kpiValue}>{dashboard.data?.errores_24h ?? '—'}</span>
-            <span className={styles.kpiLabel}>Errores de sistema</span>
+      {dashboard.isError ? (
+        <ErrorState message={apiErrorMessage(dashboard.error, 'No se pudo cargar el rango seleccionado.')} />
+      ) : (
+        <div className={styles.dashboardGrid}>
+          <div className={styles.chartPanel}>
+            <p className={styles.panelTitle}>Acciones administrativas por día ({diasEntre(desde, hasta)} días)</p>
+            <MiniLineChart
+              data={dashboard.data?.acciones_por_dia ?? []}
+              xKey="dia"
+              series={[{ key: 'total', label: 'Acciones', color: CHART_COLORS.violeta }]}
+              denseDates
+            />
           </div>
-          <div className={styles.kpiRow}>
-            <span className={styles.kpiValue}>{dashboard.data?.sesiones_abiertas_total ?? '—'}</span>
-            <span className={styles.kpiLabel}>Sesiones abiertas ahora</span>
+          <div className={styles.kpiPanel}>
+            <p className={styles.panelTitle}>Últimas 24 horas</p>
+            <div className={styles.kpiRow}>
+              <span className={styles.kpiValue}>{dashboard.data?.errores_24h ?? '—'}</span>
+              <span className={styles.kpiLabel}>Errores de sistema</span>
+            </div>
+            <div className={styles.kpiRow}>
+              <span className={styles.kpiValue}>{dashboard.data?.sesiones_abiertas_total ?? '—'}</span>
+              <span className={styles.kpiLabel}>Sesiones abiertas ahora</span>
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {isError && <div className={styles.errorBox}>No se pudo cargar la auditoría (¿sesión de admin?).</div>}
 
