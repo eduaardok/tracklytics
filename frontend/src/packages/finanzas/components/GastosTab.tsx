@@ -2,10 +2,11 @@ import { useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiErrorMessage } from '@shared/lib/api-client'
 import { useToast } from '@shared/context/ToastContext'
+import { useConfirm } from '@shared/context/ConfirmContext'
 import { ExportPDFButton } from '@shared/components/ExportPDFButton'
 import { finanzasApi } from '../api/finanzas.api'
 import { CategoriaTreemap } from './charts/CategoriaTreemap'
-import { fmtMoney, fmtDate, isoToday, CATEGORIA_LABEL } from '../lib/format'
+import { fmtMoney, fmtDate, isoToday, isoDaysAgo, CATEGORIA_LABEL } from '../lib/format'
 import type { CategoriaGasto, GastoBody, GastoOperativo } from '../types'
 import { SkeletonTableRows } from '@shared/components/SkeletonLoader'
 import styles from '../pages/FinanzasPages.module.css'
@@ -20,14 +21,20 @@ const emptyForm: GastoBody = { concepto: '', categoria: 'infraestructura', monto
 export function GastosTab() {
   const queryClient = useQueryClient()
   const toast = useToast()
+  const confirm = useConfirm()
   const reportRef = useRef<HTMLDivElement>(null)
 
   const [filtroCategoria, setFiltroCategoria] = useState('')
   const [filtroEstado, setFiltroEstado] = useState('activo')
+  // Fix S17 (auditoría, sección 3.2): sin rango de fecha por defecto, esta
+  // query traía el histórico completo de gastos — mismo default de 30 días
+  // que ya usa `ReembolsosTab` (vecina, mismo paquete).
+  const [desde, setDesde] = useState(isoDaysAgo(30))
+  const [hasta, setHasta] = useState(isoToday())
 
   const gastos = useQuery({
-    queryKey: ['finanzas', 'gastos', filtroCategoria, filtroEstado],
-    queryFn: () => finanzasApi.gastos({ categoria: filtroCategoria || undefined, estado: filtroEstado || undefined }),
+    queryKey: ['finanzas', 'gastos', filtroCategoria, filtroEstado, desde, hasta],
+    queryFn: () => finanzasApi.gastos({ categoria: filtroCategoria || undefined, estado: filtroEstado || undefined, desde, hasta }),
   })
 
   const [editandoId, setEditandoId] = useState<string | null>(null)
@@ -61,6 +68,15 @@ export function GastosTab() {
     },
     onError: (err) => toast.error(apiErrorMessage(err, 'No se pudo anular el gasto.')),
   })
+
+  // Fix S17 (auditoría, sección 3.3): "Anular" disparaba sin confirmación.
+  async function handleAnular(g: GastoOperativo) {
+    const ok = await confirm(
+      `"${g.concepto}" (${fmtMoney(g.monto)}) deja de sumar en dashboard/indicadores/reporte. El registro no se borra, se puede seguir consultando con el filtro "Anulado".`,
+      { title: 'Anular gasto', confirmLabel: 'Anular', danger: true },
+    )
+    if (ok) anular.mutate(g.gasto_id)
+  }
 
   function empezarEdicion(g: GastoOperativo) {
     setEditandoId(g.gasto_id)
@@ -160,6 +176,14 @@ export function GastosTab() {
             <option value="">Todos</option>
           </select>
         </div>
+        <div className={styles.field}>
+          <label className={styles.fieldLabel} htmlFor="gasto-filtro-desde">Desde</label>
+          <input id="gasto-filtro-desde" type="date" className={styles.input} value={desde} max={hasta} onChange={(e) => setDesde(e.target.value)} />
+        </div>
+        <div className={styles.field}>
+          <label className={styles.fieldLabel} htmlFor="gasto-filtro-hasta">Hasta</label>
+          <input id="gasto-filtro-hasta" type="date" className={styles.input} value={hasta} min={desde} max={isoToday()} onChange={(e) => setHasta(e.target.value)} />
+        </div>
       </div>
 
       <div className={styles.tablePanel}>
@@ -186,7 +210,7 @@ export function GastosTab() {
                     {g.estado === 'activo' && (
                       <>
                         <button type="button" className={styles.btnGhost} onClick={() => empezarEdicion(g)}>Editar</button>
-                        <button type="button" className={styles.btnGhostDanger} disabled={anular.isPending} onClick={() => anular.mutate(g.gasto_id)}>Anular</button>
+                        <button type="button" className={styles.btnGhostDanger} disabled={anular.isPending} onClick={() => handleAnular(g)}>Anular</button>
                       </>
                     )}
                   </div>

@@ -491,50 +491,97 @@ GROUP BY usuario_id
 # Nullable (`r.rol_admin`/`cm.nombre`) — así que `ifNull` solo nunca disparaba
 # el default y el reporte mostraba "" en vez de 'usuario'/'directo' (hallazgo
 # real de verificación end-to-end con Playwright, ver BITACORA_S12).
-USUARIOS_REPORTE = """
-SELECT
-    u.usuario_id    AS usuario_id,
-    u.nombre        AS nombre,
-    u.email         AS email,
-    u.pais          AS pais,
-    u.estado_cuenta AS estado_cuenta,
-    s.ultimo_acceso AS ultimo_acceso,
-    ifNull(nullIf(r.rol_admin, ''), 'usuario')  AS rol,
-    ifNull(nullIf(cm.nombre, ''), 'directo')    AS canal_adquisicion
-FROM (
+#
+# Fix S17 (auditoría de navegación/UX, sección 3.2): esta query no tenía
+# `LIMIT` — traía TODOS los usuarios reales (13,109 al momento del fix) en
+# una sola respuesta, y `ReporteUsuariosPage.tsx` paginaba/filtraba 100%
+# client-side sobre ese payload completo. Se convierte a función con
+# `where`/`limit`/`offset` reales (mismo patrón `usuarios_admin_listado_sql`
+# de arriba) — `pais`/`estado_cuenta` son columnas directas de la subquery
+# `u` (agregada por argMax), así que sí se pueden filtrar en un WHERE normal
+# sin necesitar HAVING. `rol` y `plan_activo` (este último resuelto en el
+# router desde PocketBase, no vive en ClickHouse) siguen filtrándose
+# client-side sobre la página actual — documentado en el router y en
+# ReporteUsuariosPage.tsx: acotar esos dos correctamente a nivel servidor
+# exigiría tocar el modelo de datos (rol requeriría HAVING sobre un alias
+# calculado, plan requeriría cruzar con PocketBase antes del LIMIT), fuera
+# de alcance de un fix mecánico de paginación.
+def usuarios_reporte_sql(where: str = "") -> str:
+    return f"""
     SELECT
-        usuario_id,
-        argMax(nombre, actualizado_en)        AS nombre,
-        argMax(email, actualizado_en)         AS email,
-        argMax(pais, actualizado_en)          AS pais,
-        argMax(estado_cuenta, actualizado_en) AS estado_cuenta
-    FROM DIM_USUARIO
-    GROUP BY usuario_id
-) u
-LEFT JOIN (
-    SELECT usuario_id, max(fecha_inicio) AS ultimo_acceso
-    FROM FACT_SESION
-    GROUP BY usuario_id
-) s ON u.usuario_id = s.usuario_id
-LEFT JOIN (
-    SELECT usuario_id, rol_admin
+        u.usuario_id    AS usuario_id,
+        u.nombre        AS nombre,
+        u.email         AS email,
+        u.pais          AS pais,
+        u.estado_cuenta AS estado_cuenta,
+        s.ultimo_acceso AS ultimo_acceso,
+        ifNull(nullIf(r.rol_admin, ''), 'usuario')  AS rol,
+        ifNull(nullIf(cm.nombre, ''), 'directo')    AS canal_adquisicion
     FROM (
         SELECT
             usuario_id,
-            argMax(rol_admin, fecha) AS rol_admin,
-            argMax(revocado, fecha)  AS revocado
-        FROM BRIDGE_USUARIO_ROL_ADMIN
+            argMax(nombre, actualizado_en)        AS nombre,
+            argMax(email, actualizado_en)         AS email,
+            argMax(pais, actualizado_en)          AS pais,
+            argMax(estado_cuenta, actualizado_en) AS estado_cuenta
+        FROM DIM_USUARIO
         GROUP BY usuario_id
-    )
-    WHERE revocado = 0
-) r ON u.usuario_id = r.usuario_id
-LEFT JOIN (
-    SELECT usuario_id, argMax(canal_id, fecha) AS canal_id
-    FROM FACT_ADQUISICION
+    ) u
+    LEFT JOIN (
+        SELECT usuario_id, max(fecha_inicio) AS ultimo_acceso
+        FROM FACT_SESION
+        GROUP BY usuario_id
+    ) s ON u.usuario_id = s.usuario_id
+    LEFT JOIN (
+        SELECT usuario_id, rol_admin
+        FROM (
+            SELECT
+                usuario_id,
+                argMax(rol_admin, fecha) AS rol_admin,
+                argMax(revocado, fecha)  AS revocado
+            FROM BRIDGE_USUARIO_ROL_ADMIN
+            GROUP BY usuario_id
+        )
+        WHERE revocado = 0
+    ) r ON u.usuario_id = r.usuario_id
+    LEFT JOIN (
+        SELECT usuario_id, argMax(canal_id, fecha) AS canal_id
+        FROM FACT_ADQUISICION
+        GROUP BY usuario_id
+    ) fa ON u.usuario_id = fa.usuario_id
+    LEFT JOIN DIM_CANAL_MARKETING cm ON fa.canal_id = cm.canal_id
+    {where}
+    ORDER BY s.ultimo_acceso DESC
+    LIMIT {{limit:UInt32}}
+    OFFSET {{offset:UInt32}}
+    """
+
+
+def usuarios_reporte_total_sql(where: str = "") -> str:
+    return f"""
+    SELECT count() AS n FROM (
+        SELECT
+            usuario_id,
+            argMax(pais, actualizado_en)          AS pais,
+            argMax(estado_cuenta, actualizado_en) AS estado_cuenta
+        FROM DIM_USUARIO
+        GROUP BY usuario_id
+    ) u
+    {where}
+    """
+
+
+# Países distintos con al menos un usuario — alimenta el filtro de país de
+# ReporteUsuariosPage.tsx con el universo completo (antes se derivaba del
+# propio dataset ya cargado en el cliente; con paginación real, la página
+# actual ya no tiene necesariamente todos los países representados).
+USUARIOS_REPORTE_PAISES = """
+SELECT DISTINCT pais FROM (
+    SELECT usuario_id, argMax(pais, actualizado_en) AS pais
+    FROM DIM_USUARIO
     GROUP BY usuario_id
-) fa ON u.usuario_id = fa.usuario_id
-LEFT JOIN DIM_CANAL_MARKETING cm ON fa.canal_id = cm.canal_id
-ORDER BY s.ultimo_acceso DESC
+) WHERE pais != ''
+ORDER BY pais
 """
 
 SESION_POR_ID = """

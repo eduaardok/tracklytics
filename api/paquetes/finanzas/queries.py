@@ -12,6 +12,13 @@ filtro de estado."""
 GASTO_POR_ID = "SELECT * FROM FACT_GASTO_OPERATIVO WHERE gasto_id = {gasto_id:String} LIMIT 1"
 
 
+# Fix S17 (auditoría de navegación/UX, sección 3.2): sin `LIMIT` — traía el
+# histórico completo de gastos operativos en una sola respuesta. Se agrega un
+# tope de seguridad (1000, generoso frente al rango de fecha por defecto de
+# 30 días que ahora aplica `GastosTab.tsx`, mismo patrón que ya usaba
+# `ReembolsosTab` vecina) — no pagina con `page`/`offset` como
+# `usuarios_reporte_sql`, porque el filtro de rango de fecha ya acota el
+# volumen real a un tamaño manejable en el uso normal.
 def gastos_list_sql(where: str) -> str:
     return f"""
     SELECT gasto_id, concepto, categoria, monto, fecha, descripcion, estado,
@@ -19,6 +26,7 @@ def gastos_list_sql(where: str) -> str:
     FROM FACT_GASTO_OPERATIVO
     {where}
     ORDER BY fecha DESC
+    LIMIT 1000
     """
 
 

@@ -99,8 +99,19 @@ export const seguridadApi = {
     ),
 
   // ── Reportes administrativos (S12) ──────────────────────────────────────────
-  usuariosReporte: () =>
-    apiClient.get<{ usuarios: UsuarioReporte[] }>('/seguridad/admin/usuarios-reporte'),
+  // Fix S17 (auditoría, sección 3.2): antes traía todos los usuarios reales
+  // sin paginar — ahora page/limit + filtros pais/estado server-side (rol y
+  // plan siguen siendo client-side sobre la página actual, ver ReporteUsuariosPage.tsx).
+  usuariosReporte: (page = 1, limit = 50, pais?: string, estado?: string) => {
+    const p = new URLSearchParams()
+    p.set('page', String(page))
+    p.set('limit', String(limit))
+    if (pais)   p.set('pais', pais)
+    if (estado) p.set('estado', estado)
+    return apiClient.get<{ usuarios: UsuarioReporte[]; total: number; page: number; limit: number; paises_disponibles: string[] }>(
+      `/seguridad/admin/usuarios-reporte?${p.toString()}`,
+    )
+  },
 
   strikesGlobal: (page = 1, limit = 50) => {
     const p = new URLSearchParams()

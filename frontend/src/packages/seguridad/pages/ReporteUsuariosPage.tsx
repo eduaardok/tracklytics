@@ -30,46 +30,58 @@ function EstadoBadge({ estado }: { estado: EstadoCuenta }) {
   return <span className={`${shell.badge} ${ESTADO_BADGE_CLS[estado] ?? shell.badgeNeutral}`}>{estado}</span>
 }
 
+const PAGE_SIZE = 50
+
 // Informe del objetivo táctico "Captación y registro de usuarios" (S12):
 // listado enriquecido con canal de adquisición, plan y rol administrativo.
-// Los 4 filtros son client-side (el endpoint no pagina ni filtra) — sus
-// opciones se derivan del propio dataset ya cargado, no de un catálogo aparte.
+//
+// Fix S17 (auditoría de navegación/UX, sección 3.2): el endpoint traía los
+// 13,109 usuarios reales sin límite en una sola respuesta, y esta página
+// paginaba/filtraba 100% client-side sobre ese payload completo. `pais` y
+// `estado` ahora filtran server-side (mismo patrón page/limit que
+// `UsuariosAdminPage.tsx`); las opciones de país vienen de
+// `paises_disponibles` (todo el universo real), no del dataset cargado.
+// `rol` y `plan` (este último no vive en ClickHouse, se resuelve desde
+// PocketBase) siguen filtrando solo dentro de la página actual — acotarlos
+// correctamente a nivel servidor exigiría tocar el modelo de datos, fuera
+// de alcance de este fix de paginación.
 export function ReporteUsuariosPage() {
   useDocumentTitle('Reporte de usuarios')
   const reportRef = useRef<HTMLElement>(null)
+  const [page, setPage]     = useState(1)
   const [pais, setPais]     = useState('')
   const [plan, setPlan]     = useState('')
   const [rol, setRol]       = useState('')
   const [estado, setEstado] = useState('')
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: ['seguridad', 'reporte-usuarios'],
-    queryFn:  () => seguridadApi.usuariosReporte(),
+    queryKey: ['seguridad', 'reporte-usuarios', page, pais, estado],
+    queryFn:  () => seguridadApi.usuariosReporte(page, PAGE_SIZE, pais || undefined, estado || undefined),
   })
 
   const usuarios = data?.usuarios ?? []
+  const total = data?.total ?? 0
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
 
   const opciones = useMemo(() => ({
-    paises:  opcionesUnicas(usuarios.map((u) => u.pais)),
-    planes:  opcionesUnicas(usuarios.map((u) => u.plan_activo)),
-    roles:   opcionesUnicas(usuarios.map((u) => u.rol)),
-    estados: opcionesUnicas(usuarios.map((u) => u.estado_cuenta)),
-  }), [usuarios])
+    paises: data?.paises_disponibles ?? [],
+    planes: opcionesUnicas(usuarios.map((u) => u.plan_activo)),
+    roles:  opcionesUnicas(usuarios.map((u) => u.rol)),
+    estados: ['activa', 'suspendido', 'eliminado'],
+  }), [usuarios, data?.paises_disponibles])
 
+  // `rol`/`plan`: filtro dentro de la página actual (ver comentario arriba).
   const filtrados = usuarios.filter((u) =>
-    (!pais || u.pais === pais) &&
     (!plan || u.plan_activo === plan) &&
-    (!rol || u.rol === rol) &&
-    (!estado || u.estado_cuenta === estado),
+    (!rol || u.rol === rol),
   )
 
-  // Las tarjetas KPI se recalculan sobre `filtrados`, no sobre el dataset
-  // completo — reflejan el subconjunto que el admin está mirando ahora mismo.
+  // Las tarjetas KPI reflejan la página actual (filtrada por rol/plan), no
+  // el total real — `total` (arriba) es el conteo real server-side.
   const stats = useMemo(() => {
     const porPlan: Record<string, number> = {}
     for (const u of filtrados) porPlan[u.plan_activo] = (porPlan[u.plan_activo] ?? 0) + 1
     return {
-      total:          filtrados.length,
       porPlan,
       paisesUnicos:   new Set(filtrados.map((u) => u.pais).filter(Boolean)).size,
       adminsActivos:  filtrados.filter((u) => u.rol !== 'usuario').length,
@@ -89,8 +101,8 @@ export function ReporteUsuariosPage() {
       <div className={shell.statsRow}>
         <div className={shell.kpiPanel}>
           <div className={shell.kpiRow}>
-            <span className={shell.kpiValue}>{stats.total}</span>
-            <span className={shell.kpiLabel}>Total usuarios</span>
+            <span className={shell.kpiValue}>{total}</span>
+            <span className={shell.kpiLabel}>Total usuarios (real, sin filtrar por rol/plan)</span>
           </div>
         </div>
         <div className={shell.kpiPanel}>
@@ -122,7 +134,7 @@ export function ReporteUsuariosPage() {
       <div className={shell.form} data-pdf-export-ignore="true">
         <div className={shell.field}>
           <label htmlFor="f-pais">País</label>
-          <select id="f-pais" value={pais} onChange={(e) => setPais(e.target.value)}>
+          <select id="f-pais" value={pais} onChange={(e) => { setPais(e.target.value); setPage(1) }}>
             <option value="">Todos</option>
             {opciones.paises.map((p) => <option key={p} value={p}>{p}</option>)}
           </select>
@@ -143,7 +155,7 @@ export function ReporteUsuariosPage() {
         </div>
         <div className={shell.field}>
           <label htmlFor="f-estado">Estado</label>
-          <select id="f-estado" value={estado} onChange={(e) => setEstado(e.target.value)}>
+          <select id="f-estado" value={estado} onChange={(e) => { setEstado(e.target.value); setPage(1) }}>
             <option value="">Todos</option>
             {opciones.estados.map((e) => <option key={e} value={e}>{e}</option>)}
           </select>
@@ -190,6 +202,18 @@ export function ReporteUsuariosPage() {
               )}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {!isError && totalPages > 1 && (
+        <div className={shell.form} style={{ marginTop: 'var(--space-md)', alignItems: 'center' }} data-pdf-export-ignore="true">
+          <button className={shell.ghostBtn} type="button" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
+            ← Anterior
+          </button>
+          <span className={shell.subtitle} style={{ margin: 0 }}>Página {page} / {totalPages} · {total} usuarios</span>
+          <button className={shell.ghostBtn} type="button" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>
+            Siguiente →
+          </button>
         </div>
       )}
     </section>

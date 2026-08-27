@@ -41,7 +41,9 @@ from paquetes.seguridad.queries import (
     USUARIO_360_BASE,
     USUARIO_POR_ID,
     USUARIOS_BUSQUEDA,
-    USUARIOS_REPORTE,
+    USUARIOS_REPORTE_PAISES,
+    usuarios_reporte_sql,
+    usuarios_reporte_total_sql,
     usuarios_admin_listado_sql,
     usuarios_admin_total_sql,
     usuarios_listado_sql,
@@ -1138,12 +1140,38 @@ async def _mapa_planes_activos() -> dict[str, str]:
 
 
 @router.get("/admin/usuarios-reporte")
-async def usuarios_reporte(admin: dict = Depends(require_admin)):
-    usuarios = query_rows(USUARIOS_REPORTE)
+async def usuarios_reporte(
+    page:  int = Query(1, ge=1),
+    limit: int = Query(50, ge=1, le=200),
+    pais:   str | None = Query(None),
+    estado: str | None = Query(None),
+    admin: dict = Depends(require_admin),
+):
+    """Fix S17 (auditoría de navegación/UX, sección 3.2): antes traía los
+    13,109 usuarios reales sin LIMIT en una sola respuesta. `pais`/`estado`
+    filtran server-side (columnas directas); `rol`/`plan` — este último
+    resuelto acá desde PocketBase, no vive en ClickHouse — siguen
+    filtrándose client-side sobre la página actual (ver comentario en
+    queries.py y en ReporteUsuariosPage.tsx)."""
+    clauses, params = [], {}
+    if pais:
+        clauses.append("u.pais = {pais:String}")
+        params["pais"] = pais
+    if estado:
+        clauses.append("u.estado_cuenta = {estado:String}")
+        params["estado"] = estado
+    where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
+
+    offset = (page - 1) * limit
+    usuarios = query_rows(usuarios_reporte_sql(where), {**params, "limit": limit, "offset": offset})
+    total = query_one(usuarios_reporte_total_sql(where), params)["n"]
+
     planes = await _mapa_planes_activos()
     for fila in usuarios:
         fila["plan_activo"] = planes.get(fila["usuario_id"], "free")
-    return {"usuarios": usuarios}
+
+    paises_disponibles = [r["pais"] for r in query_rows(USUARIOS_REPORTE_PAISES)]
+    return {"usuarios": usuarios, "total": total, "page": page, "limit": limit, "paises_disponibles": paises_disponibles}
 
 
 @router.get("/admin/strikes")
