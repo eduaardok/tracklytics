@@ -156,6 +156,48 @@
   align-items: end;
 }
 
+/* S17: preview en vivo de "cómo se verá en el catálogo" dentro de
+   `.uploadForm` — ocupa todas las columnas del grid `auto-fit` para no
+   competir de ancho con los campos individuales. */
+.uploadPreview {
+  grid-column: 1 / -1;
+}
+
+.uploadPreviewCard {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  padding: var(--space-sm);
+  background: var(--color-surface-raised);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.uploadPreviewInfo {
+  min-width: 0;
+}
+
+.uploadPreviewName {
+  font-family: var(--font-sans);
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--color-ink);
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.uploadPreviewMeta {
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+  color: var(--color-muted);
+  margin: 2px 0 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 /* Simulación de procesamiento tipo YouTube (S16, FASE 5) — barra de progreso
    + pasos, puramente cosmético sobre la misma llamada real de `subirTrack`. */
 .uploadProgress {

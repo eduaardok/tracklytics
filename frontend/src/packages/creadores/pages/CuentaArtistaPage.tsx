@@ -5,6 +5,7 @@ import { catalogoApi } from '@packages/catalogo'
 import { regaliasApi } from '@packages/regalias'
 import { ApiError, apiErrorMessage, fieldErrorsFromApiError } from '@shared/lib/api-client'
 import { ErrorState } from '@shared/components/ErrorState'
+import { AlbumArt } from '@shared/components/AlbumArt'
 import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { useToast } from '@shared/context/ToastContext'
 import { useConfirm } from '@shared/context/ConfirmContext'
@@ -13,6 +14,21 @@ import { ArtistaHubTabs, type ArtistaHubVista } from '../components/ArtistaHubTa
 import { PanelAnaliticaArtista } from '../components/PanelAnaliticaArtista'
 import type { EstadoCuenta, EstadoRevision, SubidaTrack } from '../types'
 import styles from './CreadoresPages.module.css'
+
+// Helpers puros del preview de subida (S17) — mismo formato mm:ss que
+// TrackCard/TrackGridCard usan para `duration_ms`, acá sobre segundos crudos.
+function formatDurationPreview(seconds: number): string {
+  const m = Math.floor(seconds / 60)
+  const s = Math.floor(seconds % 60)
+  return `${m}:${s.toString().padStart(2, '0')}`
+}
+
+function genreNames(generos: { genre_id: number; name: string }[], ids: number[]): string {
+  return ids
+    .map((id) => generos.find((g) => g.genre_id === id)?.name)
+    .filter((n): n is string => !!n)
+    .join(', ')
+}
 
 function fmtDate(iso: string | null) {
   if (!iso) return '—'
@@ -597,6 +613,34 @@ export function CuentaArtistaPage() {
                   />
                   <label className={styles.fieldLabel} htmlFor="explicit">Contenido explícito</label>
                 </div>
+                {/* S17: preview en vivo mientras se llena el formulario — mismo
+                    tratamiento visual que TrackGridCard (AlbumArt con fallback
+                    de género + nombre/artista), sin reusar el componente tal
+                    cual porque este está atado a PlayerContext/navegación
+                    (Play real, ir al detalle) que no aplican a un track que
+                    todavía no existe en el catálogo. */}
+                <div className={styles.uploadPreview}>
+                  <p className={styles.fieldLabel}>Vista previa en el catálogo</p>
+                  <div className={styles.uploadPreviewCard}>
+                    <AlbumArt src={null} alt="" size={64} genreSeed={generosData.find((g) => genreIds.includes(g.genre_id))?.name} />
+                    <div className={styles.uploadPreviewInfo}>
+                      <p className={styles.uploadPreviewName}>{trackName.trim() || 'Nombre del track'}</p>
+                      <p className={styles.uploadPreviewMeta}>
+                        {nombreArtistico.trim() || 'Tu nombre artístico'}
+                        {' · '}
+                        {genreIds.length > 0
+                          ? genreNames(generosData, genreIds)
+                          : 'Sin género'}
+                      </p>
+                      <p className={styles.uploadPreviewMeta}>
+                        {durationSeconds ? formatDurationPreview(Number(durationSeconds)) : '—:—'}
+                        {albumName.trim() && ` · ${albumName.trim()}`}
+                        {explicit && ' · E'}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
                 <button className={`${styles.btnPrimary} ${styles['btnPrimary--full']}`} type="submit" disabled={subir.isPending}>
                   {subir.isPending ? 'Procesando…' : 'Subir track'}
                 </button>
