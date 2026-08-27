@@ -6,6 +6,7 @@ import { MiniDonutChart } from '@shared/components/charts/MiniDonutChart'
 import { STATUS_COLORS } from '@shared/components/charts/colors'
 import { apiErrorMessage } from '@shared/lib/api-client'
 import { useToast } from '@shared/context/ToastContext'
+import { useConfirm } from '@shared/context/ConfirmContext'
 import { ExportPDFButton } from '@shared/components/ExportPDFButton'
 import { creadoresApi } from '../api/creadores.api'
 import type { CuentaArtista, SubidaTrack } from '../types'
@@ -74,6 +75,7 @@ export function RevisionCreadoresPage() {
   useDocumentTitle('Revisión de creadores')
   const queryClient = useQueryClient()
   const toast = useToast()
+  const confirm = useConfirm()
   const reportRef = useRef<HTMLElement>(null)
 
   const cuentas = useQuery({
@@ -115,6 +117,33 @@ export function RevisionCreadoresPage() {
   // disabled/labeled "…", not every row sharing the mutation object.
   const cuentaPending = resolverCuenta.isPending ? resolverCuenta.variables : undefined
   const trackPending  = resolverTrack.isPending  ? resolverTrack.variables  : undefined
+
+  // Fix S17 (auditoría, sección 3.3): aprobar/rechazar disparaban sin
+  // confirmación — mismo `useConfirm()` ya usado en el resto de la app para
+  // decisiones administrativas con efecto real sobre la cuenta del creador.
+  async function handleResolverCuenta(c: CuentaArtista, decision: Decision) {
+    const mensaje = decision === 'aprobar'
+      ? `"${c.nombre_artistico}" podrá publicar tracks y ver su propio panel de analítica de inmediato.`
+      : `"${c.nombre_artistico}" queda rechazada — quien la solicitó tendría que volver a pedirla.`
+    const ok = await confirm(mensaje, {
+      title: decision === 'aprobar' ? 'Aprobar cuenta de artista' : 'Rechazar cuenta de artista',
+      confirmLabel: decision === 'aprobar' ? 'Aprobar' : 'Rechazar',
+      danger: decision === 'rechazar',
+    })
+    if (ok) resolverCuenta.mutate({ cuentaArtistaId: c.cuenta_artista_id, decision })
+  }
+
+  async function handleResolverTrack(t: SubidaTrack, decision: Decision) {
+    const mensaje = decision === 'aprobar'
+      ? `"${t.track_name}" queda publicado en el catálogo de inmediato.`
+      : `"${t.track_name}" queda rechazado — quien lo subió tendría que volver a subirlo.`
+    const ok = await confirm(mensaje, {
+      title: decision === 'aprobar' ? 'Aprobar track' : 'Rechazar track',
+      confirmLabel: decision === 'aprobar' ? 'Aprobar' : 'Rechazar',
+      danger: decision === 'rechazar',
+    })
+    if (ok) resolverTrack.mutate({ subidaId: t.subida_id, decision })
+  }
 
   const cuentasData: CuentaArtista[] = cuentas.data?.data ?? []
   const tracksData: SubidaTrack[]   = tracks.data?.data ?? []
@@ -176,14 +205,14 @@ export function RevisionCreadoresPage() {
                       <button
                         className={styles.btnPrimary}
                         disabled={isThisPending}
-                        onClick={() => resolverCuenta.mutate({ cuentaArtistaId: c.cuenta_artista_id, decision: 'aprobar' })}
+                        onClick={() => handleResolverCuenta(c, 'aprobar')}
                       >
                         {isThisPending && cuentaPending?.decision === 'aprobar' ? '…' : <><CheckIcon /> Aprobar</>}
                       </button>
                       <button
                         className={styles.btnGhostDanger}
                         disabled={isThisPending}
-                        onClick={() => resolverCuenta.mutate({ cuentaArtistaId: c.cuenta_artista_id, decision: 'rechazar' })}
+                        onClick={() => handleResolverCuenta(c, 'rechazar')}
                       >
                         {isThisPending && cuentaPending?.decision === 'rechazar' ? '…' : <><XIcon /> Rechazar</>}
                       </button>
@@ -226,14 +255,14 @@ export function RevisionCreadoresPage() {
                       <button
                         className={styles.btnPrimary}
                         disabled={isThisPending}
-                        onClick={() => resolverTrack.mutate({ subidaId: t.subida_id, decision: 'aprobar' })}
+                        onClick={() => handleResolverTrack(t, 'aprobar')}
                       >
                         {isThisPending && trackPending?.decision === 'aprobar' ? '…' : <><CheckIcon /> Aprobar</>}
                       </button>
                       <button
                         className={styles.btnGhostDanger}
                         disabled={isThisPending}
-                        onClick={() => resolverTrack.mutate({ subidaId: t.subida_id, decision: 'rechazar' })}
+                        onClick={() => handleResolverTrack(t, 'rechazar')}
                       >
                         {isThisPending && trackPending?.decision === 'rechazar' ? '…' : <><XIcon /> Rechazar</>}
                       </button>

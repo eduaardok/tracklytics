@@ -5,6 +5,7 @@ import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { UserPicker, type UserSearchResult } from '@shared/components/UserPicker'
 import { apiErrorMessage } from '@shared/lib/api-client'
 import { useToast } from '@shared/context/ToastContext'
+import { useConfirm } from '@shared/context/ConfirmContext'
 import { ExportPDFButton } from '@shared/components/ExportPDFButton'
 import { experienciaApi } from '../api/experiencia.api'
 import styles from './ExperienciaPages.module.css'
@@ -23,6 +24,7 @@ export function FamiliaAdminPage() {
   const reportRef = useRef<HTMLElement>(null)
   const queryClient = useQueryClient()
   const toast = useToast()
+  const confirm = useConfirm()
   const [titularUser, setTitularUser] = useState<UserSearchResult | null>(null)
   const [buscarTitular, setBuscarTitular] = useState<UserSearchResult | null>(null)
   const [suscripcionId, setSuscripcionId] = useState('')
@@ -80,6 +82,16 @@ export function FamiliaAdminPage() {
     },
     onError: (err) => toast.error(apiErrorMessage(err, 'No se pudo quitar al miembro.')),
   })
+
+  // Fix S17 (auditoría, sección 3.3): quitar a alguien de un plan familiar
+  // pago disparaba sin confirmación.
+  async function handleQuitarMiembro(usuarioId: string) {
+    const ok = await confirm(
+      `${usuarioId} perderá el acceso premium de este plan familiar de inmediato.`,
+      { title: 'Quitar miembro', confirmLabel: 'Quitar', danger: true },
+    )
+    if (ok) quitarMiembro.mutate(usuarioId)
+  }
 
   const miembros = plan.data?.data ?? []
   const total    = plan.data?.total ?? 0
@@ -151,7 +163,7 @@ export function FamiliaAdminPage() {
                           <button
                             className={styles.btnGhostDanger}
                             disabled={quitarMiembro.isPending}
-                            onClick={() => quitarMiembro.mutate(m.usuario_id)}
+                            onClick={() => handleQuitarMiembro(m.usuario_id)}
                           >
                             Quitar
                           </button>

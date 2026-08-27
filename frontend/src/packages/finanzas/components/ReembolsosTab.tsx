@@ -1,7 +1,8 @@
-import { useRef, useState } from 'react'
+import { useRef, useState, type FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiErrorMessage } from '@shared/lib/api-client'
 import { useToast } from '@shared/context/ToastContext'
+import { useConfirm } from '@shared/context/ConfirmContext'
 import { ExportPDFButton } from '@shared/components/ExportPDFButton'
 import { finanzasApi } from '../api/finanzas.api'
 import { ReembolsosScatter } from './charts/ReembolsosScatter'
@@ -20,6 +21,7 @@ const emptyForm: ReembolsoBody = { transaccion_id: '', monto: 0, tipo: 'total', 
 export function ReembolsosTab() {
   const queryClient = useQueryClient()
   const toast = useToast()
+  const confirm = useConfirm()
   const reportRef = useRef<HTMLDivElement>(null)
 
   const [form, setForm] = useState<ReembolsoBody>(emptyForm)
@@ -32,6 +34,18 @@ export function ReembolsosTab() {
     },
     onError: (err) => toast.error(apiErrorMessage(err, 'No se pudo procesar el reembolso.')),
   })
+
+  // Fix S17 (auditoría, sección 3.3): procesar un reembolso mueve dinero
+  // real y disparaba sin confirmación.
+  async function handleProcesarSubmit(e: FormEvent) {
+    e.preventDefault()
+    if (!(form.transaccion_id.trim() && form.monto > 0)) return
+    const ok = await confirm(
+      `Se reembolsará ${fmtMoney(form.monto)} (${form.tipo}) de la transacción ${form.transaccion_id.trim().slice(0, 8)}…`,
+      { title: 'Procesar reembolso', confirmLabel: 'Procesar reembolso', danger: true },
+    )
+    if (ok) procesar.mutate()
+  }
 
   const [desde, setDesde] = useState(isoDaysAgo(30))
   const [hasta, setHasta] = useState(isoToday())
@@ -50,10 +64,7 @@ export function ReembolsosTab() {
       <p className={styles.sectionLabel} data-pdf-export-ignore="true">Procesar reembolso</p>
       <form
         className={styles.form}
-        onSubmit={(e) => {
-          e.preventDefault()
-          if (form.transaccion_id.trim() && form.monto > 0) procesar.mutate()
-        }}
+        onSubmit={handleProcesarSubmit}
         data-pdf-export-ignore="true"
       >
         <div className={styles.field} style={{ minWidth: 240 }}>

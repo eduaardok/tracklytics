@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { apiErrorMessage } from '@shared/lib/api-client'
 import { useToast } from '@shared/context/ToastContext'
+import { useConfirm } from '@shared/context/ConfirmContext'
 import { SkeletonLoader, SkeletonTableRows } from '@shared/components/SkeletonLoader'
 import { ExportPDFButton } from '@shared/components/ExportPDFButton'
 import { InfoHint } from '@shared/components/InfoHint'
@@ -29,6 +30,7 @@ function EstadoBadge({ estado }: { estado: EstadoCuenta }) {
 export function UsuariosAdminPage() {
   useDocumentTitle('Usuarios')
   const toast = useToast()
+  const confirm = useConfirm()
   const queryClient = useQueryClient()
   const reportRef = useRef<HTMLElement>(null)
 
@@ -81,6 +83,18 @@ export function UsuariosAdminPage() {
     onSuccess:  () => { invalidarUsuario(); toast.success('Cuenta suspendida') },
     onError:    (err) => toast.error(apiErrorMessage(err, 'No se pudo suspender la cuenta.')),
   })
+
+  // Fix S17 (auditoría, sección 3.3): "Suspender cuenta" disparaba sin
+  // confirmación — mismo patrón que `SesionesActivasPage.tsx` ("Cerrar
+  // sesión").
+  async function handleSuspender() {
+    const nombre = d?.perfil.nombre || d?.perfil.email || 'esta cuenta'
+    const ok = await confirm(
+      `${nombre} perderá acceso a la plataforma de inmediato. Podrás reactivarla después.`,
+      { title: 'Suspender cuenta', confirmLabel: 'Suspender cuenta', danger: true },
+    )
+    if (ok) suspender.mutate()
+  }
 
   const reactivar = useMutation({
     mutationFn: () => seguridadApi.reactivarUsuario(selectedId as string),
@@ -208,7 +222,7 @@ export function UsuariosAdminPage() {
             <div className={styles.actionRow} data-pdf-export-ignore="true">
               {d.perfil.estado_cuenta === 'activa' ? (
                 <button className={styles.dangerBtn} type="button" disabled={suspender.isPending}
-                        onClick={() => suspender.mutate()}>
+                        onClick={handleSuspender}>
                   Suspender cuenta
                 </button>
               ) : d.perfil.estado_cuenta === 'suspendido' ? (

@@ -11,7 +11,7 @@ import { useConfirm } from '@shared/context/ConfirmContext'
 import { distribucionApi } from '@packages/distribucion'
 import { creadoresApi } from '@packages/creadores'
 import { regaliasApi } from '../api/regalias.api'
-import type { Contrato } from '../types'
+import type { Contrato, Retiro } from '../types'
 import { SkeletonLoader, SkeletonTableRows } from '@shared/components/SkeletonLoader'
 import { EmptyState } from '@shared/components/EmptyState'
 import styles from './RegaliasPages.module.css'
@@ -473,6 +473,10 @@ function HistorialContratoDetalle({ contratoId }: { contratoId: string }) {
 function RetirosAdminTable() {
   const queryClient = useQueryClient()
   const toast = useToast()
+  // Fix S17 (auditoría, sección 3.3): "Procesar"/"Rechazar" mueven dinero
+  // real y disparaban sin confirmación, a diferencia de "Terminar contrato"
+  // (arriba, mismo archivo) que ya usa este mismo `useConfirm()`.
+  const confirm = useConfirm()
 
   const retiros = useQuery({ queryKey: ['regalias', 'admin', 'retiros'], queryFn: () => regaliasApi.retirosAdmin() })
 
@@ -493,6 +497,24 @@ function RetirosAdminTable() {
     },
     onError: (err) => toast.error(apiErrorMessage(err, 'No se pudo rechazar el retiro.')),
   })
+
+  async function handleProcesar(r: Retiro) {
+    if (await confirm(
+      `Se liberará ${fmtMoney(r.monto)} a ${r.tipo_rightsholder} ${r.rightsholder_id.slice(0, 8)}… — el dinero sale de la plataforma y no se puede deshacer.`,
+      { title: 'Procesar retiro', confirmLabel: 'Procesar retiro', danger: true },
+    )) {
+      procesar.mutate(r.retiro_id)
+    }
+  }
+
+  async function handleRechazar(r: Retiro) {
+    if (await confirm(
+      `El retiro de ${fmtMoney(r.monto)} de ${r.tipo_rightsholder} ${r.rightsholder_id.slice(0, 8)}… quedará rechazado.`,
+      { title: 'Rechazar retiro', confirmLabel: 'Rechazar retiro', danger: true },
+    )) {
+      rechazar.mutate(r.retiro_id)
+    }
+  }
 
   const data = retiros.data?.data ?? []
 
@@ -515,11 +537,11 @@ function RetirosAdminTable() {
               <td>
                 {r.estado === 'pendiente' && (
                   <>
-                    <button type="button" className={styles.btnPrimary} disabled={procesar.isPending} onClick={() => procesar.mutate(r.retiro_id)}>
+                    <button type="button" className={styles.btnPrimary} disabled={procesar.isPending} onClick={() => handleProcesar(r)}>
                       Procesar
                     </button>
                     {' '}
-                    <button type="button" className={styles.btnPrimary} disabled={rechazar.isPending} onClick={() => rechazar.mutate(r.retiro_id)}>
+                    <button type="button" className={styles.btnPrimary} disabled={rechazar.isPending} onClick={() => handleRechazar(r)}>
                       Rechazar
                     </button>
                   </>

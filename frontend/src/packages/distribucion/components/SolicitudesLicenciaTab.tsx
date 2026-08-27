@@ -3,9 +3,10 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ErrorState } from '@shared/components/ErrorState'
 import { apiErrorMessage } from '@shared/lib/api-client'
 import { useToast } from '@shared/context/ToastContext'
+import { useConfirm } from '@shared/context/ConfirmContext'
 import { ExportPDFButton } from '@shared/components/ExportPDFButton'
 import { distribucionApi } from '../api/distribucion.api'
-import type { EstadoSolicitudLicencia } from '../types'
+import type { EstadoSolicitudLicencia, SolicitudLicencia } from '../types'
 import styles from '../pages/DistribucionPages.module.css'
 
 function fmtDate(iso: string | null) {
@@ -22,6 +23,7 @@ function EstadoBadge({ estado }: { estado: EstadoSolicitudLicencia }) {
 export function SolicitudesLicenciaTab() {
   const queryClient = useQueryClient()
   const toast = useToast()
+  const confirm = useConfirm()
   const reportRef = useRef<HTMLDivElement>(null)
 
   // ── Nueva solicitud ──────────────────────────────────────────────────────
@@ -96,6 +98,19 @@ export function SolicitudesLicenciaTab() {
   const canalesData = canales.data?.data ?? []
   const pendientesData = pendientes.data?.data ?? []
   const solicitudesSelloData = solicitudesSello.data?.data ?? []
+
+  // Fix S17 (auditoría, sección 3.3): "Aprobar" crea licencias reales de
+  // inmediato (ver `onSuccess` de `aprobar` arriba) y disparaba sin
+  // confirmación — a diferencia de "Rechazar", que ya pide un motivo escrito
+  // antes de confirmar (fricción equivalente a un `useConfirm()`).
+  async function handleAprobar(s: SolicitudLicencia) {
+    const sello = sellosData.find((x) => x.sello_id === s.sello_id)
+    const ok = await confirm(
+      `Se crearán licencias reales para ${sello?.nombre ?? `sello #${s.sello_id}`} en los países y canales solicitados.`,
+      { title: 'Aprobar solicitud de licencia', confirmLabel: 'Aprobar' },
+    )
+    if (ok) aprobar.mutate(s.solicitud_id)
+  }
 
   function togglePais(id: number) {
     setPaisesSel((prev) => (prev.includes(id) ? prev.filter((p) => p !== id) : [...prev, id]))
@@ -233,7 +248,7 @@ export function SolicitudesLicenciaTab() {
                           <button
                             className={styles.btnPrimary}
                             disabled={isPending}
-                            onClick={() => aprobar.mutate(s.solicitud_id)}
+                            onClick={() => handleAprobar(s)}
                           >
                             {aprobar.isPending && aprobar.variables === s.solicitud_id ? '…' : 'Aprobar'}
                           </button>

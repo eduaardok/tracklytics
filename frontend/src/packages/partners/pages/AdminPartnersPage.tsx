@@ -26,6 +26,7 @@ type ModalState =
   | { mode: 'edit'; partner: Partner }
   | { mode: 'view'; partner: Partner }
   | { mode: 'delete'; partner: Partner }
+  | { mode: 'rotate'; partner: Partner }
   | null
 
 // Gestión de partners B2B (change p1-ciclos-vida, rol admin_comercial): alta,
@@ -75,6 +76,7 @@ export function AdminPartnersPage() {
     onSuccess: (res) => {
       setRevealKey({ nombre: res.partner.nombre, key: res.api_key })
       invalidar()
+      setModal(null)
       toast.success('API key rotada')
     },
     onError: (err) => toast.error(apiErrorMessage(err, 'No se pudo rotar la key.')),
@@ -159,7 +161,7 @@ export function AdminPartnersPage() {
                         onDelete={activo ? () => setModal({ mode: 'delete', partner: p }) : undefined}
                         deleteLabel="Desactivar"
                       />
-                      <button className={styles.btnGhost} onClick={() => rotar.mutate(p)} disabled={!activo || rotar.isPending}>
+                      <button className={styles.btnGhost} onClick={() => setModal({ mode: 'rotate', partner: p })} disabled={!activo || rotar.isPending}>
                         Rotar key
                       </button>
                     </div>
@@ -208,6 +210,29 @@ export function AdminPartnersPage() {
           <p>
             <strong>{modal.partner.nombre}</strong> perderá el acceso a la API: su key dejará de autenticar.
             Esta acción se puede revertir editando el estado más tarde.
+          </p>
+        </CrudModal>
+      )}
+
+      {/* Fix S17 (auditoría, sección 3.3): "Rotar key" invalida al instante la
+          key en uso del partner (no se puede recuperar, ver aviso de arriba)
+          y disparaba sin confirmación — mismo `CrudModal` que ya usa
+          "Desactivar". */}
+      {modal?.mode === 'rotate' && (
+        <CrudModal
+          isOpen
+          mode="delete"
+          title="Rotar API key"
+          confirmLabel="Rotar key"
+          loading={rotar.isPending}
+          error={rotar.isError ? apiErrorMessage(rotar.error, 'No se pudo rotar la key.') : null}
+          onClose={() => setModal(null)}
+          onConfirm={() => rotar.mutate(modal.partner)}
+        >
+          <p>
+            La key actual de <strong>{modal.partner.nombre}</strong> deja de autenticar de
+            inmediato — su integración en vivo se rompe hasta que reciban y configuren la
+            key nueva. No se puede recuperar la key anterior después de rotarla.
           </p>
         </CrudModal>
       )}

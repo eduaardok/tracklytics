@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ErrorState } from '@shared/components/ErrorState'
 import { apiErrorMessage } from '@shared/lib/api-client'
 import { useToast } from '@shared/context/ToastContext'
+import { useConfirm } from '@shared/context/ConfirmContext'
 import { suscripcionesApi } from '@packages/suscripciones'
 import { distribucionApi } from '../api/distribucion.api'
 import type { PaisConfigBody } from '../types'
@@ -22,6 +23,7 @@ const PAIS_FORM_VACIO: PaisConfigBody = {
 export function ConfiguracionGlobalTab() {
   const queryClient = useQueryClient()
   const toast = useToast()
+  const confirm = useConfirm()
 
   const [form, setForm] = useState<PaisConfigBody>(PAIS_FORM_VACIO)
   const [editId, setEditId] = useState<number | null>(null)
@@ -80,6 +82,17 @@ export function ConfiguracionGlobalTab() {
   const paisesData = paises.data?.data ?? []
   const preciosData = precios.data?.data ?? []
 
+  // Fix S17 (auditoría, sección 3.3): cambiar el precio de un plan afecta a
+  // todos los futuros suscriptores de inmediato y disparaba sin ninguna
+  // confirmación.
+  async function handleActualizarPrecio(planId: string, nombre: string, precioNuevo: number) {
+    const ok = await confirm(
+      `El plan "${nombre}" pasará a costar ${precioNuevo.toFixed(2)} USD para toda suscripción nueva a partir de ahora.`,
+      { title: 'Actualizar precio de plan', confirmLabel: 'Actualizar precio' },
+    )
+    if (ok) actualizarPrecio.mutate({ planId, precio: precioNuevo })
+  }
+
   return (
     <div>
       <p className={styles.sectionLabel}>Precios de plan</p>
@@ -120,7 +133,7 @@ export function ConfiguracionGlobalTab() {
                     <button
                       className={styles.btnGhost}
                       disabled={actualizarPrecio.isPending}
-                      onClick={() => actualizarPrecio.mutate({ planId: p.plan_id, precio: Number(precioEdit[p.plan_id] ?? p.precio_usd) })}
+                      onClick={() => handleActualizarPrecio(p.plan_id, p.nombre, Number(precioEdit[p.plan_id] ?? p.precio_usd))}
                     >
                       Guardar
                     </button>

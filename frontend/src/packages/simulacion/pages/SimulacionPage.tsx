@@ -1,9 +1,10 @@
-import { useState } from 'react'
+import { useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { apiErrorMessage } from '@shared/lib/api-client'
 import { useToast } from '@shared/context/ToastContext'
+import { useConfirm } from '@shared/context/ConfirmContext'
 import { AirflowLinkButton } from '@shared/components/AirflowLinkButton'
 import { SkeletonTableRows } from '@shared/components/SkeletonLoader'
 import { simulacionApi } from '../api/simulacion.api'
@@ -33,6 +34,7 @@ export function SimulacionPage() {
   useDocumentTitle('Simulación de negocio')
   const toast = useToast()
   const queryClient = useQueryClient()
+  const confirm = useConfirm()
 
   const [nStreams, setNStreams] = useState('5000')
   const [nSuscripciones, setNSuscripciones] = useState('50')
@@ -81,6 +83,36 @@ export function SimulacionPage() {
       prev.includes(d) ? prev.filter((x) => x !== d) : [...prev, d])
   }
 
+  // Fix S17 (auditoría de navegación/UX, sección 3.3): ambas acciones de esta
+  // página movían dinero real / disparaban infraestructura sin ningún
+  // diálogo — mismo patrón que `PlanesPage.tsx` (mensaje con el efecto real
+  // calculado, no un "¿estás seguro?" genérico).
+  async function handleSimular(e: FormEvent) {
+    e.preventDefault()
+    const ok = await confirm(
+      `Esto genera ${Number(nStreams).toLocaleString('es-ES')} reproducciones, ` +
+      `${Number(nSuscripciones).toLocaleString('es-ES')} suscripciones nuevas y ` +
+      `${Number(nImpresiones).toLocaleString('es-ES')} impresiones publicitarias, y liquida el ` +
+      `período de inmediato — el ingreso generado se reparte a rightsholders reales.`,
+      { title: 'Simular y liquidar', confirmLabel: 'Simular y liquidar', danger: true },
+    )
+    if (!ok) return
+    generar.mutate()
+  }
+
+  async function handleGenerarHistorico(e: FormEvent) {
+    e.preventDefault()
+    const ok = await confirm(
+      `Esto genera actividad de negocio para el período ${periodoInicio} → ${periodoFin} en ` +
+      `${dominiosSeleccionados.length} dominio${dominiosSeleccionados.length !== 1 ? 's' : ''} ` +
+      `(${dominiosSeleccionados.join(', ')}), y dispara un refresco completo de la capa Gold ` +
+      `(60 tareas de Airflow) que puede tardar varios minutos.`,
+      { title: 'Generar y refrescar Gold', confirmLabel: 'Generar y refrescar Gold' },
+    )
+    if (!ok) return
+    generarHistorico.mutate()
+  }
+
   return (
     <section className={styles.page}>
       <h1 className={styles.heading}>Simulación de negocio</h1>
@@ -96,7 +128,7 @@ export function SimulacionPage() {
 
       <form
         className={styles.form}
-        onSubmit={(e) => { e.preventDefault(); generar.mutate() }}
+        onSubmit={handleSimular}
       >
         <div className={styles.field}>
           <label className={styles.fieldLabel} htmlFor="sim-streams">Reproducciones</label>
@@ -165,7 +197,7 @@ export function SimulacionPage() {
 
       <form
         className={styles.form}
-        onSubmit={(e) => { e.preventDefault(); generarHistorico.mutate() }}
+        onSubmit={handleGenerarHistorico}
       >
         <div className={styles.field}>
           <label className={styles.fieldLabel} htmlFor="hist-inicio">Período — inicio</label>
