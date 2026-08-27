@@ -33,8 +33,16 @@ export const creadoresApi = {
   // tracks promovidos propios. 403 si la cuenta no está aprobada.
   // (Sobre `ApiResponse<T>`: ese tipo modela el envelope LISTADO — data es
   // T[]. Este endpoint devuelve UN objeto, así que va tipado explícito.)
-  miAnalitica: () =>
-    apiClient.get<{ data: AnaliticaArtista }>('/creadores/mi-analitica'),
+  // `desde`/`hasta` opcionales (S17, date range customizable) — sin
+  // parámetros, el backend usa su default de 30 días (compatibilidad hacia
+  // atrás con el llamado original).
+  miAnalitica: (desde?: string, hasta?: string) => {
+    const qs = new URLSearchParams()
+    if (desde) qs.set('desde', desde)
+    if (hasta) qs.set('hasta', hasta)
+    const suffix = qs.toString() ? `?${qs.toString()}` : ''
+    return apiClient.get<{ data: AnaliticaArtista }>(`/creadores/mi-analitica${suffix}`)
+  },
 
   subirTrack: (body: SubidaTrackBody) =>
     apiClient.post<SubidaTrackResultado>('/creadores/tracks', body),

@@ -331,17 +331,21 @@ def denuncias_admin_sql(where: str) -> str:
 def denuncias_count_sql(where: str) -> str:
     return f"SELECT count() AS total FROM ({_DENUNCIA_RESUELTA}) {where}"
 
-# Dashboard (RT-04, S10 Día 3): actividad social real por día, últimos 14
-# días — 2 series (comentarios vs comparticiones), ambas append-only.
+# Dashboard (RT-04, S10 Día 3): actividad social real por día — 2 series
+# (comentarios vs comparticiones), ambas append-only. Rango parametrizado
+# (S17, "date range customizable en dashboards"): antes era una ventana fija
+# de 14 días sin forma de que el frontend la cambiara — `desde`/`hasta` los
+# resuelve el router (default: últimos 14 días, tope de 366 días, ver
+# `_rango_dias` en `social/router.py`).
 ACTIVIDAD_SOCIAL_POR_DIA = """
 SELECT toDate(fecha_creacion) AS dia, 'comentario' AS tipo, count() AS total
 FROM FACT_COMENTARIO
-WHERE fecha_creacion >= now() - INTERVAL 14 DAY AND estado_moderacion != 'eliminado'
+WHERE fecha_creacion >= {desde:DateTime} AND fecha_creacion < {hasta:DateTime} AND estado_moderacion != 'eliminado'
 GROUP BY dia
 UNION ALL
 SELECT toDate(fecha) AS dia, 'comparticion' AS tipo, count() AS total
 FROM FACT_COMPARTICION
-WHERE fecha >= now() - INTERVAL 14 DAY
+WHERE fecha >= {desde:DateTime} AND fecha < {hasta:DateTime}
 GROUP BY dia
 ORDER BY dia
 """

@@ -208,6 +208,10 @@ WHERE fact_id IN {fact_ids:Array(UInt64)}
 GROUP BY fact_id
 """
 
+# Rango parametrizado (S17, "date range customizable en dashboards"): antes
+# era una ventana fija de 30 días — `desde`/`hasta` los resuelve el router
+# (default: últimos 30 días, tope de 366 días, ver `_rango_dias` en
+# `creadores/router.py`).
 ANALITICA_ARTISTA_SERIE = """
 SELECT
     toDate(event_timestamp) AS dia,
@@ -215,7 +219,7 @@ SELECT
 FROM FACT_ENGAGEMENT_USUARIO
 WHERE event_type = 'reproduccion'
   AND fact_id IN {fact_ids:Array(UInt64)}
-  AND event_timestamp >= now() - INTERVAL 30 DAY
+  AND event_timestamp >= {desde:DateTime} AND event_timestamp < {hasta:DateTime}
 GROUP BY dia
 ORDER BY dia ASC
 """

@@ -33,8 +33,16 @@ export const seguridadApi = {
   errores: (limit = 50) =>
     apiClient.get<ApiResponse<ErrorSistemaEntry>>(`/seguridad/errores?limit=${limit}`),
 
-  dashboard: () =>
-    apiClient.get<DashboardSeguridad>('/seguridad/admin/dashboard'),
+  // `desde`/`hasta` opcionales (S17, date range customizable) — sin
+  // parámetros, el backend usa su default de 14 días (compatibilidad hacia
+  // atrás con el llamado original).
+  dashboard: (desde?: string, hasta?: string) => {
+    const qs = new URLSearchParams()
+    if (desde) qs.set('desde', desde)
+    if (hasta) qs.set('hasta', hasta)
+    const suffix = qs.toString() ? `?${qs.toString()}` : ''
+    return apiClient.get<DashboardSeguridad>(`/seguridad/admin/dashboard${suffix}`)
+  },
 
   // ── Gestión administrativa de usuarios (change roles-gestion-usuarios) ───────
   rolesAdmin: () =>

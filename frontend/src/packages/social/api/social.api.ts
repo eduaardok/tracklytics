@@ -88,8 +88,16 @@ export const socialApi = {
   compartir: (body: ComparticionBody) =>
     apiClient.post<ComparticionResultado>('/social/comparticiones', body),
 
-  dashboard: () =>
-    apiClient.get<DashboardSocial>('/social/admin/dashboard'),
+  // `desde`/`hasta` opcionales (S17, date range customizable) — sin
+  // parámetros, el backend usa su default de 14 días (compatibilidad hacia
+  // atrás con el llamado original).
+  dashboard: (desde?: string, hasta?: string) => {
+    const qs = new URLSearchParams()
+    if (desde) qs.set('desde', desde)
+    if (hasta) qs.set('hasta', hasta)
+    const suffix = qs.toString() ? `?${qs.toString()}` : ''
+    return apiClient.get<DashboardSocial>(`/social/admin/dashboard${suffix}`)
+  },
 
   feed: () =>
     apiClient.get<ApiResponse<FeedItem>>('/social/feed'),

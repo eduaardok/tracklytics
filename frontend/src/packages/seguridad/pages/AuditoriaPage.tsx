@@ -1,4 +1,4 @@
-import { useRef } from 'react'
+import { useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { ScrollText } from 'lucide-react'
 import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
@@ -10,19 +10,36 @@ import { ExportPDFButton } from '@shared/components/ExportPDFButton'
 import { seguridadApi } from '../api/seguridad.api'
 import styles from './SeguridadPages.module.css'
 
+function isoDiasAtras(n: number): string {
+  const d = new Date()
+  d.setDate(d.getDate() - n)
+  return d.toISOString().slice(0, 10)
+}
+
+// Rango en días entre dos fechas ISO (inclusive) — para el título del
+// gráfico, que antes decía "(14 días)" fijo sin reflejar el selector real.
+function diasEntre(desde: string, hasta: string): number {
+  const ms = new Date(hasta).getTime() - new Date(desde).getTime()
+  return Math.max(1, Math.round(ms / 86_400_000) + 1)
+}
+
 // Dashboard (RT-04, S10 Día 3): antes esta pantalla era una tabla cruda de
 // auditoría sin ningún gráfico — se agrega acciones administrativas/día
-// (14 días) más 2 KPI reales, sin tocar la tabla existente debajo.
+// más 2 KPI reales, sin tocar la tabla existente debajo. Rango de fechas
+// customizable (S17): antes la ventana de 14 días era fija, mismo patrón
+// `desde`/`hasta` de ChurnPage/MrrArrPage (analitica).
 export function AuditoriaPage() {
   useDocumentTitle('Auditoría')
   const reportRef = useRef<HTMLElement>(null)
+  const [desde, setDesde] = useState(() => isoDiasAtras(13))
+  const [hasta, setHasta] = useState(() => new Date().toISOString().slice(0, 10))
   const { data, isLoading, isError } = useQuery({
     queryKey: ['seguridad', 'auditoria'],
     queryFn:  () => seguridadApi.auditoria(50),
   })
   const dashboard = useQuery({
-    queryKey: ['seguridad', 'dashboard'],
-    queryFn:  () => seguridadApi.dashboard(),
+    queryKey: ['seguridad', 'dashboard', desde, hasta],
+    queryFn:  () => seguridadApi.dashboard(desde, hasta),
   })
 
   const entradas = data?.data ?? []
@@ -34,9 +51,20 @@ export function AuditoriaPage() {
         <ExportPDFButton targetRef={reportRef} fileName="auditoria" title="Auditoría" />
       </div>
 
+      <div className={styles.form} data-pdf-export-ignore="true">
+        <label className={styles.field}>
+          Desde
+          <input type="date" value={desde} max={hasta} onChange={(e) => setDesde(e.target.value)} />
+        </label>
+        <label className={styles.field}>
+          Hasta
+          <input type="date" value={hasta} min={desde} max={new Date().toISOString().slice(0, 10)} onChange={(e) => setHasta(e.target.value)} />
+        </label>
+      </div>
+
       <div className={styles.dashboardGrid}>
         <div className={styles.chartPanel}>
-          <p className={styles.panelTitle}>Acciones administrativas por día (14 días)</p>
+          <p className={styles.panelTitle}>Acciones administrativas por día ({diasEntre(desde, hasta)} días)</p>
           <MiniLineChart
             data={dashboard.data?.acciones_por_dia ?? []}
             xKey="dia"

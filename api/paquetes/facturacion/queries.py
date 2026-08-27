@@ -115,13 +115,16 @@ WHERE i.invoice_id = {invoice_id:String}
 LIMIT 1
 """
 
-# Dashboard (RT-04, S10 Día 3): ingreso real por día, últimos 14 días — no un
-# valor simulado, agrega FACT_TRANSACCION_PAGO ya escrita por pagos/renovaciones
-# reales (incluida la renovación automática del DAG finanzas_periodicas).
+# Dashboard (RT-04, S10 Día 3): ingreso real por día — no un valor simulado,
+# agrega FACT_TRANSACCION_PAGO ya escrita por pagos/renovaciones reales
+# (incluida la renovación automática del DAG finanzas_periodicas). Rango
+# parametrizado (S17, "date range customizable en dashboards"): antes era una
+# ventana fija de 14 días — `desde`/`hasta` los resuelve el router (default:
+# últimos 14 días, tope de 366 días, ver `_rango_dias` en `facturacion/router.py`).
 INGRESO_POR_DIA = """
 SELECT toDate(fecha) AS dia, sum(monto) AS total
 FROM FACT_TRANSACCION_PAGO
-WHERE estado = 'exitosa' AND fecha >= now() - INTERVAL 14 DAY
+WHERE estado = 'exitosa' AND fecha >= {desde:DateTime} AND fecha < {hasta:DateTime}
 GROUP BY dia
 ORDER BY dia
 """

@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Query
@@ -438,11 +438,33 @@ def dashboard_creadores(admin: dict = Depends(require_admin)):
 # mutación. El gating es el mismo criterio de mis-ganancias (cuenta aprobada),
 # pero 403 en vez de vacío para que la UI distinga "sin cuenta" de "sin datos".
 
+# Rango de fechas customizable (S17, "date range en dashboards"): mismo
+# patrón que `_rango_dt`/`_calcular_metricas_periodo` de analitica/finanzas —
+# `desde`/`hasta` opcionales con default a la ventana histórica del panel
+# (30 días) y un tope de 366 días (FACT_ENGAGEMENT_USUARIO es la tabla de
+# eventos más grande del sistema, un rango sin tope arriesga un full scan
+# aunque ya esté acotado por `fact_id IN (...)`).
+def _rango_dias(desde: date | None, hasta: date | None, dias_default: int, max_dias: int = 366) -> tuple[datetime, datetime]:
+    hasta = hasta or date.today()
+    desde = desde or (hasta - timedelta(days=dias_default))
+    if desde > hasta:
+        raise HTTPException(status_code=422, detail="desde no puede ser mayor que hasta")
+    if (hasta - desde).days > max_dias:
+        raise HTTPException(status_code=422, detail=f"El rango no puede superar {max_dias} días")
+    return datetime.combine(desde, datetime.min.time()), datetime.combine(hasta, datetime.min.time()) + timedelta(days=1)
+
+
 @router.get("/mi-analitica")
-def mi_analitica(user: dict = Depends(get_current_user)):
+def mi_analitica(
+    desde: date | None = Query(None),
+    hasta: date | None = Query(None),
+    user: dict = Depends(get_current_user),
+):
     cuenta = query_one(CUENTA_ACTUAL_POR_USUARIO, {"usuario_id": user["record"]["id"]})
     if not cuenta or cuenta["estado_cuenta"] != "aprobada":
         raise HTTPException(status_code=403, detail="Requiere una cuenta de artista aprobada")
+
+    rango_desde, rango_hasta = _rango_dias(desde, hasta, dias_default=30)
 
     subidas = query_rows(SUBIDAS_POR_CUENTA, {"cuenta_artista_id": cuenta["cuenta_artista_id"]})
     # Solo subidas promovidas a FACT_TRACKS tienen engagement posible.
@@ -467,7 +489,7 @@ def mi_analitica(user: dict = Depends(get_current_user)):
         r["fact_id"]: r
         for r in query_rows(ANALITICA_ARTISTA_POR_TRACK, {"fact_ids": fact_ids})
     }
-    serie = query_rows(ANALITICA_ARTISTA_SERIE, {"fact_ids": fact_ids})
+    serie = query_rows(ANALITICA_ARTISTA_SERIE, {"fact_ids": fact_ids, "desde": rango_desde, "hasta": rango_hasta})
 
     tracks_out = []
     totales = {"plays": 0, "likes": 0, "favoritos": 0, "oyentes": 0}

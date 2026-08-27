@@ -1,5 +1,5 @@
 import random
-from datetime import datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from typing import Literal, get_args
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Path, Query, Request
@@ -566,10 +566,30 @@ def compartir(body: ComparticionBody, user: dict = Depends(require_b2c_user)):
     return {"status": "ok", "fact_id": fact_id, **_armar_contenido_compartir(body)}
 
 
+# Rango de fechas customizable (S17, "date range en dashboards"): mismo
+# patrón que `_rango_dt`/`_calcular_metricas_periodo` de analitica/finanzas —
+# `desde`/`hasta` opcionales con default a la ventana histórica del panel
+# (14 días) y un tope de 366 días (FACT_COMENTARIO/FACT_COMPARTICION son
+# append-only y crecen sin límite, un rango sin tope arriesga un full scan).
+def _rango_dias(desde: date | None, hasta: date | None, dias_default: int, max_dias: int = 366) -> tuple[datetime, datetime]:
+    hasta = hasta or date.today()
+    desde = desde or (hasta - timedelta(days=dias_default))
+    if desde > hasta:
+        raise HTTPException(status_code=422, detail="desde no puede ser mayor que hasta")
+    if (hasta - desde).days > max_dias:
+        raise HTTPException(status_code=422, detail=f"El rango no puede superar {max_dias} días")
+    return datetime.combine(desde, datetime.min.time()), datetime.combine(hasta, datetime.min.time()) + timedelta(days=1)
+
+
 @router.get("/admin/dashboard")
-def dashboard_social(admin: dict = Depends(require_admin)):
+def dashboard_social(
+    desde: date | None = Query(None),
+    hasta: date | None = Query(None),
+    admin: dict = Depends(require_admin),
+):
+    rango_desde, rango_hasta = _rango_dias(desde, hasta, dias_default=14)
     return {
-        "actividad_por_dia":    query_rows(ACTIVIDAD_SOCIAL_POR_DIA),
+        "actividad_por_dia":    query_rows(ACTIVIDAD_SOCIAL_POR_DIA, {"desde": rango_desde, "hasta": rango_hasta}),
         "artistas_mas_seguidos": query_rows(ARTISTAS_MAS_SEGUIDOS),
     }
 

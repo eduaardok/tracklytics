@@ -39,8 +39,16 @@ export const facturacionApi = {
   invoiceDetalle: (invoiceId: string) =>
     apiClient.get<InvoiceDetalle>(`/facturacion/invoices/${invoiceId}`),
 
-  dashboard: () =>
-    apiClient.get<DashboardFacturacion>('/facturacion/admin/dashboard'),
+  // `desde`/`hasta` opcionales (S17, date range customizable) — sin
+  // parámetros, el backend usa su default de 14 días (compatibilidad hacia
+  // atrás con el llamado original).
+  dashboard: (desde?: string, hasta?: string) => {
+    const qs = new URLSearchParams()
+    if (desde) qs.set('desde', desde)
+    if (hasta) qs.set('hasta', hasta)
+    const suffix = qs.toString() ? `?${qs.toString()}` : ''
+    return apiClient.get<DashboardFacturacion>(`/facturacion/admin/dashboard${suffix}`)
+  },
 
   transaccionesRecientes: (page = 1, limit = 50) => {
     const p = new URLSearchParams()

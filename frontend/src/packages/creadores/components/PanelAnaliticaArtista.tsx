@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { ErrorState } from '@shared/components/ErrorState'
@@ -5,6 +6,19 @@ import { useCountUp } from '@shared/hooks/useCountUp'
 import { useReveal } from '@shared/hooks/useReveal'
 import { creadoresApi } from '../api/creadores.api'
 import styles from '../pages/CreadoresPages.module.css'
+
+function isoDiasAtras(n: number): string {
+  const d = new Date()
+  d.setDate(d.getDate() - n)
+  return d.toISOString().slice(0, 10)
+}
+
+// Rango en días entre dos fechas ISO (inclusive) — para el título del
+// gráfico, que antes decía "últimos 30 días" fijo sin reflejar el selector.
+function diasEntre(desde: string, hasta: string): number {
+  const ms = new Date(hasta).getTime() - new Date(desde).getTime()
+  return Math.max(1, Math.round(ms / 86_400_000) + 1)
+}
 
 // R2 (S16-P9) — analítica propia del artista: engagement REAL sobre los
 // tracks promovidos propios. Hasta ahora el artista solo veía streams
@@ -43,12 +57,30 @@ export function PanelAnaliticaArtista({ aprobada }: { aprobada: boolean }) {
   const chartRef = useReveal<HTMLDivElement>()
   const tablaRef = useReveal<HTMLDivElement>()
 
+  // Rango de fechas customizable (S17): antes la ventana de 30 días era
+  // fija, mismo patrón `desde`/`hasta` de ChurnPage/MrrArrPage (analitica).
+  const [desde, setDesde] = useState(() => isoDiasAtras(29))
+  const [hasta, setHasta] = useState(() => new Date().toISOString().slice(0, 10))
+
   const q = useQuery({
-    queryKey: ['creadores', 'mi-analitica'],
-    queryFn: () => creadoresApi.miAnalitica(),
+    queryKey: ['creadores', 'mi-analitica', desde, hasta],
+    queryFn: () => creadoresApi.miAnalitica(desde, hasta),
     enabled: aprobada,
     retry: false,
   })
+
+  const filtros = (
+    <div style={{ display: 'flex', gap: 'var(--space-sm)', marginBottom: 'var(--space-md)', flexWrap: 'wrap' }}>
+      <label className={styles.field}>
+        <span className={styles.fieldLabel}>Desde</span>
+        <input className={styles.input} type="date" value={desde} max={hasta} onChange={(e) => setDesde(e.target.value)} />
+      </label>
+      <label className={styles.field}>
+        <span className={styles.fieldLabel}>Hasta</span>
+        <input className={styles.input} type="date" value={hasta} min={desde} max={new Date().toISOString().slice(0, 10)} onChange={(e) => setHasta(e.target.value)} />
+      </label>
+    </div>
+  )
 
   if (!aprobada || q.isError) {
     return (
@@ -59,6 +91,7 @@ export function PanelAnaliticaArtista({ aprobada }: { aprobada: boolean }) {
   if (q.isLoading || !q.data) {
     return (
       <>
+        {filtros}
         <div className={styles.hubStatsGrid} aria-hidden="true">
           <SkelKpi /><SkelKpi /><SkelKpi /><SkelKpi />
         </div>
@@ -75,6 +108,7 @@ export function PanelAnaliticaArtista({ aprobada }: { aprobada: boolean }) {
 
   return (
     <>
+      {filtros}
       {/* Los KPIs cuentan de 0 al valor real (useCountUp) al entrar en vista. */}
       <div className={styles.hubStatsGrid}>
         <KpiTile valor={totales.plays} etiqueta="Streams totales" />
@@ -83,7 +117,7 @@ export function PanelAnaliticaArtista({ aprobada }: { aprobada: boolean }) {
         <KpiTile valor={totales.favoritos} etiqueta="Favoritos netos" />
       </div>
 
-      <p className={styles.sectionLabel}>Streams — últimos 30 días</p>
+      <p className={styles.sectionLabel}>Streams — últimos {diasEntre(desde, hasta)} días</p>
       <div className={`${styles.panel} ${styles.anaChartBox} reveal-base`} ref={chartRef}>
         {serieChart.length === 0 ? (
           <div className={styles.emptyState}>

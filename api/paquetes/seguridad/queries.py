@@ -147,11 +147,14 @@ GROUP BY usuario_id
 # Dashboard (RT-04, S10 Día 3): acciones administrativas reales por día, no
 # un valor simulado — mismo criterio de "streams reales" ya usado en
 # `regalias`. `toDate` en vez de agrupar por DateTime crudo: una fila por día
-# calendario, ventana deslizante de 14 días desde hoy.
+# calendario. Rango parametrizado (S17, "date range customizable en
+# dashboards"): antes era una ventana fija de 14 días — `desde`/`hasta` los
+# resuelve el router (default: últimos 14 días, tope de 366 días dado el
+# volumen de FACT_AUDIT_LOG, ver `_rango_dias` en `seguridad/router.py`).
 ACCIONES_POR_DIA = """
 SELECT toDate(timestamp) AS dia, count() AS total
 FROM FACT_AUDIT_LOG
-WHERE timestamp >= now() - INTERVAL 14 DAY
+WHERE timestamp >= {desde:DateTime} AND timestamp < {hasta:DateTime}
 GROUP BY dia
 ORDER BY dia
 """

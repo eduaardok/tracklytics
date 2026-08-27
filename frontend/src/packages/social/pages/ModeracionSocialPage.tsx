@@ -16,6 +16,19 @@ function fmtDate(iso: string) {
   return isNaN(d.getTime()) ? iso : d.toLocaleString('es-ES', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
 }
 
+function isoDiasAtras(n: number): string {
+  const d = new Date()
+  d.setDate(d.getDate() - n)
+  return d.toISOString().slice(0, 10)
+}
+
+// Rango en días entre dos fechas ISO (inclusive) — para el título del
+// gráfico, que antes decía "(14 días)" fijo sin reflejar el selector real.
+function diasEntre(desde: string, hasta: string): number {
+  const ms = new Date(hasta).getTime() - new Date(desde).getTime()
+  return Math.max(1, Math.round(ms / 86_400_000) + 1)
+}
+
 function EstadoBadge({ estado }: { estado: EstadoModeracion }) {
   const cls = estado === 'visible' ? styles.badgeOk : estado === 'oculto' ? styles.badgePending : styles.badgeError
   return <span className={`${styles.badge} ${cls}`}>{estado}</span>
@@ -38,14 +51,19 @@ export function ModeracionSocialPage() {
   const [estado, setEstado] = useState('')
   const [page, setPage] = useState(1)
 
+  // Rango de fechas customizable (S17): antes la ventana de 14 días era
+  // fija, mismo patrón `desde`/`hasta` de ChurnPage/MrrArrPage (analitica).
+  const [desde, setDesde] = useState(() => isoDiasAtras(13))
+  const [hasta, setHasta] = useState(() => new Date().toISOString().slice(0, 10))
+
   const comentarios = useQuery({
     queryKey: ['social', 'admin', 'comentarios', estado, page],
     queryFn:  () => socialApi.comentariosAdmin({ estado: estado || undefined, page, limit: COMENTARIOS_PAGE_SIZE }),
   })
 
   const dashboard = useQuery({
-    queryKey: ['social', 'dashboard'],
-    queryFn:  () => socialApi.dashboard(),
+    queryKey: ['social', 'dashboard', desde, hasta],
+    queryFn:  () => socialApi.dashboard(desde, hasta),
   })
 
   // Backend devuelve formato largo (una fila por día×tipo) — se pivota a
@@ -83,9 +101,20 @@ export function ModeracionSocialPage() {
         <ExportPDFButton targetRef={reportRef} fileName="moderacion-social" title="Moderación social" />
       </div>
 
+      <div className={styles.queueFilters} data-pdf-export-ignore="true" style={{ marginBottom: 'var(--space-md)' }}>
+        <label className={styles.field}>
+          <span className={styles.fieldLabel}>Desde</span>
+          <input className={styles.input} type="date" value={desde} max={hasta} onChange={(e) => setDesde(e.target.value)} />
+        </label>
+        <label className={styles.field}>
+          <span className={styles.fieldLabel}>Hasta</span>
+          <input className={styles.input} type="date" value={hasta} min={desde} max={new Date().toISOString().slice(0, 10)} onChange={(e) => setHasta(e.target.value)} />
+        </label>
+      </div>
+
       <div className={styles.dashboardGrid}>
         <div className={styles.chartPanel}>
-          <p className={styles.panelTitle}>Actividad social real por día (14 días)</p>
+          <p className={styles.panelTitle}>Actividad social real por día ({diasEntre(desde, hasta)} días)</p>
           <MiniLineChart
             data={actividadPorDia}
             xKey="dia"
@@ -93,6 +122,7 @@ export function ModeracionSocialPage() {
               { key: 'comentario', label: 'Comentarios', color: CHART_COLORS.violeta },
               { key: 'comparticion', label: 'Comparticiones', color: CHART_COLORS.teal },
             ]}
+            denseDates
           />
         </div>
         <div className={styles.chartPanel}>
