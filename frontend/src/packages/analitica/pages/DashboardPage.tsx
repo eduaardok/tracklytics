@@ -213,6 +213,7 @@ export function DashboardPage() {
                 { key: 'ingresos_publicidad',    label: 'Publicidad',    color: CHART_COLORS.violeta },
                 { key: 'regalias_pagadas',       label: 'Regalías pagadas', color: CHART_COLORS.ambar },
               ]}
+              denseDates
             />
           </div>
         </div>
