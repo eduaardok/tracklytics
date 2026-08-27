@@ -149,6 +149,27 @@
   color: var(--color-error);
 }
 
+/* Banner de contexto (PermisosPage, S17 Task 3): una línea explicando roles
+   administrativos vs. permisos puntuales — distinto de `.errorBox` (ese es
+   para fallos reales, este es informativo, tono neutro). */
+.infoBanner {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
+  margin-bottom: var(--space-lg);
+  background: var(--color-surface-raised);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  color: var(--color-muted);
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+  line-height: 1.4;
+}
+
+.infoBanner > svg { flex-shrink: 0; margin-top: 1px; color: var(--color-primary); }
+.infoBanner a { color: var(--color-primary); }
+
 .errorBox {
   padding: var(--space-md);
   background: oklch(0.65 0.22 25 / 0.08);

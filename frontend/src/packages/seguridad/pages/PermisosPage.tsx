@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ShieldOff } from 'lucide-react'
+import { ShieldOff, Info } from 'lucide-react'
+import { Link } from 'react-router-dom'
 import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { UserPicker, type UserSearchResult } from '@shared/components/UserPicker'
 import { apiErrorMessage } from '@shared/lib/api-client'
@@ -55,6 +56,19 @@ export function PermisosPage() {
   return (
     <section className={styles.page}>
       <h1 className={styles.heading}>Permisos</h1>
+
+      {/* Task 3 (S17): un rol administrativo (en Usuarios) da acceso a un área
+          completa — esta pantalla es para la excepción puntual sobre un
+          (recurso, acción) específico, no el flujo principal para dar acceso
+          a alguien. Antes esta página era el índice de /seguridad sin ninguna
+          aclaración de para qué servía frente a los roles. */}
+      <div className={styles.infoBanner}>
+        <Info size={16} aria-hidden="true" />
+        <span>
+          Los roles administrativos (en <Link to="/seguridad/usuarios">Usuarios</Link>) dan acceso a un área
+          entera; esta pantalla es solo para excepciones puntuales sobre un permiso específico.
+        </span>
+      </div>
 
       <div className={styles.form}>
         <UserPicker
