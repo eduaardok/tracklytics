@@ -5,6 +5,7 @@ import { catalogoApi } from '@packages/catalogo'
 import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { apiErrorMessage, ApiError } from '@shared/lib/api-client'
 import { EmptyState } from '@shared/components/EmptyState'
+import { UserAvatar } from '@shared/components/UserAvatar'
 import { useToast } from '@shared/context/ToastContext'
 import { socialApi } from '../api/social.api'
 import { DenunciarButton } from '../components/DenunciarButton'
@@ -208,6 +209,7 @@ export function TrackSocialPage() {
                 className={c.comentario_padre_id != null ? `${styles.commentRow} ${styles['commentRow--reply']}` : styles.commentRow}
               >
                 <div className={styles.commentHeader}>
+                  <UserAvatar usuarioId={c.usuario_id} nombre={c.usuario_nombre} size={28} />
                   <Link to={`/usuarios/${c.usuario_id}`} className={styles.commentAuthor}>
                     {c.usuario_nombre || `Usuario ${c.usuario_id.slice(0, 6)}`}
                   </Link>
