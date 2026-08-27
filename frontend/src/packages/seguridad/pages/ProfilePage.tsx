@@ -85,6 +85,10 @@ export function ProfilePage() {
   const [nombre, setNombre]     = useState(user?.name ?? '')
   const [pais, setPais]         = useState(user?.pais ?? '')
   const [paises, setPaises]     = useState<Pais[]>([])
+  // Fix S17 (auditoría, sección 3.1): un fallo real de red se veía igual
+  // que "sin países" — el <select> quedaba con solo el placeholder, sin
+  // ninguna explicación de por qué.
+  const [paisesError, setPaisesError] = useState(false)
   const [email, setEmailNuevo]  = useState('')
 
   const [cambiandoPassword, setCambiandoPassword] = useState(false)
@@ -94,7 +98,9 @@ export function ProfilePage() {
   const [passwordMismatch, setPasswordMismatch]   = useState(false)
 
   useEffect(() => {
-    distribucionApi.paisesPublico().then((res) => setPaises(res.data ?? [])).catch(() => setPaises([]))
+    distribucionApi.paisesPublico()
+      .then((res) => setPaises(res.data ?? []))
+      .catch(() => { setPaises([]); setPaisesError(true) })
   }, [])
 
   const guardarPerfil = useMutation({
@@ -410,6 +416,9 @@ export function ProfilePage() {
                 <option key={p.pais_id} value={p.codigo_iso}>{p.nombre}</option>
               ))}
             </select>
+            {paisesError && (
+              <p className={styles.note}>No se pudo cargar la lista de países — intenta de nuevo más tarde.</p>
+            )}
           </div>
 
           <button type="submit" className={styles.btnPrimary} disabled={guardarPerfil.isPending}>

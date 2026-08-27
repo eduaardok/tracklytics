@@ -83,6 +83,12 @@ export function AdquisicionPage() {
           <span className={styles.fieldLabel}>Hasta</span>
           <input type="date" className={styles.input} value={fechaHasta} onChange={(e) => setFechaHasta(e.target.value)} />
         </label>
+        {/* Fix S17 (auditoría, sección 3.1): si esta query falla, los chips
+            de canal antes desaparecían en silencio — la query principal de
+            abajo sigue funcionando y mostrando su propio error si falla. */}
+        {canalesQuery.isError && (
+          <ErrorState compact message="No se pudo cargar la lista de canales." />
+        )}
         {canalesDisponibles.length > 0 && (
           <div className={styles.field}>
             <span className={styles.fieldLabel}>Canal</span>

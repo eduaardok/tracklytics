@@ -109,7 +109,7 @@ export function ArtistDetailPage() {
     onError: (err) => toast.error(apiErrorMessage(err, 'No se pudo generar el enlace para compartir.')),
   })
 
-  const { data: tracksRes, isLoading: loadingTracks } = useQuery({
+  const { data: tracksRes, isLoading: loadingTracks, isError: errorTracks } = useQuery({
     queryKey: ['catalogo', 'tracks-by-artist', id],
     queryFn:  () => catalogoApi.tracksByArtist(id, 20),
     enabled:  Number.isFinite(id),
@@ -240,6 +240,8 @@ export function ArtistDetailPage() {
       <h2 className={styles.sectionTitle}>Canciones populares</h2>
       {loadingTracks ? (
         <p className={styles.loading}>// cargando…</p>
+      ) : errorTracks ? (
+        <ErrorState message="No se pudieron cargar las canciones de este artista." />
       ) : tracks.length === 0 ? (
         <EmptyState icon={<Music2 size={22} aria-hidden="true" />} title="Sin canciones registradas para este artista." />
       ) : (

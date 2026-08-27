@@ -101,10 +101,16 @@ export function EtlPage() {
   const [recalPollError, setRecalPollError]   = useState<string | null>(null)
   const recalTicksRef = useRef(0)
 
+  // Fix S17 (auditoría, sección 3.1/3.2): el backend ya devuelve `total`
+  // (`CargasHistorial.total`) pero la página nunca lo leía ni exponía
+  // control de página — el historial quedaba silenciosamente truncado a los
+  // 20 más recientes, mismo patrón de paginación que `CrudDimensionesPage`.
+  const [cargasPage, setCargasPage] = useState(1)
   const cargas = useQuery({
-    queryKey: ['ingesta', 'cargas'],
-    queryFn:  () => ingestaApi.cargas(),
+    queryKey: ['ingesta', 'cargas', cargasPage],
+    queryFn:  () => ingestaApi.cargas(cargasPage),
   })
+  const cargasTotalPages = Math.max(1, Math.ceil((cargas.data?.total ?? 0) / (cargas.data?.limit ?? 20)))
 
   // "Datos generados por semana" — semanas distintas ya presentes en el
   // historial cargado, más recientes primero. Solo alimenta el <select>.
@@ -346,7 +352,9 @@ export function EtlPage() {
         )}
       </div>
 
-      <p className={styles.sectionLabel} style={{ marginTop: 'var(--space-xl)' }}>Historial de cargas</p>
+      <p className={styles.sectionLabel} style={{ marginTop: 'var(--space-xl)' }}>
+        Historial de cargas{cargas.data ? ` (${cargas.data.total})` : ''}
+      </p>
       {cargas.isLoading && <div className={styles.panel}><SkeletonChart height={120} /></div>}
       {cargas.isError && (
         <ErrorState message="No se pudo cargar el historial." />
@@ -387,6 +395,13 @@ export function EtlPage() {
               </tbody>
             </table>
           </div>
+          {cargasTotalPages > 1 && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-md)', marginTop: 'var(--space-sm)' }} data-pdf-export-ignore="true">
+              <button type="button" className={styles.btnGhost} disabled={cargasPage <= 1} onClick={() => setCargasPage((p) => p - 1)}>← Anterior</button>
+              <span>Página {cargasPage} / {cargasTotalPages}</span>
+              <button type="button" className={styles.btnGhost} disabled={cargasPage >= cargasTotalPages} onClick={() => setCargasPage((p) => p + 1)}>Siguiente →</button>
+            </div>
+          )}
         </div>
       )}
 

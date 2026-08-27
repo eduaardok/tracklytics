@@ -428,6 +428,12 @@ export function EngagementPage() {
               ? <PanelSkeleton rows={3} />
               : desempenoTierInfo
               ? <TierUpsell tierRequerido={desempenoTierInfo.tierRequerido} tierActual={desempenoTierInfo.tierActual} />
+              // Fix S17 (auditoría, sección 3.1): un fallo NO relacionado con
+              // tier (red/500) renderizaba nada — `tierInsuficienteInfo`
+              // solo distingue el 403 de tier, así que un `desError` real
+              // que no sea ese caso necesita su propio fallback.
+              : desError
+              ? <ErrorState compact message="No se pudo cargar el desempeño relativo." />
               : desempeno && <DesempenoPanel data={desempeno} />
           )}
         </>

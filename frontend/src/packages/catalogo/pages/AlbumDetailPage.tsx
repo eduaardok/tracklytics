@@ -25,7 +25,7 @@ export function AlbumDetailPage() {
     enabled:  Number.isFinite(id),
   })
 
-  const { data: tracksRes, isLoading: loadingTracks } = useQuery({
+  const { data: tracksRes, isLoading: loadingTracks, isError: errorTracks } = useQuery({
     queryKey: ['catalogo', 'tracks-by-album', id],
     queryFn:  () => catalogoApi.tracksByAlbum(id, 50),
     enabled:  Number.isFinite(id),
@@ -98,6 +98,8 @@ export function AlbumDetailPage() {
       <h2 className={styles.sectionTitle}>Canciones</h2>
       {loadingTracks ? (
         <p className={styles.loading}>// cargando…</p>
+      ) : errorTracks ? (
+        <ErrorState message="No se pudieron cargar las canciones de este álbum." />
       ) : tracks.length === 0 ? (
         <EmptyState icon={<Disc3 size={22} aria-hidden="true" />} title="Sin canciones registradas para este álbum." />
       ) : (

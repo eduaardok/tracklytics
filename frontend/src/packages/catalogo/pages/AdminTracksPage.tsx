@@ -7,6 +7,7 @@ import { useToast } from '@shared/context/ToastContext'
 import { useConfirm } from '@shared/context/ConfirmContext'
 import { ExportPDFButton } from '@shared/components/ExportPDFButton'
 import { EmptyState } from '@shared/components/EmptyState'
+import { ErrorState } from '@shared/components/ErrorState'
 import { catalogoApi } from '../api/catalogo.api'
 import type { Track } from '../types'
 import { SkeletonTableRows } from '@shared/components/SkeletonLoader'
@@ -83,6 +84,8 @@ export function AdminTracksPage() {
               {resultados.isLoading ? (
                 /* S16-P11: "Buscando…" plano -> filas shimmer (patrón admin). */
                 <SkeletonTableRows columns={3} rows={4} />
+              ) : resultados.isError ? (
+                <tr><td colSpan={3}><ErrorState compact message="No se pudo buscar — la falla puede ser de red, no ausencia de resultados." /></td></tr>
               ) : resultadosData.length === 0 ? (
                 <tr><td colSpan={3}><EmptyState icon={<SearchX size={22} aria-hidden="true" />} title={`Sin resultados para «${buscado}»`} /></td></tr>
               ) : resultadosData.map((t) => (
@@ -105,6 +108,8 @@ export function AdminTracksPage() {
           <tbody>
             {ocultos.isLoading ? (
               <SkeletonTableRows columns={3} rows={5} />
+            ) : ocultos.isError ? (
+              <tr><td colSpan={3}><ErrorState compact message="No se pudo cargar la lista de tracks ocultos." /></td></tr>
             ) : ocultosData.length === 0 ? (
               <tr><td colSpan={3}><EmptyState icon={<EyeOff size={22} aria-hidden="true" />} title="No hay tracks ocultos" /></td></tr>
             ) : ocultosData.map((t) => (
