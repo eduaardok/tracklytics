@@ -1,7 +1,65 @@
 # Tracklytics — Pendientes
 
-> Última revisión: **Semana 17 (S17, 26 ago 2026)** — tooltips de ayuda en KPIs, CrudModal
-> `wide`/secciones, preview en vivo de subida de track y de campaña publicitaria.
+> Última revisión: **Semana 17 (S17, 26 ago 2026)** — landing de `/seguridad` con roles
+> administrativos, capabilities visibles al asignar rol, aclaración roles vs. permisos.
+
+## Landing de `/seguridad` + claridad roles/permisos (S17, sesión 3)
+
+- [x] ✅ **Landing dedicada para `/seguridad`** — antes la ruta raíz apuntaba al mismo
+      componente que `/seguridad/permisos` (`PermisosPage`), sin ninguna vista general.
+      Nueva `AdminHomePage.tsx` (index route) con: 6 tarjetas de rol administrativo
+      (`DIM_ROL_ADMINISTRATIVO` vía nuevo `GET /admin/roles-admin/resumen` — nombre,
+      descripción, `capabilities` como chips legibles, conteo real de usuarios con el rol
+      vigente), 3 KPIs reales reusando `GET /admin/dashboard` (errores 24h, sesiones
+      abiertas, suma de asignaciones — ya usado antes solo por `AuditoriaPage`, sin
+      duplicar lógica) y 2 accesos directos ("Gestionar usuarios y roles" → Usuarios,
+      "Permisos avanzados" → Permisos, con su etiqueta ya diciendo qué es: ajuste puntual,
+      no el flujo principal). `/seguridad/permisos` sigue intacta en su propia ruta, sin
+      cambios de lógica.
+- [x] ✅ **Nuevo endpoint `GET /admin/roles-admin/resumen`** (`api/paquetes/seguridad/
+      router.py`+`queries.py`) — mismo catálogo que `CATALOGO_ROLES_ADMIN` con
+      `usuarios_asignados` (conteo por rol vigente, mismo criterio argMax/revocado que
+      `ROLES_ADMIN_VIGENTES`). `require_admin`, sin tocar el modelo de seguridad real.
+- [x] ✅ **Capabilities visibles al asignar rol** (`UsuariosAdminPage.tsx`) — el `<select
+      id="nuevo-rol">` solo mostraba `nombre`, descartando `capabilities`/`descripcion`.
+      Ahora, en cuanto se elige una opción, aparece debajo un panel visible por defecto
+      (no tooltip) con la descripción y los chips de área que cubrirá — antes de confirmar
+      "Asignar". Los chips ya asignados (vista 360°) ganan un `InfoHint` opcional con la
+      misma info, sin ocupar espacio permanente (decisión: un panel siempre visible por
+      cada rol ya asignado saturaría esa columna, que ya muestra suscripción/strikes/etc.).
+      Mapeo `capability` → nombre legible y el componente de chips viven en un archivo
+      nuevo y único (`CapabilityChips.tsx`, propio para no forzar un import estático entre
+      `AdminHomePage` y `UsuariosAdminPage`, dos chunks lazy independientes) — reusado por
+      ambas páginas, sin duplicar la tabla de nombres.
+- [x] ✅ **Aclaración roles vs. permisos en `PermisosPage.tsx`** — banner de una línea antes
+      del selector de usuario: los roles administrativos (en Usuarios) dan acceso a un área
+      entera, esta pantalla es para excepciones puntuales sobre un permiso específico. Sin
+      cambios en la lógica de asignación/consulta de permisos.
+- **Verificación real**: `tsc --noEmit` y `npm run build` limpios (build genera
+  `AdminHomePage-*.js/css`, `CapabilityChips-*.js/css` y `PermisosPage-*.js` como chunks
+  separados — confirmado con `ls dist/assets`). Rebuild de contenedor
+  (`scripts/rebuild-frontend.sh`) exitoso, sirviendo el commit vigente. Grep sobre los
+  bundles construidos confirma el texto real de cada página (tarjetas de rol, accesos
+  directos, banner de permisos) en su chunk correspondiente. Curl real contra la API
+  Dockerizada: `GET /admin/roles-admin/resumen` con sesión superadmin real devuelve los 6
+  roles con conteos reales (ej. `admin_finanzas: 2`, `superadmin: 15`); flujo completo
+  asignar→consultar 360°→revocar probado con una cuenta de prueba desechable
+  (`s17-task2-test@demo.tracklytics.com`, registrada por este mismo curl), confirmando que
+  asignar/revocar rol administrativo sigue funcionando exactamente igual que antes.
+  **Sin navegador real disponible en esta sesión** (no hay herramienta Playwright/browser
+  cargada) — la verificación visual de las 3 páginas se hizo por grep sobre el bundle
+  construido y curl contra los endpoints reales, no por interacción real en el DOM; se
+  reporta explícitamente en vez de afirmar una verificación visual que no se hizo.
+  **Hallazgo de verificación**: al revocar el rol de prueba en el mismo segundo en que se
+  había asignado, el conteo agregado de `usuarios_asignados` para ese rol no bajó de
+  inmediato (`fecha` en `BRIDGE_USUARIO_ROL_ADMIN` es `DateTime`, precisión de segundo —
+  con dos filas en el mismo segundo, `argMax(revocado, fecha)` puede resolver el empate a
+  cualquiera de las dos). La vista 360° del mismo usuario (`ROLES_ADMIN_VIGENTES_DETALLE`,
+  query ya existente) sí resolvió correctamente a "sin roles" — el problema es acotado al
+  nuevo query agregado y solo se manifiesta en asignar+revocar dentro del mismo segundo (no
+  un flujo real de uso). Mismo patrón/limitación que ya existe en otras queries del
+  paquete con `argMax(x, fecha)` sobre esta columna; no se tocó el esquema (fuera de
+  alcance) — se documenta como hallazgo, no como bug introducido por este cambio.
 
 ## Tooltips de ayuda + formularios densos (S17, sesión 2)
 
