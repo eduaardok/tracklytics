@@ -1,7 +1,35 @@
 # Tracklytics — Pendientes
 
-> Última revisión: **Semana 17 (S17, 27 ago 2026)** — 2 fixes reales de la pasada de QA visual
-> (sesión 8): AdminHomePage para admins de área, mensaje claro en rango de fecha inválido.
+> Última revisión: **Semana 17 (S17, 27 ago 2026)** — auditoría de navegación/UX de las 77
+> páginas reales (sesión 9): sin código nuevo, solo diagnóstico priorizado. Ver
+> `docs/AUDITORIA_NAVEGACION_UX_S17.md`.
+
+## Auditoría de navegación/UX — 77 páginas (S17, sesión 9)
+
+- [x] ✅ **Auditoría 100% de código, sin capturas, sin cambios** de las 81 entradas de
+      `router.tsx` (77 páginas reales + 4 rutas contenedoras) contra 5 ejes: carga correcta,
+      paginación, flujos artificiales, paridad con funcionalidades tipo Spotify, y
+      navegación "no solo tablas". Documento completo:
+      `docs/AUDITORIA_NAVEGACION_UX_S17.md`.
+  - **Mayor impacto**: `SimulacionPage.tsx` dispara una liquidación financiera real y un
+    refresh de 60 tareas de Airflow sin ningún diálogo de confirmación — la acción con
+    menos fricción y mayor efecto real de todo el frontend.
+  - **Backend sin `LIMIT` real** (no solo sin paginar en frontend) en 5 endpoints, el peor
+    `GET /seguridad/admin/usuarios-reporte` (trae los 13,109 usuarios reales en una sola
+    respuesta, filtra 100% client-side).
+  - **11 acciones destructivas/financieras sin confirmación** mientras su acción hermana en
+    la misma página sí la tiene (retiros de regalías, rotar API key de partner, suspender
+    cuenta, entre otras) — patrón repetido, no un caso aislado.
+  - Paridad Spotify: radio por track y colaboración en playlists **ya existen** (verificado
+    con grep real, no de memoria); los gaps reales confirmados son letras, "no me interesa",
+    Blend, y actividad de amigos visible en el reproductor.
+  - Ningún bug de carga que deje una página en blanco; sí 9 casos de query secundaria sin
+    `isError` (peor caso `AdminTracksPage`, herramienta de moderación admin).
+- [x] ✅ **`reload_portadas_9h` relanzado en background** — `docker compose run -d --name
+  reload_portadas_9h etl python -u -m gold.reload_portadas_9h`, iniciado 2026-08-27
+  ~02:30. Verificado sano a los ~15 min: 3 ciclos completos (99/180 tracks, 90/90 álbumes
+  resueltos), un fallo transitorio de un track individual manejado por el propio diseño de
+  reintento por ciclo (no fatal). Corre 9h desatendido.
 
 ## Fixes de la QA visual (S17, sesión 8)
 
