@@ -86,6 +86,49 @@
   margin-bottom: var(--space-lg);
 }
 
+/* Beneficios reales de tener cuenta de artista (S17, TASK 4) — antes del
+   formulario de solicitud, para que no se pida el nombre artístico sin
+   contexto de qué desbloquea aprobarse. */
+.applyBenefits {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-lg);
+  padding: var(--space-md);
+  background: var(--color-surface);
+  border-radius: var(--radius-md);
+}
+
+.applyBenefitItem {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-sm);
+}
+
+.applyBenefitIcon {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-sm);
+  background: oklch(0.48 0.15 290 / 0.12);
+  color: var(--color-primary-light);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 1px;
+}
+
+.applyBenefitText {
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+  color: var(--color-ink);
+  line-height: 1.5;
+}
+
+.applyBenefitText strong {
+  font-weight: 600;
+}
+
 /* ── Status panel (cuenta ya solicitada) ── */
 .statusPanel {
   display: flex;

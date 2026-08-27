@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
+import { Coins, LineChart, Users } from 'lucide-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { catalogoApi } from '@packages/catalogo'
 import { regaliasApi } from '@packages/regalias'
@@ -344,6 +345,37 @@ export function CuentaArtistaPage() {
             Solicita una cuenta de artista para subir tus tracks al catálogo. Un administrador revisa
             cada solicitud antes de aprobarla.
           </p>
+
+          {/* Beneficios reales (S17, TASK 4) — no inventados: regalías por
+              reproducción (paquete `regalias`, ya visible más abajo en
+              "Tus ganancias"), el panel de audiencia propio
+              (`PanelAnaliticaArtista`, ya usado en esta misma página para
+              cuentas aprobadas) y el alcance del catálogo compartido de
+              Tracklytics. */}
+          <div className={styles.applyBenefits}>
+            <div className={styles.applyBenefitItem}>
+              <span className={styles.applyBenefitIcon} aria-hidden="true"><Coins size={15} /></span>
+              <span className={styles.applyBenefitText}>
+                <strong>Regalías por reproducción</strong> — cada vez que alguien escucha tu música, se
+                calculan tus ganancias reales, visibles en "Tus ganancias".
+              </span>
+            </div>
+            <div className={styles.applyBenefitItem}>
+              <span className={styles.applyBenefitIcon} aria-hidden="true"><LineChart size={15} /></span>
+              <span className={styles.applyBenefitText}>
+                <strong>Panel de audiencia propio</strong> — reproducciones, oyentes y tendencia de 30
+                días por cada track que publiques, solo para artistas aprobados.
+              </span>
+            </div>
+            <div className={styles.applyBenefitItem}>
+              <span className={styles.applyBenefitIcon} aria-hidden="true"><Users size={15} /></span>
+              <span className={styles.applyBenefitText}>
+                <strong>Alcance del catálogo</strong> — tu música queda disponible junto al resto del
+                catálogo de Tracklytics, descubrible desde la búsqueda y el catálogo general.
+              </span>
+            </div>
+          </div>
+
           <form
             onSubmit={(e) => {
               e.preventDefault()
