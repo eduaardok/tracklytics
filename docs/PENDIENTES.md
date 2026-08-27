@@ -119,6 +119,30 @@
 Auditoría comparando contra funciones esperables de una app tipo Spotify. Cada punto se
 re-verificó contra el código real antes de implementar (no se asumió el diagnóstico previo).
 
+### Atajos de teclado del reproductor (S17, sesión 5)
+
+- [x] ✅ **Atajos de teclado globales** — `PlayerContext.tsx` (`useEffect` + `document.
+      addEventListener('keydown')`) con guard contra `<input>`/`<textarea>`/`<select>`/
+      `contentEditable`:
+      - Espacio: play/pause
+      - ←: track anterior
+      - →: siguiente track
+      - ↑/↓: volumen ±5%
+      - M: mute/unmute (guarda volumen previo en ref)
+    Verificado: `tsc --noEmit` y `npm run build` limpios.
+
+### Breadcrumbs en vistas anidadas (S17, sesión 5)
+
+- [x] ✅ **Componente `Breadcrumb.tsx`** (`shared/components/`) con config estática de
+      rutas anidadas 2+ niveles del admin. Soporta rutas dinámicas (`/reportes/:departamento/
+      :informe`). Render: nav > ol > li, con links a padres + página actual (`aria-current`).
+    - Rutas cubiertas: `facturacion/empresa`, `partners/gestion`, `partners/metricas`,
+      `ingesta/dimensiones`, `ingesta/calidad`, `/reportes/:departamento/:informe`.
+    - Páginas modificadas: `EmpresaConfigPage`, `CrudDimensionesPage`, `DataQualityPage`,
+      `AdminPartnersPage`, `PartnersMetricasPage`.
+    - No se tocó `CuentaArtistaPage` (en desarrollo por agente paralelo).
+    Verificado: `tsc --noEmit` y `npm run build` limpios.
+
 - [x] ~~**Notificación de lanzamiento de artista seguido**~~ — **ya existía, premisa del prompt
       era falsa**: `api/paquetes/creadores/router.py:294-300` (dentro del endpoint de
       resolución de subida de track) ya llama
