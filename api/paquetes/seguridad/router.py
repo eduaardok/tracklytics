@@ -927,6 +927,23 @@ def catalogo_roles_admin_resumen(admin: dict = Depends(require_admin)):
     return {"data": query_rows(CATALOGO_ROLES_ADMIN_CON_CONTEO)}
 
 
+@router.get("/mis-roles-admin")
+def mis_roles_admin(user: dict = Depends(get_current_user)):
+    """Igual shape que `GET /admin/roles-admin`, pero SOLO el/los rol(es)
+    administrativo(s) del usuario que llama — a diferencia del catálogo
+    completo (`require_admin`, exclusivo de superadmin: ve los 6 roles y a
+    cuánta gente tiene cada uno, información de todas las áreas), esto es
+    "qué puedo gestionar yo" y cualquier usuario autenticado puede pedirlo
+    sobre sí mismo (hallazgo de QA visual S17: `AdminHomePage` pedía el
+    catálogo completo sin importar el rol de quien mira, y un admin de área
+    recibía 403 de `require_admin` — ver docs/qa-visual-s17). Reusa
+    `roles_admin_vigentes` (mismo criterio de vigencia que el resto del
+    módulo) en vez de reimplementar el filtro."""
+    roles = roles_admin_vigentes(user["record"]["id"])
+    catalogo = query_rows(CATALOGO_ROLES_ADMIN)
+    return {"data": [r for r in catalogo if r["rol_admin"] in roles]}
+
+
 @router.get("/admin/usuarios")
 def listar_usuarios_admin(
     limit:        int = Query(20, ge=1, le=200),

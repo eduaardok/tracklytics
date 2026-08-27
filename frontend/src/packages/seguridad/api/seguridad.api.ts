@@ -52,6 +52,14 @@ export const seguridadApi = {
   rolesAdminResumen: () =>
     apiClient.get<ApiResponse<RolAdminResumen>>('/seguridad/admin/roles-admin/resumen'),
 
+  // Fix QA visual S17: a diferencia de `rolesAdmin`/`rolesAdminResumen`
+  // (`require_admin`, exclusivo de superadmin), este solo pide autenticación
+  // y devuelve el/los rol(es) propios del usuario que llama — lo que usa
+  // `AdminHomePage` para un admin de área (que no puede ver el catálogo
+  // completo de las otras áreas).
+  misRolesAdmin: () =>
+    apiClient.get<ApiResponse<RolAdmin>>('/seguridad/mis-roles-admin'),
+
   usuarios: (f: UsuariosAdminFiltros = {}) => {
     const p = new URLSearchParams()
     if (f.page)       p.set('page', String(f.page))
