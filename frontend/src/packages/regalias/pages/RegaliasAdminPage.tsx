@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react'
+import { FileX, Receipt, Wallet } from 'lucide-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { TrackPicker, type TrackSearchResult } from '@shared/components/TrackPicker'
@@ -11,7 +12,8 @@ import { distribucionApi } from '@packages/distribucion'
 import { creadoresApi } from '@packages/creadores'
 import { regaliasApi } from '../api/regalias.api'
 import type { Contrato } from '../types'
-import { SkeletonTableRows } from '@shared/components/SkeletonLoader'
+import { SkeletonLoader, SkeletonTableRows } from '@shared/components/SkeletonLoader'
+import { EmptyState } from '@shared/components/EmptyState'
 import styles from './RegaliasPages.module.css'
 
 function fmtMoney(v: number, moneda = 'USD') {
@@ -277,7 +279,7 @@ export function RegaliasAdminPage() {
           <thead><tr><th>Track</th><th>Sello</th><th>Artista</th><th>Productor</th><th>Vigente desde</th><th>Estado</th><th className={styles.actionsCol}>Acciones</th></tr></thead>
           <tbody>
             {contratosData.length === 0 ? (
-              <tr><td colSpan={7} className={styles.emptyState}>Sin contratos todavía.</td></tr>
+              <tr><td colSpan={7}><EmptyState icon={<FileX size={22} aria-hidden="true" />} title="Sin contratos todavía" /></td></tr>
             ) : contratosData.map((c) => {
               const terminado = !c.activo
               return (
@@ -425,17 +427,17 @@ function HistorialContratoDetalle({ contratoId }: { contratoId: string }) {
 
       <div className={styles.kpiGrid}>
         <div className={styles.kpiPanel}>
-          <span className={styles.kpiValue}>{resumen.isLoading ? '…' : fmtMoney(resumen.data?.total_liquidado ?? 0)}</span>
+          <span className={styles.kpiValue}>{resumen.isLoading ? <SkeletonLoader count={1} height={14} className={styles.skel} /> : fmtMoney(resumen.data?.total_liquidado ?? 0)}</span>
           <span className={styles.kpiLabel}>Total liquidado histórico</span>
         </div>
         <div className={styles.kpiPanel}>
           <span className={styles.kpiValue}>
-            {resumen.isLoading ? '…' : (resumen.data?.ultima_liquidacion ? fmtDate(resumen.data.ultima_liquidacion) : '—')}
+            {resumen.isLoading ? <SkeletonLoader count={1} height={14} className={styles.skel} /> : (resumen.data?.ultima_liquidacion ? fmtDate(resumen.data.ultima_liquidacion) : '—')}
           </span>
           <span className={styles.kpiLabel}>Última liquidación</span>
         </div>
         <div className={styles.kpiPanel}>
-          <span className={styles.kpiValue}>{resumen.isLoading ? '…' : (resumen.data?.num_liquidaciones ?? 0)}</span>
+          <span className={styles.kpiValue}>{resumen.isLoading ? <SkeletonLoader count={1} height={14} className={styles.skel} /> : (resumen.data?.num_liquidaciones ?? 0)}</span>
           <span className={styles.kpiLabel}>Liquidaciones registradas</span>
         </div>
       </div>
@@ -449,7 +451,7 @@ function HistorialContratoDetalle({ contratoId }: { contratoId: string }) {
             {liquidaciones.isLoading ? (
               <SkeletonTableRows columns={5} rows={5} />
             ) : data.length === 0 ? (
-              <tr><td colSpan={5} className={styles.emptyState}>Sin liquidaciones todavía para este contrato.</td></tr>
+              <tr><td colSpan={5}><EmptyState icon={<Receipt size={22} aria-hidden="true" />} title="Sin liquidaciones todavía" body="Este contrato no tiene liquidaciones registradas." /></td></tr>
             ) : data.map((l) => (
               <tr key={l.liquidacion_id}>
                 <td>{l.periodo_inicio} — {l.periodo_fin}</td>
@@ -502,7 +504,7 @@ function RetirosAdminTable() {
         </thead>
         <tbody>
           {data.length === 0 ? (
-            <tr><td colSpan={6} className={styles.emptyState}>Sin solicitudes de retiro todavía.</td></tr>
+            <tr><td colSpan={6}><EmptyState icon={<Wallet size={22} aria-hidden="true" />} title="Sin solicitudes de retiro" body="Todavía no hay solicitudes de retiro." /></td></tr>
           ) : data.map((r) => (
             <tr key={r.retiro_id}>
               <td>{r.tipo_rightsholder}</td>
