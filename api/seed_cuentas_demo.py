@@ -337,7 +337,25 @@ def _sembrar_cuenta_sello_demo(client: httpx.Client, superadmin_token: str) -> N
     if not sellos:
         print("  [sello_demo] no hay sellos en el catálogo todavía, se omite.")
         return
-    sello = sellos[0]
+
+    # `sellos[0]` (bug real, encontrado en verificación visual S17): el
+    # listado de `/distribucion/sellos` viene ordenado por nombre, no por
+    # quién tiene datos reales — el primero alfabéticamente resultó ser un
+    # sello vacío creado por un script de QA/auditoría (0 contratos, 0
+    # liquidaciones), dejando "Mis ganancias" (vista sello) en blanco pese a
+    # que el docstring de esta función asume que TODO sello tiene historial.
+    # Se cuenta cuántos contratos tiene cada sello (`/regalias/admin/
+    # contratos`, ya trae `sello_id` por fila) y se elige el que más tiene —
+    # proxy directo de "tiene liquidaciones reales", sin adivinar por nombre.
+    contratos = client.get(f"{API_URL}/regalias/admin/contratos", headers=h_admin).json().get("data", [])
+    conteo_por_sello: dict[int, int] = {}
+    for c in contratos:
+        sid = c.get("sello_id")
+        if sid is not None:
+            conteo_por_sello[sid] = conteo_por_sello.get(sid, 0) + 1
+
+    sello_id_elegido = max(conteo_por_sello, key=conteo_por_sello.get) if conteo_por_sello else sellos[0]["sello_id"]
+    sello = next((s for s in sellos if s["sello_id"] == sello_id_elegido), sellos[0])
 
     resp = client.post(
         f"{API_URL}/regalias/admin/cuentas-sello", headers=h_admin,
