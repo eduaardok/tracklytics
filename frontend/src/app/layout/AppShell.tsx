@@ -3,7 +3,7 @@ import { Outlet, NavLink, useLocation } from 'react-router-dom'
 import { RouteLoadingFallback } from '@shared/components/RouteLoadingFallback'
 import {
   LayoutGrid, Library, CreditCard, Mic2, Users, Globe, LifeBuoy,
-  BarChart3, ShieldCheck, Sparkles, type LucideIcon,
+  BarChart3, ShieldCheck, Sparkles, Coins, type LucideIcon,
 } from 'lucide-react'
 // Import directo, no vía el barrel `@packages/seguridad` (arrastraría los
 // dashboards con Recharts de ese paquete al bundle principal — ver router.tsx).
@@ -52,10 +52,17 @@ const NAV_PRIMARY: NavItem[] = [
 const NAV_SECONDARY: NavItem[] = [
   // "Facturación" salió del nav en S16-P8: vive como tab dentro de Mi Plan
   // (hub pedido por el stakeholder; /facturacion redirige a
-  // /suscripciones?tab=facturacion). "Mis ganancias" también: es una pestaña
-  // del hub Creadores (ArtistaHubTabs) y tener entrada propia duplicaba el
-  // destino con dos puntos de entrada visibles.
+  // /suscripciones?tab=facturacion). "Mis ganancias" se sacó por el mismo
+  // criterio (S16-P8) porque es una pestaña del hub Creadores
+  // (ArtistaHubTabs) — pero esa pestaña solo se monta para cuentas de
+  // artista aprobadas. Una cuenta de sello (sin cuenta de artista) nunca
+  // pasa por /creadores y quedaba sin ningún punto de entrada visible a
+  // /regalias/ganancias pese a tener liquidaciones reales que ver (hallazgo
+  // reportado en vivo, S17). Vuelve al nav para cubrir ese caso; para
+  // cuentas de artista es una segunda puerta al mismo destino, no un
+  // problema.
   { to: '/creadores',                    label: 'Creadores',   icon: Mic2 },
+  { to: '/regalias/ganancias',           label: 'Mis ganancias', icon: Coins },
   { to: '/social',                       label: 'Social',      icon: Users },
   { to: '/distribucion/disponibilidad',  label: 'Distribución', icon: Globe },
   { to: '/soporte',                      label: 'Soporte',     icon: LifeBuoy },
