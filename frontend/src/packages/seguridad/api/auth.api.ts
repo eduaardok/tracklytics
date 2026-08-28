@@ -29,8 +29,23 @@ export type MiPerfil = {
 export const ROLES_AUTO_REGISTRABLES = ['user', 'analyst'] as const
 export type RolAutoRegistrable = (typeof ROLES_AUTO_REGISTRABLES)[number]
 
+// `trim().toLowerCase()` en el correo antes de mandarlo (login y registro):
+// mitiga que un teclado móvil auto-capitalice la primera letra de un campo
+// de texto (algunos navegadores/webviews lo hacen incluso en `type="email"`
+// si no se les prohíbe explícitamente) — sin esto, un correo que se ve
+// idéntico en pantalla puede llegar como "Usuario@..." en vez de
+// "usuario@...", y si el motor de auth compara con distinción de
+// mayúsculas en algún punto de la cadena, el login falla con "credenciales
+// incorrectas" real (no un bug de red) sin que se note nada raro a simple
+// vista. Nunca es incorrecto normalizar así — un correo en mayúsculas
+// nunca es la intención real de nadie.
+function normalizarEmail(email: string): string {
+  return email.trim().toLowerCase()
+}
+
 export const authApi = {
-  login: async (email: string, password: string): Promise<SessionUser> => {
+  login: async (emailInput: string, password: string): Promise<SessionUser> => {
+    const email = normalizarEmail(emailInput)
     const resp = await apiClient.post<PbAuthResponse>('/seguridad/auth/login', {
       email, password, dispositivo_id: getDeviceId(), tipo: 'web', app_version: 'web-1.0',
     })
@@ -55,8 +70,9 @@ export const authApi = {
   },
 
   registro: async (
-    email: string, password: string, nombre: string, rol: RolAutoRegistrable, pais = '',
+    emailInput: string, password: string, nombre: string, rol: RolAutoRegistrable, pais = '',
   ): Promise<SessionUser> => {
+    const email = normalizarEmail(emailInput)
     await apiClient.post('/seguridad/auth/registro', { email, password, nombre, pais, rol })
     return authApi.login(email, password)
   },

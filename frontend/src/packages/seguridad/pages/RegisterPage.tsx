@@ -132,6 +132,9 @@ export function RegisterPage() {
                 type="email"
                 placeholder="tu@email.com"
                 autoComplete="email"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
                 required
                 value={email}
                 onChange={(e) => { setEmail(e.target.value); setFieldErrors((f) => ({ ...f, email: '' })) }}

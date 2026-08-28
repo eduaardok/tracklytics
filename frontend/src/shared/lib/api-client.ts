@@ -83,6 +83,20 @@ export function esSesionExpirada(err: unknown): boolean {
   return err instanceof ApiError && err.status === 401 && err.sessionWasActive
 }
 
+// true si `err` nunca llegó a ser una respuesta HTTP — el propio `fetch()`
+// falló (sin conectividad, servidor inalcanzable, DNS, etc.), no que el
+// backend respondiera con un error. Antes cualquier `err` que no fuera
+// `ApiError` cambiar caía al mismo fallback genérico del llamador (ej. el
+// login mostraba "Correo o contraseña incorrectos" para un fallo de red
+// real) — indistinguible de credenciales inválidas para quien lo ve, y
+// especialmente engañoso desde un dispositivo que apenas puede alcanzar el
+// backend (ej. otro dispositivo en la LAN via IP, con el puerto bloqueado o
+// el servidor caído). `fetch` rechaza con `TypeError` en ese caso, tanto en
+// navegadores basados en Chromium/WebKit como en Firefox.
+export function esErrorDeRed(err: unknown): boolean {
+  return !(err instanceof ApiError) && err instanceof TypeError
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   // Capturado ANTES del fetch: si el 401 llega, `clearSession()` ya borró el
   // token — sin este snapshot previo no habría forma de saber si hubo sesión.

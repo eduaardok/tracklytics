@@ -3,7 +3,7 @@ import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { ChevronDown, ChevronRight, Zap } from 'lucide-react'
 import { isAuthenticated } from '@shared/lib/session'
 import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
-import { apiErrorMessage } from '@shared/lib/api-client'
+import { apiErrorMessage, esErrorDeRed } from '@shared/lib/api-client'
 import { landingPostLogin } from '@shared/lib/roles'
 import { resolverDestinoPostAuth } from '@packages/suscripciones'
 import { ThemeToggle } from '@shared/components/ThemeToggle'
@@ -88,10 +88,20 @@ export function LoginPage() {
         navigate(from ? `${from.pathname}${from.search}` : (landingRol ?? destino.path), { replace: true })
       }
     } catch (err) {
-      // Muestra el detalle del backend cuando lo hay: lockout (429) y cuenta
-      // suspendida/dada de baja (403) traen un mensaje específico; el resto cae
-      // al genérico de credenciales.
-      setError(apiErrorMessage(err, 'Correo o contraseña incorrectos'))
+      // Un fallo de RED (el navegador no pudo ni siquiera contactar al
+      // servidor) es distinto de credenciales inválidas — antes ambos casos
+      // mostraban el mismo "Correo o contraseña incorrectos", lo que hacía
+      // parecer un problema de login cuando en realidad era de conectividad
+      // (ej. entrando desde otro dispositivo en la LAN que no alcanza el
+      // backend). Se distingue primero para no enmascararlo.
+      if (esErrorDeRed(err)) {
+        setError('No se pudo conectar con el servidor. Verifica tu conexión e inténtalo de nuevo.')
+      } else {
+        // Muestra el detalle del backend cuando lo hay: lockout (429) y cuenta
+        // suspendida/dada de baja (403) traen un mensaje específico; el resto cae
+        // al genérico de credenciales.
+        setError(apiErrorMessage(err, 'Correo o contraseña incorrectos'))
+      }
       setSubmitting(false)
     }
   }
@@ -189,7 +199,8 @@ export function LoginPage() {
                 <div className={styles.field}>
                   <label className={styles.fieldLabel} htmlFor="email">Correo electrónico</label>
                   <input id="email" className={styles.input} type="email" maxLength={254} placeholder="tu@email.com"
-                         autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
+                         autoComplete="email" autoCapitalize="none" autoCorrect="off" spellCheck={false}
+                         required value={email} onChange={(e) => setEmail(e.target.value)} />
                 </div>
                 <div className={styles.field}>
                   <label className={styles.fieldLabel} htmlFor="password">Contraseña</label>
