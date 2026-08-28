@@ -59,6 +59,11 @@ export type Ganancia = {
   monto:           number
   moneda:          string
   fecha_calculo:   string
+  // % del contrato vigente para ESTE track (DIM_CONTRATO_REGALIA) — solo
+  // viene en la vista de artista (GANANCIAS_ARTISTA); el resto (sello,
+  // productor) se queda con el porcentaje complementario, no expuesto acá.
+  pct_master_artista?:     number
+  pct_publishing_artista?: number
 }
 
 export type GananciasResponse = {

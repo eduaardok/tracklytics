@@ -96,9 +96,11 @@ WHERE fecha >= {inicio:DateTime} AND fecha < {fin:DateTime}
 GANANCIAS_ARTISTA = """
 SELECT l.liquidacion_id, l.fact_id_track, t.track_name AS track_name,
        l.periodo_inicio, l.periodo_fin, l.streams_periodo,
-       l.monto_bruto, l.retencion_pct, l.monto_retenido, l.monto, l.moneda, l.fecha_calculo
+       l.monto_bruto, l.retencion_pct, l.monto_retenido, l.monto, l.moneda, l.fecha_calculo,
+       c.pct_master_artista, c.pct_publishing_artista
 FROM FACT_LIQUIDACION_REGALIA l
 JOIN FACT_TRACKS t ON t.fact_id = l.fact_id_track
+JOIN DIM_CONTRATO_REGALIA c ON c.contrato_id = l.contrato_id
 WHERE l.tipo_rightsholder = 'artista' AND l.rightsholder_id = {rightsholder_id:String}
 ORDER BY l.periodo_inicio DESC
 """

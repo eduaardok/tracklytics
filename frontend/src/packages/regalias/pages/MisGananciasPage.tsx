@@ -150,6 +150,10 @@ function TablaGanancias({
       </div>
     )
   }
+  // Solo la vista de artista trae el % de su propio contrato (GANANCIAS_ARTISTA
+  // en el backend) — la de sello reusa este mismo componente sin esos campos,
+  // así que la columna se agrega/oculta según lo que realmente llegó.
+  const conPorcentaje = data[0]?.pct_master_artista !== undefined
   return (
     <div className={styles.tablePanel}>
       <div className={styles.tablePanelHeader}>
@@ -161,6 +165,7 @@ function TablaGanancias({
         <thead>
           <tr>
             <th>Track</th><th>Período</th><th>Streams</th>
+            {conPorcentaje && <th>% contrato</th>}
             <th>Bruto</th><th>Retención</th><th>Neto</th>
           </tr>
         </thead>
@@ -170,6 +175,11 @@ function TablaGanancias({
               <td>{g.track_name}</td>
               <td>{g.periodo_inicio} — {g.periodo_fin}</td>
               <td>{g.streams_periodo}</td>
+              {conPorcentaje && (
+                <td title="Porcentaje de tu contrato sobre masters / publishing para este track">
+                  {g.pct_master_artista}% master · {g.pct_publishing_artista}% publishing
+                </td>
+              )}
               <td>{fmtMoney(g.monto_bruto, g.moneda)}</td>
               <td>{g.retencion_pct}% ({fmtMoney(g.monto_retenido, g.moneda)})</td>
               <td><strong>{fmtMoney(g.monto, g.moneda)}</strong></td>
