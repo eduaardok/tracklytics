@@ -3,7 +3,11 @@ import { useNavigate, Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { TrackPicker, type TrackSearchResult } from '@shared/components/TrackPicker'
+import { UserAvatar } from '@shared/components/UserAvatar'
+import { AlbumArt } from '@shared/components/AlbumArt'
+import { catalogoApi } from '@packages/catalogo'
 import { socialApi } from '../api/social.api'
+import type { ArtistaSeguido } from '../types'
 import styles from './SocialPages.module.css'
 
 // Descubrimiento de perfiles públicos por nombre (S16) — antes solo se podía
@@ -63,6 +67,38 @@ function BuscadorPerfiles() {
   )
 }
 
+// Fila de artista seguido con portada real (S17 polish): `misSeguidos()` solo
+// trae id/nombre/fecha, sin imagen — se pide `artistDetail` por fila (cacheado
+// por React Query, ya visitado casi siempre desde el catálogo) para mostrar
+// la misma portada que ArtistDetailPage. Mientras resuelve, el gradiente
+// determinista por artista (`genreSeed`) de AlbumArt pinta al instante, así
+// que no hay parpadeo de "cargando" — la foto real solo reemplaza el
+// gradiente si llega.
+function ArtistaSeguidoRow({ artista }: { artista: ArtistaSeguido }) {
+  const detalle = useQuery({
+    queryKey: ['catalogo', 'artist-detail', artista.artista_id],
+    queryFn:  () => catalogoApi.artistDetail(artista.artista_id),
+    staleTime: 5 * 60 * 1000,
+  })
+
+  return (
+    <Link to={`/catalogo/artista/${artista.artista_id}`} className={styles.followedRow}>
+      <span className={styles.followedLeft}>
+        <AlbumArt
+          src={detalle.data?.imagen_url}
+          alt=""
+          size={40}
+          genreSeed={String(artista.artista_id)}
+        />
+        <span className={styles.followedTextCol}>
+          <span className={styles.followedName}>{artista.nombre}</span>
+          <span className={styles.followedMeta}>Siguiendo desde {fmtDate(artista.fecha_inicio)}</span>
+        </span>
+      </span>
+    </Link>
+  )
+}
+
 function fmtDate(iso: string) {
   const d = new Date(iso)
   return isNaN(d.getTime()) ? iso : d.toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })
@@ -103,6 +139,11 @@ export function SeguidosSocialPage() {
   return (
     <section className={styles.page}>
       <h1 className={styles.heading}>Social</h1>
+      <span className={styles.subtitle}>
+        {seguidos.isLoading
+          ? ' '
+          : `Sigues a ${data.length} artista${data.length === 1 ? '' : 's'} · ${feedData.length} novedad${feedData.length === 1 ? '' : 'es'} reciente${feedData.length === 1 ? '' : 's'}`}
+      </span>
 
       <p className={styles.sectionLabel}>Buscar perfiles públicos</p>
       <BuscadorPerfiles />
@@ -130,19 +171,23 @@ export function SeguidosSocialPage() {
                  como comparticiones referencian un track, así que el destino
                  natural es /social/track/:factId en los dos casos. */
               <li key={`${item.tipo}-${item.id}`}>
-                <Link
-                  to={`/social/track/${item.track_fact_id}`}
-                  className={styles.followedRow}
-                  style={{ flexDirection: 'column', alignItems: 'flex-start', gap: 2 }}
-                >
-                  <span className={styles.followedName}>
-                    {item.usuario_nombre || 'Alguien'}{' '}
-                    {item.tipo === 'comentario' ? 'comentó' : 'compartió'} un track de {item.artista_nombre}
+                <Link to={`/social/track/${item.track_fact_id}`} className={styles.feedRow}>
+                  <span className={styles.feedAvatar}>
+                    <UserAvatar usuarioId={item.usuario_id} nombre={item.usuario_nombre} size={36} />
                   </span>
-                  {item.tipo === 'comentario' && item.contenido && (
-                    <span className={styles.followedMeta}>&ldquo;{item.contenido}&rdquo;</span>
-                  )}
-                  <span className={styles.followedMeta}>{item.track_name} · {fmtDateTime(item.fecha)}</span>
+                  <span className={styles.feedContent}>
+                    <span className={styles.followedName}>
+                      {item.usuario_nombre || 'Alguien'}{' '}
+                      {item.tipo === 'comentario' ? 'comentó' : 'compartió'} un track de {item.artista_nombre}
+                    </span>
+                    {item.tipo === 'comentario' && item.contenido && (
+                      <span className={styles.followedMeta}>&ldquo;{item.contenido}&rdquo;</span>
+                    )}
+                    <span className={styles.followedMeta}>{item.track_name} · {fmtDateTime(item.fecha)}</span>
+                  </span>
+                  <span className={styles.feedArt}>
+                    <AlbumArt src={null} alt="" size={36} genreSeed={String(item.artista_id)} />
+                  </span>
                 </Link>
               </li>
             ))}
@@ -181,10 +226,7 @@ export function SeguidosSocialPage() {
           {data.map((a) => (
             /* F8: apunta al perfil consolidado del catálogo (la antigua
                /social/artista/:id redirige ahí). */
-            <Link key={a.artista_id} to={`/catalogo/artista/${a.artista_id}`} className={styles.followedRow}>
-              <span className={styles.followedName}>{a.nombre}</span>
-              <span className={styles.followedMeta}>desde {fmtDate(a.fecha_inicio)}</span>
-            </Link>
+            <ArtistaSeguidoRow key={a.artista_id} artista={a} />
           ))}
         </ul>
       )}

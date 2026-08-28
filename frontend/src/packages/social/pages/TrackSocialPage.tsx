@@ -6,6 +6,7 @@ import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { apiErrorMessage, ApiError } from '@shared/lib/api-client'
 import { EmptyState } from '@shared/components/EmptyState'
 import { UserAvatar } from '@shared/components/UserAvatar'
+import { AlbumArt } from '@shared/components/AlbumArt'
 import { useToast } from '@shared/context/ToastContext'
 import { socialApi } from '../api/social.api'
 import { DenunciarButton } from '../components/DenunciarButton'
@@ -111,6 +112,17 @@ export function TrackSocialPage() {
 
       {!trackEliminado && (
         <div className={styles.subjectBar}>
+          {track.isLoading ? (
+            <span className={styles.skelCircle} style={{ background: 'var(--color-surface-raised)' }} />
+          ) : (
+            <AlbumArt
+              src={track.data?.imagen_url}
+              alt=""
+              size={56}
+              trackId={track.data?.track_id}
+              genreSeed={track.data?.genre_name ?? String(id)}
+            />
+          )}
           <div className={styles.subjectInfo}>
             {track.isLoading ? (
               <span className={styles.skel} style={{ width: '50%', height: 18 }} />

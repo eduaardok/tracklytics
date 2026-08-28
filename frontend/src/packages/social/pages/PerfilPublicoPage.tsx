@@ -1,10 +1,12 @@
 import { Link, useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { User, Lock } from 'lucide-react'
+import { Lock } from 'lucide-react'
 import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { ErrorState } from '@shared/components/ErrorState'
 // S16-P11: "Cargando perfil…" plano -> hero shimmer con la forma del subjectBar.
 import { SkeletonLoader } from '@shared/components/SkeletonLoader'
+import { UserAvatar } from '@shared/components/UserAvatar'
+import { AlbumArt } from '@shared/components/AlbumArt'
 import { ApiError } from '@shared/lib/api-client'
 import { LibraryTrackRow } from '@packages/catalogo'
 import { socialApi } from '../api/social.api'
@@ -64,7 +66,7 @@ export function PerfilPublicoPage() {
   return (
     <section className={styles.page}>
       <div className={styles.subjectBar}>
-        <User size={28} className={styles.icon} aria-hidden="true" />
+        <UserAvatar usuarioId={usuarioId!} nombre={data.nombre} size={56} />
         <div className={styles.subjectInfo}>
           <p className={styles.subjectName}>{data.nombre}</p>
           <p className={styles.subjectMeta}>
@@ -132,7 +134,10 @@ function QueEscucha({ topTracks, topArtistas }: { topTracks: TrackConReproduccio
           <ul className={styles.followedList}>
             {topArtistas.map((a) => (
               <Link key={a.artist_id} to={`/catalogo/artista/${a.artist_id}`} className={styles.followedRow}>
-                <span className={styles.followedName}>{a.name}</span>
+                <span className={styles.followedLeft}>
+                  <AlbumArt src={a.imagen_url} alt="" size={40} genreSeed={String(a.artist_id)} />
+                  <span className={styles.followedName}>{a.name}</span>
+                </span>
                 <span className={styles.followedMeta}>{a.reproducciones} reproducci{a.reproducciones === 1 ? 'ón' : 'ones'}</span>
               </Link>
             ))}

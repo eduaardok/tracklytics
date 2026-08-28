@@ -395,6 +395,58 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* ── Fila con avatar/portada al frente (feed + artistas seguidos) — evita
+   que la lista se lea como texto plano cuando el dato visual (foto de
+   artista, iniciales del usuario) ya está disponible. ── */
+.followedLeft {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  min-width: 0;
+  flex: 1;
+}
+
+.followedTextCol {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.followedTextCol .followedName,
+.followedTextCol .followedMeta {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.feedRow {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-md);
+  padding: 12px var(--space-md);
+  background: var(--color-surface);
+  text-decoration: none;
+  transition: background-color var(--duration-fast) var(--ease-standard);
+}
+.feedRow:hover { background: var(--color-surface-raised); }
+.feedRow + .feedRow { border-top: 1px solid var(--color-border); }
+
+.feedAvatar { margin-top: 1px; }
+
+.feedContent {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  flex: 1;
+}
+
+.feedContent .followedName,
+.feedContent .followedMeta { white-space: normal; }
+
+.feedArt { flex-shrink: 0; }
+
 .jumpForm {
   display: flex;
   gap: var(--space-sm);
