@@ -1,0 +1,87 @@
+/* Panel "Características de audio" — reemplaza la lista plana de barritas
+   por un radar (forma del track de un vistazo) + las mismas 7 barras, ahora
+   con ícono y más peso visual (feedback: "que tengan más peso, no solo
+   barrita"). Vive en Raised Surface, un solo panel — no 7 cards anidadas. */
+.panel {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-lg);
+  padding: var(--space-lg);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+}
+
+.radarBox {
+  flex: 1 1 280px;
+  min-width: 240px;
+  height: 260px;
+}
+
+.list {
+  flex: 1 1 320px;
+  min-width: 260px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: var(--space-sm);
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 28px 152px 1fr 44px;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.iconWrap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-md);
+  background: var(--color-bg-accent-subtle);
+  color: var(--color-primary-light);
+  flex-shrink: 0;
+}
+
+.label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--color-ink);
+}
+
+.track {
+  height: 8px;
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-raised);
+  overflow: hidden;
+}
+
+.fill {
+  height: 100%;
+  border-radius: var(--radius-pill);
+  background: var(--gradient-primary);
+  transition: width var(--duration-entrance) var(--ease-out-quart);
+}
+
+.value {
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--color-ink);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 640px) {
+  .panel { padding: var(--space-md); }
+  .radarBox { flex-basis: 100%; height: 220px; }
+  .row { grid-template-columns: 24px 108px 1fr 36px; gap: 6px; }
+  .label { font-size: 0.75rem; }
+}

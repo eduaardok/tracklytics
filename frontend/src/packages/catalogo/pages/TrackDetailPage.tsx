@@ -1,6 +1,9 @@
+import { lazy, Suspense } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { ArrowLeft, Heart, ListPlus, Lock, MessageSquare, Play, Radio, ThumbsDown, ThumbsUp } from 'lucide-react'
+import {
+  ArrowLeft, Clock, Gauge, Heart, ListPlus, Lock, MessageSquare, Play, Radio, ThumbsDown, ThumbsUp, Volume2,
+} from 'lucide-react'
 import { catalogoApi } from '../api/catalogo.api'
 import { usePlayer } from '@shared/context/PlayerContext'
 import { AlbumArt } from '@shared/components/AlbumArt'
@@ -18,28 +21,21 @@ import { usePlanActivo } from '@packages/suscripciones'
 import { useAd } from '@packages/publicidad'
 import styles from './DetailPages.module.css'
 
+// `TrackDetailPage` se importa EAGER en `router.tsx` (no vía el helper
+// `lazy()` de rutas) — es una de las páginas más visitadas del B2C. Recharts
+// (usado solo acá dentro de todo `catalogo`) agregaba ~94kB gzip al bundle
+// principal si se importaba de forma estática (confirmado con `npm run
+// build`: index pasó de 146kB a 240kB gzip). Con `lazy()` a nivel de
+// componente, recharts queda en su propio chunk, cargado solo cuando el
+// usuario premium realmente ve "Características de audio".
+const AudioFeaturesPanel = lazy(() =>
+  import('../components/AudioFeaturesPanel').then((m) => ({ default: m.AudioFeaturesPanel })),
+)
+
 function formatDuration(ms: number): string {
   const m = Math.floor(ms / 60_000)
   const s = Math.floor((ms % 60_000) / 1000)
   return `${m}:${s.toString().padStart(2, '0')}`
-}
-
-function FeatureBar({ label, hint, value }: { label: string; hint: string; value: number }) {
-  const pct = Math.round(value * 100)
-  return (
-    <div className={styles.featureBar}>
-      <span className={styles.featureLabel}>
-        {label}
-        {/* Mismo patrón que las Métricas: ⓘ con tooltip en vez de la
-            descripción siempre visible (S16 — coherencia de glosario). */}
-        <InfoHint text={hint} />
-      </span>
-      <div className={styles.featureTrack}>
-        <div className={styles.featureFill} style={{ width: `${pct}%` }} />
-      </div>
-      <span className={styles.featureValue}>{pct}%</span>
-    </div>
-  )
 }
 
 export function TrackDetailPage() {
@@ -109,7 +105,7 @@ export function TrackDetailPage() {
     <section>
       <div className={styles.hero}>
         <div className={styles.heroBg} aria-hidden="true" />
-        <AlbumArt src={track.imagen_url} alt="" size={96} />
+        <AlbumArt src={track.imagen_url} alt="" size={96} trackId={track.track_id} />
         <div className={styles.heroMeta}>
           <span className={styles.heroType}>Canción</span>
           <h1 className={styles.heroName}>
@@ -214,6 +210,7 @@ export function TrackDetailPage() {
       <div className={styles.attrGrid}>
         <div className={styles.attrCard}>
           <div className={styles.attrLabel}>
+            <Gauge size={13} aria-hidden="true" />
             Popularidad (Score)
             <InfoHint text="Puntaje de 0 a 100 que resume qué tan popular es la canción en el catálogo: reproducciones, «me gusta» y reacciones." />
           </div>
@@ -221,6 +218,7 @@ export function TrackDetailPage() {
         </div>
         <div className={styles.attrCard}>
           <div className={styles.attrLabel}>
+            <Radio size={13} aria-hidden="true" />
             Tempo (BPM)
             <InfoHint text="Pulsos por minuto: la velocidad del ritmo. 60–90 es lento, ~120 moderado, 160+ muy rápido." />
           </div>
@@ -228,31 +226,30 @@ export function TrackDetailPage() {
         </div>
         <div className={styles.attrCard}>
           <div className={styles.attrLabel}>
+            <Volume2 size={13} aria-hidden="true" />
             Sonoridad (Loudness)
             <InfoHint text="Volumen promedio en decibelios (dB). Valores más cercanos a 0 indican una canción que suena más fuerte." />
           </div>
           <div className={styles.attrValue}>{track.loudness != null ? `${track.loudness.toFixed(1)} dB` : '—'}</div>
         </div>
         <div className={styles.attrCard}>
-          <div className={styles.attrLabel}>Duración</div>
+          <div className={styles.attrLabel}>
+            <Clock size={13} aria-hidden="true" />
+            Duración
+          </div>
           <div className={styles.attrValue}>{formatDuration(track.duration_ms)}</div>
         </div>
       </div>
 
-      {/* Glosario coherente (S16): etiqueta en español + término original
-          entre paréntesis + ⓘ con la descripción — mismos nombres que el
-          perfil del artista (Baile, Energía, Valencia). */}
+      {/* Glosario coherente (S16) preservado, ahora en AudioFeaturesPanel:
+          radar (forma del track de un vistazo) + las mismas 7 barras con
+          ícono — reemplaza la lista plana anterior (feedback: "que tengan
+          más peso, no solo barrita"). */}
       <h2 className={styles.sectionTitle}>Características de audio</h2>
       {planLoading ? null : esPremium && audioFeatures ? (
-        <div className={styles.featureBars}>
-          <FeatureBar label="Baile (Danceability)"         hint="Qué tan bailable es la canción"       value={audioFeatures.danceability} />
-          <FeatureBar label="Energía (Energy)"             hint="Intensidad y actividad percibida"     value={audioFeatures.energy} />
-          <FeatureBar label="Valencia (Valence)"           hint="Positividad emocional del sonido"     value={audioFeatures.valence} />
-          <FeatureBar label="Acústica (Acousticness)"      hint="Probabilidad de ser acústica"         value={audioFeatures.acousticness} />
-          <FeatureBar label="Habla (Speechiness)"          hint="Presencia de palabras habladas"       value={audioFeatures.speechiness} />
-          <FeatureBar label="Instrumental (Instrumentalness)" hint="Ausencia de voz (más = instrumental)" value={audioFeatures.instrumentalness} />
-          <FeatureBar label="En vivo (Liveness)"           hint="Probabilidad de ser una grabación en vivo" value={audioFeatures.liveness} />
-        </div>
+        <Suspense fallback={<p className={styles.loading}>// cargando…</p>}>
+          <AudioFeaturesPanel data={audioFeatures} />
+        </Suspense>
       ) : (
         <div className={styles.paywall}>
           <Lock size={24} className={styles.paywallIcon} aria-hidden="true" />

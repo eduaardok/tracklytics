@@ -271,48 +271,6 @@
   padding: 0;
 }
 
-/* ── Feature bars (audio features) ── */
-.featureBars {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-sm);
-}
-
-.featureBar {
-  display: grid;
-  grid-template-columns: 140px 1fr 44px;
-  align-items: center;
-  gap: var(--space-md);
-}
-
-.featureLabel {
-  font-family: var(--font-sans);
-  font-size: 0.8125rem;
-  font-weight: 500;
-  color: var(--color-ink);
-}
-
-.featureTrack {
-  height: 6px;
-  border-radius: var(--radius-pill);
-  background: var(--color-surface-raised);
-  overflow: hidden;
-}
-
-.featureFill {
-  height: 100%;
-  border-radius: var(--radius-pill);
-  background: var(--color-primary-light);
-}
-
-.featureValue {
-  font-family: var(--font-mono);
-  font-size: 0.75rem;
-  color: var(--color-muted);
-  text-align: right;
-  font-variant-numeric: tabular-nums;
-}
-
 /* ── Paywall (audio features, plan free) ── */
 .paywall {
   display: flex;
@@ -347,8 +305,7 @@
 }
 
 @media (max-width: 640px) {
-  .hero        { flex-direction: column; align-items: flex-start; }
-  .featureBar  { grid-template-columns: 100px 1fr 36px; gap: var(--space-sm); }
+  .hero { flex-direction: column; align-items: flex-start; }
 }
 
 /* ── F8: menú para compartir el perfil del artista (portado de la antigua
