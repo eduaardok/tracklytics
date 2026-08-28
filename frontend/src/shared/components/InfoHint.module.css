@@ -40,7 +40,13 @@
   opacity: 0;
   pointer-events: none;
   transition: opacity var(--duration-fast) var(--ease-standard), transform var(--duration-fast) var(--ease-standard);
-  z-index: 10;
+  /* Bug real, reportado por usuario: con z-index:10 (muy por debajo de
+     --z-sticky:200) la barra superior tapaba el tooltip cada vez que el
+     InfoHint vivía en un encabezado pegado arriba de la página (17 reportes
+     de analítica). --z-tooltip (600) es el techo real de la escala
+     semántica del proyecto (ver src/index.css) — se sobrepone a todo:
+     dropdowns, sticky, modales y toasts incluidos. */
+  z-index: var(--z-tooltip);
 }
 
 .infoHint:hover .infoTooltip,
