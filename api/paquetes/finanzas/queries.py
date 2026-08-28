@@ -106,16 +106,55 @@ ORDER BY monto DESC
 # FACT_INVOICE.estado hoy solo toma el valor 'emitido' (ver facturacion/
 # router.py::procesar_pago y simulacion/generador.py — nunca se escribe
 # 'pagada'/'vencida' en el código actual, pese a que spec.md las mencione
-# como estados posibles). Se trae toda invoice no 'pagada' con su antigüedad
-# en días; "vencida" se deriva por aging (>30 días desde fecha_emision, mismo
-# umbral que DIAS_REGALIAS_PENDIENTES) en vez de depender de un estado que
-# ningún flujo actual asigna — ver nota de diseño en el resumen final.
-INVOICES_PENDIENTES_AGING = """
+# como estados posibles). "vencida" se deriva por aging (>30 días desde
+# fecha_emision, mismo umbral que DIAS_REGALIAS_PENDIENTES) en vez de
+# depender de un estado que ningún flujo actual asigna — ver nota de diseño
+# en el resumen final.
+#
+# `estado != 'pagada'` matchea HOY el 100% de FACT_INVOICE (30k+ filas y
+# creciendo con cada corrida de backfill, ninguna fila tiene otro estado) —
+# la versión anterior de esto (`INVOICES_PENDIENTES_AGING`, sin WHERE de
+# rango ni LIMIT) traía esas filas completas a Python para sumar/contar/
+# ordenar ahí, dos veces por cada click en "Exportar" (una vez para el
+# resumen, otra para "próximos vencimientos") — el mismo anti-patrón de
+# agregar en Python en vez de en SQL que ya se encontró en catálogo (S13-P7)
+# y biblioteca (incidente de favoritos de 178s). Con 30k+ filas esto ya era
+# perceptiblemente lento; solo crece. Reemplazado por dos queries: el
+# resumen (sumas/conteos) agregado en ClickHouse, y el top-10 de
+# vencimientos con su propio LIMIT — nunca se necesitó la lista completa en
+# memoria, solo el total y una vista previa acotada.
+CUENTAS_POR_COBRAR_RESUMEN = """
+SELECT
+    sum(monto + iva) AS total_por_cobrar,
+    sumIf(monto + iva, dateDiff('day', fecha_emision, now()) > {dias:UInt32}) AS total_vencido,
+    count() AS num_pendientes,
+    countIf(dateDiff('day', fecha_emision, now()) > {dias:UInt32}) AS num_vencidas
+FROM FACT_INVOICE
+WHERE estado != 'pagada'
+"""
+
+# "Próximos a vencer" (aún no vencidos, los que están más cerca del umbral) —
+# mismo criterio que antes (más antiguos primero dentro de los no vencidos),
+# ahora con LIMIT en SQL en vez de traer todo y cortar en Python.
+PROXIMOS_VENCIMIENTOS_INVOICE = """
 SELECT invoice_id, usuario_id, monto, iva, fecha_emision, estado,
        dateDiff('day', fecha_emision, now()) AS dias_desde_emision
 FROM FACT_INVOICE
-WHERE estado != 'pagada'
-ORDER BY fecha_emision ASC
+WHERE estado != 'pagada' AND dateDiff('day', fecha_emision, now()) <= {dias:UInt32}
+ORDER BY dias_desde_emision DESC
+LIMIT 10
+"""
+
+# Conteo de facturas vencidas para la alerta agregada ("N facturas vencidas",
+# una sola alerta) — antes se generaba una alerta POR CADA factura vencida
+# (30k+ filas, la gran mayoría vencidas), inflando la respuesta de /alertas
+# a un tamaño que congelaba el render en el navegador. Mismo patrón que la
+# alerta de "suscripciones_cobro_pendiente" (arriba en router.py), que ya
+# reporta un conteo agregado en vez de una fila por suscripción.
+FACTURAS_VENCIDAS_COUNT = """
+SELECT count() AS n
+FROM FACT_INVOICE
+WHERE estado != 'pagada' AND dateDiff('day', fecha_emision, now()) > {dias:UInt32}
 """
 
 RETIROS_PENDIENTES = """

@@ -18,12 +18,14 @@ from paquetes.analitica.queries import (
 from paquetes.finanzas.deps import DIAS_REGALIAS_PENDIENTES, REEMBOLSO_MONTO_ALTO_USD, require_admin
 from paquetes.finanzas.queries import (
     CONSUMO_RECIENTE_CAMPANA,
+    CUENTAS_POR_COBRAR_RESUMEN,
+    FACTURAS_VENCIDAS_COUNT,
     GASTO_POR_ID,
     GASTOS_ACTIVOS_EN_RANGO,
     GASTOS_POR_CATEGORIA_EN_RANGO,
     INGRESO_POR_ANUNCIANTE_EN_RANGO,
-    INVOICES_PENDIENTES_AGING,
     MONTO_REEMBOLSADO_PROCESADO,
+    PROXIMOS_VENCIMIENTOS_INVOICE,
     REEMBOLSOS_EN_RANGO,
     REEMBOLSOS_POR_TRANSACCION,
     REEMBOLSOS_PROCESADOS_EN_RANGO,
@@ -344,12 +346,15 @@ def dashboard_financiero(
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _cuentas_por_cobrar_y_pagar() -> dict:
-    invoices = query_rows(INVOICES_PENDIENTES_AGING)
-    total_por_cobrar = sum(float(r["monto"]) + float(r["iva"]) for r in invoices)
-    vencidas = [r for r in invoices if r["dias_desde_emision"] > DIAS_REGALIAS_PENDIENTES]
-    total_vencido = sum(float(r["monto"]) + float(r["iva"]) for r in vencidas)
-    pendientes_no_vencidas = [r for r in invoices if r["dias_desde_emision"] <= DIAS_REGALIAS_PENDIENTES]
-    proximos_vencimientos = sorted(pendientes_no_vencidas, key=lambda r: r["dias_desde_emision"], reverse=True)[:10]
+    # Agregado en SQL (sum/count), no trayendo las 30k+ filas de FACT_INVOICE
+    # a Python para sumarlas ahí — ver nota de diseño junto a
+    # CUENTAS_POR_COBRAR_RESUMEN en queries.py.
+    resumen = query_one(CUENTAS_POR_COBRAR_RESUMEN, {"dias": DIAS_REGALIAS_PENDIENTES}) or {}
+    total_por_cobrar = float(resumen.get("total_por_cobrar") or 0)
+    total_vencido = float(resumen.get("total_vencido") or 0)
+    num_pendientes = int(resumen.get("num_pendientes") or 0)
+    num_vencidas = int(resumen.get("num_vencidas") or 0)
+    proximos_vencimientos = query_rows(PROXIMOS_VENCIMIENTOS_INVOICE, {"dias": DIAS_REGALIAS_PENDIENTES})
 
     retiros = query_rows(RETIROS_PENDIENTES)
     total_retiros_pendientes = sum(float(r["monto"]) for r in retiros)
@@ -359,8 +364,8 @@ def _cuentas_por_cobrar_y_pagar() -> dict:
         "cuentas_por_cobrar": {
             "total_por_cobrar": round(total_por_cobrar, 2),
             "total_vencido": round(total_vencido, 2),
-            "num_invoices_pendientes": len(invoices),
-            "num_invoices_vencidas": len(vencidas),
+            "num_invoices_pendientes": num_pendientes,
+            "num_invoices_vencidas": num_vencidas,
             "proximos_vencimientos": proximos_vencimientos,
         },
         "cuentas_por_pagar": {
@@ -557,15 +562,18 @@ async def _alertas_financieras(desde: date, hasta: date, admin_id: str) -> list[
                 "detalle": f"Campaña '{evaluado['nombre']}' consumió {pct}% de su presupuesto",
             })
 
-    for row in query_rows(INVOICES_PENDIENTES_AGING):
-        if row["dias_desde_emision"] > DIAS_REGALIAS_PENDIENTES:
-            # invoice_id es UUID en ClickHouse — se castea a str explícitamente
-            # (clickhouse-connect lo devuelve como uuid.UUID, no comparable
-            # directo contra un str en el consumidor de esta alerta).
-            alertas.append({
-                "tipo": "factura_vencida", "invoice_id": str(row["invoice_id"]),
-                "detalle": f"Factura vencida hace {row['dias_desde_emision']} días",
-            })
+    # Agregado (una sola alerta con el conteo), no una por factura — con
+    # FACT_INVOICE en estado 'emitido' permanente (ver nota en queries.py,
+    # CUENTAS_POR_COBRAR_RESUMEN), esto llegó a ser 30k+ filas vencidas
+    # generando 30k+ alertas en la misma respuesta, suficiente para
+    # congelar el render de esta pantalla. Mismo criterio que la alerta de
+    # "suscripciones_cobro_pendiente" (arriba), que ya reporta un conteo.
+    num_facturas_vencidas = int((query_one(FACTURAS_VENCIDAS_COUNT, {"dias": DIAS_REGALIAS_PENDIENTES}) or {}).get("n") or 0)
+    if num_facturas_vencidas > 0:
+        alertas.append({
+            "tipo": "factura_vencida",
+            "detalle": f"{num_facturas_vencidas} factura(s) vencida(s) hace más de {DIAS_REGALIAS_PENDIENTES} días",
+        })
 
     for row in query_rows(RETIROS_PENDIENTES):
         alertas.append({
