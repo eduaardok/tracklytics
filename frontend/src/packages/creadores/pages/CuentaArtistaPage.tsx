@@ -624,6 +624,10 @@ export function CuentaArtistaPage() {
                   if (!trackName.trim()) errores.track_name = 'Ingresa el nombre del track.'
                   if (genreIds.length === 0) errores.genre_ids = 'Selecciona al menos un género.'
                   if (!durationSeconds) errores.duration_ms = 'Ingresa la duración.'
+                  else if (Number(durationSeconds) < 1) errores.duration_ms = 'La duración debe ser de al menos 1 segundo.'
+                  if (imagenUrl.trim() && !imagenUrl.trim().startsWith('http://') && !imagenUrl.trim().startsWith('https://')) {
+                    errores.imagen_url = 'La URL debe empezar con http:// o https://'
+                  }
                   if (Object.keys(errores).length > 0) {
                     setUploadFieldErrors(errores)
                     return
@@ -719,9 +723,10 @@ export function CuentaArtistaPage() {
                     type="url"
                     maxLength={500}
                     value={imagenUrl}
-                    onChange={(e) => setImagenUrl(e.target.value)}
+                    onChange={(e) => { setImagenUrl(e.target.value); setUploadFieldErrors((f) => ({ ...f, imagen_url: '' })) }}
                     placeholder="https://…/portada.jpg"
                   />
+                  {uploadFieldErrors.imagen_url && <span className={styles.fieldHint}>{uploadFieldErrors.imagen_url}</span>}
                 </div>
                 {/* S17: preview en vivo mientras se llena el formulario — mismo
                     tratamiento visual que TrackGridCard (AlbumArt con fallback

@@ -38,6 +38,10 @@ export function AlbumArt({ src, alt, size = 40, className = '', genreSeed, track
   )
 
   useEffect(() => {
+    setFailed(false)
+  }, [src])
+
+  useEffect(() => {
     if (src || !trackId || _fallbackCache.has(trackId)) return
     let cancelado = false
     apiClient

@@ -12,6 +12,7 @@ export default defineConfig({
     },
   },
   server: {
+    host: '0.0.0.0',
     proxy: {
       '/app/v1': { target: 'http://localhost:8000', changeOrigin: true },
       // Rutas montadas en la raíz del backend (sin prefijo /app/v1): el router
