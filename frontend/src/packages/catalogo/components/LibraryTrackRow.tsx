@@ -29,6 +29,11 @@ type Props = {
   // `position` - habilita el encolado automatico de Fase 1 (S16) tambien
   // fuera del catalogo/album/artista.
   queue?: LibraryTrack[]
+  // Clase extra sobre el borde `.row` — la usa la vista de playlist para que
+  // la fila estire (`flex: 1`) dentro de `.reorderRow`, donde el contenedor
+  // flex con `align-items: center` de otra forma achicaría cada fila al ancho
+  // de su propio contenido (nombres cortos → filas angostas, inconsistentes).
+  className?: string
 }
 
 // Fila para favoritos/historial/tracks de playlist — estos endpoints devuelven
@@ -47,7 +52,7 @@ function toPlayable(track: LibraryTrack) {
   }
 }
 
-export function LibraryTrackRow({ track, position, timeAgo, onRemove, removeTitle, queue }: Props) {
+export function LibraryTrackRow({ track, position, timeAgo, onRemove, removeTitle, queue, className }: Props) {
   const navigate = useNavigate()
   const { play, playList, reportPlaybackIssue, enqueue } = usePlayer()
   const { pedirImpresion } = useAd()
@@ -89,7 +94,7 @@ export function LibraryTrackRow({ track, position, timeAgo, onRemove, removeTitl
   return (
     <>
       <div
-        className={styles.row}
+        className={className ? `${styles.row} ${className}` : styles.row}
         onClick={goToDetail}
         onKeyDown={(e) => e.key === 'Enter' && goToDetail()}
         role="button"

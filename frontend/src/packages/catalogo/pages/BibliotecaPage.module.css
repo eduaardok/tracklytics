@@ -394,6 +394,14 @@
   gap: 4px;
 }
 
+/* La fila de la canción estira para ocupar el ancho restante: sin esto cada
+   fila se achicaría al ancho de su propio texto (nombres cortos → filas
+   angostas e inconsistentes dentro del mismo reorderRow). */
+.trackRowFlex {
+  flex: 1;
+  min-width: 0;
+}
+
 .reorderControls {
   display: flex;
   flex-direction: column;

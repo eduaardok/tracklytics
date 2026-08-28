@@ -273,6 +273,7 @@ function PlaylistDetail({ playlistId, onBack }: { playlistId: string; onBack: ()
                 onRemove={() => removeTrack.mutate(t.fact_id)}
                 removeTitle="Quitar de la playlist"
                 queue={data.data}
+                className={styles.trackRowFlex}
               />
             </li>
           ))}
