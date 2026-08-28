@@ -96,6 +96,13 @@ const SECCIONES = [
   { id: 'sinteticos', numero: '§05', titulo: 'Nota sobre datos sintéticos' },
 ] as const
 
+// Dos observers separados a propósito, no uno: "sección activa en la
+// sidebar" y "la sección ya entró al viewport alguna vez" son preguntas
+// distintas con requisitos de precisión opuestos. Con un único observer de
+// banda angosta (necesaria para saber cuál sección está "en foco" ahora
+// mismo), una sección más alta que esa banda —§03/§04, que traen diagramas
+// y grids largos— nunca llega al 20% de intersección exigido y queda con
+// `data-visible=false` para siempre, sin importar cuánto se haga scroll.
 function useScrollSpy(ids: readonly string[]) {
   const [activeId, setActiveId] = useState<string>(ids[0])
   const [visible, setVisible] = useState<Record<string, boolean>>({})
@@ -105,24 +112,53 @@ function useScrollSpy(ids: readonly string[]) {
       .map((id) => document.getElementById(id))
       .filter((el): el is HTMLElement => el !== null)
 
-    const observer = new IntersectionObserver(
+    // Revelado (fade-in), una sola vez por sección: dispara con que
+    // cualquier parte de la sección haya tocado el viewport, sin exigir
+    // que quepa entera en una banda angosta. Se deja de observar cada
+    // sección apenas se revela — ya no hay nada más que ese observer deba
+    // decidir sobre ella.
+    const revealObserver = new IntersectionObserver(
       (entries) => {
         for (const entry of entries) {
           if (entry.isIntersecting) {
             setVisible((prev) => ({ ...prev, [entry.target.id]: true }))
+            revealObserver.unobserve(entry.target)
           }
         }
+      },
+      { threshold: 0, rootMargin: '0px 0px -10% 0px' },
+    )
+
+    // Sección activa en la sidebar: conserva la banda angosta original
+    // (`rootMargin`, no `threshold`) para la precisión de "cuál sección
+    // está en foco ahora" — eso ya funcionaba bien. Lo que sí se ajusta es
+    // el `threshold`: en 0.2 exige que el 20% de la altura de la sección
+    // cabalgue dentro de esa banda, lo mismo que rompía el revelado para
+    // §03/§04 (nunca disparaba `isIntersecting`, así que el sidebar se
+    // quedaba pegado en la última sección corta que sí había alcanzado ese
+    // 20%). Con `threshold: 0` basta con que cualquier parte de la sección
+    // toque la banda — la precisión sigue viniendo del `rootMargin`
+    // angosto, no de exigir una fracción de una altura que puede ser
+    // arbitrariamente grande.
+    const activeObserver = new IntersectionObserver(
+      (entries) => {
         const intersecting = entries.filter((e) => e.isIntersecting)
         if (intersecting.length > 0) {
           const topMost = intersecting.reduce((a, b) => (a.boundingClientRect.top < b.boundingClientRect.top ? a : b))
           setActiveId(topMost.target.id)
         }
       },
-      { threshold: 0.2, rootMargin: '-80px 0px -60% 0px' },
+      { threshold: 0, rootMargin: '-80px 0px -60% 0px' },
     )
 
-    elements.forEach((el) => observer.observe(el))
-    return () => observer.disconnect()
+    elements.forEach((el) => {
+      revealObserver.observe(el)
+      activeObserver.observe(el)
+    })
+    return () => {
+      revealObserver.disconnect()
+      activeObserver.disconnect()
+    }
   }, [ids])
 
   return { activeId, visible }
