@@ -21,12 +21,48 @@
 }
 
 .badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  width: fit-content;
   font-family: var(--font-sans);
   font-size: 0.625rem;
   font-weight: 700;
   letter-spacing: 0.04em;
   text-transform: uppercase;
+  border-radius: var(--radius-pill);
+  padding: 2px 7px;
+}
+
+/* Distinción clara por tipo de anuncio (pedido directo) — 'display' y
+   'banner' comparten trigger técnico y componente; sin esta paleta propia
+   por formato se veían idénticos aunque el admin los haya configurado
+   distinto. Teal (mismo acento de datos del resto de la app) para display,
+   ámbar (mismo tono ya usado para "Publicidad" antes de esta variante) para
+   banner — nunca el mismo color entre sí. */
+.badge--display {
+  color: var(--color-accent);
+  background: oklch(0.70 0.14 195 / 0.14);
+}
+
+.badge--banner {
   color: var(--color-warning);
+  background: oklch(0.78 0.18 70 / 0.14);
+}
+
+.creativo {
+  width: 100%;
+  max-height: 72px;
+  object-fit: cover;
+  border-radius: var(--radius-sm);
+}
+
+.nombre {
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--color-ink);
 }
 
 .text {

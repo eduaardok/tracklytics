@@ -1,8 +1,16 @@
 import { createContext, useCallback, useContext, useRef, useState, type ReactNode } from 'react'
+import { Volume2 } from 'lucide-react'
 import { publicidadApi } from '../api/publicidad.api'
 import styles from './AdContext.module.css'
 
 const DURACION_MIN_MS = 5000
+
+type AnuncioActivo = {
+  impresionId: string
+  nombre:      string
+  cpm:         number
+  imagenUrl:   string | null
+}
 
 type AdContextValue = {
   // Se llama antes de reproducir un track. Si el usuario es free y hay una
@@ -15,8 +23,9 @@ type AdContextValue = {
 const AdContext = createContext<AdContextValue | null>(null)
 
 export function AdProvider({ children }: { children: ReactNode }) {
-  const [activa, setActiva] = useState<{ impresionId: string; anuncianteLabel: string } | null>(null)
+  const [activa, setActiva] = useState<AnuncioActivo | null>(null)
   const [puedeCerrar, setPuedeCerrar] = useState(false)
+  const [imagenRota, setImagenRota] = useState(false)
   const resolverRef = useRef<(() => void) | null>(null)
 
   const pedirImpresion = useCallback(async () => {
@@ -30,7 +39,11 @@ export function AdProvider({ children }: { children: ReactNode }) {
 
     const impresionId = res.impresion_id
     setPuedeCerrar(false)
-    setActiva({ impresionId, anuncianteLabel: `Anuncio · CPM $${res.campana.cpm.toFixed(2)}` })
+    setImagenRota(false)
+    setActiva({
+      impresionId, nombre: res.campana.nombre, cpm: res.campana.cpm,
+      imagenUrl: res.campana.imagen_url,
+    })
 
     await new Promise<void>((resolve) => {
       resolverRef.current = resolve
@@ -55,8 +68,22 @@ export function AdProvider({ children }: { children: ReactNode }) {
       {activa && (
         <div className={styles.overlay} role="dialog" aria-modal="true" aria-label="Anuncio">
           <div className={styles.card}>
-            <span className={styles.badge}>Publicidad</span>
-            <p className={styles.label}>{activa.anuncianteLabel}</p>
+            {/* Distinción clara de tipo de anuncio (pedido directo): violeta
+                + ícono de audio, exclusivo de esta variante — display/banner
+                usan su propia paleta en AdBanner.tsx. */}
+            <span className={`${styles.badge} ${styles['badge--audio']}`}>
+              <Volume2 size={12} aria-hidden="true" />
+              Anuncio de audio
+            </span>
+            {activa.imagenUrl && !imagenRota && (
+              <img
+                src={activa.imagenUrl}
+                alt=""
+                className={styles.creativo}
+                onError={() => setImagenRota(true)}
+              />
+            )}
+            <p className={styles.label}>{activa.nombre}</p>
             <p className={styles.note}>
               Tracklytics Free se financia con anuncios reales — pasa a Premium para escuchar sin interrupciones.
             </p>

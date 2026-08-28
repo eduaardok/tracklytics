@@ -21,7 +21,7 @@ CAMPANA_ESTADO = "SELECT campana_id, nombre, estado_manual FROM DIM_CAMPANA_PUBL
 def campanas_list_sql(where: str) -> str:
     return f"""
     SELECT campana_id, anunciante_id, nombre, cpm, presupuesto_total, fecha_inicio, fecha_fin, activa,
-           tipo_anuncio, formato, estado_manual, url_destino
+           tipo_anuncio, formato, estado_manual, url_destino, imagen_url
     FROM DIM_CAMPANA_PUBLICITARIA
     {where}
     ORDER BY fecha_inicio DESC
@@ -41,8 +41,13 @@ def campanas_count_sql(where: str) -> str:
 # `tipo_anuncio` (monetizacion-retencion-mejoras) — el mismo trigger de audio
 # y el nuevo de display comparten esta query, solo cambia el tipo (bindeado,
 # no interpolado, igual que el resto de queries de este paquete).
+#  `nombre`/`formato`/`imagen_url` (pedido directo: creativo con imagen +
+# distinción clara entre tipos de anuncio) — antes solo viajaban `cpm` y
+# `url_destino`, lo mínimo para cobrar y redirigir; el frontend no tenía con
+# qué mostrar UN anuncio real distinto de otro ni distinguir display de
+# banner (ambos comparten tipo_anuncio='display', solo `formato` los separa).
 CAMPANAS_ELEGIBLES_POR_TIPO = """
-SELECT campana_id, cpm, url_destino FROM DIM_CAMPANA_PUBLICITARIA
+SELECT campana_id, nombre, formato, cpm, url_destino, imagen_url FROM DIM_CAMPANA_PUBLICITARIA
 WHERE activa = 1 AND estado_manual = '' AND tipo_anuncio = {tipo:String}
   AND fecha_inicio <= today() AND (fecha_fin IS NULL OR fecha_fin >= today())
 ORDER BY campana_id

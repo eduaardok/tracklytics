@@ -23,6 +23,9 @@
 }
 
 .badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   font-family: var(--font-sans);
   font-size: 0.6875rem;
   font-weight: 700;
@@ -32,6 +35,24 @@
   background: oklch(0.78 0.18 70 / 0.14);
   border-radius: var(--radius-pill);
   padding: 3px 10px;
+}
+
+/* Distinción clara por tipo de anuncio (pedido directo) — el audio es la
+   única variante que pasa por este modal bloqueante, así que su paleta
+   (violeta, igual que `--color-primary` del resto de la app) queda
+   exclusiva de esta superficie; display/banner tienen la suya propia en
+   AdBanner.module.css. */
+.badge--audio {
+  color: var(--color-primary-light, var(--color-primary));
+  background: oklch(0.55 0.20 290 / 0.14);
+}
+
+.creativo {
+  width: 100%;
+  max-width: 280px;
+  max-height: 160px;
+  object-fit: cover;
+  border-radius: var(--radius-md);
 }
 
 .label {

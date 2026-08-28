@@ -1480,6 +1480,16 @@ DDL_STATEMENTS = [
     # ORDER KEY (staging_id), así que el ALTER UPDATE de edición es válido,
     # mismo criterio que `descripcion` arriba.
     f"ALTER TABLE {DB}.STG_ARTIST_UPLOADS ADD COLUMN IF NOT EXISTS imagen_url Nullable(String)",
+
+    # Creativo con imagen para campañas publicitarias (pedido directo:
+    # "personalización de publicidad para anunciantes... anuncios con
+    # imágenes") — el design.md original de display ads (change
+    # monetizacion-retencion-mejoras) ya proponía "imagen/texto + link a
+    # url_destino", pero la implementación se quedó solo en texto. Se aplica
+    # a las 3 variantes de `formato` (audio/display/banner): un anuncio de
+    # audio también puede mostrar el arte de la marca en el modal bloqueante,
+    # no solo el banner del sidebar.
+    f"ALTER TABLE {DB}.DIM_CAMPANA_PUBLICITARIA ADD COLUMN IF NOT EXISTS imagen_url Nullable(String)",
 ]
 
 # ── Runner ────────────────────────────────────────────────────────────────────

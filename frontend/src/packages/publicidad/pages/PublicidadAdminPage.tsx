@@ -473,6 +473,11 @@ function CampanaCreateModal({ anunciantesData, pending, onClose, onSave }: {
   const [presupuesto, setPresupuesto]   = useState('')
   const [fechaInicio, setFechaInicio]   = useState(() => new Date().toISOString().slice(0, 10))
   const [urlDestino, setUrlDestino]     = useState('')
+  // Creativo con imagen (pedido directo: "personalización de publicidad
+  // para anunciantes... anuncios con imágenes") — opcional en las 3
+  // variantes de formato, sin subida de archivo real (mismo mecanismo por
+  // URL que la portada de un track en `creadores`).
+  const [imagenUrl, setImagenUrl]       = useState('')
 
   const urlOk = tipoAnuncio === 'audio' || urlDestino.trim().length > 0
   const valido = !!anuncianteId && nombre.trim().length > 0 && !!cpm && !!presupuesto && urlOk
@@ -490,6 +495,7 @@ function CampanaCreateModal({ anunciantesData, pending, onClose, onSave }: {
         anunciante_id: Number(anuncianteId), nombre: nombre.trim(), cpm: Number(cpm),
         presupuesto_total: Number(presupuesto), fecha_inicio: fechaInicio,
         tipo_anuncio: tipoAnuncio, url_destino: urlDestino,
+        imagen_url: imagenUrl.trim() || undefined,
       })}
     >
       {/* S17: modal `wide` con preview en vivo — el formulario (7 campos, 2
@@ -531,11 +537,18 @@ function CampanaCreateModal({ anunciantesData, pending, onClose, onSave }: {
           <input id="camp-url" className={styles.input} type="url" maxLength={2048} value={urlDestino} onChange={(e) => setUrlDestino(e.target.value)} placeholder="https://anunciante.com/promo" />
         </div>
       )}
+      <div className={styles.field} style={{ gridColumn: '1 / -1' }}>
+        <label className={styles.fieldLabel} htmlFor="camp-imagen">Creativo — URL de imagen (opcional)</label>
+        <input id="camp-imagen" className={styles.input} type="url" maxLength={500} value={imagenUrl} onChange={(e) => setImagenUrl(e.target.value)} placeholder="https://anunciante.com/creativo.jpg" />
+      </div>
 
       <div className={styles.adPreview} style={{ gridColumn: '1 / -1' }}>
         <p className={styles.adPreviewLabel}>Vista previa</p>
         <div className={styles.adPreviewCard}>
           <span className={styles.adPreviewBadge}>{tipoAnuncio === 'audio' ? 'Audio · entre canciones' : 'Display · banner'}</span>
+          {imagenUrl.trim() && (
+            <img src={imagenUrl.trim()} alt="" className={styles.adPreviewImg} onError={(e) => { e.currentTarget.style.display = 'none' }} />
+          )}
           <p className={styles.adPreviewNombre}>{nombre.trim() || 'Nombre de la campaña'}</p>
           <p className={styles.adPreviewMeta}>
             {anunciantesData.find((a) => String(a.anunciante_id) === anuncianteId)?.nombre ?? 'Anunciante sin seleccionar'}
@@ -587,13 +600,15 @@ function CampanaEditModal({ campana, pending, onClose, onSave }: {
   campana: Campana
   pending: boolean
   onClose: () => void
-  onSave: (vals: { nombre: string; presupuesto_total: number; fecha_inicio: string; fecha_fin: string | null; formato: FormatoCampana }) => void
+  onSave: (vals: { nombre: string; presupuesto_total: number; fecha_inicio: string; fecha_fin: string | null; formato: FormatoCampana; imagen_url: string }) => void
 }) {
   const [nombre, setNombre] = useState(campana.nombre)
   const [presupuesto, setPresupuesto] = useState(String(campana.presupuesto_total))
   const [fechaInicio, setFechaInicio] = useState(campana.fecha_inicio)
   const [fechaFin, setFechaFin] = useState(campana.fecha_fin ?? '')
   const [formato, setFormato] = useState<FormatoCampana>(campana.formato)
+  // Creativo con imagen (pedido directo) — "" limpia el creativo al guardar.
+  const [imagenUrl, setImagenUrl] = useState(campana.imagen_url ?? '')
   const fechaFinValida = !fechaFin || fechaFin > fechaInicio
   const valido = nombre.trim().length > 0 && Number(presupuesto) > 0 && fechaFinValida
 
@@ -604,7 +619,10 @@ function CampanaEditModal({ campana, pending, onClose, onSave }: {
       title={`Editar campaña — ${campana.nombre}`}
       loading={pending}
       onClose={onClose}
-      onConfirm={() => valido && onSave({ nombre: nombre.trim(), presupuesto_total: Number(presupuesto), fecha_inicio: fechaInicio, fecha_fin: fechaFin || null, formato })}
+      onConfirm={() => valido && onSave({
+        nombre: nombre.trim(), presupuesto_total: Number(presupuesto), fecha_inicio: fechaInicio,
+        fecha_fin: fechaFin || null, formato, imagen_url: imagenUrl.trim(),
+      })}
     >
       <div className={styles.field}>
         <label className={styles.fieldLabel} htmlFor="ed-nombre">Nombre</label>
@@ -631,6 +649,10 @@ function CampanaEditModal({ campana, pending, onClose, onSave }: {
         <input id="ed-fin" className={styles.input} type="date" min={fechaInicio} value={fechaFin} onChange={(e) => setFechaFin(e.target.value)} />
         {!fechaFinValida && <p className={styles.modalWarn}>La fecha de fin debe ser posterior a la fecha de inicio.</p>}
       </div>
+      <div className={styles.field} style={{ gridColumn: '1 / -1' }}>
+        <label className={styles.fieldLabel} htmlFor="ed-imagen">Creativo — URL de imagen (opcional)</label>
+        <input id="ed-imagen" className={styles.input} type="url" maxLength={500} value={imagenUrl} onChange={(e) => setImagenUrl(e.target.value)} placeholder="https://anunciante.com/creativo.jpg" />
+      </div>
     </CrudModal>
   )
 }
@@ -649,6 +671,12 @@ function CampanaViewModal({ campana, anunciante, ingreso, onClose }: {
   const est = estadoCampana(campana)
   return (
     <CrudModal isOpen mode="view" title={`Campaña — ${campana.nombre}`} onClose={onClose} onConfirm={onClose}>
+      {campana.imagen_url && (
+        <div className={styles.field} style={{ gridColumn: '1 / -1' }}>
+          <label className={styles.fieldLabel}>Creativo</label>
+          <img src={campana.imagen_url} alt="" className={styles.adPreviewImg} style={{ marginBottom: 0 }} />
+        </div>
+      )}
       <div className={styles.field}>
         <label className={styles.fieldLabel}>Nombre</label>
         <input className={styles.input} value={campana.nombre} readOnly />

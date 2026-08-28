@@ -36,6 +36,23 @@ from paquetes.suscripciones import pb_client
 router = APIRouter(prefix="/app/v1/publicidad", tags=["Publicidad"])
 
 
+# Creativo con imagen (pedido directo: "pongo una url de alguna imagen y eso
+# que se muestre") — mismo criterio y mismo alcance de validación que
+# `paquetes/creadores/router.py::_validar_url_imagen` (duplicación
+# intencional entre paquetes, misma convención ya usada en el proyecto):
+# solo confirma que es un link http(s), nunca content-type/dimensiones
+# reales (no hay fetch del lado del servidor).
+def _validar_url_imagen(v: str | None) -> str | None:
+    if v is None:
+        return None
+    v = v.strip()
+    if not v:
+        return None
+    if not (v.startswith("http://") or v.startswith("https://")):
+        raise ValueError("La URL de la imagen debe empezar con http:// o https://")
+    return v
+
+
 def _es_artista_aprobado(usuario_id: str) -> bool:
     cuenta = query_one(CUENTA_ACTUAL_POR_USUARIO, {"usuario_id": usuario_id})
     return bool(cuenta) and cuenta["estado_cuenta"] == "aprobada"
@@ -148,6 +165,15 @@ class CampanaBody(BaseModel):
     # url_destino para el redirect al hacer click.
     tipo_anuncio: Literal["audio", "display"] = "audio"
     url_destino: str = Field("", max_length=2048)
+    # Creativo con imagen (pedido directo) — opcional en las 3 variantes de
+    # formato: sin ella, el anuncio se ve con el texto genérico de siempre
+    # (comportamiento previo, sin regresión).
+    imagen_url: str | None = Field(default=None, max_length=500)
+
+    @field_validator("imagen_url")
+    @classmethod
+    def _validar_imagen_url(cls, v: str | None) -> str | None:
+        return _validar_url_imagen(v)
 
     @field_validator("fecha_fin")
     @classmethod
@@ -171,10 +197,20 @@ def crear_campana(body: CampanaBody, admin: dict = Depends(require_admin)):
         [(
             nuevo_id, body.anunciante_id, body.nombre, body.cpm, body.presupuesto_total,
             body.fecha_inicio, body.fecha_fin, body.tipo_anuncio, body.url_destino.strip(),
+            # `formato` (bug real, encontrado al probar el creativo con
+            # imagen): faltaba en este INSERT, así que toda campaña nueva
+            # caía siempre en el DEFAULT de la columna ('display'), sin
+            # importar el `tipo_anuncio` elegido — una campaña de audio
+            # recién creada se mostraba como "Display" hasta que un admin la
+            # editara a mano. `tipo_anuncio` es la fuente correcta al crear
+            # (el formulario de creación solo ofrece audio/display, nunca
+            # 'banner' — esa variante se elige después vía editar_campana).
+            body.tipo_anuncio, body.imagen_url,
         )],
         column_names=[
             "campana_id", "anunciante_id", "nombre", "cpm", "presupuesto_total",
             "fecha_inicio", "fecha_fin", "tipo_anuncio", "url_destino",
+            "formato", "imagen_url",
         ],
     )
     return {"status": "ok", "campana_id": nuevo_id}
@@ -226,6 +262,16 @@ class CampanaEditBody(BaseModel):
     fecha_inicio: date | None = None
     fecha_fin: date | None = None
     formato: Literal["audio", "display", "banner"] | None = None
+    # "" limpia el creativo; `None` (campo omitido) no lo toca — mismo
+    # contrato opcional que `EditarTrackBody.imagen_url` en `creadores`.
+    imagen_url: str | None = Field(default=None, max_length=500)
+
+    @field_validator("imagen_url")
+    @classmethod
+    def _validar_imagen_url(cls, v: str | None) -> str | None:
+        if v is not None and v.strip() == "":
+            return ""
+        return _validar_url_imagen(v)
 
     @field_validator("fecha_fin")
     @classmethod
@@ -278,6 +324,11 @@ def editar_campana(
     if body.formato is not None:
         sets.append("formato = {formato:String}"); params["formato"] = body.formato
         sets.append("tipo_anuncio = {tipo:String}"); params["tipo"] = _FORMATO_A_TIPO[body.formato]
+    if body.imagen_url is not None:
+        if body.imagen_url:
+            sets.append("imagen_url = {img:String}"); params["img"] = body.imagen_url
+        else:
+            sets.append("imagen_url = NULL")
     if not sets:
         raise HTTPException(status_code=422, detail="No se enviaron campos a editar")
     execute(f"ALTER TABLE DIM_CAMPANA_PUBLICITARIA UPDATE {', '.join(sets)} WHERE campana_id = {{id:UInt32}}", params)
@@ -348,7 +399,13 @@ async def registrar_impresion(user: dict = Depends(get_current_user)):
         [(impresion_id, campana["campana_id"], user["record"]["id"], 0)],
         column_names=["impresion_id", "campana_id", "usuario_id", "completado"],
     )
-    return {"campana": {"campana_id": campana["campana_id"], "cpm": campana["cpm"]}, "impresion_id": impresion_id}
+    return {
+        "campana": {
+            "campana_id": campana["campana_id"], "cpm": campana["cpm"],
+            "nombre": campana["nombre"], "formato": campana["formato"], "imagen_url": campana["imagen_url"],
+        },
+        "impresion_id": impresion_id,
+    }
 
 
 @router.post("/impresion-display", status_code=201)
@@ -372,7 +429,10 @@ async def registrar_impresion_display(user: dict = Depends(get_current_user)):
         column_names=["impresion_id", "campana_id", "usuario_id", "completado"],
     )
     return {
-        "campana": {"campana_id": campana["campana_id"], "cpm": campana["cpm"], "url_destino": campana["url_destino"]},
+        "campana": {
+            "campana_id": campana["campana_id"], "cpm": campana["cpm"], "url_destino": campana["url_destino"],
+            "nombre": campana["nombre"], "formato": campana["formato"], "imagen_url": campana["imagen_url"],
+        },
         "impresion_id": impresion_id,
     }
 

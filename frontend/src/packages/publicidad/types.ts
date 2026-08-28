@@ -25,6 +25,9 @@ export type Campana = {
   formato:           FormatoCampana
   estado_manual:     EstadoManualCampana
   url_destino:       string
+  // Creativo con imagen (pedido directo: "anuncios con imágenes") — `null`
+  // cae al texto genérico de siempre, sin regresión.
+  imagen_url:        string | null
 }
 
 export type CampanaEditBody = {
@@ -33,6 +36,8 @@ export type CampanaEditBody = {
   fecha_inicio?:      string
   fecha_fin?:         string | null
   formato?:           FormatoCampana
+  // "" limpia el creativo; omitido no lo toca.
+  imagen_url?:        string
 }
 
 export type CampanaBody = {
@@ -44,15 +49,22 @@ export type CampanaBody = {
   fecha_fin?:        string | null
   tipo_anuncio?:     TipoAnuncio
   url_destino?:      string
+  imagen_url?:       string
 }
 
+// Lo mínimo que necesita el frontend para mostrar UN anuncio real distinto
+// de otro (pedido directo: "distinción clara entre los tipos de anuncios
+// que se muestran") — antes solo viajaban cpm/url_destino, sin nombre,
+// formato ni creativo.
+type CampanaImpresion = { campana_id: number; cpm: number; nombre: string; formato: FormatoCampana; imagen_url: string | null }
+
 export type ImpresionAsignada = {
-  campana: { campana_id: number; cpm: number } | null
+  campana: CampanaImpresion | null
   impresion_id?: string
 }
 
 export type ImpresionDisplayAsignada = {
-  campana: { campana_id: number; cpm: number; url_destino: string } | null
+  campana: (CampanaImpresion & { url_destino: string }) | null
   impresion_id?: string
 }
 
