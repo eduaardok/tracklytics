@@ -161,6 +161,34 @@
   color: var(--color-muted);
 }
 
+/* Foto de perfil de artista (pedido directo) — mismo patrón de botón-link
+   ya usado en `social`/`regalias`, sin duplicar un botón `btnGhost` para
+   una acción tan secundaria. */
+.linkBtn {
+  font-family: var(--font-sans);
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--color-primary-light, var(--color-primary));
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  margin-top: 4px;
+}
+.linkBtn:hover { text-decoration: underline; }
+
+.imagenUrlForm {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: var(--space-xs);
+  flex-wrap: wrap;
+}
+.imagenUrlForm .input {
+  flex: 1;
+  min-width: 200px;
+}
+
 .statusHint {
   font-family: var(--font-sans);
   font-size: 0.875rem;

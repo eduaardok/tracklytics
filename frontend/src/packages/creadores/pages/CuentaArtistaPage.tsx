@@ -185,6 +185,10 @@ export function CuentaArtistaPage() {
   const [genreIds, setGenreIds]               = useState<number[]>([])
   const [durationSeconds, setDurationSeconds] = useState('')
   const [explicit, setExplicit]               = useState(false)
+  // Portada por URL (pedido directo: "poder agregar imágenes a las
+  // canciones subidas, pongo una url y eso que se muestre") — opcional, sin
+  // subida de archivo real (no hay almacenamiento de blobs en el proyecto).
+  const [imagenUrl, setImagenUrl]             = useState('')
   // Errores por campo del formulario de subida (S16 — auditoría de
   // revisores): antes cualquier 422 caía a un `ErrorState` genérico fijo
   // ("No se pudo subir el track. Intenta de nuevo.") que ni siquiera leía el
@@ -260,6 +264,7 @@ export function CuentaArtistaPage() {
         genre_ids:   genreIds,
         duration_ms: Math.round(Number(durationSeconds) * 1000),
         explicit,
+        imagen_url:  imagenUrl.trim() || undefined,
       })
       setUploadStep('publicado')
       await esperar(500)
@@ -267,6 +272,7 @@ export function CuentaArtistaPage() {
     },
     onSuccess: () => {
       setTrackName(''); setAlbumName(''); setGenreIds([]); setDurationSeconds(''); setExplicit(false)
+      setImagenUrl('')
       setUploadFieldErrors({})
       setUploadStep(null)
       queryClient.invalidateQueries({ queryKey: ['creadores', 'tracks'] })
@@ -289,7 +295,7 @@ export function CuentaArtistaPage() {
   const confirm = useConfirm()
 
   const editar = useMutation({
-    mutationFn: ({ id, body }: { id: string; body: { track_name: string; album_name: string; genre_ids: number[]; descripcion: string } }) =>
+    mutationFn: ({ id, body }: { id: string; body: { track_name: string; album_name: string; genre_ids: number[]; descripcion: string; imagen_url: string } }) =>
       creadoresApi.editarTrack(id, body),
     onSuccess: (res) => {
       setEditTrack(null)
@@ -297,6 +303,21 @@ export function CuentaArtistaPage() {
       toast.success(res.estado === 'pendiente' ? 'Track actualizado — vuelve a revisión' : 'Track actualizado')
     },
     onError: (err) => toast.error(apiErrorMessage(err, 'No se pudo actualizar el track.')),
+  })
+
+  // Foto de perfil de artista (pedido directo: "lo mismo podría aplicar
+  // para foto de perfil de artista") — separada de la edición de un track,
+  // vive junto al nombre artístico en `statusPanel`.
+  const [editandoFoto, setEditandoFoto] = useState(false)
+  const [fotoArtistaUrl, setFotoArtistaUrl] = useState('')
+  const actualizarFoto = useMutation({
+    mutationFn: (url: string) => creadoresApi.actualizarImagenArtista({ imagen_url: url }),
+    onSuccess: () => {
+      setEditandoFoto(false)
+      queryClient.invalidateQueries({ queryKey: ['creadores', 'cuenta'] })
+      toast.success('Foto de perfil actualizada')
+    },
+    onError: (err) => toast.error(apiErrorMessage(err, 'No se pudo actualizar la foto de perfil.')),
   })
   const retirar = useMutation({
     mutationFn: (id: string) => creadoresApi.retirarTrack(id),
@@ -416,6 +437,17 @@ export function CuentaArtistaPage() {
       {cuenta.data && (
         <>
           <div className={styles.statusPanel}>
+            {/* Foto de perfil de artista (pedido directo) — solo tiene
+                sentido con cuenta aprobada: recién ahí `DIM_ARTISTS` tiene
+                una fila propia (la crea el primer track aprobado). */}
+            {cuenta.data.estado_cuenta === 'aprobada' && (
+              <AlbumArt
+                src={cuenta.data.imagen_url}
+                alt=""
+                size={56}
+                genreSeed={cuenta.data.nombre_artistico}
+              />
+            )}
             <div className={styles.statusInfo}>
               <div className={styles.statusName}>{cuenta.data.nombre_artistico}</div>
               <div className={styles.statusMeta}>solicitada {fmtDate(cuenta.data.fecha_solicitud)}</div>
@@ -427,6 +459,35 @@ export function CuentaArtistaPage() {
               )}
               {cuenta.data.estado_cuenta === 'rechazada' && (
                 <p className={styles.statusHint}>Tu solicitud fue rechazada.</p>
+              )}
+              {cuenta.data.estado_cuenta === 'aprobada' && !editandoFoto && (
+                <button
+                  type="button"
+                  className={styles.linkBtn}
+                  onClick={() => { setFotoArtistaUrl(cuenta.data!.imagen_url ?? ''); setEditandoFoto(true) }}
+                >
+                  {cuenta.data.imagen_url ? 'Cambiar foto de perfil' : 'Agregar foto de perfil'}
+                </button>
+              )}
+              {editandoFoto && (
+                <form
+                  className={styles.imagenUrlForm}
+                  onSubmit={(e) => { e.preventDefault(); actualizarFoto.mutate(fotoArtistaUrl.trim()) }}
+                >
+                  <input
+                    className={styles.input}
+                    type="url"
+                    maxLength={500}
+                    value={fotoArtistaUrl}
+                    onChange={(e) => setFotoArtistaUrl(e.target.value)}
+                    placeholder="https://…/tu-foto.jpg"
+                    aria-label="URL de la foto de perfil"
+                  />
+                  <button type="submit" className={styles.btnGhost} disabled={actualizarFoto.isPending}>
+                    {actualizarFoto.isPending ? 'Guardando…' : 'Guardar'}
+                  </button>
+                  <button type="button" className={styles.btnGhost} onClick={() => setEditandoFoto(false)}>Cancelar</button>
+                </form>
               )}
             </div>
             <EstadoBadge estado={cuenta.data.estado_cuenta} />
@@ -645,6 +706,23 @@ export function CuentaArtistaPage() {
                   />
                   <label className={styles.fieldLabel} htmlFor="explicit">Contenido explícito</label>
                 </div>
+                {/* Portada por URL (pedido directo) — sin subida de archivo
+                    real, el mecanismo es un link a una imagen ya alojada en
+                    otro lado (mismo criterio que el resto de portadas del
+                    catálogo). Opcional: sin ella, cae al degradado por
+                    género, visible en la vista previa de abajo. */}
+                <div className={`${styles.field} ${styles['field--wide']}`}>
+                  <label className={styles.fieldLabel} htmlFor="track_imagen_url">Portada (URL de imagen, opcional)</label>
+                  <input
+                    id="track_imagen_url"
+                    className={styles.input}
+                    type="url"
+                    maxLength={500}
+                    value={imagenUrl}
+                    onChange={(e) => setImagenUrl(e.target.value)}
+                    placeholder="https://…/portada.jpg"
+                  />
+                </div>
                 {/* S17: preview en vivo mientras se llena el formulario — mismo
                     tratamiento visual que TrackGridCard (AlbumArt con fallback
                     de género + nombre/artista), sin reusar el componente tal
@@ -654,7 +732,7 @@ export function CuentaArtistaPage() {
                 <div className={styles.uploadPreview}>
                   <p className={styles.fieldLabel}>Vista previa en el catálogo</p>
                   <div className={styles.uploadPreviewCard}>
-                    <AlbumArt src={null} alt="" size={64} genreSeed={generosData.find((g) => genreIds.includes(g.genre_id))?.name} />
+                    <AlbumArt src={imagenUrl.trim() || null} alt="" size={64} genreSeed={generosData.find((g) => genreIds.includes(g.genre_id))?.name} />
                     <div className={styles.uploadPreviewInfo}>
                       <p className={styles.uploadPreviewName}>{trackName.trim() || 'Nombre del track'}</p>
                       <p className={styles.uploadPreviewMeta}>
@@ -710,7 +788,7 @@ function TrackEditDialog({ track, generos, pending, onClose, onSave }: {
   generos: { genre_id: number; name: string }[]
   pending: boolean
   onClose: () => void
-  onSave: (body: { track_name: string; album_name: string; genre_ids: number[]; descripcion: string }) => void
+  onSave: (body: { track_name: string; album_name: string; genre_ids: number[]; descripcion: string; imagen_url: string }) => void
 }) {
   const [nombre, setNombre] = useState(track.track_name)
   const [album, setAlbum] = useState(track.album_name)
@@ -718,18 +796,22 @@ function TrackEditDialog({ track, generos, pending, onClose, onSave }: {
   // con `genre_id` como respaldo (tracks editados antes de este cambio).
   const [genreIds, setGenreIds] = useState<number[]>(track.genre_ids?.length ? track.genre_ids : [track.genre_id])
   const [descripcion, setDescripcion] = useState(track.descripcion ?? '')
+  // Portada por URL (pedido directo) — a diferencia de los demás campos,
+  // cambiarla NO manda el track de vuelta a revisión (el backend la trata
+  // aparte, ver comentario en `router.py::editar_track`).
+  const [imagenUrl, setImagenUrl] = useState(track.imagen_url ?? '')
 
   return (
     <div className={styles.modalBackdrop} onMouseDown={onClose}>
       <div className={styles.modal} role="dialog" aria-modal="true" aria-label="Editar track" onMouseDown={(e) => e.stopPropagation()}>
         <p className={styles.modalTitle}>Editar track</p>
         {track.estado_nombre === 'aprobado' && (
-          <p className={styles.modalBody}>Este track está aprobado: al guardar volverá a revisión editorial.</p>
+          <p className={styles.modalBody}>Este track está aprobado: cambiar nombre, álbum, géneros o descripción lo vuelve a mandar a revisión editorial. La portada se actualiza al instante, sin pasar por revisión.</p>
         )}
         <form className={styles.modalForm} onSubmit={(e) => {
           e.preventDefault()
           if (!nombre.trim() || genreIds.length === 0) return
-          onSave({ track_name: nombre.trim(), album_name: album.trim(), genre_ids: genreIds, descripcion: descripcion.trim() })
+          onSave({ track_name: nombre.trim(), album_name: album.trim(), genre_ids: genreIds, descripcion: descripcion.trim(), imagen_url: imagenUrl.trim() })
         }}>
           <label className={styles.modalField}><span className={styles.fieldLabel}>Nombre</span><input className={styles.input} maxLength={200} value={nombre} onChange={(e) => setNombre(e.target.value)} /></label>
           <label className={styles.modalField}><span className={styles.fieldLabel}>Álbum</span><input className={styles.input} maxLength={200} value={album} onChange={(e) => setAlbum(e.target.value)} /></label>
@@ -751,6 +833,20 @@ function TrackEditDialog({ track, generos, pending, onClose, onSave }: {
             </div>
           </div>
           <label className={styles.modalField}><span className={styles.fieldLabel}>Descripción</span><textarea className={styles.textarea} rows={3} maxLength={2000} value={descripcion} onChange={(e) => setDescripcion(e.target.value)} /></label>
+          <div className={styles.modalField}>
+            <span className={styles.fieldLabel}>Portada (URL de imagen)</span>
+            <div className={styles.imagenUrlForm} style={{ marginTop: 0 }}>
+              <AlbumArt src={imagenUrl.trim() || null} alt="" size={40} genreSeed={genreIds.length ? generos.find((g) => genreIds.includes(g.genre_id))?.name : undefined} />
+              <input
+                className={styles.input}
+                type="url"
+                maxLength={500}
+                value={imagenUrl}
+                onChange={(e) => setImagenUrl(e.target.value)}
+                placeholder="https://…/portada.jpg"
+              />
+            </div>
+          </div>
           <div className={styles.modalActions}>
             <button type="button" className={styles.btnGhost} onClick={onClose}>Cancelar</button>
             <button type="submit" className={styles.btnPrimary} disabled={pending || !nombre.trim() || genreIds.length === 0}>{pending ? 'Guardando…' : 'Guardar cambios'}</button>

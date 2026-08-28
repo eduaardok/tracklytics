@@ -13,7 +13,7 @@ from paquetes.creadores.promocion import (
 )
 from paquetes.creadores.queries import (
     ANALITICA_ARTISTA_POR_TRACK, ANALITICA_ARTISTA_SERIE,
-    ARTIST_ID_POR_NOMBRE, CUENTA_ACTUAL_POR_ID, CUENTA_ACTUAL_POR_USUARIO, CUENTA_EXISTE_POR_USUARIO,
+    ARTIST_ID_POR_NOMBRE, ARTIST_POR_NOMBRE, CUENTA_ACTUAL_POR_ID, CUENTA_ACTUAL_POR_USUARIO, CUENTA_EXISTE_POR_USUARIO,
     CUENTAS_ARTISTA_TOTAL, GENERO_EXISTE, SUBIDA_ACTUAL_POR_ID, SUBIDA_MAX_VERSION, SUBIDAS_POR_CUENTA,
     SUBIDAS_POR_ESTADO, cuentas_admin_sql, subidas_admin_sql,
 )
@@ -42,6 +42,25 @@ _ESTADO_REVISION_ID = {"pendiente": 1, "aprobado": 2, "rechazado": 3, "retirado"
 # (change p1-ciclos-vida) insertan una fila nueva con version = max+1 para
 # ganar el argMax(estado_revision_id, version) de forma determinista.
 _FACT_SUBIDA_COLS_VER = _FACT_SUBIDA_COLS + ["version"]
+
+
+# Portada por URL (pedido directo: "pongo una url de alguna imagen y eso que
+# se muestre") — sin subida de archivo real (no hay almacenamiento de blobs
+# en el proyecto), la portada es siempre un link a una imagen ya alojada en
+# otro lado, igual que `imagen_url` en el resto del catálogo (Spotify oEmbed,
+# `portadas_cache.json`, etc.). Validación mínima a propósito: solo confirma
+# que es un link http(s) razonable, nunca content-type/dimensiones reales
+# (no hay fetch del lado del servidor para esto, ver design.md — mismo
+# alcance que cualquier otro campo de texto libre de la subida).
+def _validar_url_imagen(v: str | None) -> str | None:
+    if v is None:
+        return None
+    v = v.strip()
+    if not v:
+        return None
+    if not (v.startswith("http://") or v.startswith("https://")):
+        raise ValueError("La URL de la imagen debe empezar con http:// o https://")
+    return v
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -88,7 +107,61 @@ def mi_cuenta(user: dict = Depends(get_current_user)):
     cuenta = query_one(CUENTA_ACTUAL_POR_USUARIO, {"usuario_id": user["record"]["id"]})
     if not cuenta:
         raise HTTPException(status_code=404, detail="No has solicitado una cuenta de artista")
+    # Foto de perfil de artista (pedido directo): vive en DIM_ARTISTS, no en
+    # DIM_CUENTA_ARTISTA — mismo soft join por nombre_artistico que el resto
+    # de la capability. `None` mientras el artista no tenga fila en
+    # DIM_ARTISTS todavía (se crea recién con el primer track aprobado, ver
+    # `_resolver_artist_id`), no un error: el frontend simplemente no
+    # muestra el editor de portada hasta entonces.
+    artista = query_one(ARTIST_POR_NOMBRE, {"name": cuenta["nombre_artistico"]})
+    cuenta["imagen_url"] = artista["imagen_url"] if artista else None
     return cuenta
+
+
+class ActualizarImagenArtistaBody(BaseModel):
+    # "" limpia la foto de perfil (vuelve al degradado por género).
+    imagen_url: str = Field(default="", max_length=500)
+
+    @field_validator("imagen_url")
+    @classmethod
+    def _validar(cls, v: str) -> str:
+        return _validar_url_imagen(v) or ""
+
+
+@router.put("/cuenta/imagen")
+def actualizar_imagen_artista(
+    body: ActualizarImagenArtistaBody,
+    cuenta: dict = Depends(require_cuenta_artista_aprobada),
+):
+    """Foto de perfil del artista (pedido directo, mismo mecanismo por URL
+    que la portada de un track) — escribe DIM_ARTISTS.imagen_url. Requiere
+    que el artista ya tenga fila en DIM_ARTISTS (la crea automáticamente su
+    primer track aprobado, `_resolver_artist_id` en promocion.py); antes de
+    eso no hay a qué fila escribir."""
+    artista = query_one(ARTIST_POR_NOMBRE, {"name": cuenta["nombre_artistico"]})
+    if not artista:
+        raise HTTPException(
+            status_code=409,
+            detail="Tu perfil de artista todavía no existe en el catálogo — se crea automáticamente "
+                   "cuando tu primer track sea aprobado.",
+        )
+    if body.imagen_url:
+        execute(
+            "ALTER TABLE DIM_ARTISTS UPDATE imagen_url = {img:String} WHERE artist_id = {aid:UInt32}",
+            {"img": body.imagen_url, "aid": artista["artist_id"]},
+        )
+    else:
+        execute(
+            "ALTER TABLE DIM_ARTISTS UPDATE imagen_url = NULL WHERE artist_id = {aid:UInt32}",
+            {"aid": artista["artist_id"]},
+        )
+    audit.record(
+        usuario_id=cuenta["usuario_id"], accion="actualizar_imagen_artista",
+        tabla_afectada="DIM_ARTISTS",
+        antes={"artist_id": artista["artist_id"], "imagen_url": artista["imagen_url"]},
+        despues={"artist_id": artista["artist_id"], "imagen_url": body.imagen_url or None},
+    )
+    return {"status": "ok", "imagen_url": body.imagen_url or None}
 
 
 @router.get("/admin/cuentas", dependencies=[Depends(require_admin_lectura_cuentas)])
@@ -157,6 +230,15 @@ class SubidaTrackBody(BaseModel):
     # puerta a un valor absurdo).
     duration_ms: int = Field(ge=1000, le=10_800_000)
     explicit: bool = False
+    # Portada por URL (pedido directo): opcional — sin ella, el track cae al
+    # mismo degradado por género que ya usa el resto del catálogo sin
+    # portada resuelta (AlbumArt, frontend).
+    imagen_url: str | None = Field(default=None, max_length=500)
+
+    @field_validator("imagen_url")
+    @classmethod
+    def _validar_imagen_url(cls, v: str | None) -> str | None:
+        return _validar_url_imagen(v)
 
     @field_validator("track_name")
     @classmethod
@@ -206,13 +288,13 @@ def subir_track(
             body.genre_ids[0], body.genre_ids, body.duration_ms, int(body.explicit),
             d["danceability"], d["energy"], d["key"], d["loudness"], d["mode"],
             d["speechiness"], d["acousticness"], d["instrumentalness"], d["liveness"],
-            d["valence"], d["tempo"], d["time_signature"],
+            d["valence"], d["tempo"], d["time_signature"], body.imagen_url,
         )],
         column_names=[
             "staging_id", "cuenta_artista_id", "track_name", "album_name", "genre_id", "genre_ids",
             "duration_ms", "explicit", "danceability", "energy", "key", "loudness",
             "mode", "speechiness", "acousticness", "instrumentalness", "liveness",
-            "valence", "tempo", "time_signature",
+            "valence", "tempo", "time_signature", "imagen_url",
         ],
     )
 
@@ -309,11 +391,25 @@ class EditarTrackBody(BaseModel):
     album_name: str | None = Field(default=None, max_length=200)
     genre_ids: list[int] | None = Field(default=None, min_length=1, max_length=5)
     descripcion: str | None = Field(default=None, max_length=2000)
+    # Portada por URL (pedido directo): string vacío ("") limpia la portada
+    # (vuelve al degradado por género); `None` (campo omitido) significa "no
+    # tocar la portada actual" — mismo contrato opcional que el resto de
+    # campos de este body.
+    imagen_url: str | None = Field(default=None, max_length=500)
 
     @field_validator("genre_ids")
     @classmethod
     def _generos_unicos(cls, v: list[int] | None) -> list[int] | None:
         return list(dict.fromkeys(v)) if v is not None else v
+
+    @field_validator("imagen_url")
+    @classmethod
+    def _validar_imagen_url(cls, v: str | None) -> str | None:
+        # A diferencia de SubidaTrackBody, acá "" es una señal válida
+        # ("limpiar") — solo se normaliza/valida cuando no está vacío.
+        if v is not None and v.strip() == "":
+            return ""
+        return _validar_url_imagen(v)
 
 
 def _subida_propia_o_error(subida_id: str, cuenta: dict) -> dict:
@@ -356,8 +452,47 @@ def editar_track(
         sets.append("genre_ids = {gids:Array(UInt16)}"); params["gids"] = body.genre_ids
     if body.descripcion is not None:
         sets.append("descripcion = {desc:String}"); params["desc"] = body.descripcion.strip()
-    if not sets:
+
+    # Portada (imagen_url) — a propósito FUERA de `sets`/`volvio_a_pendiente`:
+    # es puramente cosmética (no pasa por moderación de contenido como
+    # nombre/álbum/género/descripción), así que se aplica de inmediato sin
+    # mandar un track ya aprobado de vuelta a revisión solo por cambiar la
+    # portada. Si el track ya fue promovido, se propaga también a
+    # FACT_TRACKS (visible ya, no solo en la próxima promoción).
+    imagen_cambiada = body.imagen_url is not None
+    if imagen_cambiada:
+        if body.imagen_url:
+            execute(
+                "ALTER TABLE STG_ARTIST_UPLOADS UPDATE imagen_url = {img:String} WHERE staging_id = {sid:String}",
+                {"img": body.imagen_url, "sid": subida["staging_id"]},
+            )
+            if subida["fact_id_promovido"] is not None:
+                execute(
+                    "ALTER TABLE FACT_TRACKS UPDATE imagen_url = {img:String} WHERE track_id = {tid:String}",
+                    {"img": body.imagen_url, "tid": subida["staging_id"]},
+                )
+        else:
+            execute(
+                "ALTER TABLE STG_ARTIST_UPLOADS UPDATE imagen_url = NULL WHERE staging_id = {sid:String}",
+                {"sid": subida["staging_id"]},
+            )
+            if subida["fact_id_promovido"] is not None:
+                execute(
+                    "ALTER TABLE FACT_TRACKS UPDATE imagen_url = NULL WHERE track_id = {tid:String}",
+                    {"tid": subida["staging_id"]},
+                )
+
+    if not sets and not imagen_cambiada:
         raise HTTPException(status_code=422, detail="No se enviaron campos a editar")
+    if not sets:
+        # Solo cambió la portada — nada más que auditar/ejecutar contra
+        # STG_ARTIST_UPLOADS vía el `sets` genérico de abajo.
+        audit.record(
+            usuario_id=cuenta["usuario_id"], accion="editar_track_artista",
+            tabla_afectada="STG_ARTIST_UPLOADS", antes={"subida_id": subida_id, "estado": subida["estado_nombre"]},
+            despues={"subida_id": subida_id, "campos": ["imagen_url"], "volvio_a_pendiente": False},
+        )
+        return {"status": "ok", "subida_id": subida_id, "estado": subida["estado_nombre"]}
 
     execute(f"ALTER TABLE STG_ARTIST_UPLOADS UPDATE {', '.join(sets)} WHERE staging_id = {{sid:String}}", params)
 

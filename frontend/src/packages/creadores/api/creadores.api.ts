@@ -6,7 +6,7 @@ import type {
   ResolverCuentaBody, ResolverCuentaResultado,
   SubidaTrackBody, SubidaTrackResultado,
   ResolverTrackBody, ResolverTrackResultado,
-  EditarTrackBody,
+  EditarTrackBody, ActualizarImagenArtistaBody,
 } from '../types'
 
 // Estos endpoints requieren sesión — el header Authorization lo inyecta
@@ -17,6 +17,12 @@ export const creadoresApi = {
 
   solicitarCuenta: (body: SolicitudCuentaBody) =>
     apiClient.post<SolicitudCuentaResultado>('/creadores/cuenta', body),
+
+  // Foto de perfil de artista (pedido directo, mismo mecanismo por URL que
+  // la portada de un track) — requiere que el artista ya tenga fila en
+  // DIM_ARTISTS (primer track aprobado).
+  actualizarImagenArtista: (body: ActualizarImagenArtistaBody) =>
+    apiClient.put<{ status: string; imagen_url: string | null }>('/creadores/cuenta/imagen', body),
 
   cuentasAdmin: (estado?: string) =>
     apiClient.get<ApiResponse<CuentaArtista>>(

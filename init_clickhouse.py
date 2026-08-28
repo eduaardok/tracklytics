@@ -1470,6 +1470,16 @@ DDL_STATEMENTS = [
     ) ENGINE = ReplacingMergeTree(actualizado_en)
     ORDER BY track_id
     """,
+
+    # Portada editable en la subida de un track de artista (pedido directo:
+    # "poder agregar imágenes a las canciones subidas, pongo una URL y se
+    # muestre") — antes STG_ARTIST_UPLOADS no tenía ningún campo de imagen,
+    # así que un track `user_uploaded` nunca podía tener portada real (el
+    # backfill de `portada.py`/`portada_fallback` solo resuelve `source_type
+    # = 'real'`, ver router.py de `catalogo`). `imagen_url` no está en la
+    # ORDER KEY (staging_id), así que el ALTER UPDATE de edición es válido,
+    # mismo criterio que `descripcion` arriba.
+    f"ALTER TABLE {DB}.STG_ARTIST_UPLOADS ADD COLUMN IF NOT EXISTS imagen_url Nullable(String)",
 ]
 
 # ── Runner ────────────────────────────────────────────────────────────────────

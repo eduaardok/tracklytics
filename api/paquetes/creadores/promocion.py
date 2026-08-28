@@ -151,6 +151,7 @@ async def promover_a_fact_tracks(staging_row: dict, nombre_artistico: str) -> in
                 staging_row["speechiness"], staging_row["acousticness"],
                 staging_row["instrumentalness"], staging_row["liveness"],
                 staging_row["valence"], tempo, load_week, "user_uploaded",
+                staging_row.get("imagen_url"),
             )
             for i, genre_id in enumerate(genre_ids)
         ]
@@ -167,6 +168,7 @@ async def promover_a_fact_tracks(staging_row: dict, nombre_artistico: str) -> in
                 "speechiness", "acousticness",
                 "instrumentalness", "liveness",
                 "valence", "tempo", "load_week", "source_type",
+                "imagen_url",
             ],
         )
         return primer_fact_id

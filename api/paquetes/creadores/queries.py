@@ -92,7 +92,8 @@ _SUBIDA_COLS = """
     s.genre_ids           AS genre_ids,
     s.descripcion         AS descripcion,
     s.duration_ms         AS duration_ms,
-    s.explicit            AS explicit
+    s.explicit            AS explicit,
+    s.imagen_url          AS imagen_url
 """
 
 # Versión vigente máxima de una subida (change p1-ciclos-vida): la edición y el
@@ -166,6 +167,13 @@ WHERE source_type = 'real'
 
 ARTIST_ID_POR_NOMBRE = "SELECT artist_id FROM DIM_ARTISTS WHERE name = {name:String} LIMIT 1"
 ARTIST_ID_MAX = "SELECT max(artist_id) AS n FROM DIM_ARTISTS"
+
+# Foto de perfil de artista (pedido directo: "lo mismo podría aplicar para
+# foto de perfil de artista") — mismo soft join por `nombre_artistico` que
+# `_resolver_artist_id` de `promocion.py`, pero trayendo `imagen_url` en vez
+# de solo el id. Usado por GET /creadores/cuenta (mostrar la actual) y
+# PUT /creadores/cuenta/imagen (resolver a qué fila de DIM_ARTISTS escribir).
+ARTIST_POR_NOMBRE = "SELECT artist_id, imagen_url FROM DIM_ARTISTS WHERE name = {name:String} LIMIT 1"
 
 ALBUM_ID_POR_NOMBRE = "SELECT album_id FROM DIM_ALBUMS WHERE name = {name:String} LIMIT 1"
 ALBUM_ID_MAX = "SELECT max(album_id) AS n FROM DIM_ALBUMS"

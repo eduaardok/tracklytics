@@ -9,6 +9,10 @@ export type CuentaArtista = {
   fecha_solicitud:    string
   fecha_resolucion:   string | null
   admin_resolutor_id: string | null
+  // Foto de perfil de artista (DIM_ARTISTS.imagen_url, resuelta por
+  // nombre_artistico) — `null` mientras el artista no tenga fila propia en
+  // DIM_ARTISTS todavía (se crea con su primer track aprobado).
+  imagen_url:         string | null
 }
 
 export type SubidaTrack = {
@@ -30,6 +34,9 @@ export type SubidaTrack = {
   descripcion:        string
   duration_ms:        number
   explicit:           number
+  // Portada del track por URL (pedido directo) — `null` cae al degradado
+  // por género de AlbumArt, igual que cualquier otro track sin portada.
+  imagen_url:         string | null
 }
 
 // Edición de metadata de un track propio (change p1-ciclos-vida).
@@ -38,6 +45,8 @@ export type EditarTrackBody = {
   album_name?:  string
   genre_ids?:   number[]
   descripcion?: string
+  // "" limpia la portada; `undefined` (omitido) no la toca.
+  imagen_url?:  string
 }
 
 export type SolicitudCuentaBody = {
@@ -54,6 +63,12 @@ export type SubidaTrackBody = {
   genre_ids:   number[]
   duration_ms: number
   explicit?:   boolean
+  imagen_url?: string
+}
+
+// Foto de perfil de artista (pedido directo) — "" limpia la foto.
+export type ActualizarImagenArtistaBody = {
+  imagen_url: string
 }
 
 export type ResolverTrackBody = {
