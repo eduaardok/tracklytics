@@ -10,11 +10,21 @@ import styles from './AddToPlaylistMenu.module.css'
 
 const QUERY_KEY = ['biblioteca', 'playlists']
 
-type Props = { factId: number }
+type Props = {
+  factId: number
+  // Variante "hero" (S17, feedback directo: "el botón actual es difícil de
+  // intuir") — el disparador por defecto es un icono "⋮" compacto pensado
+  // para la fila densa de TrackCard; en el hero de detalle de canción, junto
+  // a botones con ícono + texto (Reproducir, Agregar a la cola…), ese mismo
+  // "⋮" solo no comunicaba la acción. `triggerClassName` deja que el
+  // llamador imponga el mismo estilo de botón que sus vecinos.
+  triggerClassName?: string
+  showLabel?: boolean
+}
 
 const MENU_ESTIMATED_HEIGHT = 320
 
-export function AddToPlaylistMenu({ factId }: Props) {
+export function AddToPlaylistMenu({ factId, triggerClassName, showLabel }: Props) {
   const [open, setOpen]         = useState(false)
   const [openUpward, setOpenUpward] = useState(false)
   const [newName, setNewName]   = useState('')
@@ -88,12 +98,17 @@ export function AddToPlaylistMenu({ factId }: Props) {
       <button
         ref={triggerRef}
         type="button"
-        className={styles.trigger}
+        className={triggerClassName ?? styles.trigger}
         onClick={toggle}
         aria-label="Agregar a playlist"
         title="Agregar a playlist"
       >
-        ⋮
+        {showLabel ? (
+          <>
+            <ListMusic size={16} aria-hidden="true" style={{ verticalAlign: '-3px', marginRight: 4 }} />
+            Agregar a playlist
+          </>
+        ) : '⋮'}
       </button>
       {open && (
         <div

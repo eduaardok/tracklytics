@@ -308,6 +308,137 @@
   .hero { flex-direction: column; align-items: flex-start; }
 }
 
+/* ── Hero spotlight (ArtistDetailPage, S17 feedback: "el lado derecho del
+   hero se siente muy vacío") — el hero solo tenía portada + meta a la
+   izquierda; el tercio derecho quedaba puro gradiente. Se agrega una
+   cápsula con la canción más popular del artista, mismo vidrio esmerilado
+   que .btnGhost, con play directo (misma cola que la lista de abajo). ── */
+.heroSpotlight {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  flex-shrink: 0;
+  max-width: 260px;
+  padding: 10px var(--space-md);
+  margin-left: auto;
+  background: oklch(1 0 0 / 0.10);
+  border: 1px solid oklch(1 0 0 / 0.22);
+  border-radius: var(--radius-md);
+}
+
+.heroSpotlightInfo {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 1px;
+}
+
+.heroSpotlightLabel {
+  font-family: var(--font-mono);
+  font-size: 0.625rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: oklch(1 0 0 / 0.68);
+}
+
+.heroSpotlightName {
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: oklch(1 0 0 / 0.96);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.heroSpotlightMeta {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: oklch(1 0 0 / 0.72);
+}
+
+.heroSpotlightPlay {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: none;
+  background: oklch(1 0 0 / 0.96);
+  color: var(--color-primary);
+  cursor: pointer;
+  transition: background-color var(--duration-fast) var(--ease-standard), transform var(--duration-fast) var(--ease-standard);
+}
+.heroSpotlightPlay:hover { background: oklch(1 0 0 / 0.85); }
+.heroSpotlightPlay:active { transform: scale(0.94); }
+
+@media (max-width: 640px) {
+  .heroSpotlight { margin-left: 0; max-width: 100%; width: 100%; }
+}
+
+/* ── Controles de la lista de canciones del artista (S17 feedback: "que sea
+   personalizable o muestre un buscador") ── */
+.trackListControls {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-sm);
+  flex-wrap: wrap;
+}
+
+.trackSearchWrap {
+  position: relative;
+  flex: 1;
+  min-width: 180px;
+  max-width: 320px;
+}
+
+.trackSearchIcon {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--color-muted);
+  pointer-events: none;
+}
+
+.trackSearchInput {
+  width: 100%;
+  background: var(--color-surface);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+  padding: 7px 10px 7px 32px;
+  height: 34px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  outline: none;
+  transition: border-color var(--duration-fast) var(--ease-standard);
+}
+.trackSearchInput::placeholder { color: var(--color-muted); }
+.trackSearchInput:focus { border-color: var(--color-primary); }
+
+.trackSortSelect {
+  background: var(--color-surface);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+  padding: 7px 28px 7px 10px;
+  height: 34px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  outline: none;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16' fill='none'%3E%3Cpath d='M4 6l4 4 4-4' stroke='%2358586a' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+  cursor: pointer;
+  transition: border-color var(--duration-fast) var(--ease-standard);
+}
+.trackSortSelect:focus { border-color: var(--color-primary); }
+
 /* ── F8: menú para compartir el perfil del artista (portado de la antigua
    /social/artista) — mismas reglas que SocialPages.module.css .shareMenu/
    .shareOptions, solo tokens. ── */

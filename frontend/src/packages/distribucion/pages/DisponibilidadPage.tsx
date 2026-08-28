@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
+import { CheckCircle2, Globe, Search, XCircle } from 'lucide-react'
 import { ErrorState } from '@shared/components/ErrorState'
 import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { TrackPicker, type TrackSearchResult } from '@shared/components/TrackPicker'
@@ -37,7 +38,7 @@ export function DisponibilidadPage() {
 
   const consulta = useMutation({
     mutationFn: (id: number) => distribucionApi.disponibilidad(id),
-    onSuccess: (res) => toast.success(res.disponible ? 'Track disponible en tu país' : 'Consulta realizada — track no disponible en tu país'),
+    onSuccess: (res) => toast.success(res.disponible ? 'Canción disponible en tu país' : 'Consulta realizada — canción no disponible en tu país'),
     onError: (err) => toast.error(apiErrorMessage(err, 'No se pudo consultar la disponibilidad.')),
   })
 
@@ -52,58 +53,78 @@ export function DisponibilidadPage() {
     <section className={styles.page}>
       <h1 className={styles.heading}>Disponibilidad por país</h1>
 
-      <p className={styles.emptyBody} style={{ marginBottom: 0 }}>
-        Consulta un track puntual por nombre o artista:
-      </p>
-      <form
-        className={styles.jumpForm}
-        style={{ alignItems: 'flex-end' }}
-        onSubmit={(e) => {
-          e.preventDefault()
-          if (!selectedTrack) return
-          consulta.mutate(selectedTrack.fact_id)
-        }}
-      >
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <TrackPicker
-            label="Track"
-            selected={selectedTrack}
-            onSelect={setSelectedTrack}
-            onClear={() => setSelectedTrack(null)}
-          />
+      <div className={styles.introRow}>
+        <span className={styles.introIcon} aria-hidden="true"><Globe size={17} /></span>
+        <p className={styles.introText}>
+          Las licencias por país y las restricciones de canal deciden qué puede reproducirse dónde.
+          Consulta una canción puntual o explora el catálogo completo por estado de disponibilidad.
+        </p>
+      </div>
+
+      <div className={styles.lookupCard}>
+        <div className={styles.lookupHead}>
+          <span className={styles.lookupIcon} aria-hidden="true"><Search size={15} /></span>
+          <span className={styles.lookupTitle}>Consulta rápida</span>
         </div>
-        <button className={styles.btnPrimary} type="submit" disabled={!selectedTrack || consulta.isPending}>
-          {consulta.isPending ? 'Consultando…' : 'Consultar'}
-        </button>
-      </form>
-
-      {consulta.isError && (
-        <ErrorState
-          message="No se pudo consultar la disponibilidad (¿track existente? ¿sesión activa?)."
-          style={{ marginTop: 'var(--space-lg)' }}
-        />
-      )}
-
-      {consulta.isSuccess && selectedTrack !== null && (
-        <div className={styles.resultPanel}>
-          <span className={`${styles.badge} ${consulta.data.disponible ? styles.badgeOk : styles.badgeError}`}>
-            {consulta.data.disponible ? 'disponible' : 'no disponible'}
-          </span>
-          <div className={styles.resultText}>
-            <span className={styles.resultTitle}>{selectedTrack.track_name}</span>
-            <span className={styles.resultMeta}>
-              {consulta.data.disponible
-                ? 'Puedes reproducir este track en tu país.'
-                : `No disponible en tu país — motivo: ${consulta.data.tipo_restriccion}`}
-            </span>
+        <p className={styles.lookupSub}>Busca una canción por nombre o artista y verifica su disponibilidad en tu país.</p>
+        <form
+          className={styles.jumpForm}
+          style={{ alignItems: 'flex-end' }}
+          onSubmit={(e) => {
+            e.preventDefault()
+            if (!selectedTrack) return
+            consulta.mutate(selectedTrack.fact_id)
+          }}
+        >
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <TrackPicker
+              label="Canción"
+              selected={selectedTrack}
+              onSelect={setSelectedTrack}
+              onClear={() => setSelectedTrack(null)}
+            />
           </div>
-        </div>
-      )}
+          <button className={styles.btnPrimary} type="submit" disabled={!selectedTrack || consulta.isPending}>
+            {consulta.isPending ? 'Consultando…' : 'Consultar'}
+          </button>
+        </form>
 
-      <p className={styles.sectionLabel} style={{ marginTop: 'var(--space-xl)' }}>
-        Explorar el catálogo por estado de disponibilidad
-      </p>
-      <div className={styles.form}>
+        {consulta.isError && (
+          <ErrorState
+            message="No se pudo consultar la disponibilidad (¿canción existente? ¿sesión activa?)."
+            style={{ marginTop: 'var(--space-lg)' }}
+          />
+        )}
+
+        {consulta.isSuccess && selectedTrack !== null && (
+          <div className={styles.resultPanel}>
+            <span
+              className={`${styles.resultIcon} ${consulta.data.disponible ? styles['resultIcon--ok'] : styles['resultIcon--error']}`}
+              aria-hidden="true"
+            >
+              {consulta.data.disponible ? <CheckCircle2 size={22} /> : <XCircle size={22} />}
+            </span>
+            <div className={styles.resultText}>
+              <span className={styles.resultTitle}>{selectedTrack.track_name}</span>
+              <span className={styles.resultMeta}>
+                {consulta.data.disponible
+                  ? 'Puedes reproducir esta canción en tu país.'
+                  : `No disponible en tu país — motivo: ${consulta.data.tipo_restriccion}`}
+              </span>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div className={styles.explorerHead}>
+        <p className={styles.sectionLabel} style={{ marginBottom: 0 }}>
+          Explorar el catálogo por estado de disponibilidad
+        </p>
+        {!lista.isLoading && !lista.isError && (
+          <span className={styles.resultCount}>{total} resultado{total === 1 ? '' : 's'}</span>
+        )}
+      </div>
+      <div className={styles.form} style={{ marginTop: 'var(--space-sm)' }}>
         <div className={styles.field}>
           <label className={styles.fieldLabel} htmlFor="disp-estado">Estado</label>
           <select
@@ -121,7 +142,7 @@ export function DisponibilidadPage() {
             id="disp-search"
             className={styles.input}
             type="text"
-            placeholder="Nombre de track o artista"
+            placeholder="Nombre de canción o artista"
             value={search}
             onChange={(e) => { setSearch(e.target.value); setPage(1) }}
           />
@@ -137,7 +158,7 @@ export function DisponibilidadPage() {
           <table className={styles.table}>
             <thead>
               <tr>
-                <th>Track</th>
+                <th>Canción</th>
                 <th>Artista</th>
                 <th>Estado</th>
               </tr>
@@ -155,7 +176,9 @@ export function DisponibilidadPage() {
                   <td>{row.artist_name}</td>
                   <td>
                     <span className={`${styles.badge} ${row.disponible ? styles.badgeOk : styles.badgeError}`}>
-                      {row.disponible ? 'disponible' : row.tipo_restriccion ?? 'bloqueado'}
+                      {row.disponible
+                        ? <><CheckCircle2 size={11} aria-hidden="true" /> Disponible</>
+                        : <><XCircle size={11} aria-hidden="true" /> {row.tipo_restriccion ?? 'Bloqueado'}</>}
                     </span>
                   </td>
                 </tr>

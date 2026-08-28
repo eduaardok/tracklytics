@@ -240,6 +240,102 @@
 .badgeError    { background: oklch(0.65 0.22 25 / 0.12);  color: var(--color-error); }
 .badgePending  { background: oklch(0.78 0.18 70 / 0.14);  color: var(--color-warning); }
 
+/* ── Disponibilidad por país: intro + tarjeta de consulta (S17, feedback:
+   "la página se siente muy vacía") — antes era un form suelto sin marco
+   directo bajo el h1. La tarjeta le da al bloque de consulta puntual el
+   mismo peso visual que el resto de paneles de la app (surface + border),
+   en vez de flotar sobre el fondo. ── */
+.introRow {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-lg);
+  max-width: 62ch;
+}
+
+.introIcon {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-md);
+  background: oklch(0.55 0.20 290 / 0.14);
+  color: var(--color-primary);
+}
+
+.introText {
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  color: var(--color-muted);
+  line-height: 1.5;
+  padding-top: 6px;
+}
+
+.lookupCard {
+  padding: var(--space-lg);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg, 12px);
+  margin-bottom: var(--space-xl);
+}
+
+.lookupHead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 2px;
+}
+
+.lookupIcon { color: var(--color-muted); display: flex; }
+
+.lookupTitle {
+  font-family: var(--font-sans);
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--color-ink);
+}
+
+.lookupSub {
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+  color: var(--color-muted);
+  margin: 2px 0 0;
+}
+
+.resultIcon {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+}
+.resultIcon--ok    { background: oklch(0.70 0.14 195 / 0.15); color: var(--color-accent); }
+.resultIcon--error { background: oklch(0.65 0.22 25 / 0.12);  color: var(--color-error); }
+
+.explorerHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  flex-wrap: wrap;
+}
+
+.resultCount {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--color-muted);
+}
+
+.trackCell {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
 /* ── Consulta de disponibilidad (B2C, hub mínimo) ── */
 .jumpForm {
   display: flex;

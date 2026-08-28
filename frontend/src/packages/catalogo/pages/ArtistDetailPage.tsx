@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link, useParams, useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, Music2, UserCheck, UserPlus } from 'lucide-react'
+import { ArrowLeft, Music2, Play, Search, UserCheck, UserPlus } from 'lucide-react'
 import { catalogoApi } from '../api/catalogo.api'
 import { TrackCard } from '../components/TrackCard'
 import { AlbumArt } from '@shared/components/AlbumArt'
@@ -13,11 +13,28 @@ import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { apiErrorMessage, ApiError } from '@shared/lib/api-client'
 import { isAuthenticated } from '@shared/lib/session'
 import { useToast } from '@shared/context/ToastContext'
+import { usePlayer } from '@shared/context/PlayerContext'
 import { socialApi } from '@packages/social'
 import type { Canal } from '@packages/social'
 import { creadoresApi } from '@packages/creadores'
+import { useAd } from '@packages/publicidad'
+import { bibliotecaApi } from '../api/biblioteca.api'
 import type { Track } from '../types'
 import styles from './DetailPages.module.css'
+
+type OrdenCancion = 'popularidad' | 'nombre' | 'duracion'
+
+const ORDEN_OPCIONES: { value: OrdenCancion; label: string }[] = [
+  { value: 'popularidad', label: 'Más populares' },
+  { value: 'nombre',      label: 'Nombre (A-Z)' },
+  { value: 'duracion',    label: 'Duración' },
+]
+
+function formatDuration(ms: number): string {
+  const m = Math.floor(ms / 60_000)
+  const s = Math.floor((ms % 60_000) / 1000)
+  return `${m}:${s.toString().padStart(2, '0')}`
+}
 
 // F8: menú de compartir portado de la antigua /social/artista/:id (página
 // eliminada por duplicar el follow) — el único aporte real que tenía sobre
@@ -46,8 +63,12 @@ export function ArtistDetailPage() {
   const authed = isAuthenticated()
   const queryClient = useQueryClient()
   const toast = useToast()
+  const { playList, reportPlaybackIssue } = usePlayer()
+  const { pedirImpresion } = useAd()
   const [shareOpen, setShareOpen] = useState(false)
   const [shareResult, setShareResult] = useState<string | null>(null)
+  const [busqueda, setBusqueda] = useState('')
+  const [orden, setOrden] = useState<OrdenCancion>('popularidad')
 
   const { data: artist, isLoading: loadingArtist, isError: errorArtist, error: artistError } = useQuery({
     queryKey: ['catalogo', 'artist-detail', id],
@@ -149,6 +170,36 @@ export function ArtistDetailPage() {
   const esMiCuentaDeArtista =
     miCuenta.data?.estado_cuenta === 'aprobada' && miCuenta.data.nombre_artistico === artist.name
 
+  // El endpoint ya ordena por popularidad — la más popular es el sencillo
+  // destacado del hero.
+  const topTrack = tracks[0]
+
+  async function handlePlayTop() {
+    if (!topTrack) return
+    if (authed) await pedirImpresion()
+    playList(tracks, 0)
+    if (authed) {
+      bibliotecaApi.registrarReproduccion(topTrack.fact_id).catch((err) => {
+        if (err instanceof ApiError && err.status === 403) {
+          reportPlaybackIssue(apiErrorMessage(err, 'Esta canción no está disponible.'))
+        }
+      })
+    }
+  }
+
+  // Buscador + orden de la lista (S17, feedback directo: "que sea
+  // personalizable o muestre un buscador para ver solo canciones de él") —
+  // client-side sobre las ≤20 canciones ya cargadas, sin roundtrip nuevo.
+  const busquedaNormalizada = busqueda.trim().toLowerCase()
+  const cancionesFiltradas = tracks
+    .filter((t) => !busquedaNormalizada || t.track_name.toLowerCase().includes(busquedaNormalizada))
+    .slice()
+    .sort((a, b) => {
+      if (orden === 'nombre') return a.track_name.localeCompare(b.track_name)
+      if (orden === 'duracion') return b.duration_ms - a.duration_ms
+      return b.popularity - a.popularity
+    })
+
   return (
     <section>
       <div className={styles.hero}>
@@ -199,6 +250,30 @@ export function ArtistDetailPage() {
             </div>
           )}
         </div>
+
+        {/* Sencillo destacado (S17, feedback directo: "el lado derecho del
+            hero se siente muy vacío") — la canción más popular del artista,
+            con play directo a la cola completa (mismo comportamiento que
+            tocar play en la primera fila de la lista de abajo). */}
+        {topTrack && (
+          <div className={styles.heroSpotlight}>
+            <AlbumArt src={topTrack.imagen_url} alt="" size={44} genreSeed={topTrack.genre_name} trackId={topTrack.track_id} />
+            <div className={styles.heroSpotlightInfo}>
+              <span className={styles.heroSpotlightLabel}>Canción más popular</span>
+              <span className={styles.heroSpotlightName}>{topTrack.track_name}</span>
+              <span className={styles.heroSpotlightMeta}>★ {topTrack.popularity} · {formatDuration(topTrack.duration_ms)}</span>
+            </div>
+            <button
+              type="button"
+              className={styles.heroSpotlightPlay}
+              onClick={handlePlayTop}
+              title="Reproducir"
+              aria-label={`Reproducir ${topTrack.track_name}`}
+            >
+              <Play size={15} aria-hidden="true" fill="currentColor" />
+            </button>
+          </div>
+        )}
       </div>
 
       {shareResult && <div className={styles.shareResult}>{shareResult}</div>}
@@ -245,13 +320,40 @@ export function ArtistDetailPage() {
       ) : tracks.length === 0 ? (
         <EmptyState icon={<Music2 size={22} aria-hidden="true" />} title="Sin canciones registradas para este artista." />
       ) : (
-        <ul className={styles.trackList} aria-label="Canciones del artista">
-          {tracks.map((track: Track, i: number) => (
-            <li key={`${track.fact_id}-${track.track_id}`}>
-              <TrackCard track={track} position={i + 1} queue={tracks} />
-            </li>
-          ))}
-        </ul>
+        <>
+          <div className={styles.trackListControls}>
+            <div className={styles.trackSearchWrap}>
+              <Search size={14} className={styles.trackSearchIcon} aria-hidden="true" />
+              <input
+                type="search"
+                className={styles.trackSearchInput}
+                value={busqueda}
+                onChange={(e) => setBusqueda(e.target.value)}
+                placeholder={`Buscar entre sus ${tracks.length} canciones…`}
+                aria-label="Buscar canción de este artista"
+              />
+            </div>
+            <select
+              className={styles.trackSortSelect}
+              value={orden}
+              onChange={(e) => setOrden(e.target.value as OrdenCancion)}
+              aria-label="Ordenar canciones"
+            >
+              {ORDEN_OPCIONES.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
+          </div>
+          {cancionesFiltradas.length === 0 ? (
+            <EmptyState icon={<Search size={22} aria-hidden="true" />} title={`Sin resultados para "${busqueda}"`} />
+          ) : (
+            <ul className={styles.trackList} aria-label="Canciones del artista">
+              {cancionesFiltradas.map((track: Track, i: number) => (
+                <li key={`${track.fact_id}-${track.track_id}`}>
+                  <TrackCard track={track} position={i + 1} queue={cancionesFiltradas} />
+                </li>
+              ))}
+            </ul>
+          )}
+        </>
       )}
 
       {/* Mismo "Volver" del detalle de canción — paridad de navegación entre

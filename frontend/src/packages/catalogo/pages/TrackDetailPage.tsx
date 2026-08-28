@@ -195,7 +195,7 @@ export function TrackDetailPage() {
                   <ThumbsDown size={16} aria-hidden="true" fill={voto === 'dislike' ? 'currentColor' : 'none'} style={{ verticalAlign: '-3px', marginRight: 4 }} />
                   No me gusta
                 </button>
-                <AddToPlaylistMenu factId={track.fact_id} />
+                <AddToPlaylistMenu factId={track.fact_id} triggerClassName={styles.btnGhost} showLabel />
               </>
             )}
           </div>
