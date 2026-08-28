@@ -62,7 +62,7 @@ export function SoportePage() {
         className={styles.form}
         onSubmit={(e) => { e.preventDefault(); if (puedeEnviar) crear.mutate() }}
       >
-        <div className={styles.field}>
+        <div className={styles.field} style={{ gridColumn: '1 / -1' }}>
           <label className={styles.fieldLabel} htmlFor="ticket-asunto">Asunto</label>
           <input
             id="ticket-asunto"
@@ -70,7 +70,7 @@ export function SoportePage() {
             maxLength={200}
             value={asunto}
             onChange={(e) => setAsunto(e.target.value)}
-            placeholder="No puedo reproducir un track"
+            placeholder="No puedo reproducir una canción"
           />
         </div>
         <div className={styles.field} style={{ gridColumn: '1 / -1' }}>

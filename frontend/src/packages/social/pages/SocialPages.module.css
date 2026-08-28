@@ -454,7 +454,13 @@
 }
 
 .jumpInput {
+  /* `flex: 1` no alcanza cuando el padre no es flex (p. ej. .profileSearchWrap,
+     un div simple) — el input se quedaba en su ancho intrínseco de navegador
+     (~200px) sin importar el max-width del wrapper (bug real, confirmado con
+     Playwright: wrap a 480px, input midiendo 198px). `width: 100%` funciona
+     sin depender del contexto del padre. */
   flex: 1;
+  width: 100%;
   background: var(--color-bg);
   color: var(--color-ink);
   font-family: var(--font-sans);
@@ -467,10 +473,14 @@
 }
 .jumpInput:focus { border-color: var(--color-primary); }
 
-/* ── Búsqueda de perfiles públicos (S16) ── */
+/* ── Búsqueda de perfiles públicos (S16) ──
+   480px (antes 360px, feedback S17: "el input aparece incompleto") — a 360px
+   un nombre medianamente largo escrito se recortaba a la vista dentro del
+   campo, obligando a hacer scroll horizontal dentro del input para releerlo. */
 .profileSearchWrap {
   position: relative;
-  max-width: 360px;
+  width: 100%;
+  max-width: 480px;
 }
 
 .profileSearchDropdown {

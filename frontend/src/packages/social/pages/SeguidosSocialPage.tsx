@@ -159,7 +159,7 @@ export function SeguidosSocialPage() {
         <div className={styles.emptyState}>
           <span className={styles.emptyTitle}>Sin actividad todavía</span>
           <span className={styles.emptyBody}>
-            Cuando sigas artistas y otros usuarios comenten o compartan sus tracks, aparecerá aquí.
+            Cuando sigas artistas y otros usuarios comenten o compartan sus canciones, aparecerá aquí.
           </span>
         </div>
       ) : (
@@ -178,7 +178,7 @@ export function SeguidosSocialPage() {
                   <span className={styles.feedContent}>
                     <span className={styles.followedName}>
                       {item.usuario_nombre || 'Alguien'}{' '}
-                      {item.tipo === 'comentario' ? 'comentó' : 'compartió'} un track de {item.artista_nombre}
+                      {item.tipo === 'comentario' ? 'comentó' : 'compartió'} una canción de {item.artista_nombre}
                     </span>
                     {item.tipo === 'comentario' && item.contenido && (
                       <span className={styles.followedMeta}>&ldquo;{item.contenido}&rdquo;</span>
@@ -231,9 +231,9 @@ export function SeguidosSocialPage() {
         </ul>
       )}
 
-      <p className={styles.sectionLabel} style={{ marginTop: 'var(--space-xl)' }}>Comentar un track</p>
+      <p className={styles.sectionLabel} style={{ marginTop: 'var(--space-xl)' }}>Comentar una canción</p>
       <p className={styles.emptyBody} style={{ marginBottom: 0 }}>
-        Busca el track por nombre o artista, y selecciónalo de la lista de sugerencias:
+        Busca la canción por nombre o artista, y selecciónala de la lista de sugerencias:
       </p>
       <form
         className={styles.jumpForm}
@@ -245,7 +245,7 @@ export function SeguidosSocialPage() {
       >
         <div style={{ flex: 1, minWidth: 0 }}>
           <TrackPicker
-            label="Track"
+            label="Canción"
             selected={selectedTrack}
             onSelect={setSelectedTrack}
             onClear={() => setSelectedTrack(null)}

@@ -45,7 +45,7 @@ function fmtDate(iso: string) {
 }
 
 export function TrackSocialPage() {
-  useDocumentTitle('Track')
+  useDocumentTitle('Canción')
   const { factId } = useParams<{ factId: string }>()
   const id = Number(factId)
   const queryClient = useQueryClient()
@@ -98,16 +98,16 @@ export function TrackSocialPage() {
 
   return (
     <section className={styles.page}>
-      <h1 className={styles.heading}>Track</h1>
+      <h1 className={styles.heading}>Canción</h1>
 
       {trackEliminado ? (
         <EmptyState
           icon="◌"
           title="Este contenido ya no está disponible"
-          body="El track fue retirado del catálogo, pero conservamos la conversación."
+          body="La canción fue retirada del catálogo, pero conservamos la conversación."
         />
       ) : track.isError && (
-        <div className={styles.bannerError} role="alert">No se pudo cargar el track.</div>
+        <div className={styles.bannerError} role="alert">No se pudo cargar la canción.</div>
       )}
 
       {!trackEliminado && (
@@ -131,7 +131,7 @@ export function TrackSocialPage() {
                 {/* F1 (recíproco): el hilo era un callejón sin salida — track y
                     artista eran texto plano. Ahora vuelven al catálogo. */}
                 <Link to={`/catalogo/track/${id}`} className={`${styles.subjectName} ${styles.subjectLink}`}>
-                  {track.data?.track_name ?? `Track #${id}`}
+                  {track.data?.track_name ?? `Canción #${id}`}
                 </Link>
                 {track.data?.artist_name && (
                 <div className={styles.subjectMeta}>
@@ -158,7 +158,7 @@ export function TrackSocialPage() {
               </div>
             )}
           </div>
-          <DenunciarButton tipoObjeto="track" objetoId={String(id)} label="Denunciar track" className={styles.btnGhost} />
+          <DenunciarButton tipoObjeto="track" objetoId={String(id)} label="Denunciar canción" className={styles.btnGhost} />
         </div>
       </div>
       )}
@@ -209,7 +209,7 @@ export function TrackSocialPage() {
         <div className={styles.emptyState}>
           <BubbleIcon />
           <span className={styles.emptyTitle}>Sin comentarios todavía</span>
-          <span className={styles.emptyBody}>Sé el primero en comentar este track.</span>
+          <span className={styles.emptyBody}>Sé el primero en comentar esta canción.</span>
         </div>
       ) : (
         <ul className={styles.commentList}>

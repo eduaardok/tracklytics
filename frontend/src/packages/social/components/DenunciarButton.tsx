@@ -41,7 +41,7 @@ export function DenunciarButton({ tipoObjeto, objetoId, label = 'Denunciar', cla
       {open && (
         <div className={styles.modalBackdrop} onMouseDown={() => setOpen(false)}>
           <div className={styles.modal} role="dialog" aria-modal="true" aria-label="Denunciar contenido" onMouseDown={(e) => e.stopPropagation()}>
-            <p className={styles.modalTitle}>Denunciar {tipoObjeto === 'comentario' ? 'comentario' : 'track'}</p>
+            <p className={styles.modalTitle}>Denunciar {tipoObjeto === 'comentario' ? 'comentario' : 'canción'}</p>
             <form className={styles.modalForm} onSubmit={(e) => { e.preventDefault(); enviar.mutate() }}>
               <label className={styles.field}>
                 <span className={styles.fieldLabel}>Motivo</span>

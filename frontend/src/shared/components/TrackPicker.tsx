@@ -77,7 +77,7 @@ export function TrackPicker({ label, selected, onSelect, onClear }: Props) {
           onChange={(e) => { if (!selected) setQuery(e.target.value) }}
           onFocus={() => { if (!selected && debouncedQ.length >= 2) setShowDropdown(true) }}
           onBlur={() => setTimeout(() => setShowDropdown(false), 150)}
-          placeholder="Nombre del track o artista…"
+          placeholder="Nombre de la canción o artista…"
           aria-label={label}
           aria-haspopup="listbox"
           aria-expanded={showDropdown}

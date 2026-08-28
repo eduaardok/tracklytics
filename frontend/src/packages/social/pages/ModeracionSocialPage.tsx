@@ -175,7 +175,7 @@ export function ModeracionSocialPage() {
               return (
                 <li key={c.fact_id} className={styles.queueRow}>
                   <div className={styles.queueRowInfo}>
-                    <span className={styles.queueRowMeta}>{c.track_name ?? `track #${c.fact_id_track}`}{c.artist_name ? ` — ${c.artist_name}` : ''} · {fmtDate(c.fecha_creacion)}</span>
+                    <span className={styles.queueRowMeta}>{c.track_name ?? `canción #${c.fact_id_track}`}{c.artist_name ? ` — ${c.artist_name}` : ''} · {fmtDate(c.fecha_creacion)}</span>
                     <p className={styles.queueRowBody}>{c.contenido}</p>
                   </div>
                   <EstadoBadge estado={c.estado_moderacion} />

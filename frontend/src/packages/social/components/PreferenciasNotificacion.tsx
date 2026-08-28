@@ -17,7 +17,7 @@ import styles from './NotificationBell.module.css'
 // InfoHint): el `Enum8` del backend usa los nombres internos, la UI muestra
 // texto legible.
 export const TIPO_LABEL: Record<string, string> = {
-  nuevo_track_artista_seguido: 'Nuevo track de un artista que sigues',
+  nuevo_track_artista_seguido: 'Nueva canción de un artista que sigues',
   comentario_en_tu_contenido:  'Comentarios en tu contenido',
   nuevo_colaborador_playlist:  'Nuevo colaborador en tu playlist',
 }
