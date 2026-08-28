@@ -36,9 +36,16 @@ export function BibliotecaPage() {
     queryFn:  () => bibliotecaApi.favoritos(),
     enabled:  !isB2B,
   })
+  // Limit 50 (NO 200): el tab HistorialTab define su propia query con la MISMA
+  // queryKey `['biblioteca','historial']` y `historial(50)` — react-query
+  // deduplica por clave y solo se dispara UNA llamada, la del primer registro.
+  // Hasta el repaso S17 este query vivía con `historial(200)`: el tab quedaba
+  // efectivamente con 200 filas renderizadas sin virtualización (jank + código
+  // muerto: su `limit=50` nunca se ejecutaba porque el queryFn del padre ganaba
+  // la clave). Para la demo alcanza con las 50 más recientes.
   const historial = useQuery({
     queryKey: ['biblioteca', 'historial'],
-    queryFn:  () => bibliotecaApi.historial(200),
+    queryFn:  () => bibliotecaApi.historial(50),
     enabled:  !isB2B,
   })
   const playlists = useQuery({

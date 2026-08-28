@@ -105,6 +105,11 @@ function esNoEncontrado(error: unknown): boolean {
 
 type UploadStep = 'subiendo' | 'analizando' | 'verificando' | 'publicado'
 
+// Tope de duración de un track (segundos) — mismo límite que valida el
+// backend. `type="number"` no bloquea escritura manual, así que el submit
+// valida contra esto además del `max` del input.
+const DURACION_MAX_SEG = 10_800
+
 const UPLOAD_STEPS: { key: UploadStep; label: string }[] = [
   { key: 'subiendo',    label: 'Subiendo archivo' },
   { key: 'analizando',  label: 'Analizando audio' },
@@ -625,6 +630,7 @@ export function CuentaArtistaPage() {
                   if (genreIds.length === 0) errores.genre_ids = 'Selecciona al menos un género.'
                   if (!durationSeconds) errores.duration_ms = 'Ingresa la duración.'
                   else if (Number(durationSeconds) < 1) errores.duration_ms = 'La duración debe ser de al menos 1 segundo.'
+                  else if (Number(durationSeconds) > DURACION_MAX_SEG) errores.duration_ms = `La duración no puede superar ${DURACION_MAX_SEG} segundos (3:00:00).`
                   if (imagenUrl.trim() && !imagenUrl.trim().startsWith('http://') && !imagenUrl.trim().startsWith('https://')) {
                     errores.imagen_url = 'La URL debe empezar con http:// o https://'
                   }
@@ -693,7 +699,7 @@ export function CuentaArtistaPage() {
                     className={styles.input}
                     type="number"
                     min={1}
-                    max={10800}
+                    max={DURACION_MAX_SEG}
                     value={durationSeconds}
                     onChange={(e) => { setDurationSeconds(e.target.value); setUploadFieldErrors((f) => ({ ...f, duration_ms: '' })) }}
                     placeholder="198"

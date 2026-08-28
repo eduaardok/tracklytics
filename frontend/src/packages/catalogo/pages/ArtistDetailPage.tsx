@@ -358,7 +358,16 @@ export function ArtistDetailPage() {
 
       {/* Mismo "Volver" del detalle de canción — paridad de navegación entre
           páginas de detalle (feedback: faltaba aquí). */}
-      <button type="button" className={styles.btnBack} style={{ marginTop: 'var(--space-xl)' }} onClick={() => navigate(-1)}>
+      {/* `window.history.length <= 1` = llegaste directo (deep-link/reload,
+          común al abrir el detalle en una pestaña nueva desde una demo):
+          `navigate(-1)` se traga la navegación y el botón parece roto — se
+          cae a la portada del catálogo en ese caso. */}
+      <button
+        type="button"
+        className={styles.btnBack}
+        style={{ marginTop: 'var(--space-xl)' }}
+        onClick={() => (window.history.length > 1 ? navigate(-1) : navigate('/'))}
+      >
         <ArrowLeft size={16} aria-hidden="true" />
         Volver
       </button>

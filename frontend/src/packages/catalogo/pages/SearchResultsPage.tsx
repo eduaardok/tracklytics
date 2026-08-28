@@ -396,6 +396,10 @@ function toPlayable(track: SearchTrack) {
     artist_name:   track.artist_name,
     duration_ms:   track.duration_ms,
     imagen_url:    track.imagen_url,
+    // `track_id` habilita el fallback en vivo de portada en PlayerBar/Queue
+    // cuando la canción no tiene imagen (AlbumArt trackId) — antes se
+    // perdía acá y el reproductor mostraba el gradiente de género estático.
+    track_id:      track.track_id,
     es_featuring:  track.es_featuring,
     artistas_feat: track.artistas_feat,
     source_type:   track.source_type,

@@ -17,7 +17,7 @@ import { useLikes } from '../hooks/useLikes'
 import { useRadio } from '../hooks/useRadio'
 import { AddToPlaylistMenu } from '../components/AddToPlaylistMenu'
 import { bibliotecaApi } from '../api/biblioteca.api'
-import { usePlanActivo } from '@packages/suscripciones'
+import { usePlanActivo } from '@packages/suscripciones/hooks/usePlanActivo'
 import { useAd } from '@packages/publicidad'
 import styles from './DetailPages.module.css'
 
@@ -271,7 +271,16 @@ export function TrackDetailPage() {
         </Link>
       </div>
 
-      <button type="button" className={styles.btnBack} style={{ marginTop: 'var(--space-xl)' }} onClick={() => navigate(-1)}>
+      {/* `window.history.length <= 1` = llegaste directo (deep-link/reload,
+          común al abrir el detalle en una pestaña nueva desde una demo):
+          `navigate(-1)` se traga la navegación y el botón parece roto — se
+          cae a la portada del catálogo en ese caso. */}
+      <button
+        type="button"
+        className={styles.btnBack}
+        style={{ marginTop: 'var(--space-xl)' }}
+        onClick={() => (window.history.length > 1 ? navigate(-1) : navigate('/'))}
+      >
         <ArrowLeft size={16} aria-hidden="true" />
         Volver
       </button>
