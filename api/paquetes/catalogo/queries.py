@@ -95,7 +95,15 @@ JOIN DIM_ALBUMS  al ON ft.album_id = al.album_id
 JOIN DIM_GENRES  g ON ft.genre_id  = g.genre_id
 WHERE ft.album_id = {album_id:Int32} AND ft.disponible = 1
 GROUP BY ft.track_id, ft.track_name, ft.artist_id, a.name, a.imagen_url, al.imagen_url
-ORDER BY ft.track_name
+-- Orden por popularidad (bug real, reportado por usuario): el dataset no
+-- trae track_number/disc_number (no existe un orden "de tracklist" real
+-- que preservar), así que ordenar alfabéticamente por track_name es el
+-- peor sustituto posible — un álbum real nunca se lista alfabéticamente.
+-- Popularidad DESC es el mismo criterio que ya usa "Canciones populares"
+-- en el detalle de artista; track_name como desempate estable entre
+-- tracks con la misma popularidad (ej. varios en 0, típico de un track
+-- recién promovido).
+ORDER BY popularity DESC, ft.track_name ASC
 LIMIT {limit:UInt32}
 SETTINGS use_query_cache = 1, query_cache_ttl = 120, query_cache_share_between_users = 1
 """

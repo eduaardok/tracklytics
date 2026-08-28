@@ -27,7 +27,13 @@ export function AlbumDetailPage() {
 
   const { data: tracksRes, isLoading: loadingTracks, isError: errorTracks } = useQuery({
     queryKey: ['catalogo', 'tracks-by-album', id],
-    queryFn:  () => catalogoApi.tracksByAlbum(id, 50),
+    // 200 (bug real, reportado por usuario): con el límite anterior de 50,
+    // un álbum con más canciones (`album.track_count` real, ej. 60) mostraba
+    // el conteo correcto en la cabecera pero la lista se cortaba a la mitad
+    // sin ningún aviso — 200 es el tope real que acepta el backend
+    // (`Query(50, ge=1, le=200)`), muy por encima del máximo observado en el
+    // catálogo (~138 canciones en una muestra de 100 álbumes).
+    queryFn:  () => catalogoApi.tracksByAlbum(id, 200),
     enabled:  Number.isFinite(id),
   })
 
