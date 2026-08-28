@@ -15,6 +15,10 @@ export type PlayableTrack = {
   // tipo lo descartaba estructuralmente — causa raíz de que el reproductor
   // nunca mostrara portada.
   imagen_url?: string | null
+  // Fallback en tiempo real de portada (AlbumArt `trackId`) — mismo criterio
+  // que `imagen_url` arriba: opcional porque no todos los llamadores de
+  // `play()` lo exponen todavía, pero PlayerBar/QueuePanel sí lo necesitan.
+  track_id?:   string
   // S13-P6: mismos campos opcionales de `Track` (packages/catalogo/types.ts)
   // — cuando el llamador los tiene disponibles, el reproductor/cola también
   // muestran el badge "feat."/"(Sint)" vía `TrackName`. Sin ellos (ej. mix

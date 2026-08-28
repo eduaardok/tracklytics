@@ -77,7 +77,7 @@ export function PlayerBar({ actions }: Props) {
         aria-label={`Ir al detalle de ${currentTrack.track_name}`}
       >
         <span className={styles.art}>
-          <AlbumArt src={currentTrack.imagen_url} alt="" size={44} />
+          <AlbumArt src={currentTrack.imagen_url} alt="" size={44} trackId={currentTrack.track_id} />
           <span className={styles.eqBadge}><Equalizer animated={isPlaying} /></span>
         </span>
         <div className={styles.meta}>

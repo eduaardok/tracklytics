@@ -78,7 +78,7 @@ function SeccionRecos({ seccion, generoFiltro }: PropsSeccion) {
                 aria-label={`Ver ${r.track_name} de ${r.artist_name}`}
               >
                 <span className={styles.recoCardArt}>
-                  <AlbumArt src={r.imagen_url} alt="" size={150} />
+                  <AlbumArt src={r.imagen_url} alt="" size={150} trackId={r.track_id} />
                   <span
                     aria-hidden="true"
                     className={styles.recoPlayOverlay}

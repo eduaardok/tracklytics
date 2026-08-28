@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { apiClient } from '@shared/lib/api-client'
 import { genreGradient } from '@shared/lib/genre-colors'
 import styles from './AlbumArt.module.css'
 
@@ -12,15 +13,49 @@ type Props = {
   // fácil de escanear en la vista grid del catálogo, donde varias filas sin
   // portada real quedarían indistinguibles entre sí.
   genreSeed?:  string
+  // Fallback en tiempo real vía Spotify (solo tracks, `track_id` real — sin
+  // ambigüedad de búsqueda por nombre). El backfill batch de
+  // `etl/gold/portada.py` no llega a todo el catálogo de una sola corrida;
+  // si este track todavía no tiene `imagen_url`, se resuelve al vuelo la
+  // primera vez que se ve y queda persistido para las próximas.
+  trackId?:    string
 }
+
+// Cache de proceso (no por componente): evita pedir la misma portada de
+// nuevo si el mismo track aparece en varios AlbumArt a la vez (cola,
+// PlayerBar, tarjeta) o al re-montar. `null` = ya se intentó y no hubo
+// resultado, no reintentar en esta sesión.
+const _fallbackCache = new Map<string, string | null>()
 
 // RF-EXP-009: portada real con reemplazo visual local — cero llamada externa
 // en el camino de fallback (sin `src`, sin resultado resuelto por el ETL, o
 // si la imagen falla al cargar). Mismo look ya usado como placeholder vacío
 // en TrackCard antes de esta capability, ahora reutilizado como fallback.
-export function AlbumArt({ src, alt, size = 40, className = '', genreSeed }: Props) {
+export function AlbumArt({ src, alt, size = 40, className = '', genreSeed, trackId }: Props) {
   const [failed, setFailed] = useState(false)
-  const showImage = !!src && !failed
+  const [resolved, setResolved] = useState<string | null>(() =>
+    trackId ? _fallbackCache.get(trackId) ?? null : null,
+  )
+
+  useEffect(() => {
+    if (src || !trackId || _fallbackCache.has(trackId)) return
+    let cancelado = false
+    apiClient
+      .get<{ imagen_url: string | null }>(`/tracks/${trackId}/portada-fallback`)
+      .then((res) => {
+        _fallbackCache.set(trackId, res.imagen_url)
+        if (!cancelado && res.imagen_url) setResolved(res.imagen_url)
+      })
+      .catch(() => {
+        _fallbackCache.set(trackId, null)
+      })
+    return () => {
+      cancelado = true
+    }
+  }, [src, trackId])
+
+  const effectiveSrc = src || resolved
+  const showImage = !!effectiveSrc && !failed
 
   return (
     <span
@@ -34,7 +69,7 @@ export function AlbumArt({ src, alt, size = 40, className = '', genreSeed }: Pro
     >
       {showImage ? (
         <img
-          src={src}
+          src={effectiveSrc}
           alt={alt}
           className={styles.img}
           loading="lazy"

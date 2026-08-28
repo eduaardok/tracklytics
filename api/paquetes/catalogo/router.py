@@ -1,8 +1,10 @@
 import asyncio
 import logging
 
+import httpx
 from fastapi import APIRouter, Depends, HTTPException, Path, Query
 
+from core.cache import cached
 from core.database import execute, query_one, query_rows
 from core.deps import get_current_user_optional
 from core.featuring import enriquecer_featuring
@@ -148,6 +150,61 @@ async def search_all(
 @router.get("/catalog/stats")
 def catalog_stats():
     return query_one(CATALOG_STATS)
+
+
+# ── Portada al vuelo (fallback, no reemplaza el backfill de `etl/gold/portada.py`) ──
+
+SPOTIFY_OEMBED_URL = "https://open.spotify.com/oembed"
+
+
+def _spotify_oembed_cover(track_id: str) -> str | None:
+    # Mismo endpoint público (sin API key, sin cuenta de developer) que usa el
+    # backfill del ETL — Client Credentials quedó descartado para esto (ver
+    # `etl/gold/portada.py`, feb-2026 Spotify retira ese flow para metadata).
+    try:
+        resp = httpx.get(
+            SPOTIFY_OEMBED_URL,
+            params={"url": f"https://open.spotify.com/track/{track_id}"},
+            timeout=5,
+        )
+        resp.raise_for_status()
+        return resp.json().get("thumbnail_url") or None
+    except (httpx.RequestError, httpx.HTTPStatusError, ValueError, KeyError) as exc:
+        logger.warning("Fallback de portada (spotify oembed) falló para '%s': %s", track_id, exc)
+        return None
+
+
+@router.get("/tracks/{track_id}/portada-fallback")
+@cached(ttl=300)
+def portada_fallback(track_id: str):
+    """Resuelve una portada en tiempo real cuando el track llegó con
+    `imagen_url` vacío — el backfill de `etl/gold/portada.py` cubre el
+    catálogo por lotes, así que un track recién agregado o aún no alcanzado
+    por esa corrida puede no tener portada todavía. No reemplaza portadas ya
+    resueltas: si `FACT_TRACKS.imagen_url` ya tiene valor, se devuelve tal
+    cual sin llamar a Spotify. Lo resuelto acá se persiste (misma columna),
+    así que solo se paga el costo de red una vez por track."""
+    row = query_one(
+        "SELECT imagen_url, source_type FROM FACT_TRACKS WHERE track_id = {track_id:String} LIMIT 1",
+        {"track_id": track_id},
+    )
+    if row and row.get("imagen_url"):
+        return {"imagen_url": row["imagen_url"]}
+    # Solo 'real' tiene un track_id genuino de Spotify detrás — sintético
+    # (generado) y user_uploaded (propio de Tracklytics) nunca van a resolver
+    # por esta vía, mismo criterio que el backfill batch de portada.py.
+    if not row or row.get("source_type") != "real":
+        return {"imagen_url": None}
+
+    url = _spotify_oembed_cover(track_id)
+    if not url:
+        return {"imagen_url": None}
+
+    execute(
+        "ALTER TABLE FACT_TRACKS UPDATE imagen_url = {url:String} WHERE track_id = {track_id:String}",
+        {"url": url, "track_id": track_id},
+    )
+    return {"imagen_url": url}
 
 
 # ── Tracks ────────────────────────────────────────────────────────────────────

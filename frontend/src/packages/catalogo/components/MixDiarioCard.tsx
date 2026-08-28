@@ -51,7 +51,7 @@ export function MixDiarioCard() {
         {isLoading
           ? <div className={styles.artSkel}><Music size={18} aria-hidden="true" /></div>
           : data!.data.slice(0, PORTADAS_VISIBLES).map((t, i) => (
-              <AlbumArt key={`${t.fact_id}-${i}`} src={t.imagen_url} alt="" size={44} />
+              <AlbumArt key={`${t.fact_id}-${i}`} src={t.imagen_url} alt="" size={44} trackId={t.track_id} />
             ))}
       </div>
 

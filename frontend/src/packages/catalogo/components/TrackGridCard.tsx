@@ -62,7 +62,7 @@ export function TrackGridCard({ track, queue, index }: Props) {
       tabIndex={0}
     >
       <div className={styles.artWrap}>
-        <AlbumArt src={track.imagen_url} alt="" size={160} className={styles.art} genreSeed={track.genre_name} />
+        <AlbumArt src={track.imagen_url} alt="" size={160} className={styles.art} genreSeed={track.genre_name} trackId={track.track_id} />
         <div className={styles.overlay}>
           <button
             type="button"

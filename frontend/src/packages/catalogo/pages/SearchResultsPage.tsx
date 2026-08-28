@@ -408,7 +408,7 @@ function MejorResultado({ track, queue }: { track: SearchTrack; queue: SearchTra
     <div className={styles.section}>
       <p className={styles.sectionLabel}>Mejor resultado</p>
       <div className={styles.best}>
-        <AlbumArt src={track.imagen_url} alt="" size={88} />
+        <AlbumArt src={track.imagen_url} alt="" size={88} trackId={track.track_id} />
         <div className={styles.bestInfo}>
           <Link to={`/catalogo/track/${track.fact_id}`} className={styles.bestName}>
             <TrackName name={track.track_name} esFeaturing={track.es_featuring} sourceType={track.source_type} featBadgeClassName={styles.featBadge} explicitId={track.explicit_id} />
@@ -433,7 +433,7 @@ function TrackRow({ track, queue, index }: { track: SearchTrack; queue: SearchTr
   const { play, playList } = usePlayer()
   return (
     <li className={styles.row}>
-      <AlbumArt src={track.imagen_url} alt="" size={40} />
+      <AlbumArt src={track.imagen_url} alt="" size={40} trackId={track.track_id} />
       <div className={styles.rowInfo}>
         <Link to={`/catalogo/track/${track.fact_id}`} className={styles.rowName}>
           <TrackName name={track.track_name} esFeaturing={track.es_featuring} sourceType={track.source_type} featBadgeClassName={styles.featBadge} explicitId={track.explicit_id} />

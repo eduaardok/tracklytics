@@ -26,7 +26,7 @@ export function QueuePanel({ currentTrack, queue, onRemove, onMove, onShuffle, o
         <div className={styles.section}>
           <span className={styles.sectionLabel}>Reproduciendo ahora</span>
           <div className={styles.row}>
-            <AlbumArt src={currentTrack.imagen_url} alt="" size={32} />
+            <AlbumArt src={currentTrack.imagen_url} alt="" size={32} trackId={currentTrack.track_id} />
             <div className={styles.rowMeta}>
               <span className={styles.rowName}>
                 <TrackName name={currentTrack.track_name} esFeaturing={currentTrack.es_featuring} sourceType={currentTrack.source_type} />
@@ -58,7 +58,7 @@ export function QueuePanel({ currentTrack, queue, onRemove, onMove, onShuffle, o
             <ol className={styles.list}>
               {queue.map((track, i) => (
                 <li key={`${track.fact_id}-${i}`} className={styles.row}>
-                  <AlbumArt src={track.imagen_url} alt="" size={32} />
+                  <AlbumArt src={track.imagen_url} alt="" size={32} trackId={track.track_id} />
                   <div className={styles.rowMeta}>
                     <span className={styles.rowName}>
                       <TrackName name={track.track_name} esFeaturing={track.es_featuring} sourceType={track.source_type} />
