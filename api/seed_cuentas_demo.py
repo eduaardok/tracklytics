@@ -33,6 +33,7 @@ reales, usando el token de `superadmin`.
 import os
 import sys
 import time
+from datetime import date, timedelta
 
 import httpx
 from dotenv import load_dotenv
@@ -60,6 +61,14 @@ CUENTAS = [
     # -> se omite la asignación) — para el acceso rápido de demo en LoginPage.tsx
     # (S16 prompt 09), que necesitaba una cuenta B2C estable además de las 6 admin/1 B2B.
     ("usuario",         "user",    None),
+    # Artista y sello demo (S17, seguimiento de "que se vea el porcentaje"):
+    # cuentas B2C simples también — lo que las distingue no es un rol
+    # administrativo sino la vinculación de negocio que arman
+    # `_sembrar_cuenta_artista_demo`/`_sembrar_cuenta_sello_demo` más abajo
+    # (cuenta de artista aprobada + contrato de regalías / cuenta de sello
+    # vinculada a un sello ya existente).
+    ("artista_demo",    "user",    None),
+    ("sello_demo",      "user",    None),
 ]
 
 MAX_INTENTOS_API = 30
@@ -238,6 +247,105 @@ def _sembrar_biblioteca_usuario(client: httpx.Client) -> None:
         print(f"  [biblioteca] usuario@demo ya tenía {len(pls)} playlists, se omite.")
 
 
+def _sembrar_cuenta_artista_demo(client: httpx.Client, superadmin_token: str) -> None:
+    """Cuenta de artista demo, YA aprobada y con un contrato de regalías real
+    sobre un track del catálogo — para que "Mis ganancias" (con el % de
+    contrato agregado en esta sesión) tenga algo que mostrar sin depender de
+    que alguien la apruebe en vivo durante la demo. Todo vía endpoints reales
+    (mismo criterio que el resto de este archivo): solicitud de cuenta,
+    aprobación admin, contrato de regalías y unas reproducciones reales de
+    hoy para que la liquidación del día tenga streams que repartir."""
+    email = f"artista_demo@{DEMO_DOMAIN}"
+    login = _login(client, email)
+    h = {"Authorization": f"Bearer {login['token']}"}
+    h_admin = {"Authorization": f"Bearer {superadmin_token}"}
+
+    cuenta_resp = client.get(f"{API_URL}/creadores/cuenta", headers=h)
+    if cuenta_resp.status_code == 200:
+        print(f"  [artista_demo] cuenta ya existe (estado={cuenta_resp.json()['estado_cuenta']}), se omite.")
+        return
+
+    artistas = client.get(f"{API_URL}/artists/top?limit=10", headers=h).json()["data"]
+    if not artistas:
+        print("  [artista_demo] no hay artistas en el catálogo todavía, se omite (¿corriste el ETL?).")
+        return
+    # El 5to más popular, no el #1 — reduce (sin eliminar del todo) la chance
+    # de reusar el mismo track que uno de los 11 contratos de artista que
+    # `expandir_contratos_regalias.py` ya arma sobre "tracks reales con más
+    # reproducciones".
+    artista = artistas[4] if len(artistas) > 4 else artistas[0]
+
+    resp = client.post(f"{API_URL}/creadores/cuenta", headers=h, json={"nombre_artistico": artista["name"]})
+    resp.raise_for_status()
+    cuenta_artista_id = resp.json()["cuenta_artista_id"]
+    print(f"  [artista_demo] cuenta solicitada como '{artista['name']}'.")
+
+    resp = client.post(
+        f"{API_URL}/creadores/admin/cuentas/{cuenta_artista_id}/resolver",
+        headers=h_admin, json={"decision": "aprobar"},
+    )
+    print(f"  [artista_demo] aprobación -> HTTP {resp.status_code}")
+
+    tracks = client.get(f"{API_URL}/tracks/by-artist/{artista['artist_id']}?limit=1", headers=h).json()["data"]
+    if not tracks:
+        print(f"  [artista_demo] '{artista['name']}' no tiene tracks propios, se omite el contrato.")
+        return
+    fact_id_track = tracks[0]["fact_id"]
+    hoy = date.today()
+
+    resp = client.post(
+        f"{API_URL}/regalias/admin/contratos", headers=h_admin,
+        json={
+            "fact_id_track": fact_id_track, "cuenta_artista_id": cuenta_artista_id,
+            "pct_master_artista": 100, "pct_publishing_artista": 100,
+            "vigente_desde": hoy.isoformat(),
+        },
+    )
+    print(f"  [artista_demo] contrato de regalías sobre fact_id={fact_id_track} -> HTTP {resp.status_code}")
+
+    # 5 reproducciones reales de hoy (mismo endpoint que usa el reproductor,
+    # POST /biblioteca/historial) — sin esto streams_periodo sería 0 y la
+    # liquidación de abajo no generaría ninguna fila que mostrar.
+    for _ in range(5):
+        client.post(f"{API_URL}/biblioteca/historial/{fact_id_track}", headers=h)
+
+    resp = client.post(
+        f"{API_URL}/regalias/admin/liquidar", headers=h_admin,
+        json={"periodo_inicio": hoy.isoformat(), "periodo_fin": (hoy + timedelta(days=1)).isoformat()},
+    )
+    print(f"  [artista_demo] liquidación del día -> HTTP {resp.status_code} {resp.text[:200]}")
+
+
+def _sembrar_cuenta_sello_demo(client: httpx.Client, superadmin_token: str) -> None:
+    """Cuenta de sello demo — a diferencia del artista, acá no hace falta
+    crear ningún contrato nuevo: `expandir_contratos_regalias.py` (S14-P4) ya
+    generó un contrato de sello por cada fila de `DIM_SELLO_DISCOGRAFICO`
+    sobre tracks reales, con liquidaciones históricas de los últimos 24 meses
+    (`backfill_negocio.py`). Vincular la cuenta a un sello ya existente basta
+    para que "Mis ganancias" (vista sello) tenga datos reales de entrada."""
+    email = f"sello_demo@{DEMO_DOMAIN}"
+    login = _login(client, email)
+    h = {"Authorization": f"Bearer {login['token']}"}
+    h_admin = {"Authorization": f"Bearer {superadmin_token}"}
+
+    ya = client.get(f"{API_URL}/regalias/sello/mi-cuenta", headers=h)
+    if ya.status_code == 200:
+        print("  [sello_demo] cuenta ya vinculada, se omite.")
+        return
+
+    sellos = client.get(f"{API_URL}/sellos", headers=h_admin).json().get("data", [])
+    if not sellos:
+        print("  [sello_demo] no hay sellos en el catálogo todavía, se omite.")
+        return
+    sello = sellos[0]
+
+    resp = client.post(
+        f"{API_URL}/regalias/admin/cuentas-sello", headers=h_admin,
+        json={"usuario_id": login["record"]["id"], "sello_id": sello["sello_id"]},
+    )
+    print(f"  [sello_demo] vinculado a sello '{sello.get('nombre', sello['sello_id'])}' -> HTTP {resp.status_code}")
+
+
 def main() -> None:
     with httpx.Client(timeout=15) as client:
         print("Esperando a que la API esté saludable...")
@@ -264,6 +372,12 @@ def main() -> None:
 
         _activar_analyst_b2b(client)
         _sembrar_biblioteca_usuario(client)
+        # Van después de `_activar_analyst_b2b`: esa función deja al menos una
+        # transacción de suscripción fechada "hoy" (FACT_TRANSACCION_PAGO), que
+        # es lo que le da pool > 0 a la liquidación del día que arma
+        # `_sembrar_cuenta_artista_demo` más abajo.
+        _sembrar_cuenta_artista_demo(client, superadmin_token)
+        _sembrar_cuenta_sello_demo(client, superadmin_token)
 
     print("Siembra de cuentas demo completa.")
 

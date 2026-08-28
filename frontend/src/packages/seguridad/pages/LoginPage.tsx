@@ -15,21 +15,27 @@ import styles from './AuthPages.module.css'
 type Modo = 'login' | 'recuperar' | 'restablecer'
 
 // Acceso rápido de demo (S16 prompt 09) — SOLO para agilizar la grabación de
-// los videos, no es un patrón de producción: la contraseña de las 8 cuentas
+// los videos, no es un patrón de producción: la contraseña de estas cuentas
 // demo es pública (`docs/CUENTAS_DEMO.md`, `seed_cuentas_demo.py`,
 // `SUPERADMIN_DEMO_PASSWORD` con default `Demo12345!`), así que exponerla acá
 // no agrega ningún riesgo nuevo — ya es de conocimiento público en el repo.
 // Colapsado por defecto (oculto hasta que alguien lo abre a propósito).
+//
+// Curada (S17, seguimiento de "que se vea el porcentaje"): de las 10 cuentas
+// que sigue sembrando `seed_cuentas_demo.py`, acá solo quedan las que cuentan
+// una historia distinta de PRODUCTO frente a un visitante (B2C, artista,
+// sello, cliente B2B, superadmin) — no las 5 cuentas `admin_*` de área
+// (finanzas/contenido/comunidad/datos/comercial), que son granularidad de
+// RBAC interno (útiles para QA de permisos, no para una demo de producto) y
+// siguen existiendo y logueables a mano con la misma contraseña si hace falta
+// mostrar ese detalle.
 const DEMO_PASSWORD = 'Demo12345!'
 const CUENTAS_DEMO: { email: string; label: string }[] = [
-  { email: 'usuario@demo.tracklytics.com',         label: 'Usuario (B2C)' },
-  { email: 'analyst@demo.tracklytics.com',         label: 'Cliente B2B' },
-  { email: 'superadmin@demo.tracklytics.com',      label: 'Superadmin' },
-  { email: 'admin_finanzas@demo.tracklytics.com',  label: 'Admin Finanzas' },
-  { email: 'admin_contenido@demo.tracklytics.com', label: 'Admin Contenido' },
-  { email: 'admin_comunidad@demo.tracklytics.com', label: 'Admin Comunidad' },
-  { email: 'admin_datos@demo.tracklytics.com',     label: 'Admin Datos' },
-  { email: 'admin_comercial@demo.tracklytics.com', label: 'Admin Comercial' },
+  { email: 'usuario@demo.tracklytics.com',      label: 'Usuario (B2C)' },
+  { email: 'artista_demo@demo.tracklytics.com', label: 'Artista' },
+  { email: 'sello_demo@demo.tracklytics.com',   label: 'Sello discográfico' },
+  { email: 'analyst@demo.tracklytics.com',      label: 'Cliente B2B' },
+  { email: 'superadmin@demo.tracklytics.com',   label: 'Superadmin' },
 ]
 
 type LoginState = { from?: { pathname: string; search: string }; playIntent?: PlayableTrack }
