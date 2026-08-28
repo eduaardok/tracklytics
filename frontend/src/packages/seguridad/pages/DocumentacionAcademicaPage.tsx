@@ -74,11 +74,19 @@ const BSC_PERSPECTIVAS = [
 ] as const
 
 const DIAGRAMAS = [
-  { archivo: 'd_componentes.png', titulo: 'Diagrama de componentes', actualizado: '16 may 2026' },
-  { archivo: 'd_despliegue.png', titulo: 'Diagrama de despliegue', actualizado: '17 may 2026' },
-  { archivo: 'd_casos_de_uso.png', titulo: 'Diagrama de casos de uso', actualizado: '23 may 2026' },
-  { archivo: 'd_base_de_datos.png', titulo: 'Diagrama de base de datos', actualizado: '23 may 2026' },
+  { archivo: 'd_componentes.png', titulo: 'Diagrama de componentes', actualizado: '27 ago 2026' },
+  { archivo: 'd_despliegue.png', titulo: 'Diagrama de despliegue', actualizado: '27 ago 2026' },
+  { archivo: 'd_casos_de_uso.png', titulo: 'Diagrama de casos de uso', actualizado: '27 ago 2026' },
+  { archivo: 'd_base_de_datos.png', titulo: 'Diagrama de base de datos', actualizado: '27 ago 2026' },
 ] as const
+
+// Los 4 diagramas viven en `DIAGRAMAS` como única fuente de la fecha —
+// las figuras de abajo siempre leen `actualizado` de aquí (nunca un string
+// literal aparte) para que actualizar este arreglo baste para refrescar
+// los 4 rótulos.
+function diagrama(archivo: (typeof DIAGRAMAS)[number]['archivo']) {
+  return DIAGRAMAS.find((d) => d.archivo === archivo)!
+}
 
 const SECCIONES = [
   { id: 'contexto', numero: '§01', titulo: 'Contexto' },
@@ -305,11 +313,15 @@ export function DocumentacionAcademicaPage() {
             </div>
             <div className={styles.prose}>
               <p>
-                El stack corre íntegramente en contenedores Docker orquestados con Docker Compose:
-                PocketBase para identidad y las entidades cuyas reglas de acceso dependen de su motor de
-                auth, Parquet como staging transitorio, ClickHouse como base analítica columnar, Airflow
-                para la orquestación del ETL, FastAPI como capa de API, y Nginx sirviendo el build de
-                producción del frontend.
+                El stack corre íntegramente en contenedores Docker orquestados con Docker Compose. Hay dos
+                motores de datos reales: <strong>PocketBase</strong> (puerto 8090), dueño de la colección{' '}
+                <code>users</code> (identidad, autenticación, roles administrativos) y de{' '}
+                <code>playlists</code>/<code>playlist_tracks</code> (el orden de tracks de cada playlist,
+                por <code>fact_id</code> y posición) — entidades de bajo volumen cuyas reglas de acceso
+                dependen de su motor de auth; y <strong>ClickHouse</strong> como base analítica columnar
+                para el resto del modelo. A esto se suma Parquet como staging transitorio, Airflow para la
+                orquestación del ETL, FastAPI como capa de API, y Nginx sirviendo el build de producción
+                del frontend.
               </p>
               <p>
                 Los datos se organizan en capas <strong>Bronze → Silver → Gold</strong>: Bronze y Silver
@@ -353,11 +365,11 @@ export function DocumentacionAcademicaPage() {
             </div>
 
             <figure className={styles.diagramBlock}>
-              <p className={styles.diagramCaption}>Diagrama de casos de uso</p>
+              <p className={styles.diagramCaption}>{diagrama('d_casos_de_uso.png').titulo}</p>
               <div className={styles.diagramFrame}>
                 <img src="/docs-academicas/d_casos_de_uso.png" alt="Diagrama de casos de uso" loading="lazy" />
               </div>
-              <p className={styles.diagramUpdatedAt}>Última actualización: 23 may 2026</p>
+              <p className={styles.diagramUpdatedAt}>Última actualización: {diagrama('d_casos_de_uso.png').actualizado}</p>
             </figure>
 
             <div className={styles.prose} style={{ marginTop: 'var(--space-xl)' }}>
@@ -371,11 +383,11 @@ export function DocumentacionAcademicaPage() {
               </p>
             </div>
             <figure className={styles.diagramBlock}>
-              <p className={styles.diagramCaption}>Diagrama de base de datos</p>
+              <p className={styles.diagramCaption}>{diagrama('d_base_de_datos.png').titulo}</p>
               <div className={styles.diagramFrame}>
                 <img src="/docs-academicas/d_base_de_datos.png" alt="Diagrama de base de datos" loading="lazy" />
               </div>
-              <p className={styles.diagramUpdatedAt}>Última actualización: 23 may 2026</p>
+              <p className={styles.diagramUpdatedAt}>Última actualización: {diagrama('d_base_de_datos.png').actualizado}</p>
             </figure>
 
             <div className={styles.prose} style={{ marginTop: 'var(--space-xl)' }}>
