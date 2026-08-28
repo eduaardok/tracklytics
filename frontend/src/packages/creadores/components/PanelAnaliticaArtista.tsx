@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { ErrorState } from '@shared/components/ErrorState'
+import { InfoHint } from '@shared/components/InfoHint'
 import { apiErrorMessage } from '@shared/lib/api-client'
 import { useCountUp } from '@shared/hooks/useCountUp'
 import { useReveal } from '@shared/hooks/useReveal'
@@ -138,7 +139,7 @@ export function PanelAnaliticaArtista({ aprobada }: { aprobada: boolean }) {
           <div className={styles.emptyState}>
             <span className={styles.emptyTitle}>Sin reproducciones todavía</span>
             <span className={styles.emptyBody}>
-              Cuando alguien escuche tus tracks, la curva de los últimos 30 días aparece acá.
+              Cuando alguien escuche tus canciones, la curva de los últimos 30 días aparece acá.
             </span>
           </div>
         ) : (
@@ -176,12 +177,15 @@ export function PanelAnaliticaArtista({ aprobada }: { aprobada: boolean }) {
         )}
       </div>
 
-      <p className={styles.sectionLabel}>Engagement por track</p>
+      <p className={styles.sectionLabel} style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+        Engagement por canción
+        <InfoHint text="Cuánto interactúan los oyentes con cada canción tuya: reproducciones, oyentes únicos, «me gusta» y favoritos netos (agregados − quitados). Datos en vivo, distintos de los streams ya liquidados en Ganancias." />
+      </p>
       {tracks.length === 0 ? (
         <div className={styles.emptyState}>
-          <span className={styles.emptyTitle}>Todavía no tienes tracks publicados</span>
+          <span className={styles.emptyTitle}>Todavía no tienes canciones publicadas</span>
           <span className={styles.emptyBody}>
-            Sube un track desde la pestaña Música; cuando sea aprobado, sus métricas aparecen acá.
+            Sube una canción desde la pestaña Música; cuando sea aprobada, sus métricas aparecen acá.
           </span>
         </div>
       ) : (
@@ -189,7 +193,7 @@ export function PanelAnaliticaArtista({ aprobada }: { aprobada: boolean }) {
           <table className={styles.anaTabla}>
             <thead>
               <tr>
-                <th>Track</th>
+                <th>Canción</th>
                 <th>Streams</th>
                 <th>Oyentes</th>
                 <th>Likes</th>
