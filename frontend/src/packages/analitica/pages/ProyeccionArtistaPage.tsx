@@ -11,6 +11,7 @@ import { tierInsuficienteInfo } from '../lib/tierError'
 import { SkeletonChart } from '@shared/components/SkeletonLoader'
 import styles from './ProyeccionArtistaPage.module.css'
 import { ErrorState } from '@shared/components/ErrorState'
+import { InfoHint } from '@shared/components/InfoHint'
 
 const TRAYECTORIA_LABEL: Record<string, string> = {
   ganando_terreno:    'Ganando terreno frente a su género',
@@ -57,7 +58,10 @@ export function ProyeccionArtistaPage() {
 
   return (
     <section className={styles.page}>
-      <h1 className={styles.heading}>Proyección de trayectoria de artista</h1>
+      <h1 className={styles.heading}>
+        Proyección de trayectoria de artista
+        <InfoHint text="Proyección estadística de cómo evolucionará el desempeño de un artista en los próximos períodos, a partir de su serie histórica real — no una predicción de IA." />
+      </h1>
       <span className={styles.subtitle}>
         {proyeccion ? '// proyección estadística estimada, no una predicción de IA' : '// selecciona un artista'}
       </span>

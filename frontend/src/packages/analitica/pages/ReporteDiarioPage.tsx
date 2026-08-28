@@ -6,6 +6,7 @@ import { analiticaApi } from '../api/analitica.api'
 import { SkeletonChart } from '@shared/components/SkeletonLoader'
 import styles from './ReporteDiarioPage.module.css'
 import { ErrorState } from '@shared/components/ErrorState'
+import { InfoHint } from '@shared/components/InfoHint'
 
 const fmt = (n: number) => n.toLocaleString('es-ES')
 
@@ -38,7 +39,10 @@ export function ReporteDiarioPage() {
     <section className={styles.page}>
       <div className={styles.headRow}>
         <div>
-          <h1 className={styles.heading}>Reporte diario operativo</h1>
+          <h1 className={styles.heading}>
+            Reporte diario operativo
+            <InfoHint text="Snapshot operativo del día: suscripciones, adquisición e ingestas — seguimiento diario del equipo de datos." />
+          </h1>
           <span className={styles.subtitle}>{data ? `// ${data.fecha}` : '// ingestas y engagement del día'}</span>
         </div>
         <div className={styles.headActions}>

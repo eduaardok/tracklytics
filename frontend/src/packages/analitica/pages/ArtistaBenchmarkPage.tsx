@@ -11,6 +11,7 @@ import type { ArtistSearchResult } from '../types'
 import { SkeletonChart } from '@shared/components/SkeletonLoader'
 import styles from './ArtistaBenchmarkPage.module.css'
 import { ErrorState } from '@shared/components/ErrorState'
+import { InfoHint } from '@shared/components/InfoHint'
 
 const fmt    = (n: number)     => n.toLocaleString('es-ES')
 const fmtDec = (n: number)     => n.toFixed(4)
@@ -34,7 +35,10 @@ export function ArtistaBenchmarkPage() {
 
   return (
     <section className={styles.page}>
-      <h1 className={styles.heading}>Benchmark de artista</h1>
+      <h1 className={styles.heading}>
+        Benchmark de artista
+        <InfoHint text="Compara un artista contra el promedio de su propio género, para saber si está por encima o por debajo del benchmark de su categoría." />
+      </h1>
       <span className={styles.subtitle}>
         {data ? `// ${data.artista.name} vs. género "${data.genero_benchmark.name}"` : '// selecciona un artista'}
       </span>

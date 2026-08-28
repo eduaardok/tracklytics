@@ -8,6 +8,7 @@ import { tierInsuficienteInfo } from '../lib/tierError'
 import type { ArtistSearchResult, TrackSearchResult, EngagementData, EngagementByArtist, EngagementByFact, DesempenoRelativo } from '../types'
 import styles from './EngagementPage.module.css'
 import { ErrorState } from '@shared/components/ErrorState'
+import { InfoHint } from '@shared/components/InfoHint'
 
 // ── Types ────────────────────────────────────────────────────────────────────
 type EntityType = 'artista' | 'track'
@@ -237,7 +238,10 @@ export function EngagementPage() {
 
   return (
     <section className={styles.page}>
-      <h1 className={styles.heading}>Engagement</h1>
+      <h1 className={styles.heading}>
+        Engagement
+        <InfoHint text="Compara el engagement propio (favoritos, reproducciones) de un artista o track contra su popularidad de mercado, para detectar oportunidades de promoción diferencial." />
+      </h1>
       <span className={styles.subtitle}>{subtitle()}</span>
 
       {/* ── Controls ── */}

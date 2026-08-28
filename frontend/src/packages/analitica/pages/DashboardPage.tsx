@@ -7,6 +7,7 @@ import { MiniBarChart, type BarDatum } from '@shared/components/charts/MiniBarCh
 import { CHART_COLORS } from '@shared/components/charts/colors'
 import { ExportPDFButton } from '@shared/components/ExportPDFButton'
 import { KPICard } from '@shared/components/KPICard'
+import { InfoHint } from '@shared/components/InfoHint'
 import { SkeletonCard, SkeletonChart } from '@shared/components/SkeletonLoader'
 import { analiticaApi } from '../api/analitica.api'
 import styles from './DashboardPage.module.css'
@@ -119,7 +120,10 @@ export function DashboardPage() {
   return (
     <section ref={pageRef}>
       <div className={styles.headTop}>
-        <h1 className={styles.heading}>Dashboard</h1>
+        <h1 className={styles.heading}>
+          Dashboard
+          <InfoHint text="Resumen ejecutivo del catálogo: KPIs de escala, promedios de audio, top géneros/artistas, e ingresos vs. regalías — el primer vistazo al abrir Analítica." />
+        </h1>
         <span className={styles.exportSlot}>
           <ExportPDFButton targetRef={pageRef} fileName="dashboard-ejecutivo" title="Dashboard ejecutivo" />
         </span>

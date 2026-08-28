@@ -11,6 +11,7 @@ import type { TendenciaSemana } from '../types'
 import { SkeletonChart } from '@shared/components/SkeletonLoader'
 import styles from './TendenciasPage.module.css'
 import { ErrorState } from '@shared/components/ErrorState'
+import { InfoHint } from '@shared/components/InfoHint'
 
 const TREND_COLOR = 'oklch(0.70 0.14 195)' // --color-accent — trend/series único, sin necesidad de la paleta categórica
 
@@ -115,7 +116,10 @@ export function TendenciasPage() {
   return (
     <section className={styles.page} ref={reportRef}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--space-md)', flexWrap: 'wrap' }}>
-        <h1 className={styles.heading}>Tendencias semanales</h1>
+        <h1 className={styles.heading}>
+          Tendencias semanales
+          <InfoHint text="Evolución semanal de métricas clave del catálogo, para detectar tendencias emergentes antes de que se vuelvan evidentes." />
+        </h1>
         <ExportPDFButton targetRef={reportRef} fileName="analitica-tendencias" title="Tendencias semanales" />
       </div>
       <span className={styles.subtitle}>

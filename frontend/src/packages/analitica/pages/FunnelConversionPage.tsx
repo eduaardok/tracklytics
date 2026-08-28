@@ -6,6 +6,7 @@ import { analiticaApi } from '../api/analitica.api'
 import { SkeletonChart } from '@shared/components/SkeletonLoader'
 import styles from './FunnelConversionPage.module.css'
 import { ErrorState } from '@shared/components/ErrorState'
+import { InfoHint } from '@shared/components/InfoHint'
 
 function isoMesesAtras(n: number): string {
   const d = new Date()
@@ -38,7 +39,10 @@ export function FunnelConversionPage() {
   return (
     <section className={styles.page} ref={reportRef}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--space-md)', flexWrap: 'wrap' }}>
-        <h1 className={styles.heading}>Funnel de conversión</h1>
+        <h1 className={styles.heading}>
+          Funnel de conversión
+          <InfoHint text="Embudo desde el registro hasta la suscripción paga, para identificar en qué paso se pierden más usuarios potenciales." />
+        </h1>
         <ExportPDFButton targetRef={reportRef} fileName="analitica-funnel-conversion" title="Funnel de conversión" />
       </div>
       <span className={styles.subtitle}>// free → vio anuncio → se suscribió</span>

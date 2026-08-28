@@ -8,6 +8,7 @@ import { SkeletonCard } from '@shared/components/SkeletonLoader'
 import { apiErrorMessage } from '@shared/lib/api-client'
 import { analiticaApi } from '../api/analitica.api'
 import type { BenchmarkInforme } from '../types'
+import { InfoHint } from '@shared/components/InfoHint'
 import styles from './BenchmarkSqlPage.module.css'
 
 const fmtS = (n: number) => `${n.toFixed(3)}s`
@@ -131,7 +132,10 @@ export function BenchmarkSqlPage() {
 
   return (
     <section className={styles.page}>
-      <h1 className={styles.heading}>Benchmark: SQL directo vs. Gold</h1>
+      <h1 className={styles.heading}>
+        Benchmark: SQL directo vs. Gold
+        <InfoHint text="Compara en vivo el tiempo de calcular un informe desde cero sobre el catálogo (SQL directo) contra leerlo ya agregado de la capa Gold, para demostrar por qué existe Gold." />
+      </h1>
       <span className={styles.subtitle}>
         // mide en vivo el mismo informe calculado desde cero sobre el catálogo vs. leído de la
         capa Gold pre-agregada — no confundir con "Benchmark" en el menú (comparación de artistas)

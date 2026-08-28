@@ -8,6 +8,7 @@ import { SkeletonCard } from '@shared/components/SkeletonLoader'
 import { Sparkline } from '@shared/components/charts/Sparkline'
 import { analiticaApi } from '../api/analitica.api'
 import type { BscKpi, BscSemaforo, BscDiagnostico } from '../types'
+import { InfoHint } from '@shared/components/InfoHint'
 import styles from './BalancedScorecardPage.module.css'
 
 const SEMAFORO_COLOR: Record<BscSemaforo, string> = {
@@ -140,7 +141,10 @@ export function BalancedScorecardPage() {
     <section className={styles.page} ref={pageRef}>
       <div className={styles.headTop}>
         <div>
-          <h1 className={styles.heading}>Balanced Scorecard</h1>
+          <h1 className={styles.heading}>
+            Balanced Scorecard
+            <InfoHint text="Vista estratégica del negocio en 13 KPIs agrupados en 4 perspectivas: Financiera, Cliente, Procesos Internos, y Aprendizaje y Crecimiento." />
+          </h1>
           <span className={styles.subtitle}>// Tracklytics — visión estratégica de las 4 perspectivas</span>
         </div>
         <div className={styles.headActions}>

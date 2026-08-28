@@ -11,6 +11,7 @@ import type { DisponibilidadComponente } from '../types'
 import { SkeletonChart } from '@shared/components/SkeletonLoader'
 import styles from './DisponibilidadInfraPage.module.css'
 import { ErrorState } from '@shared/components/ErrorState'
+import { InfoHint } from '@shared/components/InfoHint'
 
 // Nombre del archivo/componente deliberadamente distinto de `DisponibilidadPage`
 // (capability `distribucion`, restricción geográfica de reproducción) — mismo
@@ -95,7 +96,10 @@ export function DisponibilidadInfraPage() {
   return (
     <section className={styles.page} ref={reportRef}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--space-md)', flexWrap: 'wrap' }}>
-        <h1 className={styles.heading}>Salud del sistema</h1>
+        <h1 className={styles.heading}>
+          Salud del sistema
+          <InfoHint text="Porcentaje de disponibilidad de cada componente de infraestructura por semana, para detectar degradaciones antes de que afecten a los usuarios." />
+        </h1>
         <ExportPDFButton targetRef={reportRef} fileName="analitica-salud-sistema" title="Salud del sistema" />
       </div>
       <span className={styles.subtitle}>

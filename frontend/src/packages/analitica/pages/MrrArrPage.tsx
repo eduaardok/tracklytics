@@ -39,7 +39,10 @@ export function MrrArrPage() {
   return (
     <section className={styles.page} ref={reportRef}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--space-md)', flexWrap: 'wrap' }}>
-        <h1 className={styles.heading}>MRR / ARR</h1>
+        <h1 className={styles.heading}>
+          MRR / ARR
+          <InfoHint text="Ingreso recurrente mensual (MRR) y su proyección anual (ARR) generado por las suscripciones activas." />
+        </h1>
         <ExportPDFButton targetRef={reportRef} fileName="analitica-mrr-arr" title="MRR / ARR" />
       </div>
       <span className={styles.subtitle}>// ingreso recurrente mensual y proyección anual</span>

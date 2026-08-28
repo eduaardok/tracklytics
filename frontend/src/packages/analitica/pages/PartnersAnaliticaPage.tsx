@@ -9,6 +9,7 @@ import { SkeletonChart } from '@shared/components/SkeletonLoader'
 import { metricasApi } from '@packages/partners/api/metricas.api'
 import { ENDPOINTS } from '@packages/partners/api/partners.api'
 import type { PartnerTier } from '@packages/partners/types'
+import { InfoHint } from '@shared/components/InfoHint'
 import styles from './PartnersAnaliticaPage.module.css'
 
 const TIER_LABEL: Record<PartnerTier, string> = {
@@ -47,7 +48,10 @@ export function PartnersAnaliticaPage() {
     <section className={styles.page} ref={reportRef}>
       <div className={styles.headRow} data-pdf-export-ignore="true">
         <div>
-          <h1 className={styles.heading}>Partners</h1>
+          <h1 className={styles.heading}>
+            Partners
+            <InfoHint text="Rendimiento, SLA de entrega y cobertura de catálogo de cada partner integrado vía API." />
+          </h1>
           <span className={styles.subtitle}>// rendimiento, SLA de entrega y cobertura de catálogo</span>
         </div>
         <ExportPDFButton targetRef={reportRef} fileName="partners-analitica" title="Partners" />

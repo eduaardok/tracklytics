@@ -10,6 +10,7 @@ import { ErrorState } from '@shared/components/ErrorState'
 import { SkeletonChart } from '@shared/components/SkeletonLoader'
 import { ingestaApi } from '@packages/ingesta/api/ingesta.api'
 import type { CargaLog } from '@packages/ingesta/types'
+import { InfoHint } from '@shared/components/InfoHint'
 import styles from './IngestasAnaliticaPage.module.css'
 
 const TREND_COLOR = 'oklch(0.70 0.14 195)' // --color-accent, mismo criterio que TendenciasPage
@@ -132,7 +133,10 @@ export function IngestasAnaliticaPage() {
     <section className={styles.page} ref={reportRef}>
       <div className={styles.headRow} data-pdf-export-ignore="true">
         <div>
-          <h1 className={styles.heading}>Ingestas</h1>
+          <h1 className={styles.heading}>
+            Ingestas
+            <InfoHint text="Histórico de corridas del ETL: volumen procesado, duración y tasa de error de cada carga de catálogo." />
+          </h1>
           <span className={styles.subtitle}>
             {data.length > 0 ? `// ${data.length} corridas` : '// histórico de ETL: volumen, duración y tasa de error'}
           </span>

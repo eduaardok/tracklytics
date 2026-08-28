@@ -11,6 +11,7 @@ import type { ArtistAudioStats, ArtistSearchResult } from '../types'
 import { SkeletonChart } from '@shared/components/SkeletonLoader'
 import styles from './ComparacionPage.module.css'
 import { ErrorState } from '@shared/components/ErrorState'
+import { InfoHint } from '@shared/components/InfoHint'
 
 // Los `avg_*` de audio pueden ser `null` (artista sin tracks propios, ver
 // comentario en types.ts — bug real de S16 Prompt 05: esto tiraba abajo
@@ -48,7 +49,10 @@ export function ComparacionPage() {
 
   return (
     <section className={styles.page}>
-      <h1 className={styles.heading}>Comparación de artistas</h1>
+      <h1 className={styles.heading}>
+        Comparación de artistas
+        <InfoHint text="Compara dos artistas cara a cara en popularidad, engagement y perfil de audio, para apoyar decisiones de A&R o promoción." />
+      </h1>
       <span className={styles.subtitle}>
         {data ? `// ${data.artista_a.name} vs. ${data.artista_b.name}` : '// selecciona dos artistas'}
       </span>

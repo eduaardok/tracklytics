@@ -40,7 +40,10 @@ export function ChurnPage() {
 
   return (
     <section className={styles.page}>
-      <h1 className={styles.heading}>Churn de suscripciones</h1>
+      <h1 className={styles.heading}>
+        Churn de suscripciones
+        <InfoHint text="Cancelaciones vs. suscripciones activas por mes, para medir retención y detectar picos de fuga de clientes." />
+      </h1>
       <span className={styles.subtitle}>// cancelaciones vs. suscripciones activas por mes</span>
 
       <div className={styles.filters}>

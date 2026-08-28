@@ -7,6 +7,7 @@ import { apiErrorMessage } from '@shared/lib/api-client'
 import { useToast } from '@shared/context/ToastContext'
 import { experienciaApi } from '../api/experiencia.api'
 import type { TopTrackPlaylist } from '../types'
+import { InfoHint } from '@shared/components/InfoHint'
 import styles from './ExperienciaPages.module.css'
 
 // RF-EXP-006/007 (CU-O49/CU-O50): Cliente B2B (analyst) consulta los tracks
@@ -45,7 +46,10 @@ export function TopTracksPlaylistsPage() {
     <section className={styles.page}>
       <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 'var(--space-md)' }}>
         <div>
-          <h1 className={styles.heading}>Tracks más agregados a playlists</h1>
+          <h1 className={styles.heading}>
+            Tracks más agregados a playlists
+            <InfoHint text="Ranking de los tracks más agregados a playlists de usuarios, como señal de afinidad real más allá de las reproducciones." />
+          </h1>
         </div>
         {isAdmin && (
           <button

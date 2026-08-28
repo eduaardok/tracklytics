@@ -10,6 +10,7 @@ import type { AdquisicionCanal } from '../types'
 import { SkeletonChart } from '@shared/components/SkeletonLoader'
 import styles from './AdquisicionPage.module.css'
 import { ErrorState } from '@shared/components/ErrorState'
+import { InfoHint } from '@shared/components/InfoHint'
 
 // Tabla (no gráfico de barras apiladas) — evita introducir una paleta
 // categórica nueva de 4 colores sin pasar por la validación de contraste del
@@ -67,7 +68,10 @@ export function AdquisicionPage() {
   return (
     <section className={styles.page} ref={reportRef}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--space-md)', flexWrap: 'wrap' }}>
-        <h1 className={styles.heading}>Adquisición de usuarios</h1>
+        <h1 className={styles.heading}>
+          Adquisición de usuarios
+          <InfoHint text="Nuevos usuarios registrados por canal de marketing y semana, para medir qué canal de adquisición está funcionando mejor." />
+        </h1>
         <ExportPDFButton targetRef={reportRef} fileName="analitica-adquisicion" title="Adquisición de usuarios" />
       </div>
       <span className={styles.subtitle}>

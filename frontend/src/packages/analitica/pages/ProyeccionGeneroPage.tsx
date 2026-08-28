@@ -10,6 +10,7 @@ import { tierInsuficienteInfo } from '../lib/tierError'
 import { SkeletonChart } from '@shared/components/SkeletonLoader'
 import styles from './ProyeccionGeneroPage.module.css'
 import { ErrorState } from '@shared/components/ErrorState'
+import { InfoHint } from '@shared/components/InfoHint'
 
 // Panel predictivo exclusivo Enterprise (CU-O92, b2b-tier-access-analitica):
 // extrapolación estadística simple (regresión lineal) sobre la serie semanal
@@ -48,7 +49,10 @@ export function ProyeccionGeneroPage() {
 
   return (
     <section className={styles.page}>
-      <h1 className={styles.heading}>Proyección de tendencia de género</h1>
+      <h1 className={styles.heading}>
+        Proyección de tendencia de género
+        <InfoHint text="Proyección estadística (regresión lineal) de cómo evolucionará un género en los próximos períodos, a partir de su serie histórica real — no una predicción de IA." />
+      </h1>
       <span className={styles.subtitle}>
         {proyeccion ? '// proyección estadística estimada, no una predicción de IA' : '// selecciona un género'}
       </span>

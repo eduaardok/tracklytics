@@ -7,6 +7,7 @@ import { genreToAudioValues } from '../lib/audioFeatures'
 import { SkeletonChart } from '@shared/components/SkeletonLoader'
 import styles from './GenerosPage.module.css'
 import { ErrorState } from '@shared/components/ErrorState'
+import { InfoHint } from '@shared/components/InfoHint'
 
 const fmt    = (n: number)     => n.toLocaleString('es-ES')
 const fmtDec = (n: number, d = 2) => n.toFixed(d)
@@ -31,7 +32,10 @@ export function GenerosPage() {
 
   return (
     <section className={styles.page}>
-      <h1 className={styles.heading}>Perfil de audio por género</h1>
+      <h1 className={styles.heading}>
+        Perfil de audio por género
+        <InfoHint text="Radar con los 7 atributos de audio promedio de un género (energy, danceability, etc.), calculado solo sobre tracks con datos reales de audio." />
+      </h1>
       <span className={styles.subtitle}>
         {perfil ? `// ${perfil.name} · ${fmt(perfil.track_count)} tracks` : '// selecciona un género'}
       </span>
