@@ -10,7 +10,7 @@ from core.deps import get_current_user_optional
 from core.featuring import enriquecer_featuring
 from paquetes.biblioteca import pb_playlists
 from paquetes.catalogo.queries import (
-    ALBUM_DETAIL, ALBUMS_SEARCH,
+    ALBUM_COVERS_BATCH, ALBUM_DETAIL, ALBUMS_SEARCH,
     ARTIST_DETAIL, ARTISTS_SEARCH, ARTISTS_TOP,
     CATALOG_STATS,
     GENRE_DETAIL, GENRES_LIST,
@@ -394,6 +394,20 @@ def artist_detail(artist_id: int):
 def albums_search(q: str = Query(""), limit: int = Query(20, ge=1, le=100)):
     pattern = f"%{q.strip()}%" if q.strip() else "%"
     rows = query_rows(ALBUMS_SEARCH, {"pattern": pattern, "limit": limit})
+
+    # Collage batch (bug real, ver comentario en ALBUM_COVERS_BATCH): antes
+    # el frontend resolvía la portada de cada álbum SIN imagen propia con su
+    # propia request individual (`PlaylistCollage`, un `GET
+    # /tracks/by-album/:id` por card) — con esta página mostrando ~12 álbumes
+    # a la vez, eso saturaba las conexiones concurrentes del navegador. Una
+    # sola query acá por TODOS los álbumes sin portada de esta respuesta.
+    sin_portada = [r["album_id"] for r in rows if not r.get("imagen_url")]
+    portadas_por_album: dict[int, list[str]] = {}
+    if sin_portada:
+        for cover in query_rows(ALBUM_COVERS_BATCH, {"album_ids": sin_portada}):
+            portadas_por_album.setdefault(cover["album_id"], []).append(cover["imagen_url"])
+    for r in rows:
+        r["portada_urls"] = portadas_por_album.get(r["album_id"], [])
     return {"data": rows}
 
 

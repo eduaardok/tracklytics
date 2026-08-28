@@ -75,6 +75,12 @@ export type Album = {
   track_count?:         number
   avg_popularity?:      number
   imagen_url?:          string | null
+  // Collage batch (bug real, perf del catálogo): hasta 4 portadas YA
+  // resueltas por el backend para álbumes sin `imagen_url` propio — evita
+  // que cada card dispare su propia request individual (ver comentario en
+  // `ALBUM_COVERS_BATCH`, api/paquetes/catalogo/queries.py). Solo presente
+  // en la respuesta de `/albums/search`.
+  portada_urls?:        string[]
 }
 
 export type Genre = {

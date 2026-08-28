@@ -239,7 +239,7 @@ export function CatalogDiscovery({ onVerTodo }: Props) {
                 size={PLAYLIST_SIZE}
                 name={p.name}
                 imagenUrl={p.imagen_url}
-                albumId={p.album_id}
+                portadaUrls={p.portada_urls}
                 metric={`${(p.track_count ?? 0).toLocaleString('es')} canciones${p.release_year ? ` · ${p.release_year}` : ''}`}
                 onClick={() => navigate(`/catalogo/album/${p.album_id}`)}
               />

@@ -244,6 +244,34 @@ LIMIT {limit:UInt32}
 SETTINGS use_query_cache = 1, query_cache_ttl = 1800, query_cache_share_between_users = 1
 """
 
+# Collage de portada para álbumes SIN `imagen_url` propio (bug real,
+# confirmado navegando: la rail "Playlists" de CatalogDiscovery montaba un
+# <PlaylistCollage> por card, cada uno con su propia query
+# `GET /tracks/by-album/:id?limit=4` — con ~12 cards en pantalla a la vez,
+# eso dispara ~12 requests simultáneos que saturan el límite de conexiones
+# concurrentes por origen del navegador y dejan cualquier otro request en
+# vuelo (incluido un logout) esperando su turno. Mismo fix ya aplicado una
+# vez para las playlists propias del usuario — ver
+# `biblioteca/router.py::listar_playlists` y `TRACKS_BY_FACT_IDS`: una sola
+# consulta batch para TODOS los álbumes de la página a la vez, `LIMIT 4 BY`
+# para el tope por álbum en vez de N queries individuales.
+ALBUM_COVERS_BATCH = """
+SELECT album_id, imagen_url FROM (
+    SELECT
+        ft.album_id                                                AS album_id,
+        ft.track_id                                                AS track_id,
+        coalesce(any(ft.imagen_url), al.imagen_url, a.imagen_url)  AS imagen_url
+    FROM FACT_TRACKS ft
+    JOIN DIM_ALBUMS  al ON ft.album_id  = al.album_id
+    JOIN DIM_ARTISTS a  ON ft.artist_id = a.artist_id
+    WHERE ft.album_id IN {album_ids:Array(Int32)} AND ft.disponible = 1
+    GROUP BY ft.album_id, ft.track_id, al.imagen_url, a.imagen_url
+)
+WHERE notEmpty(imagen_url)
+ORDER BY album_id
+LIMIT 4 BY album_id
+"""
+
 ALBUM_DETAIL = """
 SELECT
     al.album_id           AS album_id,

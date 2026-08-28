@@ -10,8 +10,12 @@ type Props = {
   metric: string
   imagenUrl?: string | null
   // Solo playlists sin portada propia: habilita el collage 2×2 con covers de
-  // sus tracks (PlaylistCollage) en vez del placeholder vacío ♪.
-  albumId?: number
+  // sus tracks (PlaylistCollage) en vez del placeholder vacío ♪. Resueltas
+  // en batch por el backend (`Album.portada_urls`, `/albums/search`) — antes
+  // `PlaylistCollage` disparaba su propia request por card (bug real: ~12
+  // cards en la rail "Playlists" saturaban las conexiones concurrentes del
+  // navegador, ver comentario en `ALBUM_COVERS_BATCH`).
+  portadaUrls?: string[]
   onClick: () => void
   // Lado de la portada en px (CatalogDiscovery — filas horizontales más
   // compactas que la vista completa) — default 160, el tamaño histórico de
@@ -29,12 +33,12 @@ type Props = {
 // TrackGridCard (catálogo de canciones). Antes Artistas/Playlists/Géneros
 // solo tenían la card compacta de `ExploreRow` (icono de 44px + texto) sin
 // alternativa de grid — la auditoría la calificó de "presentación inferior".
-export function ExploreGridCard({ kind, name, metric, imagenUrl, albumId, onClick, size, shape = 'square' }: Props) {
+export function ExploreGridCard({ kind, name, metric, imagenUrl, portadaUrls, onClick, size, shape = 'square' }: Props) {
   const circular = shape === 'circle'
   const effectiveSize = size ?? 160
-  // Collage solo para playlists SIN portada propia y con id conocido — el
-  // resto mantiene su render original intacto.
-  const useCollage = kind === 'playlist' && !imagenUrl && albumId != null
+  // Collage solo para playlists SIN portada propia — el resto mantiene su
+  // render original intacto.
+  const useCollage = kind === 'playlist' && !imagenUrl
   return (
     <div
       className={`${styles.card} ${circular ? styles.cardCentered : ''}`}
@@ -46,7 +50,7 @@ export function ExploreGridCard({ kind, name, metric, imagenUrl, albumId, onClic
     >
       <div className={styles.artWrap} style={size ? { minHeight: size } : undefined}>
         {useCollage ? (
-          <PlaylistCollage albumId={albumId} seed={name} size={effectiveSize} />
+          <PlaylistCollage portadaUrls={portadaUrls ?? []} seed={name} size={effectiveSize} />
         ) : kind !== 'genero' ? (
           <AlbumArt src={imagenUrl} alt="" size={size ?? 160} className={`${styles.art} ${circular ? styles.circular : ''}`} />
         ) : (
