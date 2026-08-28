@@ -62,6 +62,10 @@ const PermisosPage        = lazyNamed(() => import('@packages/seguridad/pages/Pe
 const ErroresPage         = lazyNamed(() => import('@packages/seguridad/pages/ErroresPage'), 'ErroresPage')
 const RegisterPage        = lazyNamed(() => import('@packages/seguridad/pages/RegisterPage'), 'RegisterPage')
 const AboutPage           = lazyNamed(() => import('@packages/seguridad/pages/AboutPage'), 'AboutPage')
+// Solo para la sustentación del curso — no es una feature de producto (ver
+// disclaimer sticky en el propio componente). Pública, sin sesión, mismo
+// patrón lazy que `/acerca-de`/`/partners`.
+const DocumentacionAcademicaPage = lazyNamed(() => import('@packages/seguridad/pages/DocumentacionAcademicaPage'), 'DocumentacionAcademicaPage')
 const ProfilePage         = lazyNamed(() => import('@packages/seguridad/pages/ProfilePage'), 'ProfilePage')
   // FacturacionPage ya no se monta como ruta propia (S16-P8): vive como tab
   // dentro de PlanesPage, que la importa con React.lazy.
@@ -195,6 +199,7 @@ export const router = createBrowserRouter([
   // Pública, sin sesión — porte de app/partners/landing.html (legacy) al
   // retirar `app/` (consolidación a React, 2026-07-10).
   { path: '/partners', element: <Suspense fallback={<RouteLoadingFallback />}><PartnersLandingPage /></Suspense> },
+  { path: '/documentacion-academica', element: <Suspense fallback={<RouteLoadingFallback />}><DocumentacionAcademicaPage /></Suspense> },
   {
     path: '/',
     element: <AppShell />,

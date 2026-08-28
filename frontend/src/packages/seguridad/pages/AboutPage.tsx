@@ -150,6 +150,8 @@ export function AboutPage() {
         <Link to="/login">Entrar</Link>
         <span aria-hidden="true">·</span>
         <Link to="/partners">Partners</Link>
+        <span aria-hidden="true">·</span>
+        <Link to="/documentacion-academica">Documentación académica</Link>
       </footer>
     </div>
   )
