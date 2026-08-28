@@ -85,9 +85,64 @@
 
 /* ── Hero ─────────────────────────────────────────────────────────────── */
 .hero {
+  position: relative;
+  /* `z-index: 0` explícito (no solo `position: relative`) es necesario:
+     sin un z-index propio, `.hero` no abre su propio stacking context, así
+     que el `z-index: -1` de `.heroWatermark` escapa hasta la raíz del
+     documento y queda pintado detrás del fondo de `<body>` — invisible por
+     completo, con cualquier opacidad. Con esto, el watermark queda
+     contenido dentro de `.hero`: detrás de su contenido normal, pero
+     encima del fondo (transparente) del propio `.hero`. */
+  z-index: 0;
+  /* Contiene la marca de agua (más grande que el propio .hero en algunos
+     breakpoints) para que nunca produzca scroll horizontal ni se salga del
+     padding del resto de la página. */
+  overflow: hidden;
   padding: var(--space-2xl) var(--space-lg) var(--space-xl);
   max-width: 900px;
 }
+
+/* Marca de agua — logo grande, casi invisible, detrás del contenido del
+   hero únicamente (no de toda la página: así el resto de secciones sigue
+   con el fondo plano de `.page`, sin repetir el efecto). El logo ya es
+   violeta de marca sobre transparente, así que a esta opacidad se lee
+   igual de bien en light y en dark sin necesitar invert() ni filtros por
+   tema. `z-index: -1` lo ancla detrás de todo el contenido de `.hero`
+   (que es flujo normal, sin position propio) dentro del stacking context
+   que crea `.hero { position: relative }`. */
+.heroWatermark {
+  position: absolute;
+  top: -120px;
+  right: -100px;
+  width: 520px;
+  height: 520px;
+  z-index: -1;
+  opacity: 0.05;
+  pointer-events: none;
+  user-select: none;
+}
+:root[data-theme='dark'] .heroWatermark { opacity: 0.06; }
+
+/* Logo protagonista tipo portada — arriba del eyebrow, no en el header
+   (ese sigue siendo la navegación de 28px de vuelta a /acerca-de). El halo
+   circular usa los mismos tokens que ya usa `.callout` (fondo) y
+   `.diagramFrame` (sombra) en esta misma página, para no inventar valores
+   nuevos. */
+.heroLogoBadge {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 88px;
+  height: 88px;
+  margin-bottom: var(--space-lg);
+  border-radius: var(--radius-pill);
+  background: var(--color-bg-accent-subtle);
+  box-shadow: var(--shadow-card);
+}
+.heroLogoBadge img { display: block; border-radius: var(--radius-sm); }
+
 .heroEyebrow {
   display: inline-flex;
   align-items: center;
@@ -487,6 +542,12 @@
   .metricsStrip { gap: var(--space-lg); }
   .pipeline { flex-direction: column; }
   .pipelineArrow { transform: rotate(90deg); padding: 4px 0; }
+  /* Watermark más chico en móvil — `.hero` mismo la sigue conteniendo
+     (`overflow: hidden`), pero a 520px sobre un viewport de 390px se ve
+     desproporcionada frente al resto del hero. */
+  .heroWatermark { width: 320px; height: 320px; top: -70px; right: -70px; }
+  .heroLogoBadge { width: 72px; height: 72px; }
+  .heroLogoBadge img { width: 44px; height: 44px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

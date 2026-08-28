@@ -195,6 +195,16 @@ export function DocumentacionAcademicaPage() {
       </header>
 
       <div className={styles.hero}>
+        {/* Marca de agua: el logo del header (28px, navegación) no alcanza
+            para que esta página se sienta como la portada de un documento
+            formal — este es un elemento nuevo, decorativo, sin equivalente
+            en el resto del sitio. */}
+        <img src="/logo.png" alt="" aria-hidden="true" className={styles.heroWatermark} />
+
+        <div className={styles.heroLogoBadge}>
+          <img src="/logo.png" alt="" width={56} height={56} />
+        </div>
+
         <span className={styles.heroEyebrow}>Sustentación · Construcción del Software</span>
         <h1>Cómo se construyó Tracklytics</h1>
         <p>
