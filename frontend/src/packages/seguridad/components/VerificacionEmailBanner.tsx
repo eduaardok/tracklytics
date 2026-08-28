@@ -61,7 +61,7 @@ export function VerificacionEmailBanner() {
         <strong className={styles.title}>Verifica tu correo</strong>
         <span className={styles.body}>
           Hasta verificar <code className={styles.email}>{perfil.data.email}</code> no
-          podrás comentar, publicar tracks ni contratar un plan de pago.
+          podrás comentar, publicar canciones ni contratar un plan de pago.
         </span>
         {tokenVisible && (
           <span className={styles.simulado}>

@@ -14,7 +14,8 @@ import { PaymentSuccessCelebration } from '@shared/components/PaymentSuccessCele
 // una ruta B2C eager; ver comentario equivalente en router.tsx).
 import { facturacionApi } from '@packages/facturacion/api/facturacion.api'
 import type { MetodoPago } from '@packages/facturacion/types'
-import { FormMetodoPago } from '@packages/facturacion/components/FormMetodoPago'
+import { PaymentMethodModal } from '@packages/facturacion/components/PaymentMethodModal'
+import { authApi } from '@packages/seguridad'
 import { suscripcionesApi } from '../api/suscripciones.api'
 import { PLAN_ACTIVO_QUERY_KEY } from '../hooks/usePlanActivo'
 import { DIAS_TRIAL_PREMIUM, type MotivoCancelacion, type Plan } from '../types'
@@ -120,6 +121,15 @@ export function PlanesPage({ embebido = false }: { embebido?: boolean }) {
   const [pasoEstudiante, setPasoEstudiante] = useState<1 | 2>(1)
   const [comprobanteArchivo, setComprobanteArchivo] = useState<File | null>(null)
 
+  // Emergente de método de pago (S17, feedback directo): antes, sin método
+  // de pago guardado, el único registro posible era un formulario inline al
+  // fondo de la página — ahora se abre automáticamente en cuanto hace falta,
+  // sin pedir permiso primero con un confirm(). `pendingCambio` distingue
+  // "estoy contratando por primera vez" (usa `selectedPlan`, ya en estado)
+  // de "estoy cambiando de plan" (ese flujo no pasa por `selectedPlan`).
+  const [pagoModalOpen, setPagoModalOpen] = useState(false)
+  const [pendingCambio, setPendingCambio] = useState<{ suscripcionId: string; nuevoPlanId: string } | null>(null)
+
   const queryClient = useQueryClient()
   const toast = useToast()
   const confirm = useConfirm()
@@ -146,6 +156,33 @@ export function PlanesPage({ embebido = false }: { embebido?: boolean }) {
     enabled:  !esAdmin,
   })
   const metodos: MetodoPago[] = metodosQuery.data?.data ?? []
+
+  // Estado de la verificación estudiantil (S17, feedback directo: "no veo
+  // el flujo para validar la cuenta estudiantil") — el wizard de correo +
+  // comprobante ya existía (más abajo, dentro del formulario de
+  // confirmación), pero una vez enviado no había ningún lugar donde ver si
+  // ya se revisó. GET /suscripciones/estudiante/mi-solicitud existe en el
+  // backend desde P2/S16 y solo se consumía en el panel de un admin.
+  const solicitudEstudianteQuery = useQuery({
+    queryKey: ['suscripciones', 'mi-solicitud-estudiante'],
+    queryFn:  () => suscripcionesApi.miSolicitudEstudiante(),
+    enabled:  !esAdmin,
+  })
+  const solicitudEstudiante = solicitudEstudianteQuery.data?.data ?? null
+
+  // Verificación de correo (S17, feedback directo: "el banner dice que no
+  // deja contratar un plan de pago, pero sí deja"): el backend ya bloquea
+  // `PUT /suscripciones/confirmar` para planes de pago sin correo verificado
+  // (`require_email_verificado`, solo precio > 0 — el plan free nunca se
+  // frena), pero antes el frontend dejaba avanzar todo el flujo (elegir plan,
+  // registrar método de pago) para recién fallar al final. Mismo query key
+  // que `VerificacionEmailBanner` — comparte caché, sin roundtrip extra.
+  const perfilQuery = useQuery({
+    queryKey: ['seguridad', 'mi-perfil'],
+    queryFn:  () => authApi.miPerfil(),
+    enabled:  !esAdmin,
+  })
+  const emailNoVerificado = !esAdmin && perfilQuery.data != null && !perfilQuery.data.email_verificado
 
   const confirmar = useMutation({
     mutationFn: (body: { plan_id: string; metodo_pago_id: string | null; email_institucional?: string | null }) =>
@@ -219,18 +256,19 @@ export function PlanesPage({ embebido = false }: { embebido?: boolean }) {
   })
 
   async function handleCambiarPlan(nuevoPlan: Plan, activaActual: NonNullable<typeof activa>) {
+    if (nuevoPlan.precio > 0 && emailNoVerificado) {
+      toast.error('Verifica tu correo antes de cambiar a un plan de pago.')
+      return
+    }
     const ajusteEstimado = estimarAjuste(activaActual, nuevoPlan.precio)
     const metodoPagoId = activaActual.metodo_pago_id || metodos[0]?.metodo_pago_id || null
-    // Aviso de método de pago ANTES de iniciar el flujo de cobro (S16 —
-    // antes este chequeo vivía después del modal de confirmación del ajuste,
-    // como un toast al que ya no se podía reaccionar: el usuario ya había
-    // "aceptado" cobrar un ajuste que después no se podía procesar).
+    // Sin método de pago para el ajuste (S16, endurecido S17): antes mandaba
+    // a una pestaña aparte (Facturación) a registrar la tarjeta y volver —
+    // ahora abre el mismo emergente in-situ; al registrar, el cambio de plan
+    // continúa solo (`onRegistrado` del modal, más abajo).
     if (ajusteEstimado > 0 && !metodoPagoId) {
-      const irAFacturacion = await confirm(
-        'Necesitas un método de pago registrado para este upgrade. ¿Ir a Facturación para agregarlo?',
-        { title: 'Sin método de pago', confirmLabel: 'Ir a Facturación' },
-      )
-      if (irAFacturacion) navigate('/suscripciones?tab=facturacion')
+      setPendingCambio({ suscripcionId: activaActual.id, nuevoPlanId: nuevoPlan.id })
+      setPagoModalOpen(true)
       return
     }
     const mensaje = ajusteEstimado > 0
@@ -243,19 +281,27 @@ export function PlanesPage({ embebido = false }: { embebido?: boolean }) {
     cambiarPlan.mutate({ suscripcionId: activaActual.id, nuevoPlanId: nuevoPlan.id, metodoPagoId })
   }
 
-  // Mismo aviso previo para quien todavía no tiene ninguna suscripción
-  // (primer plan pagado) — antes el formulario de confirmación se abría
-  // directo y el aviso de "sin método de pago" solo aparecía como texto
-  // dentro de ese mismo formulario, ya iniciado el flujo.
-  async function handleSelectClick(plan: Plan) {
-    if (plan.precio > 0 && !metodosQuery.isLoading && metodos.length === 0) {
-      const continuar = await confirm(
-        'Todavía no tienes un método de pago guardado. Vas a poder agregarlo en el siguiente paso, antes de confirmar.',
-        { title: 'Sin método de pago', confirmLabel: 'Continuar', cancelLabel: 'Volver' },
-      )
-      if (!continuar) return
+  // Primer plan pagado sin método de pago guardado (S17, feedback directo):
+  // antes esto pasaba por un confirm() pidiendo permiso para "continuar" a
+  // un formulario inline al fondo de la página. Ahora selecciona el plan y
+  // abre el emergente de pago directo — sin paso intermedio de permiso.
+  function handleSelectClick(plan: Plan) {
+    // Mismo gate que exige el backend al confirmar (`require_email_verificado`,
+    // solo planes de pago) — se corta acá para no dejar avanzar todo el
+    // flujo de pago (elegir método, subir comprobante) para recién fallar al
+    // final con un toast genérico.
+    if (plan.precio > 0 && emailNoVerificado) {
+      toast.error('Verifica tu correo antes de contratar un plan de pago.')
+      return
     }
     handleSelect(plan)
+    // El plan estudiante primero exige completar el mini-wizard de correo +
+    // comprobante (abajo, en el propio formulario) — abrir el emergente de
+    // pago de una vez, antes de eso, sería pedir la tarjeta antes de
+    // verificar que sí califica para el descuento.
+    if (plan.precio > 0 && plan.id !== 'estudiante' && !metodosQuery.isLoading && metodos.length === 0) {
+      setPagoModalOpen(true)
+    }
   }
 
   const planes = planesQuery.data?.data ?? []
@@ -457,7 +503,12 @@ export function PlanesPage({ embebido = false }: { embebido?: boolean }) {
               </select>
             </div>
           )}
-          {activa.estado !== 'cancelada' && (
+          {/* Plan free (S17, feedback directo): no tiene sentido "cancelar"
+              el plan base con el que arranca toda cuenta nueva — no hay nada
+              que cortar ni ningún cobro que detener. El motivo de arriba ya
+              se ocultaba para free; el botón se había quedado mostrándose
+              igual, botón sin acción sensata detrás. */}
+          {activa.estado !== 'cancelada' && activa.tipo_plan !== 'free' && (
             <button
               type="button"
               className={styles.btnDanger}
@@ -506,6 +557,17 @@ export function PlanesPage({ embebido = false }: { embebido?: boolean }) {
                   {!esActual && esPopular && <span className={styles.popularBadge}>Más popular</span>}
                 </div>
                 <p className={styles.planDesc}>{p.descripcion}</p>
+                {/* Estado de verificación estudiantil (S17, feedback directo:
+                    "no veo el flujo para validar la cuenta estudiantil") —
+                    antes de esto, enviar el comprobante no dejaba ningún
+                    rastro visible de si ya se había revisado. */}
+                {p.id === 'estudiante' && solicitudEstudiante && (
+                  <span className={`${styles.solicitudEstadoBadge} ${styles[`solicitudEstadoBadge--${solicitudEstudiante.estado}`]}`}>
+                    {solicitudEstudiante.estado === 'pendiente' && <><GraduationCap size={11} aria-hidden="true" /> Verificación en revisión</>}
+                    {solicitudEstudiante.estado === 'aprobado' && <><Check size={11} aria-hidden="true" /> Verificación aprobada</>}
+                    {solicitudEstudiante.estado === 'rechazado' && <><AlertTriangle size={11} aria-hidden="true" /> Verificación rechazada</>}
+                  </span>
+                )}
                 {p.features && p.features.length > 0 && (
                   <ul className={styles.planFeatures}>
                     {p.features.map((feature) => (
@@ -523,7 +585,7 @@ export function PlanesPage({ embebido = false }: { embebido?: boolean }) {
                   type="button"
                   className={styles.btnPrimary}
                   disabled={esActual || cambiarPlan.isPending}
-                  onClick={() => (activa ? handleCambiarPlan(p, activa) : handleSelect(p))}
+                  onClick={() => (activa ? handleCambiarPlan(p, activa) : handleSelectClick(p))}
                 >
                   {esActual
                     ? 'Ya tienes este plan'
@@ -643,32 +705,33 @@ export function PlanesPage({ embebido = false }: { embebido?: boolean }) {
               {metodosQuery.isLoading ? (
                 <SkeletonLoader count={2} height={12} />
               ) : metodos.length > 0 ? (
-                <div className={styles.paymentMethodsList}>
-                  {metodos.map((m) => (
-                    <label key={m.metodo_pago_id} className={styles.paymentMethodItem}>
-                      <input
-                        type="radio"
-                        name="metodo-elegido"
-                        value={m.metodo_pago_id}
-                        checked={m.metodo_pago_id === metodoElegidoId}
-                        onChange={() => setMetodoElegidoId(m.metodo_pago_id)}
-                      />
-                      <span>{m.tipo} •••• {m.ultimos_4_digitos}</span>
-                    </label>
-                  ))}
-                </div>
-              ) : null}
-
-              <div className={styles.newMethodForm}>
-                <span className={styles.newMethodLabel}>
-                  {metodos.length > 0 ? 'O agregar un método nuevo' : 'No tienes un método de pago registrado — agrega uno para continuar'}
-                </span>
-                {/* F7: mismo formulario (y mismo rigor: Luhn, expiración, CVV,
-                    dirección fiscal) que Facturación — antes acá solo se pedía
-                    tipo + 4 dígitos para el mismo objeto DIM_METODO_PAGO. Al
-                    guardar, el método nuevo queda seleccionado. */}
-                <FormMetodoPago onRegistrado={(metodoPagoId) => setMetodoElegidoId(metodoPagoId)} />
-              </div>
+                <>
+                  <div className={styles.paymentMethodsList}>
+                    {metodos.map((m) => (
+                      <label key={m.metodo_pago_id} className={styles.paymentMethodItem}>
+                        <input
+                          type="radio"
+                          name="metodo-elegido"
+                          value={m.metodo_pago_id}
+                          checked={m.metodo_pago_id === metodoElegidoId}
+                          onChange={() => setMetodoElegidoId(m.metodo_pago_id)}
+                        />
+                        <span>{m.tipo} •••• {m.ultimos_4_digitos}</span>
+                      </label>
+                    ))}
+                  </div>
+                  <button type="button" className={styles.btnGhost} onClick={() => setPagoModalOpen(true)}>
+                    + Agregar un método nuevo
+                  </button>
+                </>
+              ) : (
+                // Emergente automático (S17, feedback directo): ya se abrió
+                // solo al elegir el plan (handleSelectClick) — este botón
+                // queda como reintento si el usuario lo cerró sin completar.
+                <button type="button" className={styles.btnPrimary} onClick={() => setPagoModalOpen(true)}>
+                  Agregar método de pago
+                </button>
+              )}
             </div>
           )}
           <div className={styles.confirmActions}>
@@ -740,6 +803,37 @@ export function PlanesPage({ embebido = false }: { embebido?: boolean }) {
           />
         )
       )}
+
+      {/* Emergente de método de pago (S17): al registrar, continúa el pago
+          solo — sin un segundo clic manual en "Confirmar suscripción". Para
+          el plan estudiante no autocontinúa: falta enviar el comprobante
+          (`handleConfirmar` ya lo exige), así que solo deja el método
+          elegido y el usuario sigue el wizard con su propio botón. */}
+      <PaymentMethodModal
+        isOpen={pagoModalOpen}
+        onClose={() => { setPagoModalOpen(false); setPendingCambio(null) }}
+        subtitle={
+          pendingCambio
+            ? 'Necesitas un método de pago registrado para cambiar de plan.'
+            : 'Necesitas un método de pago registrado para continuar con tu suscripción.'
+        }
+        onRegistrado={(nuevoMetodoId) => {
+          setPagoModalOpen(false)
+          setMetodoElegidoId(nuevoMetodoId)
+          if (pendingCambio) {
+            cambiarPlan.mutate({
+              suscripcionId: pendingCambio.suscripcionId,
+              nuevoPlanId:   pendingCambio.nuevoPlanId,
+              metodoPagoId:  nuevoMetodoId,
+            })
+            setPendingCambio(null)
+            return
+          }
+          if (selectedPlan && selectedPlan.id !== 'estudiante') {
+            confirmar.mutate({ plan_id: selectedPlan.id, metodo_pago_id: nuevoMetodoId, email_institucional: null })
+          }
+        }}
+      />
     </section>
   )
 }

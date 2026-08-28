@@ -227,6 +227,33 @@
   flex: 1;
 }
 
+/* Estado de la solicitud de verificación estudiantil (S17) — mismo patrón
+   de píldora que .currentBadge/.popularBadge, con tono por estado. */
+.solicitudEstadoBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--font-sans);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  border-radius: var(--radius-pill);
+  padding: 3px 9px;
+  margin: 0 0 var(--space-sm);
+  width: fit-content;
+}
+.solicitudEstadoBadge--pendiente {
+  color: oklch(0.55 0.13 70);
+  background: oklch(0.78 0.18 70 / 0.16);
+}
+.solicitudEstadoBadge--aprobado {
+  color: var(--color-success);
+  background: color-mix(in oklch, var(--color-success-fill) 16%, transparent);
+}
+.solicitudEstadoBadge--rechazado {
+  color: var(--color-error);
+  background: color-mix(in oklch, var(--color-error-fill) 14%, transparent);
+}
+
 .planPrecio {
   font-family: var(--font-sans);
   font-size: 0.9375rem;
