@@ -2,7 +2,7 @@ import type { KeyboardEvent, MouseEvent, ReactNode } from 'react'
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Ban, ListMusic, Pause, Play, Repeat, Repeat1, Shuffle, SkipBack, SkipForward, Volume2, VolumeX } from 'lucide-react'
-import { usePlayer, type RepeatMode } from '@shared/context/PlayerContext'
+import { usePlayer, usePlayerProgress, type RepeatMode } from '@shared/context/PlayerContext'
 import { AlbumArt } from './AlbumArt'
 import { TrackName } from './TrackName'
 import { QueuePanel } from './QueuePanel'
@@ -40,12 +40,17 @@ type Props = {
 
 export function PlayerBar({ actions }: Props) {
   const {
-    currentTrack, isPlaying, progressMs, playbackUnavailable, playbackUnavailableReason, togglePlay, seek,
+    currentTrack, isPlaying, playbackUnavailable, playbackUnavailableReason, togglePlay, seek,
     playNext, playPrevious, hasNext, hasPrevious,
     queue, removeFromQueue, moveInQueue, shuffleQueue, volume, setVolume,
     repeatMode, setRepeatMode,
     shuffleMode, setShuffleMode,
   } = usePlayer()
+  // `progressMs` se lee del contexto de progreso separado (ver
+  // PlayerContext): es el único estado que cambia 2 veces/seg durante la
+  // reproducción, y aislarlo evita que las cards del catálogo — que solo
+  // usan `usePlayer()` — se re-rendericen por el ticker.
+  const { progressMs } = usePlayerProgress()
   const navigate = useNavigate()
   const [queueOpen, setQueueOpen] = useState(false)
 

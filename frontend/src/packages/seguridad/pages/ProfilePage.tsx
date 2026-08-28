@@ -11,7 +11,7 @@ import { useConfirm } from '@shared/context/ConfirmContext'
 // bundle principal; ProfilePage es una ruta B2C eager — ver router.tsx).
 import { distribucionApi } from '@packages/distribucion/api/distribucion.api'
 import type { Pais } from '@packages/distribucion/types'
-import { usePlanActivo } from '@packages/suscripciones'
+import { usePlanActivo } from '@packages/suscripciones/hooks/usePlanActivo'
 import { experienciaApi } from '@packages/experiencia/api/experiencia.api'
 // Import directo, no vía el barrel `@packages/social` (arrastraría
 // ModeracionSocialPage con Recharts al bundle principal — ver router.tsx).

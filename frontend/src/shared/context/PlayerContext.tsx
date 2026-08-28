@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { experienciaApi } from '@packages/experiencia/api/experiencia.api'
 import { isAuthenticated } from '@shared/lib/session'
 import { useAuthPrompt } from '@shared/context/AuthPromptContext'
@@ -31,7 +31,11 @@ export type PlayableTrack = {
 type PlayerContextValue = {
   currentTrack:     PlayableTrack | null
   isPlaying:        boolean
-  progressMs:       number
+  // Nota: `progressMs` NO vive acá — es el único estado que cambia 2 veces/
+  // seg durante la reproducción, y exponerlo en este contexto re-renderizaba
+  // a todos los consumidores por el ticker (hallazgo del repaso S17). Se lee
+  // con `usePlayerProgress()` (contexto separado, ver más abajo), que solo
+  // usa PlayerBar.
   // RF-DIS-007 (bloqueo geográfico) es la única razón que queda para
   // deshabilitar el control de reproducción — decisión posterior del usuario
   // (ver comentario grande más abajo): un fallo de YouTube ya NO cae aquí,
@@ -112,6 +116,18 @@ type PlayerContextValue = {
 export type RepeatMode = 'none' | 'all' | 'one'
 
 const PlayerContext = createContext<PlayerContextValue | null>(null)
+
+// Contexto de PROGRESO separado del resto del estado del reproductor — el
+// único campo que cambia varias veces por segundo (`progressMs`, cada
+// `TICK_MS` durante la reproducción). Si viviera en el value del
+// PlayerContext (objeto recreado en cada render del provider), TODOS los
+// consumidores de `usePlayer()` — cada TrackCard/TrackGridCard de un listado
+// de 50 tracks — se re-renderizarían 2 veces/seg mientras suena algo, aunque
+// ninguna de ellas leyera el progreso (stutter real en demo, hallazgo del
+// repaso S17). Solo consume esto quien de verdad necesita el progreso en vivo
+// (PlayerBar); el resto lee `usePlayer()`, cuyo value va memoizado con
+// `useMemo` para que los consumidores no se re-rendericen por el ticker.
+const PlayerProgressContext = createContext<{ progressMs: number } | null>(null)
 
 const TICK_MS = 500
 // Diagnosticado con Playwright contra la API real (docs/decisiones-refactorizacion.md):
@@ -711,20 +727,27 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   // Alias expuesto al consumidor (botón "siguiente" de PlayerBar) — misma
   // función, mismo motivo de ser declaración y no `useCallback` que
   // `advanceQueue`, para no quedar con un `play` obsoleto en el closure.
-  function playNext() {
-    advanceQueue({ manual: true })
-  }
-
-  // Retrocede sobre `historyRef`: saca el último track sonado y lo reproduce
-  // con `skipHistory` para no volver a empujarlo — ver el comentario grande
-  // en `play()` sobre por qué, si no, "siguiente"/"anterior" alternados
-  // quedarían atrapados en un ciclo de 2 tracks.
-  function playPrevious() {
-    const previous = historyRef.current.pop()
-    if (!previous) return
-    setHistoryLength(historyRef.current.length)
-    play(previous, { skipHistory: true, keepSession: true })
-  }
+  // Se exponen AHORA como `useCallback` de identidad ESTABLE a través de un
+  // ref que se refresca tras cada render: son parte del value memoizado del
+  // PlayerContext (ver abajo), y si cambiaran de identidad en cada render el
+  // `useMemo` se invalidaría en cada tick del ticker de progreso.
+  const playNextRef = useRef<() => void>(() => {})
+  const playPreviousRef = useRef<() => void>(() => {})
+  useEffect(() => {
+    playNextRef.current = () => advanceQueue({ manual: true })
+    playPreviousRef.current = () => {
+      // Retrocede sobre `historyRef`: saca el último track sonado y lo
+      // reproduce con `skipHistory` para no volver a empujarlo — ver el
+      // comentario grande en `play()` sobre por qué, si no, "siguiente"/
+      // "anterior" alternados quedarían atrapados en un ciclo de 2 tracks.
+      const previous = historyRef.current.pop()
+      if (!previous) return
+      setHistoryLength(historyRef.current.length)
+      play(previous, { skipHistory: true, keepSession: true })
+    }
+  })
+  const playNext = useCallback(() => { playNextRef.current() }, [])
+  const playPrevious = useCallback(() => { playPreviousRef.current() }, [])
 
   useEffect(() => () => { clearTimer(); destroyYtPlayer(); stopSimulated() }, [clearTimer, destroyYtPlayer, stopSimulated])
 
@@ -791,19 +814,33 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   // deshabilitado justo cuando repeat-all garantiza que SÍ hay siguiente.
   const hasNext = queue.length > 0 || (repeatMode === 'all' && sessionQueueRef.current.length > 0)
 
+  const playerValue = useMemo<PlayerContextValue>(() => ({
+    currentTrack, isPlaying,
+    playbackUnavailable, playbackUnavailableReason: playbackReason,
+    play, playList, togglePlay, seek, stop, reportPlaybackIssue,
+    playNext, playPrevious, hasNext, hasPrevious: historyLength > 0,
+    queue, enqueue, enqueueMany, replaceQueue, removeFromQueue, moveInQueue, shuffleQueue,
+    shuffleMode, setShuffleMode,
+    volume, setVolume, repeatMode, setRepeatMode,
+  }), [
+    currentTrack, isPlaying, playbackUnavailable, playbackReason,
+    play, playList, togglePlay, seek, stop, reportPlaybackIssue,
+    playNext, playPrevious, hasNext, historyLength,
+    queue, enqueue, enqueueMany, replaceQueue, removeFromQueue, moveInQueue, shuffleQueue,
+    shuffleMode, setShuffleMode,
+    volume, setVolume, repeatMode, setRepeatMode,
+  ])
+
   return (
-    <PlayerContext.Provider
-      value={{
-        currentTrack, isPlaying, progressMs,
-        playbackUnavailable, playbackUnavailableReason: playbackReason,
-        play, playList, togglePlay, seek, stop, reportPlaybackIssue,
-        playNext, playPrevious, hasNext, hasPrevious: historyLength > 0,
-        queue, enqueue, enqueueMany, replaceQueue, removeFromQueue, moveInQueue, shuffleQueue,
-        shuffleMode, setShuffleMode,
-        volume, setVolume, repeatMode, setRepeatMode,
-      }}
-    >
-      {children}
+    <PlayerContext.Provider value={playerValue}>
+      {/* El progreso vive en un provider ANIDADO y NO en `playerValue`: es el
+          único estado que cambia 2 veces/seg durante la reproducción, y al
+          estar aislado aquí, los consumidores de `usePlayer()` no se
+          re-renderizan por el ticker — ver comentario de
+          `PlayerProgressContext` arriba. */}
+      <PlayerProgressContext.Provider value={{ progressMs }}>
+        {children}
+      </PlayerProgressContext.Provider>
       {/* Wrapper de audio real — 0x0, nunca visible. React solo posee ESTE
           nodo; el <div> hijo que reemplaza el <iframe> de YT se crea fuera de
           JSX en cada `play()` (ver `ytHostRef` arriba), así React nunca
@@ -817,5 +854,11 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
 export function usePlayer(): PlayerContextValue {
   const ctx = useContext(PlayerContext)
   if (!ctx) throw new Error('usePlayer debe usarse dentro de <PlayerProvider>')
+  return ctx
+}
+
+export function usePlayerProgress(): { progressMs: number } {
+  const ctx = useContext(PlayerProgressContext)
+  if (!ctx) throw new Error('usePlayerProgress debe usarse dentro de <PlayerProvider>')
   return ctx
 }

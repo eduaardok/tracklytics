@@ -3,7 +3,7 @@ import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom'
 import { isAuthenticated } from '@shared/lib/session'
 import { useDocumentTitle } from '@shared/hooks/useDocumentTitle'
 import { apiErrorMessage, fieldErrorsFromApiError } from '@shared/lib/api-client'
-import { resolverDestinoPostAuth } from '@packages/suscripciones'
+import { resolverDestinoPostAuth } from '@packages/suscripciones/api/suscripciones.api'
 // Import directo, no vía el barrel `@packages/distribucion` (arrastraría
 // DistribucionAdminPage —con Recharts— al bundle principal, RegisterPage es
 // una ruta pública eager — ver comentario equivalente en router.tsx).

@@ -23,7 +23,7 @@ import { PlayerBarActions } from '@packages/catalogo'
 // principal — mismo criterio que PlayerBarActions/UserMenu/NotificationBell
 // arriba.
 import { AdBanner } from '@packages/publicidad/components/AdBanner'
-import { usePlanActivo } from '@packages/suscripciones'
+import { usePlanActivo } from '@packages/suscripciones/hooks/usePlanActivo'
 import { PlayerBar } from '@shared/components/PlayerBar'
 import { PageTransition } from '@shared/components/PageTransition'
 import { usePlayer } from '@shared/context/PlayerContext'

@@ -16,7 +16,7 @@ import { ThemeToggle } from '@shared/components/ThemeToggle'
 // (mismo criterio que el resto del gating: reaccionar al estado real, no
 // adivinar) — se usa solo para decidir si se muestra la sección "Predictivo"
 // de la nav, el gating real sigue viviendo en `require_tier` (backend).
-import { usePlanActivo } from '@packages/suscripciones'
+import { usePlanActivo } from '@packages/suscripciones/hooks/usePlanActivo'
 import { getUser } from '@shared/lib/session'
 import { esSuperadmin } from '@shared/lib/roles'
 import { RouteLoadingFallback } from '@shared/components/RouteLoadingFallback'

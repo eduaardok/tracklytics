@@ -26,6 +26,15 @@ const queryClient = new QueryClient({
     queries: {
       staleTime: 60_000,
       retry: 1,
+      // Volver a la pestaña disparaba un micro-burst de refetches en paralelo
+      // de TODOS los queries stale (>60s) del registro (hallazgo de
+      // rendimiento del repaso S17: en la landing son ~6 queries a la vez).
+      // La mayoría de las páginas ya declaran su propio `staleTime` y no
+      // necesitan datos frescos al re-enfocar; react-query en vivo los
+      // refresca igual con la navegación (queries nuevos = fetch de todos
+      // modos). `refetchOnReconnect` se mantiene (default true): ahí la red
+      // SÍ cambió y los datos pueden estar obsoletos.
+      refetchOnWindowFocus: false,
     },
   },
 })
