@@ -333,7 +333,7 @@ def _sembrar_cuenta_sello_demo(client: httpx.Client, superadmin_token: str) -> N
         print("  [sello_demo] cuenta ya vinculada, se omite.")
         return
 
-    sellos = client.get(f"{API_URL}/sellos", headers=h_admin).json().get("data", [])
+    sellos = client.get(f"{API_URL}/distribucion/sellos", headers=h_admin).json().get("data", [])
     if not sellos:
         print("  [sello_demo] no hay sellos en el catálogo todavía, se omite.")
         return
