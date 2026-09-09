@@ -1,4 +1,4 @@
-import { Suspense, useMemo, useState } from 'react'
+import { Suspense, useEffect, useMemo, useState } from 'react'
 import { Outlet, NavLink, useLocation } from 'react-router-dom'
 import {
   LayoutDashboard, Activity, Music, GitCompare, Target, TrendingUp, ListMusic,
@@ -26,6 +26,7 @@ import { SidebarSection } from '@shared/components/SidebarSection'
 import { AreaSwitcher } from '@shared/components/AreaSwitcher'
 import { useExclusiveAccordion } from '@shared/hooks/useExclusiveAccordion'
 import { getSidebarCollapsed, setSidebarCollapsed, getSuperadminArea, setSuperadminArea } from '@shared/lib/ui-prefs'
+import { MobileSidebarOverlay } from '@shared/components/MobileSidebarOverlay'
 import styles from './AnalyticaShell.module.css'
 
 const ACTIVE_CLS    = `${styles.navItem} ${styles.navActive}`
@@ -118,11 +119,37 @@ export function AnalyticaShell() {
   const esEnterprise = tipoPlan === 'enterprise' || superadmin
   const esAdmin = superadmin
   const [superadminArea, setSuperadminAreaState] = useState(getSuperadminArea)
+  const [mobileNavOpen, setMobileNavOpen] = useState(false)
 
   function handleAreaSelect(area: string | null) {
     setSuperadminAreaState(area)
     setSuperadminArea(area)
   }
+
+  // Mismo criterio que MobileNavDrawer en AppShell.tsx: cierra el overlay al
+  // navegar y si la ventana crece más allá del breakpoint (ej. rotar una
+  // tablet), bloquea el scroll del body mientras está abierto, y cierra con
+  // Escape.
+  useEffect(() => { setMobileNavOpen(false) }, [location.pathname])
+
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 769px)')
+    function onChange(e: MediaQueryListEvent) { if (e.matches) setMobileNavOpen(false) }
+    mq.addEventListener('change', onChange)
+    return () => mq.removeEventListener('change', onChange)
+  }, [])
+
+  useEffect(() => {
+    document.body.style.overflow = mobileNavOpen ? 'hidden' : ''
+    return () => { document.body.style.overflow = '' }
+  }, [mobileNavOpen])
+
+  useEffect(() => {
+    if (!mobileNavOpen) return
+    function onKeyDown(e: KeyboardEvent) { if (e.key === 'Escape') setMobileNavOpen(false) }
+    document.addEventListener('keydown', onKeyDown)
+    return () => document.removeEventListener('keydown', onKeyDown)
+  }, [mobileNavOpen])
 
   // Nivel 2: grupos colapsables visibles según el mismo gating que ya tenían
   // sus ítems (esAdmin para Operativo/Táctico/Herramientas). "Estratégico" se
@@ -154,14 +181,19 @@ export function AnalyticaShell() {
     })
   }
 
-  function renderNavItem(item: NavItem) {
+  // `mobile`: el overlay a pantalla completa (MobileSidebarOverlay) siempre
+  // renderiza la variante expandida — el estado `collapsed` (a 64px) es una
+  // preferencia de sidebar sticky de escritorio sin sentido dentro de un
+  // panel a pantalla completa (ver design.md, Risks/Trade-offs).
+  function renderNavItem(item: NavItem, mobile: boolean) {
     const Icon = item.icon
+    const itemCollapsed = collapsed && !mobile
     return (
       <NavLink
         key={item.to}
         to={item.to}
         end={item.end}
-        title={collapsed ? item.label : undefined}
+        title={itemCollapsed ? item.label : undefined}
         className={({ isActive }) => isActive ? ACTIVE_CLS : INACTIVE_CLS}
       >
         <Icon size={16} className={styles.navIcon} aria-hidden="true" />
@@ -170,9 +202,52 @@ export function AnalyticaShell() {
     )
   }
 
+  // Contenido del sidebar compartido entre la variante sticky de escritorio
+  // y el overlay móvil — mismo cálculo de `groups`/`superadminArea` para las
+  // dos superficies, sin una segunda lista que pueda desincronizarse.
+  function renderSidebarGroups(mobile: boolean) {
+    const effectiveCollapsed = collapsed && !mobile
+    return (
+      <div className={styles.navGroups}>
+        {/* Consumo diario, siempre visible sin colapsar (nivel 2, grupo
+            base) — el resto de los grupos son acciones ocasionales. */}
+        {NAV_BASE.map((item) => renderNavItem(item, mobile))}
+
+        {superadmin && !effectiveCollapsed && (
+          <AreaSwitcher
+            areas={['Operativo', 'Táctico', 'Estratégico', 'Herramientas']}
+            selected={superadminArea}
+            onSelect={handleAreaSelect}
+          />
+        )}
+
+        {groups.map((g) => (
+          <SidebarSection
+            key={g.key}
+            label={g.label}
+            open={openGroup === g.key}
+            collapsed={effectiveCollapsed}
+            onToggle={() => toggle(g.key)}
+          >
+            {g.items.map((item) => renderNavItem(item, mobile))}
+          </SidebarSection>
+        ))}
+      </div>
+    )
+  }
+
   return (
     <div className={styles.shell}>
       <header className={styles.brandBar}>
+        <button
+          type="button"
+          className={styles.hamburger}
+          aria-label="Abrir navegación"
+          aria-expanded={mobileNavOpen}
+          onClick={() => setMobileNavOpen(true)}
+        >
+          <span /><span /><span />
+        </button>
         <ZoneSwitcher currentZone="analitica" badge="panel" />
         <ThemeToggle />
         <UserMenu />
@@ -180,31 +255,7 @@ export function AnalyticaShell() {
 
       <div className={styles.body}>
         <nav className={[styles.sidebar, collapsed ? styles.sidebarCollapsed : ''].join(' ').trim()} aria-label="Navegación analítica">
-          <div className={styles.navGroups}>
-            {/* Consumo diario, siempre visible sin colapsar (nivel 2, grupo
-                base) — el resto de los grupos son acciones ocasionales. */}
-            {NAV_BASE.map(renderNavItem)}
-
-            {superadmin && !collapsed && (
-              <AreaSwitcher
-                areas={['Operativo', 'Táctico', 'Estratégico', 'Herramientas']}
-                selected={superadminArea}
-                onSelect={handleAreaSelect}
-              />
-            )}
-
-            {groups.map((g) => (
-              <SidebarSection
-                key={g.key}
-                label={g.label}
-                open={openGroup === g.key}
-                collapsed={collapsed}
-                onToggle={() => toggle(g.key)}
-              >
-                {g.items.map(renderNavItem)}
-              </SidebarSection>
-            ))}
-          </div>
+          {renderSidebarGroups(false)}
 
           <button
             type="button"
@@ -218,6 +269,12 @@ export function AnalyticaShell() {
             <span className={styles.navText}>Colapsar</span>
           </button>
         </nav>
+
+        <MobileSidebarOverlay open={mobileNavOpen} onClose={() => setMobileNavOpen(false)}>
+          <nav className={[styles.sidebar, styles.sidebarMobile].join(' ')} aria-label="Navegación analítica (móvil)">
+            {renderSidebarGroups(true)}
+          </nav>
+        </MobileSidebarOverlay>
 
         <main className={styles.main}>
           <div className={styles.content}>

@@ -1,4 +1,4 @@
-import { Suspense, useMemo, useState } from 'react'
+import { Suspense, useEffect, useMemo, useState } from 'react'
 import { Outlet, NavLink, useLocation } from 'react-router-dom'
 import { getUser } from '@shared/lib/session'
 import {
@@ -20,6 +20,7 @@ import { SidebarSection } from '@shared/components/SidebarSection'
 import { AreaSwitcher } from '@shared/components/AreaSwitcher'
 import { useExclusiveAccordion } from '@shared/hooks/useExclusiveAccordion'
 import { setAdminSectionOpen, getSidebarCollapsed, setSidebarCollapsed, getSuperadminArea, setSuperadminArea } from '@shared/lib/ui-prefs'
+import { MobileSidebarOverlay } from '@shared/components/MobileSidebarOverlay'
 // SOLO metadata de navegación (sin `render`/plantillas/Recharts) — importar
 // `@packages/reportes/config` (el registro completo) desde acá arrastraría
 // Recharts al bundle principal, porque `SeguridadShell` se importa eager en
@@ -256,11 +257,37 @@ export function SeguridadShell() {
   const userRoles = useMemo(() => rolesDeUsuario(user), [user])
   const superadmin = esSuperadmin(user)
   const [superadminArea, setSuperadminAreaState] = useState(getSuperadminArea)
+  const [mobileNavOpen, setMobileNavOpen] = useState(false)
 
   function handleAreaSelect(area: string | null) {
     setSuperadminAreaState(area)
     setSuperadminArea(area)
   }
+
+  // Mismo criterio que MobileNavDrawer en AppShell.tsx: cierra el overlay al
+  // navegar y si la ventana crece más allá del breakpoint (ej. rotar una
+  // tablet), bloquea el scroll del body mientras está abierto, y cierra con
+  // Escape.
+  useEffect(() => { setMobileNavOpen(false) }, [location.pathname])
+
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 769px)')
+    function onChange(e: MediaQueryListEvent) { if (e.matches) setMobileNavOpen(false) }
+    mq.addEventListener('change', onChange)
+    return () => mq.removeEventListener('change', onChange)
+  }, [])
+
+  useEffect(() => {
+    document.body.style.overflow = mobileNavOpen ? 'hidden' : ''
+    return () => { document.body.style.overflow = '' }
+  }, [mobileNavOpen])
+
+  useEffect(() => {
+    if (!mobileNavOpen) return
+    function onKeyDown(e: KeyboardEvent) { if (e.key === 'Escape') setMobileNavOpen(false) }
+    document.addEventListener('keydown', onKeyDown)
+    return () => document.removeEventListener('keydown', onKeyDown)
+  }, [mobileNavOpen])
 
   // Filtra sidebar por rol (Fase 4.1, S14-FINAL) — generaliza el mecanismo
   // que antes solo cubría "Simulación" (`usePuedeVerSimulacion`) a TODOS los
@@ -308,9 +335,65 @@ export function SeguridadShell() {
     })
   }
 
+  // Contenido del sidebar compartido entre la variante sticky de escritorio
+  // y el overlay móvil (MobileSidebarOverlay) — mismo cálculo de
+  // `seccionesVisibles`/`departamentosVisibles`/`superadminArea` para las
+  // dos superficies, sin una segunda lista que pueda desincronizarse.
+  // `mobile`: el overlay siempre renderiza la variante expandida — `collapsed`
+  // (sidebar a 64px) es una preferencia de escritorio sin sentido dentro de
+  // un panel a pantalla completa (ver design.md, Risks/Trade-offs).
+  function renderSidebarGroups(mobile: boolean) {
+    const effectiveCollapsed = collapsed && !mobile
+    return (
+      <div className={styles.navGroups}>
+        {superadmin && !effectiveCollapsed && (
+          <AreaSwitcher
+            areas={SECCIONES.map((s) => s.label)}
+            selected={superadminArea}
+            onSelect={handleAreaSelect}
+          />
+        )}
+        {seccionesVisibles.map((seccion) => (
+          <SidebarSection
+            key={seccion.label}
+            label={seccion.label}
+            icon={seccion.icon}
+            open={openGroup === seccion.label}
+            collapsed={effectiveCollapsed}
+            onToggle={() => toggle(seccion.label)}
+            tall={seccion.label === 'Reportes'}
+            extra={seccion.label === 'Reportes' ? <InformesCompuestosMenu departamentos={departamentosVisibles} /> : undefined}
+          >
+            {seccion.links.map((link) => (
+              <NavLink
+                key={link.to}
+                to={link.to}
+                end={link.end}
+                title={effectiveCollapsed ? link.label : undefined}
+                className={({ isActive }) => isActive ? ACTIVE_CLS : INACTIVE_CLS}
+              >
+                <link.icon size={16} className={styles.navIcon} aria-hidden="true" />
+                <span className={styles.navText}>{link.label}</span>
+              </NavLink>
+            ))}
+          </SidebarSection>
+        ))}
+      </div>
+    )
+  }
+
   return (
     <div className={styles.shell}>
       <header className={styles.brandBar}>
+        <button
+          type="button"
+          className={styles.hamburger}
+          aria-label="Abrir navegación"
+          aria-expanded={mobileNavOpen}
+          onClick={() => setMobileNavOpen(true)}
+        >
+          <span /><span /><span />
+        </button>
         <ZoneSwitcher currentZone="administracion" badge="admin" />
         <ThemeToggle />
         <UserMenu />
@@ -318,40 +401,7 @@ export function SeguridadShell() {
 
       <div className={styles.body}>
         <nav className={[styles.sidebar, collapsed ? styles.sidebarCollapsed : ''].join(' ').trim()} aria-label="Navegación de seguridad">
-          <div className={styles.navGroups}>
-            {superadmin && !collapsed && (
-              <AreaSwitcher
-                areas={SECCIONES.map((s) => s.label)}
-                selected={superadminArea}
-                onSelect={handleAreaSelect}
-              />
-            )}
-            {seccionesVisibles.map((seccion) => (
-              <SidebarSection
-                key={seccion.label}
-                label={seccion.label}
-                icon={seccion.icon}
-                open={openGroup === seccion.label}
-                collapsed={collapsed}
-                onToggle={() => toggle(seccion.label)}
-                tall={seccion.label === 'Reportes'}
-                extra={seccion.label === 'Reportes' ? <InformesCompuestosMenu departamentos={departamentosVisibles} /> : undefined}
-              >
-                {seccion.links.map((link) => (
-                  <NavLink
-                    key={link.to}
-                    to={link.to}
-                    end={link.end}
-                    title={collapsed ? link.label : undefined}
-                    className={({ isActive }) => isActive ? ACTIVE_CLS : INACTIVE_CLS}
-                  >
-                    <link.icon size={16} className={styles.navIcon} aria-hidden="true" />
-                    <span className={styles.navText}>{link.label}</span>
-                  </NavLink>
-                ))}
-              </SidebarSection>
-            ))}
-          </div>
+          {renderSidebarGroups(false)}
 
           {user && !collapsed && (
             <div className={styles.accountFooter}>
@@ -375,6 +425,22 @@ export function SeguridadShell() {
             <span className={styles.navText}>Colapsar</span>
           </button>
         </nav>
+
+        <MobileSidebarOverlay open={mobileNavOpen} onClose={() => setMobileNavOpen(false)}>
+          <nav className={[styles.sidebar, styles.sidebarMobile].join(' ')} aria-label="Navegación de seguridad (móvil)">
+            {renderSidebarGroups(true)}
+
+            {user && (
+              <div className={styles.accountFooter}>
+                <span className={styles.accountAvatar} aria-hidden="true">{user.email[0]?.toUpperCase()}</span>
+                <span className={styles.accountInfo}>
+                  <span className={styles.accountEmail}>{user.email}</span>
+                  <RoleBadge user={user} />
+                </span>
+              </div>
+            )}
+          </nav>
+        </MobileSidebarOverlay>
 
         <main className={styles.main}>
           <div className={styles.content}>

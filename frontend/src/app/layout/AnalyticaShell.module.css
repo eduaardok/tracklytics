@@ -51,6 +51,17 @@
   --sidebar-w: 64px;
 }
 
+/* Variante dentro de MobileSidebarOverlay: el overlay ya es sticky/full-screen
+   por sí mismo, así que el nav pierde su propio `position: sticky`/altura
+   fija — sin esto quedaría un doble scroll (el del overlay y el del nav
+   sticky de escritorio). */
+.sidebarMobile {
+  position: static;
+  width: 100%;
+  height: auto;
+  border-right: none;
+}
+
 .navGroups {
   flex: 1;
   display: flex;
@@ -160,6 +171,38 @@
   margin: var(--space-sm) var(--space-xs) 0;
 }
 
+/* Trigger del overlay móvil — oculto en desktop, mismo patrón que
+   `.hamburger` en AppShell.module.css. */
+.hamburger {
+  display: none;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  width: 32px;
+  height: 32px;
+  padding: 7px;
+  flex-shrink: 0;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+}
+
+.hamburger span {
+  display: block;
+  width: 100%;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--color-ink);
+}
+
+.hamburger:hover { background-color: var(--color-surface); }
+
+.hamburger:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px oklch(0.48 0.15 290 / 0.5);
+}
+
 /* ── Main content ── */
 .main {
   flex: 1;
@@ -177,8 +220,13 @@
 
 /* ── Responsive: collapse sidebar below md ── */
 @media (max-width: 768px) {
-  .sidebar { display: none; }
-  .main    { padding: var(--space-md); }
+  .sidebar       { display: none; }
+  /* Dentro de MobileSidebarOverlay el nav SÍ debe mostrarse — sin esto la
+     regla `.sidebar { display: none }` de arriba también ocultaría la
+     variante móvil (comparten la clase base `.sidebar`). */
+  .sidebarMobile { display: flex; }
+  .hamburger     { display: flex; }
+  .main          { padding: var(--space-md); }
 }
 
 /* ── Print (ReporteDiarioPage "Descargar PDF") — solo el contenido imprime,

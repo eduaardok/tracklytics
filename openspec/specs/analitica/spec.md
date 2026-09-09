@@ -35,6 +35,7 @@ Esta capability es el corazón del producto B2B: convierte el catálogo musical 
 | Operativo | Lead Data Engineer / CTO | Analítica | CU-O77 Consultar MRR/ARR | Como Lead Data Engineer/CTO, quiero ver el ingreso mensual recurrente actual y su proyección anual, para medir la salud del negocio de suscripción |
 | Operativo | Cliente B2B (tier Enterprise) | Inteligencia de negocio y comparativa | CU-O92 Consultar proyección de tendencia de género | Como Cliente B2B con plan Enterprise, quiero ver una proyección estimada de la tendencia de popularidad de un género, para anticipar hacia dónde se mueve el mercado |
 | Operativo | Cliente B2B (tier Enterprise) | Inteligencia de negocio y comparativa | CU-O93 Consultar proyección de trayectoria de artista vs. género | Como Cliente B2B con plan Enterprise, quiero ver si un artista gana o pierde tracción frente a su género, para decidir dónde enfocar promoción diferencial |
+| Operativo | Cliente B2B / Data Analyst-BI Lead | Inteligencia de negocio y comparativa | CU-O100 Navegar el panel de analítica desde un dispositivo móvil | Como Cliente B2B o Data Analyst/BI Lead, quiero abrir la navegación completa del panel de analítica desde mi celular o tablet, para moverme entre secciones sin depender de conocer cada URL de memoria |
 ## Requirements
 ### Requirement: Dashboard ejecutivo de KPIs
 El sistema SHALL mostrar un dashboard con KPIs agregados del catálogo (total tracks, total artistas, total géneros, popularidad promedio, energy promedio, danceability promedio) en una sola pantalla. Las consultas del dashboard ejecutivo SHALL completarse en menos de 3 segundos en condiciones normales (volumen actual ~700k registros en FACT_TRACKS). El total de tracks y la popularidad promedio SHALL incluir todo el catálogo, incluidos los tracks publicados por artistas (`source_type='user_uploaded'`); energy promedio y danceability promedio SHALL excluir esos tracks, ya que sus atributos de audio son valores por defecto sin análisis real, no mediciones.
@@ -362,6 +363,21 @@ recibir 403, sin excepción para este endpoint.
   `admin_finanzas`) solicita `GET /analitica/bsc/resumen`
 - **THEN** el sistema responde 403 — el Balanced Scorecard es una herramienta de staff interno
   (`require_staff`), no de un área administrativa específica
+
+### Requirement: Navegación del panel de analítica accesible en móvil
+El sistema SHALL ofrecer, en el panel de analítica, un botón de navegación visible únicamente en anchos de pantalla menores a 768px que abre un panel superpuesto a pantalla completa con la misma navegación agrupada (nav base más grupos Operativo/Táctico/Estratégico/Herramientas) que el sidebar de escritorio, respetando exactamente el mismo filtrado por rol y por plan. El panel SHALL cerrarse al pulsar el fondo, al pulsar un botón de cierre, al presionar la tecla Escape, o al navegar a una nueva ruta.
+
+#### Scenario: Abrir la navegación móvil del panel de analítica
+- **WHEN** un Cliente B2B o Data Analyst/BI Lead con acceso autorizado ve el panel de analítica en una pantalla menor a 768px y pulsa el botón de navegación
+- **THEN** el sistema muestra un panel superpuesto a pantalla completa con los mismos grupos de navegación visibles que tendría el sidebar de escritorio para ese mismo usuario
+
+#### Scenario: Cerrar la navegación móvil al elegir una sección
+- **WHEN** el panel de navegación móvil está abierto y el usuario selecciona un enlace de navegación
+- **THEN** el sistema navega a la sección elegida y cierra el panel superpuesto
+
+#### Scenario: Cerrar la navegación móvil sin elegir una sección
+- **WHEN** el panel de navegación móvil está abierto
+- **THEN** el usuario puede cerrarlo pulsando el fondo, el botón de cierre, o la tecla Escape, sin cambiar de sección
 
 ## Entradas
 

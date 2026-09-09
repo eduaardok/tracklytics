@@ -26,6 +26,7 @@ Hasta ahora el flujo de registro/login/logout vivía descrito dentro de la capab
 | Operativo | Lead Data Engineer / CTO | Seguridad e identidad | CU-O17 Gestionar permisos granulares por rol | Como Lead Data Engineer/CTO, quiero administrar qué recursos y acciones puede usar cada rol, para controlar el acceso al sistema con precisión |
 | Operativo | Lead Data Engineer / CTO | Seguridad e identidad | CU-O18 Auditar operaciones sensibles del sistema | Como Lead Data Engineer/CTO, quiero ver un registro de auditoría de cambios sensibles, para rastrear quién hizo qué y cuándo |
 | Operativo | Lead Data Engineer / CTO | Seguridad e identidad | CU-O19 Registrar y consultar errores de sistema | Como Lead Data Engineer/CTO, quiero ver los errores de sistema ocurridos en la API, para diagnosticar y resolver incidentes |
+| Operativo | Roles administrativos de área / Superadmin | Administración | CU-O101 Navegar el panel de administración desde un dispositivo móvil | Como usuario con rol administrativo de área o superadmin, quiero abrir la navegación completa del panel de administración desde mi celular o tablet, para gestionar la plataforma sin depender de un sidebar de escritorio |
 ## Requirements
 ### Requirement: Registro de usuario
 El sistema SHALL permitir registrar un nuevo usuario con correo, contraseña, nombre, país y rol (user/analyst) vía PocketBase, expuesto a través de un endpoint propio de FastAPI (no acceso directo del frontend a PocketBase). El registro exitoso SHALL reflejar la identidad del usuario en `DIM_USUARIO` y sembrar su matriz de permisos por defecto en `FACT_PERMISO_USUARIO` según su rol.
@@ -600,6 +601,21 @@ crudo de PocketBase, que no refleja los roles de área asignados por
 - **WHEN** cualquier usuario autenticado solicita `GET /seguridad/perfil`
 - **THEN** la respuesta incluye la lista de sus roles administrativos vigentes, sin importar
   cuántos tenga (incluida una lista vacía)
+
+### Requirement: Navegación del panel de administración accesible en móvil
+El sistema SHALL ofrecer, en el panel de administración, un botón de navegación visible únicamente en anchos de pantalla menores a 768px que abre un panel superpuesto a pantalla completa con la misma navegación agrupada (las seis secciones temáticas, incluido el submenú anidado de Informes Compuestos y el selector de área para superadmin) que el sidebar de escritorio, respetando exactamente el mismo filtrado por rol administrativo de área. El panel SHALL cerrarse al pulsar el fondo, al pulsar un botón de cierre, al presionar la tecla Escape, o al navegar a una nueva ruta.
+
+#### Scenario: Abrir la navegación móvil del panel de administración
+- **WHEN** un usuario con un rol administrativo de área o superadmin ve el panel de administración en una pantalla menor a 768px y pulsa el botón de navegación
+- **THEN** el sistema muestra un panel superpuesto a pantalla completa con las mismas secciones y enlaces visibles que tendría el sidebar de escritorio para ese mismo usuario
+
+#### Scenario: Cerrar la navegación móvil al elegir una sección
+- **WHEN** el panel de navegación móvil está abierto y el usuario selecciona un enlace de navegación
+- **THEN** el sistema navega a la sección elegida y cierra el panel superpuesto
+
+#### Scenario: Cerrar la navegación móvil sin elegir una sección
+- **WHEN** el panel de navegación móvil está abierto
+- **THEN** el usuario puede cerrarlo pulsando el fondo, el botón de cierre, o la tecla Escape, sin cambiar de sección
 
 ## Entradas
 

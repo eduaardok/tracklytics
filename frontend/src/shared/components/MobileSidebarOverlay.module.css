@@ -1,0 +1,90 @@
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-modal);
+}
+
+.backdrop {
+  position: absolute;
+  inset: 0;
+  background: oklch(0 0 0 / 0.5);
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+
+/* A diferencia de MobileNavDrawer (.panel de min(280px, 80vw) deslizando
+   desde el borde), este panel ocupa prácticamente toda la pantalla: los
+   grupos colapsables de SeguridadShell/AnalyticaShell no caben en un ancho
+   angosto sin un segundo scroll anidado dentro del panel. El margen de
+   `inset` (en vez de `inset: 0` a bordes exactos) dejar una franja de
+   `.backdrop` siempre alcanzable — con `inset: 0` el panel taparía el
+   backdrop por completo y "cerrar tocando fuera" quedaría inalcanzable pese
+   a estar programado (encontrado en verificación real con Playwright). */
+.panel {
+  position: absolute;
+  inset: var(--space-md);
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  background: var(--color-surface-raised);
+  box-shadow: var(--shadow-card-lg);
+  animation: fadeIn var(--duration-deliberate) var(--ease-standard);
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.panelHeader {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 56px;
+  padding: 0 var(--space-lg);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.panelTitle {
+  font-family: var(--font-sans);
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-muted);
+}
+
+.closeBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  background: transparent;
+  border: none;
+  color: var(--color-muted);
+  font-size: 0.9375rem;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  transition:
+    color var(--duration-fast) var(--ease-standard),
+    background-color var(--duration-fast) var(--ease-standard);
+}
+
+.closeBtn:hover { color: var(--color-ink); background-color: var(--color-surface); }
+
+.closeBtn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px oklch(0.48 0.15 290 / 0.5);
+}
+
+.panelBody {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .panel { animation: none; }
+}
